@@ -40,7 +40,8 @@ import {
 } from "./auth-pages.ts";
 import {
   addTwoFactorAuthenticatedIp,
-  assertNoGuestCart,
+  mergeGuestCartWithUserCart,
+  planGuestCart,
   clearDashboardPreference,
   refreshPasskeySetupPrompt,
   rememberedTwoFactor,
@@ -129,10 +130,11 @@ const loginError = (message: string): Redirected => ({
   flash: { warning: message },
 });
 
-// Devise's activatable hook refuses an account whose address is unconfirmed, and confirmation is Devise's to apply.
-export function assertConfirmed(user: UserRecord): void {
-  if (isBlank(user.get("provider")) && !isConfirmed(user) && !isBlank(user.get("email")))
-    throw new HandBackToRails("an unconfirmed account");
+// User::DeviseInternal#active_for_authentication? is always true, so an unconfirmed address signs in. Only the emailed two-factor
+// code confirms it (`user.confirm if two_factor_auth_method == "email" && !user.confirmed? && !user.pending_reconfirmation?`).
+function assertNothingToConfirm(chain: Chain, user: UserRecord): void {
+  if (twoFactorMethod(chain) === "email" && !isConfirmed(user))
+    throw new HandBackToRails("an emailed two-factor code that confirms the address");
 }
 
 async function totpEnabled(userId: bigint): Promise<boolean> {
@@ -177,7 +179,6 @@ async function loginCreate(input: MutationInput): Promise<ActionResult> {
 
   const user = await findUser(found.id);
   if (user === null) throw new HandBackToRails("a user that vanished");
-  assertConfirmed(user);
   const ip = clientIp(input);
 
   const cookies: string[] = [];
@@ -186,11 +187,12 @@ async function loginCreate(input: MutationInput): Promise<ActionResult> {
     ? await rememberedTwoFactor(chain, user, ip)
     : { skip: true, cookies: [] };
   if (remembered.skip) {
-    await assertNoGuestCart(chain);
+    const cartMerge = await planGuestCart(chain, user);
     cookies.push(...remembered.cookies);
     cookies.push(...(await signIn(chain, user, { remember: true, remoteIp: ip })));
     signedIn = true;
     resetTwoFactorSession(chain);
+    await mergeGuestCartWithUserCart(chain, cartMerge);
     await refreshPasskeySetupPrompt(chain, user);
   } else {
     await prepareTwoFactorAuthentication(chain, user, params);
@@ -319,13 +321,14 @@ async function verifyAuthTokenAndRedirect(input: MutationInput, user: UserRecord
   }
 
   // sign_in_with_two_factor_authentication
-  assertConfirmed(user);
-  await assertNoGuestCart(chain);
+  assertNothingToConfirm(chain, user);
+  const cartMerge = await planGuestCart(chain, user);
   const ip = clientIp(input);
   const cookies = await signIn(chain, user, { remember: false, remoteIp: ip });
   cookies.push(twoFactorAuthCookie(user, chain.now));
   await addTwoFactorAuthenticatedIp(user, ip);
   resetTwoFactorSession(chain);
+  await mergeGuestCartWithUserCart(chain, cartMerge);
   await refreshPasskeySetupPrompt(chain, user);
   return {
     status: 303,

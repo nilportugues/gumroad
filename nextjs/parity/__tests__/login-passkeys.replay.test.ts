@@ -193,7 +193,7 @@ describe.skipIf(!url)("Passkey login", () => {
         const session = sessionOf(SECRET_KEY_BASE, cookie, actual.response);
         const body = (actual.response.json ?? {}) as Record<string, unknown>;
 
-        if (/-post-login-passkey-options-/u.test(name)) {
+        if (/-(?:post-login-passkey-options|issues-assertion-options)-/u.test(name)) {
           // The challenge is 32 random bytes, unpadded base64url, and it is the one kept in the session.
           const challenge = (body.options as { challenge: string }).challenge;
           expect(challenge).toMatch(/^[A-Za-z0-9_-]{43}$/u);

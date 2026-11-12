@@ -22,7 +22,6 @@ import { createUserEvent } from "../page-props/audience/events.ts";
 
 import { type ActionResult, HandBackToRails, type Rendered, type Redirected } from "./application-controller.ts";
 import {
-  assertConfirmed,
   loginPathFor,
   prepareTwoFactorAuthentication,
   requireSignedOut,
@@ -30,7 +29,8 @@ import {
 } from "./auth-mutations.ts";
 import {
   addTwoFactorAuthenticatedIp,
-  assertNoGuestCart,
+  mergeGuestCartWithUserCart,
+  planGuestCart,
   refreshPasskeySetupPrompt,
   rememberedTwoFactor,
   signIn,
@@ -135,7 +135,6 @@ async function existingAccount(
     const { chain, params } = input;
     const user = await findUser(holder.id);
     if (user === null) throw new HandBackToRails("a user that vanished");
-    assertConfirmed(user);
     const ip = clientIp(input);
     const cookies: string[] = [];
     let signedIn = false;
@@ -143,10 +142,11 @@ async function existingAccount(
       ? await rememberedTwoFactor(chain, user, ip)
       : { skip: true, cookies: [] as string[] };
     if (remembered.skip) {
-      await assertNoGuestCart(chain);
+      const cartMerge = await planGuestCart(chain, user);
       cookies.push(...remembered.cookies, ...(await signIn(chain, user, { remember: false, remoteIp: ip })));
       signedIn = true;
       resetTwoFactorSession(chain);
+      await mergeGuestCartWithUserCart(chain, cartMerge);
       await refreshPasskeySetupPrompt(chain, user);
     } else {
       await prepareTwoFactorAuthentication(chain, user, params);

@@ -2,8 +2,8 @@
 // challenge in the session; POST /login/passkey consumes it, verifies the assertion (services/webauthn-assertion.ts), records the
 // counter, signs the user in with a remember cookie and answers where to go.
 //
-// Handed to Rails whole, before any write: a signed-in visitor, a visitor whose browser has a guest cart to merge, an unconfirmed
-// account, a passkey that is not ES256, authenticator data with attested credential or extension data, client data that is not a
+// Handed to Rails whole, before any write: a signed-in visitor whose session the skipped filters would end, a guest cart the merge
+// cannot prove (services/merge-carts-service.ts), authenticator data with attested credential or extension data, client data that is not a
 // JSON object with a text challenge, a signature OpenSSL would raise on, and a user handle that is neither text nor falsy.
 import { createHash, randomBytes } from "node:crypto";
 
@@ -12,9 +12,9 @@ import { findUser } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { decodeBase64Url, verifyAssertion } from "../services/webauthn-assertion.ts";
 
-import { type ActionResult, HandBackToRails } from "./application-controller.ts";
-import { assertConfirmed, loginPathFor, requireSignedOut, resetTwoFactorSession } from "./auth-mutations.ts";
-import { assertNoGuestCart, refreshPasskeySetupPrompt, signIn } from "./auth-session.ts";
+import { type ActionOptions, type ActionResult, type Chain, HandBackToRails } from "./application-controller.ts";
+import { loginPathFor, resetTwoFactorSession } from "./auth-mutations.ts";
+import { mergeGuestCartWithUserCart, planGuestCart, refreshPasskeySetupPrompt, signIn } from "./auth-session.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
 import { isPresent } from "./rails-request.ts";
@@ -36,6 +36,16 @@ const allowedOrigins = (): string[] => {
   const { protocol, domain, rootDomain, validRequestHosts } = config();
   return [...new Set([...validRequestHosts, domain, rootDomain])].map((host) => `${protocol}://${host}`);
 };
+
+// The controller skips check_suspended and invalidate_session_if_necessary, so a visitor the chain would sign out (or whose session it
+// would end) is one Rails answers differently.
+const PASSKEY_OPTIONS: ActionOptions = { skip: ["check_suspended"] };
+
+function assertSessionKept(chain: Chain): void {
+  const { effects, context } = chain.auth;
+  if (effects.signOut || effects.signedOut || context.impersonatedUser)
+    throw new HandBackToRails("a signed-in visitor whose session the skipped filters would have ended");
+}
 
 const sha256Hex = (value: string): string => createHash("sha256").update(value).digest("hex");
 
@@ -64,9 +74,7 @@ function base64urlDecoded(value: unknown): Buffer | null {
 
 function options(input: MutationInput): Promise<ActionResult> {
   return Promise.resolve().then(() => {
-    // The chain of a signed-in visitor (check_suspended, session invalidation) is skipped by this controller in Rails.
-    if (input.chain.auth.context.loggedInUser || input.chain.auth.effects.signedOut)
-      throw new HandBackToRails("a signed-in visitor asking for passkey options");
+    assertSessionKept(input.chain);
     const challenge = randomBytes(CHALLENGE_BYTES).toString("base64url");
     input.chain.session.data[AUTHENTICATION_CHALLENGE_SESSION_KEY] = challenge;
     return jsonResponse({
@@ -124,7 +132,7 @@ function assertionParams(credential: unknown): Assertion | null {
 
 async function create(input: MutationInput): Promise<ActionResult> {
   const { chain } = input;
-  await requireSignedOut(chain);
+  assertSessionKept(chain);
 
   const challenge = chain.session.data[AUTHENTICATION_CHALLENGE_SESSION_KEY];
   Reflect.deleteProperty(chain.session.data, AUTHENTICATION_CHALLENGE_SESSION_KEY);
@@ -153,22 +161,26 @@ async function create(input: MutationInput): Promise<ActionResult> {
   const user = await findUser(stored.user_id);
   if (user === null) throw new HandBackToRails("a passkey whose user is gone");
   if (user.get("deleted_at") != null) return refusal();
-  assertConfirmed(user);
-  await assertNoGuestCart(chain);
+  const cartMerge = await planGuestCart(chain, user);
 
   const ip = requireRemoteIp(input);
   await db.webauthnCredential.update({
     where: { id: stored.id },
     data: { sign_count: BigInt(verdict.signCount), last_used_at: chain.now, updated_at: chain.now },
   });
-  const cookies = await signIn(chain, user, { remember: true, remoteIp: ip });
+  // Devise's sign_in does nothing for the account the browser is already signed in to: no new session, remember cookie or tracked fields.
+  const cookies =
+    chain.auth.context.loggedInUser?.id === user.get("id")
+      ? []
+      : await signIn(chain, user, { remember: true, remoteIp: ip });
   resetTwoFactorSession(chain);
+  await mergeGuestCartWithUserCart(chain, cartMerge);
   await refreshPasskeySetupPrompt(chain, user);
   const location = await loginPathFor(chain, user.get("id"), input.params);
   return { ...jsonResponse({ success: true, redirect_location: location }), cookies };
 }
 
 registerMutations(
-  { method: "POST", pattern: "/login/passkey/options", json: true, run: options },
-  { method: "POST", pattern: "/login/passkey", json: true, run: create },
+  { method: "POST", pattern: "/login/passkey/options", json: true, options: PASSKEY_OPTIONS, run: options },
+  { method: "POST", pattern: "/login/passkey", json: true, options: PASSKEY_OPTIONS, run: create },
 );

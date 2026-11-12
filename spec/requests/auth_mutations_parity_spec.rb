@@ -60,6 +60,35 @@ describe "Authentication mutations", type: :request do
       expect(response).to redirect_to("/library")
     end
 
+    it "merges the guest cart of the browser into the cart the user already has", parity: true do
+      seller = create(:user, created_at: Time.utc(2025, 1, 3))
+      guest_cart = create(:cart, :guest, browser_guid: "login-guid", discount_codes: [{ "code" => "GUEST", "fromUrl" => false }])
+      create(:cart_product, cart: guest_cart, product: create(:product, user: seller, name: "Guest line", created_at: Time.utc(2025, 1, 3)))
+      own_cart = create(:cart, user:, browser_guid: "old-browser")
+      create(:cart_product, cart: own_cart, product: create(:product, user: seller, name: "Own line", created_at: Time.utc(2025, 1, 3)))
+      cookies[:_gumroad_guid] = "login-guid"
+
+      post login_path, params: login_params(user.email, user.password)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(own_cart.reload.alive_cart_products.count).to eq(2)
+      expect(own_cart.discount_codes).to eq([{ "code" => "GUEST", "fromUrl" => false }])
+      expect(own_cart.browser_guid).to eq("login-guid")
+      expect(guest_cart.reload).to be_deleted
+    end
+
+    # User::DeviseInternal#active_for_authentication? is always true: Devise never refuses an unconfirmed address.
+    it "signs in an account whose address is unconfirmed", parity: true do
+      user.update_columns(confirmed_at: nil)
+
+      post login_path, params: login_params(user.email, user.password)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(set_cookies).to include("remember_user_token=")
+      expect(user.reload.sign_in_count).to eq(1)
+      expect(user.confirmed_at).to be_nil
+    end
+
     it "goes to the next path", parity: true do
       post login_path, params: login_params(user.email, user.password).merge(next: "/products")
 
@@ -194,6 +223,18 @@ describe "Authentication mutations", type: :request do
       post "/two-factor", params: { authenticity_token: csrf_token, token: User::DEFAULT_AUTH_TOKEN, user_id: user.encrypted_external_id }
 
       expect(response).to redirect_to("/dashboard")
+    end
+
+    it "gives the guest cart of the browser to the user once the token is accepted", parity: true do
+      seller = create(:user, created_at: Time.utc(2025, 1, 3))
+      guest_cart = create(:cart, :guest, browser_guid: "two-factor-guid")
+      create(:cart_product, cart: guest_cart, product: create(:product, user: seller, name: "Guest line", created_at: Time.utc(2025, 1, 3)))
+      cookies[:_gumroad_guid] = "two-factor-guid"
+      start_two_factor
+      post "/two-factor", params: { authenticity_token: csrf_token, token: User::DEFAULT_AUTH_TOKEN, user_id: user.encrypted_external_id }
+
+      expect(response).to redirect_to("/dashboard")
+      expect(guest_cart.reload.user).to eq(user)
     end
 
     it "verifies a token from the emailed link", parity: true do

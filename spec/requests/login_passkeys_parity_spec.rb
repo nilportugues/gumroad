@@ -357,15 +357,143 @@ describe "Passkey login", type: :request do
       expect_refused
     end
 
-    it "hands a visitor with a guest cart to Rails", parity: true do
-      cart = create(:cart, :guest, browser_guid: "passkey-guid")
-      create(:cart_product, cart:, product: create(:product, user: create(:user), name: "In cart", created_at: Time.utc(2025, 1, 3)))
-      cookies[:_gumroad_guid] = "passkey-guid"
+
+    describe "when the browser is already signed in" do
+      let(:other_user) { create(:user, email: "other-user@example.com", password: "a-long-password-2", created_at: Time.utc(2025, 1, 1), updated_at: Time.utc(2025, 1, 1)) }
+
+      it "issues assertion options to a signed-in visitor", parity: true do
+        log_in(user)
+        token = csrf_token
+
+        post "/login/passkey/options", params: "{}", headers: json_headers(token)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["success"]).to eq(true)
+        expect(response.parsed_body.dig("options", "rpId")).to eq(rp_id)
+      end
+
+      it "signs in again with the passkey of the account it is signed in to", parity: true do
+        log_in(user)
+        token, challenge = request_options
+
+        sign_in_with(assertion(challenge), token)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+        # Devise's sign_in does nothing for the account the browser is already signed in to.
+        expect(set_cookies).not_to include("remember_user_token=")
+        expect(user.reload.sign_in_count).to eq(1)
+        expect(stored_credential.reload.sign_count).to eq(1)
+      end
+
+      it "switches to the account of the passkey", parity: true do
+        log_in(other_user)
+        token, challenge = request_options
+
+        sign_in_with(assertion(challenge), token)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+        expect(set_cookies).to include("remember_user_token=")
+        expect(user.reload.sign_in_count).to eq(1)
+      end
+    end
+
+    # User::DeviseInternal#active_for_authentication? is always true, so Devise's activatable hook never refuses an unconfirmed address.
+    it "signs in an account whose address is unconfirmed", parity: true do
+      user.update_columns(confirmed_at: nil)
       token, challenge = request_options
 
       sign_in_with(assertion(challenge), token)
 
       expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+      expect(set_cookies).to include("remember_user_token=")
+      expect(user.reload.sign_in_count).to eq(1)
+      expect(user.confirmed_at).to be_nil
+    end
+
+    describe "with a guest cart in the browser" do
+      let(:seller) { create(:user, created_at: Time.utc(2025, 1, 3)) }
+      let(:guest_product) { create(:product, user: seller, name: "Guest line", created_at: Time.utc(2025, 1, 3)) }
+      let(:shared_product) { create(:product, user: seller, name: "Shared line", created_at: Time.utc(2025, 1, 3)) }
+      let(:own_product) { create(:product, user: seller, name: "Own line", created_at: Time.utc(2025, 1, 3)) }
+      let!(:guest_cart) do
+        cart = create(:cart, :guest, browser_guid: "passkey-guid", email: "guest-cart@example.com", return_url: "https://example.com/back", reject_ppp_discount: true,
+                                     discount_codes: [{ "code" => "GUEST", "fromUrl" => true }, { "code" => "BOTH", "fromUrl" => false }])
+        create(:cart_product, cart:, product: guest_product, referrer: "https://example.com/ref", url_parameters: { "utm_source" => "newsletter" })
+        create(:cart_product, cart:, product: shared_product)
+        cart
+      end
+
+      # The cart statements that write, in the order Rails sent them; the replay compares the rows they leave.
+      def cart_write_statements
+        statements = []
+        subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+          statements << payload[:sql][/\A(INSERT INTO|UPDATE) `\w+`/] if payload[:sql].start_with?("INSERT INTO `cart", "UPDATE `cart")
+        end
+        yield
+        statements
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      before { cookies[:_gumroad_guid] = "passkey-guid" }
+
+      it "gives the guest cart to a user who has none", parity: true do
+        token, challenge = request_options
+
+        statements = cart_write_statements { sign_in_with(assertion(challenge), token) }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+        expect(statements).to eq(["UPDATE `carts`"])
+        expect(guest_cart.reload.user).to eq(user)
+        expect(guest_cart.email).to eq("guest-cart@example.com")
+        expect(guest_cart).to be_alive
+      end
+
+      it "merges the guest cart into the cart the user already has and deletes the guest cart", parity: true do
+        own_cart = create(:cart, user:, browser_guid: "old-browser", discount_codes: [{ "code" => "BOTH", "fromUrl" => false }, { "code" => "OWN", "fromUrl" => false }])
+        create(:cart_product, cart: own_cart, product: own_product)
+        create(:cart_product, cart: own_cart, product: shared_product, quantity: 3)
+        token, challenge = request_options
+
+        statements = cart_write_statements { sign_in_with(assertion(challenge), token) }
+
+        expect(response).to have_http_status(:ok)
+        expect(statements.first).to eq("INSERT INTO `cart_products`")
+        expect(statements.last).to eq("UPDATE `carts`")
+        own_cart.reload
+        expect(own_cart.alive_cart_products.map(&:product_id)).to match_array([own_product.id, shared_product.id, guest_product.id])
+        expect(own_cart.alive_cart_products.find_by(product_id: shared_product.id).quantity).to eq(3)
+        expect(own_cart.discount_codes.map { _1["code"] }).to eq(%w[BOTH OWN GUEST])
+        expect(own_cart).to have_attributes(return_url: "https://example.com/back", reject_ppp_discount: true, browser_guid: "passkey-guid", email: "guest-cart@example.com")
+        expect(guest_cart.reload).to be_deleted
+      end
+
+      it "merges into an empty cart of the user and keeps its return url", parity: true do
+        own_cart = create(:cart, user:, browser_guid: "old-browser", return_url: "https://example.com/own")
+        token, challenge = request_options
+
+        sign_in_with(assertion(challenge), token)
+
+        expect(response).to have_http_status(:ok)
+        expect(own_cart.reload.alive_cart_products.count).to eq(2)
+        expect(own_cart.return_url).to eq("https://example.com/own")
+        expect(guest_cart.reload).to be_deleted
+      end
+
+      it "hands a browser with two guest carts to Rails", parity: true do
+        second = build(:cart, :guest, browser_guid: "passkey-guid")
+        second.save!(validate: false)
+        create(:cart_product, cart: second, product: own_product)
+        token, challenge = request_options
+
+        sign_in_with(assertion(challenge), token)
+
+        expect(response).to have_http_status(:ok)
+      end
     end
   end
 end

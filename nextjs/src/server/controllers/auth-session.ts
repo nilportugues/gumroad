@@ -21,6 +21,7 @@ import { advance } from "../models/concerns/ruby-time.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { Users, type UserRecord } from "../models/user.ts";
 import { passkeysSetupPending } from "../page-props/signed-in/reads.ts";
+import { type GuestCartMerge, mergeGuestCart, planGuestCartMerge } from "../services/merge-carts-service.ts";
 import { allDomain, type Chain, HandBackToRails } from "./application-controller.ts";
 import { deleteCookieHeader, deletesCookie } from "./signed-in-filters.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
@@ -100,8 +101,17 @@ export function clearDashboardPreference(chain: Chain): string[] {
   return deletesCookie(chain.request, DASHBOARD_PREFERENCE_COOKIE_NAME) ? [deleteCookieHeader(DASHBOARD_PREFERENCE_COOKIE_NAME, { domain: undefined })] : [];
 }
 
-// `merge_guest_cart_with_user_cart` merges the cart of this browser into the user's: that is MergeCartsService's, so a sign-in with
-// a guest cart that has products goes to Rails, before anything is written.
+// `merge_guest_cart_with_user_cart` merges the cart of this browser into the user's (services/merge-carts-service.ts). The plan reads
+// and hands back what the port cannot merge before the sign-in writes anything; the merge runs after the sign-in, as in Rails.
+export function planGuestCart(chain: Chain, user: UserRecord): Promise<GuestCartMerge | null> {
+  return planGuestCartMerge(chain.request.cookies.get(GUID_COOKIE), { id: user.get("id"), email: user.get("email") ?? null });
+}
+
+export async function mergeGuestCartWithUserCart(chain: Chain, plan: GuestCartMerge | null): Promise<void> {
+  if (plan !== null) await mergeGuestCart(plan, chain.now);
+}
+
+// A guest cart with products goes to Rails when the user is not known yet (the password reset), before anything is written.
 export async function assertNoGuestCart(chain: Chain): Promise<void> {
   const guid = chain.request.cookies.get(GUID_COOKIE);
   if (!guid) return;
