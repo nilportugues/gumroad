@@ -407,7 +407,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ChargeDeclinedReminderWorker": {
     "file": "app/sidekiq/charge_declined_reminder_worker.rb",
@@ -1465,7 +1465,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateVideoPosterWorker": {
     "file": "app/sidekiq/generate_video_poster_worker.rb",
@@ -2488,7 +2488,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReleaseChargebackRatePayoutPausesJob": {
     "file": "app/sidekiq/release_chargeback_rate_payout_pauses_job.rb",
@@ -2655,7 +2655,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryStripeJpAddressResyncsJob": {
     "file": "app/sidekiq/retry_stripe_jp_address_resyncs_job.rb",
@@ -3627,7 +3627,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdatePurchaseHealthcheckThresholdJob": {
     "file": "app/sidekiq/update_purchase_healthcheck_threshold_job.rb",

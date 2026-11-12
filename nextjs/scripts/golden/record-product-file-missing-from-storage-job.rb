@@ -3,7 +3,8 @@
 # Produces nextjs/src/worker/jobs/__fixtures__/record-product-file-missing-from-storage-job.golden.json:
 # RecordProductFileMissingFromStorageJob run by the real app against a scratch database as a Sidekiq job (support/sidekiq_executor.rb).
 # The two storage lookups (the Unicode-variant check and the object's `exists?`) are replaced by answers the case sets, and each call is
-# recorded under `s3_calls`, so nothing reaches S3. A file that gets past the row checks always reaches them: Node hands those back.
+# recorded under `s3_calls`, so nothing reaches S3. A file that gets past the row checks always reaches them. Node answers an ASCII key
+# (which has no Unicode variants) with one HEAD of its own and writes the marker; any other key hands back after the read.
 # Run it like refresh-custom-domain-routability-worker.rb (env as in publish-scheduled-post.rb).
 require_relative "support/rails_cases"
 include RailsCases
@@ -40,15 +41,15 @@ def ago(seconds) = (NOW - seconds).utc.strftime("%Y-%m-%d %H:%M:%S")
 
 def file_row(id, **overrides) = { id:, link_id: 1, url: "#{S3_BASE_URL}#{KEY}", filetype: "pdf", flags: 0, created_at: ago(GRACE + 1), updated_at: SEEDED_AT }.merge(overrides)
 
-def run(name, args, rows, variant: nil, exists: true)
+def run(name, args, rows, variant: nil, exists: true, now: NOW)
   $s3_calls = []
   $variant = variant
   $exists = exists
-  result = capture(name, now: NOW, tables: TABLES, seed: { product_files: rows }, sidekiq: true, job: "RecordProductFileMissingFromStorageJob", args:) do
+  result = capture(name, now:, tables: TABLES, seed: { product_files: rows }, sidekiq: true, job: "RecordProductFileMissingFromStorageJob", args:) do
     RecordProductFileMissingFromStorageJob.new.perform(*args)
   end
   result.delete("seed")
-  result.merge("s3_calls" => $s3_calls.dup, "s3_base_url" => S3_BASE_URL)
+  result.merge("s3_calls" => $s3_calls.dup, "s3_base_url" => S3_BASE_URL, "at" => now.to_f)
 end
 
 cases = []
@@ -73,6 +74,12 @@ cases << run("a file missing from storage", [1], [file_row(1)], exists: false)
 cases << run("a file id given as a digit string", ["1"], [file_row(1)], exists: false)
 cases << run("a file id given as a float", [1.0], [file_row(1)], exists: false)
 cases << run("a file id given as a word", ["abc"], [file_row(1)], exists: false)
+cases << run("a file with spaces and parentheses in its key", [1], [file_row(1, url: "#{S3_BASE_URL}attachments/abc/original/my file (1).pdf")], exists: false)
+cases << run("a file with an accented key missing from storage", [1], [file_row(1, url: "#{S3_BASE_URL}attachments/abc/original/caf\u00e9.pdf")], exists: false)
+cases << run("a file with an accented key present in storage", [1], [file_row(1, url: "#{S3_BASE_URL}attachments/abc/original/caf\u00e9.pdf")])
+cases << run("a file with an accented key found under another unicode form", [1], [file_row(1, url: "#{S3_BASE_URL}attachments/abc/original/caf\u00e9.pdf")], variant: "other")
+cases << run("a file whose url is the storage prefix alone", [1], [file_row(1, url: S3_BASE_URL)], exists: false)
+cases << run("a file marked missing at a fractional second", [1], [file_row(1)], exists: false, now: NOW + 0.789)
 cases << run("another file that was created a minute ago", [2], [file_row(1), file_row(2, created_at: ago(60))])
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")

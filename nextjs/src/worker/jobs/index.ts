@@ -14,6 +14,7 @@ import {
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
 import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
+import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -42,6 +43,7 @@ import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconn
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
+import { generateUsernameJob } from "./generate-username-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
 import { internalNotificationWorker } from "./internal-notification-worker.ts";
@@ -113,7 +115,9 @@ import {
   reindexSellerOfferCodesRecoveryJob,
   reindexSellerOfferCodesRecoveryJobRetriesExhausted,
 } from "./reindex-seller-offer-codes-job.ts";
+import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
+import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
@@ -164,6 +168,7 @@ import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
 import type { JobHandler } from "./types.ts";
 import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
 import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
+import { updatePurchaseEmailToMatchAccountWorker } from "./update-purchase-email-to-match-account-worker.ts";
 import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
 import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
@@ -324,6 +329,11 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReindexSellerOfferCodesRecoveryJob: reindexSellerOfferCodesRecoveryJob,
   CustomDomainsVerificationWorker: customDomainsVerificationWorker,
   RecordProductFileMissingFromStorageJob: recordProductFileMissingFromStorageJob,
+  UpdatePurchaseEmailToMatchAccountWorker: updatePurchaseEmailToMatchAccountWorker,
+  ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
+  RetryStripeJpAddressResyncForSellerJob: retryStripeJpAddressResyncForSellerJob,
+  GenerateUsernameJob: generateUsernameJob,
+  CancelSubscriptionsForProductWorker: cancelSubscriptionsForProductWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
