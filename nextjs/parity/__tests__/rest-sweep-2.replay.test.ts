@@ -13,6 +13,7 @@ import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
+import { maskGeneratedUids } from "../src/generated-uids";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -300,6 +301,10 @@ describe.skipIf(!url)("rest sweep 2", () => {
         const recorded = fixture.exchanges[index]!;
         recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         const result = await replayFixtureExchange(fixture, index, options(name));
+        maskGeneratedUids(result.exchanges[0]!, {
+          ...options(name).compare,
+          ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
+        });
         assertParity(result);
         const wanted = expectedContactMail(name);
         expect(mailJobs).toHaveLength(wanted === null ? 0 : 1);

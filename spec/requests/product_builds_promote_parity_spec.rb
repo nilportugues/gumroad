@@ -3,8 +3,9 @@
 require "spec_helper"
 
 # POST /products/:product_id/builds/:id/promote, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
-# nextjs/parity/__tests__/rest-sweep-2.replay.test.ts, which sends the last request of each example. Node answers the 404s and the
-# Pundit refusal; promoting a build (ProductBuild#promote!) is `hands a ...`.
+# nextjs/parity/__tests__/rest-sweep-2.replay.test.ts, which sends the last request of each example. Node answers the 404s, the Pundit
+# refusal and the promotion of a build for a product with one set of pages (ProductBuild#promote!, `parity_timeline` records the order of
+# its writes and jobs); a build that is already live is `hands a ...`.
 describe "Promoting a product build", type: :request do
   include Parity::AudienceSignedIn
 
@@ -76,12 +77,37 @@ describe "Promoting a product build", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
-  it "hands the promotion of a build to Rails", parity: true do
+  def embed(file, uid) = { "type" => "fileEmbed", "attrs" => { "id" => file.external_id, "uid" => uid } }
+
+  it "promotes the first build of a product", parity: true, parity_timeline: true do
     log_in(seller)
 
     promote
 
     expect(response).to have_http_status(:no_content)
     expect(build.reload.status).to eq("live")
+    expect(build.product_file.display_name).to eq("Build product build 1.zip")
+  end
+
+  it "supersedes the live build and swaps its file in the pages", parity: true, parity_timeline: true do
+    live = create(:product_build, product:, number: 2, status: "live", promoted_at: Time.utc(2026, 1, 2, 3, 4, 5))
+    live.update!(product_file: create(:product_file, link: product, url: "#{S3_BASE_URL}#{live.storage_key}"))
+    create(:rich_content, entity: product, description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Intro" }] }, embed(live.product_file, "00000000-0000-4000-8000-000000000001")])
+    log_in(seller)
+
+    promote
+
+    expect(response).to have_http_status(:no_content)
+    expect(live.reload.status).to eq("superseded")
+    expect(build.reload.status).to eq("live")
+  end
+
+  it "hands a promotion of the live build to Rails", parity: true do
+    live = create(:product_build, product:, number: 3, status: "live", promoted_at: Time.utc(2026, 1, 2, 3, 4, 5))
+    log_in(seller)
+
+    promote(build_id: live.public_id)
+
+    expect(response).to have_http_status(:no_content)
   end
 end

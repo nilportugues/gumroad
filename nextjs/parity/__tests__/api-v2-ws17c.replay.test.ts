@@ -15,6 +15,7 @@ import { compareExchange } from "../src/compare";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { bulkIndex, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
 import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
+import { maskGeneratedUids } from "../src/generated-uids";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
 import { withoutRailsOnly } from "../src/rails-only";
@@ -179,16 +180,21 @@ async function uploadNamedFiles(exchange: Exchange) {
   const urls: string[] = [];
   try {
     const files = (JSON.parse(exchange.request.body ?? "") as { files?: unknown }).files;
-    if (Array.isArray(files)) for (const file of files as { url?: unknown }[]) if (typeof file?.url === "string") urls.push(file.url);
+    if (Array.isArray(files))
+      for (const file of files as { url?: unknown }[]) if (typeof file?.url === "string") urls.push(file.url);
   } catch {
     // not a JSON body
   }
-  for (const row of exchange.seed?.tables?.product_files?.rows ?? []) if (typeof row.url === "string") urls.push(row.url);
+  for (const row of exchange.seed?.tables?.product_files?.rows ?? [])
+    if (typeof row.url === "string") urls.push(row.url);
   const s3 = new S3Client({
     region: "us-east-1",
     endpoint: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
     forcePathStyle: true,
-    credentials: { accessKeyId: testEnv("AWS_ACCESS_KEY_ID") ?? "", secretAccessKey: testEnv("AWS_SECRET_ACCESS_KEY") ?? "" },
+    credentials: {
+      accessKeyId: testEnv("AWS_ACCESS_KEY_ID") ?? "",
+      secretAccessKey: testEnv("AWS_SECRET_ACCESS_KEY") ?? "",
+    },
   });
   for (const url of urls) {
     if (!url.startsWith(`http://localhost:9010/${SPEC_BUCKET}/`)) continue;
@@ -501,6 +507,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           ),
         );
         reconcilePermalink(result.exchanges[0]!, replayOptions().compare);
+        maskGeneratedUids(result.exchanges[0]!, replayOptions().compare);
         assertParity(result);
         if ((expected.response.json as { product?: { files?: unknown } } | undefined)?.product?.files !== undefined) {
           const signed = (result.exchanges[0]!.actual.response.json as { product?: { files?: { url: string }[] } })
