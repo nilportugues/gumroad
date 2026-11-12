@@ -1966,7 +1966,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Radar::AddValueListItemJob": {
     "file": "app/sidekiq/radar/add_value_list_item_job.rb",
