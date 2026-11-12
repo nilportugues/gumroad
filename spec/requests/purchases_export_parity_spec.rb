@@ -182,10 +182,64 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:found)
   end
 
-  it "hands an export in the seller's time zone to Rails", parity: true do
-    sell
+  # Pacific midnight of 2026-01-11 is 08:00 UTC and of 2026-01-13 is 08:00 UTC; the sales sit hours away from both.
+  it "keeps the sales between the dates as the seller's own days", parity: true do
+    sell(created_at: Time.utc(2026, 1, 11, 3))
+    sell(created_at: Time.utc(2026, 1, 11, 12))
+    sell(created_at: Time.utc(2026, 1, 13, 4))
+    sell(created_at: Time.utc(2026, 1, 13, 12))
+
+    export({ in_seller_time_zone: "1", start_time: "2026-01-11", end_time: "2026-01-12" })
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.size).to eq(4)
+  end
+
+  it "reads the dates in the seller's time zone from one side only", parity: true do
+    sell(created_at: Time.utc(2026, 1, 11, 3))
+    sell(created_at: Time.utc(2026, 1, 11, 12))
 
     export({ in_seller_time_zone: "1", start_time: "2026-01-11" })
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.size).to eq(3)
+  end
+
+  it "uses the seller's zone offset across daylight saving time", parity: true do
+    seller.update_columns(timezone: "London")
+    sell(created_at: Time.utc(2026, 7, 10, 23, 30))
+    sell(created_at: Time.utc(2026, 7, 11, 12))
+
+    export({ in_seller_time_zone: "1", start_time: "2026-07-11", end_time: "2026-07-11" })
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.size).to eq(4)
+  end
+
+  it "starts the day after a midnight the zone skips", parity: true do
+    seller.update_columns(timezone: "Brasilia")
+    sell(created_at: Time.utc(2018, 11, 4, 2))
+    sell(created_at: Time.utc(2018, 11, 4, 12))
+
+    export({ in_seller_time_zone: "1", start_time: "2018-11-04", end_time: "2018-11-04" })
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.size).to eq(3)
+  end
+
+  it "writes the seller's day boundaries into the query of an asynchronous export", parity: true do
+    export({ in_seller_time_zone: "1", start_time: "2026-01-11", end_time: "2026-01-12", force_async: "1" })
+
+    expect(response).to have_http_status(:see_other)
+    expect(SalesExport.count).to eq(1)
+    expect(SalesExport.last.query.to_s).to include("2026-01-11T00:00:00-08:00", "2026-01-13T00:00:00-08:00")
+  end
+
+  # Rails reads whitespace as blank, so the dates stay UTC days; Node only judges a plain word.
+  it "hands a whitespace-only in_seller_time_zone to Rails", parity: true do
+    sell(created_at: Time.utc(2026, 1, 11, 3))
+
+    export({ in_seller_time_zone: " ", start_time: "2026-01-11" })
 
     expect(response).to have_http_status(:ok)
   end

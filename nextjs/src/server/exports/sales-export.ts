@@ -4,6 +4,7 @@
 import { Prisma } from "@prisma/client";
 
 import type { YamlValue } from "../models/concerns/psych.ts";
+import { ZonedInstant, startOfDayIso8601 } from "../models/concerns/rails-time-zone.ts";
 import { yamlColumn } from "../models/concerns/serialized-columns.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { column, execute, selectRows, table } from "../models/sql.ts";
@@ -22,14 +23,35 @@ export type SalesExportFilters = {
   startDate?: string;
   endDate?: string;
   productIds?: number[];
+  // ActiveSupport::TimeZone name of the seller, set when the dates are the seller's own days (`in_seller_time_zone`).
+  timeZone?: string;
 };
+
+// `Date.parse(day).in_time_zone(zone).beginning_of_day`, serialised as the search service does (`iso8601`, with the zone's offset).
+function startOfLocalDay(zone: string, day: string, offsetDays: number): Date {
+  const [year, month, date] = day.split("-").map(Number);
+  const shifted = new Date(Date.UTC(year!, month! - 1, date! + offsetDays));
+  return new ZonedInstant(
+    startOfDayIso8601(zone, shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate()),
+  );
+}
 
 // The PurchaseSearchService options PurchaseExportService.export builds from its filters.
 export function salesExportSearchOptions(sellerId: bigint | number, filters: SalesExportFilters): Params {
-  const startTime = filters.startDate === undefined ? undefined : new Date(`${filters.startDate}T00:00:00Z`);
+  const zone = filters.timeZone;
+  const startTime =
+    filters.startDate === undefined
+      ? undefined
+      : zone === undefined
+        ? new Date(`${filters.startDate}T00:00:00Z`)
+        : startOfLocalDay(zone, filters.startDate, 0);
   // created_before is exclusive: the next day's midnight keeps the last second of the end date
   const endTime =
-    filters.endDate === undefined ? undefined : new Date(Date.parse(`${filters.endDate}T00:00:00Z`) + DAY_MS);
+    filters.endDate === undefined
+      ? undefined
+      : zone === undefined
+        ? new Date(Date.parse(`${filters.endDate}T00:00:00Z`) + DAY_MS)
+        : startOfLocalDay(zone, filters.endDate, 1);
   return {
     seller: sellerId,
     state: NON_GIFT_SUCCESS_STATES,

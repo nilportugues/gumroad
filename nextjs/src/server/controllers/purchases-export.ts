@@ -2,8 +2,9 @@
 // Exports::PurchaseExportService.export: up to SYNCHRONOUS_EXPORT_THRESHOLD matching sales are returned as a CSV, more (or `force_async`)
 // create a SalesExport and enqueue Exports::Sales::CreateAndEnqueueChunksWorker.
 //
-// Handed to Rails whole, before any write: a signed-out request, the mobile `access_token` form, `in_seller_time_zone`, `variant_ids`, a
-// date that is not YYYY-MM-DD, and a result that holds a sale purchase-export-data.ts does not cover.
+// Handed to Rails whole, before any write: a signed-out request, the mobile `access_token` form, an `in_seller_time_zone` that is not a
+// plain word or a seller whose time zone name ActiveSupport::TimeZone::MAPPING does not hold, `variant_ids`, a date that is not
+// YYYY-MM-DD, and a result that holds a sale purchase-export-data.ts does not cover.
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
@@ -16,6 +17,7 @@ import {
   type SalesExportFilters,
 } from "../exports/sales-export.ts";
 import { indexName } from "../infra/elasticsearch.ts";
+import { isKnownTimeZone } from "../models/concerns/rails-time-zone.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -32,6 +34,7 @@ const SEE_OTHER = 303;
 const SYNCHRONOUS_EXPORT_THRESHOLD = 2_000;
 const CUSTOMERS_PATH = "/customers";
 const EMAIL_NOTICE = "You will receive an email in your inbox with the data you've requested shortly.";
+const PLAIN_WORD = /^[\w-]+$/u;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 // `Date.parse` for the one form the dashboard sends. Anything else (a time, a month name, an impossible day) is Rails' to judge.
@@ -43,6 +46,14 @@ function utcDay(value: unknown, name: string): string | undefined {
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   if (date.toISOString().slice(0, 10) !== value) throw new HandBackToRails(`${name} that is not a real day`);
   return value;
+}
+
+// `params[:in_seller_time_zone].present?`. Only a plain word is judged here; whitespace, Unicode and structures are Rails' to read.
+function presentFlag(value: unknown): boolean {
+  if (value === undefined || value === null || value === "") return false;
+  if (typeof value !== "string" || !PLAIN_WORD.test(value))
+    throw new HandBackToRails("an in_seller_time_zone that is not a plain word");
+  return true;
 }
 
 // `Link.by_external_ids(filters[:product_ids]).ids`: the products that exist, by id.
@@ -88,12 +99,7 @@ async function exportPurchases(input: MutationInput): Promise<ActionResult> {
     return redirect;
   }
 
-  if (
-    params.in_seller_time_zone !== undefined &&
-    params.in_seller_time_zone !== null &&
-    params.in_seller_time_zone !== ""
-  )
-    throw new HandBackToRails("an export in the seller's time zone");
+  const inSellerTimeZone = presentFlag(params.in_seller_time_zone);
   if (
     params.variant_ids !== undefined &&
     params.variant_ids !== null &&
@@ -102,6 +108,13 @@ async function exportPurchases(input: MutationInput): Promise<ActionResult> {
   )
     throw new HandBackToRails("an export filtered by variants");
   const filters: SalesExportFilters = {};
+  if (inSellerTimeZone) {
+    // `ActiveSupport::TimeZone[seller.timezone]` is nil for a name it does not know, which Rails reads as UTC; not proven here.
+    const timezone = seller.timezone;
+    if (!isKnownTimeZone(timezone))
+      throw new HandBackToRails("an export in a seller's time zone that ActiveSupport does not map");
+    filters.timeZone = timezone;
+  }
   const startDate = utcDay(params.start_time, "a start_time");
   const endDate = utcDay(params.end_time, "an end_time");
   if (startDate !== undefined) filters.startDate = startDate;
