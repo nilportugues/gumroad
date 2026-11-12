@@ -195,10 +195,10 @@ async function setMeta(
   meta.set({ property: "og:title", content: row.name });
   meta.set({ property: "og:description", content: description });
   meta.set({ property: "og:url", content: canonicalUrl });
-  // Link#social_share_image: the first cover's URL when it is an Unsplash photo (`preview_image_path?`), else an oEmbed cover's
+  // Link#social_share_image: the first cover's URL when it is an Unsplash photo or an uploaded image (`preview_image_path?`), else an oEmbed cover's
   // thumbnail escaped by Addressable, else nothing (an uploaded video's poster is the only other source, and uploads stay with Rails).
   const main = covers[0];
-  const photo = main?.type === "unsplash";
+  const photo = main?.type === "unsplash" || main?.type === "image";
   const oembed = main?.type === "oembed";
   const shareImage = photo
     ? main.url
@@ -234,6 +234,9 @@ async function setMeta(
   });
   if (present(seller.twitter_handle as string))
     meta.set({ property: "twitter:creator", content: `@${seller.twitter_handle}` });
+  // `display_asset_previews.select { |asset| asset.file.image? }`: only an uploaded image, never an Unsplash photo or an oEmbed cover.
+  for (const cover of covers)
+    if (cover.type === "image") meta.set({ tag_name: "link", rel: "preload", as: "image", href: cover.url });
   // The page imports the calendar after it mounts; only call products show one, so only they preload it.
   if (row.native_type === "call")
     meta.set({

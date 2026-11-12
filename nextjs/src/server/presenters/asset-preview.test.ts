@@ -42,7 +42,13 @@ describe("coverAsJson for an oEmbed cover", () => {
   it("reads sizes with String#to_i and leaves the display size unknown for a width that is not positive", () => {
     const odd = yaml("<IFRAME SRC='https://example.com/p'></IFRAME>", '  width: auto\n  height: "300px"\n');
 
-    expect(cover(odd)).toMatchObject({ url: "https://example.com/p", width: null, height: null, native_width: 0, native_height: 300 });
+    expect(cover(odd)).toMatchObject({
+      url: "https://example.com/p",
+      width: null,
+      height: null,
+      native_width: 0,
+      native_height: 300,
+    });
   });
 
   it("has no player URL when the document has no iframe", () => {
@@ -90,10 +96,12 @@ describe("addressableEscape", () => {
     );
   });
 
-  it.each(["https://example.com/a b.png", "https://example.com/a%20b", "https://example.com/é", "https://example.com/a|b"])(
-    "hands back %s, which Addressable would re-encode",
-    (url) => {
-      expect(() => addressableEscape(url)).toThrow("is not ported");
-    },
-  );
+  it.each([
+    "https://example.com/a b.png",
+    "https://example.com/a%20b",
+    "https://example.com/é",
+    "https://example.com/a|b",
+  ])("hands back %s, which Addressable would re-encode", (url) => {
+    expect(() => addressableEscape(url)).toThrow("is not ported");
+  });
 });

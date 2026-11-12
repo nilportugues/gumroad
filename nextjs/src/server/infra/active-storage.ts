@@ -62,7 +62,7 @@ export function resizeToLimitDigest(
   contentType: string,
   filename: string,
   limit: number,
-  height: number = limit,
+  height: number | null = limit,
 ): string {
   const transformations = new Map<MarshalValue, MarshalValue>([
     [new RubySymbol("format"), defaultVariantFormat(contentType, filename)],

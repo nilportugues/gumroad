@@ -305,6 +305,53 @@ describe "Product page", type: :request do
       expect(response.body).to include("https://images.example.com/book.jpg")
     end
 
+    # Rails.cache keys the cover URLs by attachment id, and the replay's Next.js process keeps its cache across fixtures while the
+    # database restarts at id 1, so each upload example takes a different attachment id.
+    def burn_attachment_ids(count)
+      count.times { |index| create(:asset_preview_jpg, link: create(:product, user: seller, name: "Spare #{index}")) }
+    end
+
+    it "renders a product whose cover is an uploaded image the retina worker has not processed", parity: true do
+      product = create(:product, user: seller, name: "Uploaded cover")
+      create(:asset_preview_jpg, link: product, guid: "pageuploadedcover")
+      ProcessAssetPreviewRetinaWorker.jobs.clear
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("type" => "image", "filetype" => "jpg")
+    end
+
+    it "renders a product whose cover is an uploaded image with a processed retina variant", parity: true do
+      burn_attachment_ids(1)
+      product = create(:product, user: seller, name: "Retina cover")
+      preview = create(:asset_preview_jpg, link: product, guid: "pageretinacover")
+      preview.retina_variant.processed
+      Rails.cache.clear
+      ProcessAssetPreviewRetinaWorker.jobs.clear
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover["url"]).not_to eq(cover["original_url"])
+      expect(ProcessAssetPreviewRetinaWorker.jobs.size).to eq(0)
+    end
+
+    it "renders a product whose cover is an uploaded GIF", parity: true do
+      burn_attachment_ids(2)
+      product = create(:product, user: seller, name: "Animated cover")
+      create(:asset_preview_gif, link: product, guid: "pagegifcover")
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("type" => "image", "filetype" => "gif")
+      expect(cover["url"]).to eq(cover["original_url"])
+    end
+
     it "renders a product whose cover is a YouTube video", parity: true do
       product = create(:product, user: seller, name: "Video cover")
       create(:asset_preview_youtube, link: product, guid: "pageyoutubecover")

@@ -93,7 +93,7 @@ describe "Settings::Profile::ProductsController#show", type: :request do
     expect(response.parsed_body["product"]["main_cover_id"]).to eq("profileyoutube")
   end
 
-  it "hands a product with an uploaded cover to Rails", parity: true do
+  it "renders a product with an uploaded cover", parity: true do
     create(:asset_preview_jpg, link: product)
     log_in(seller)
 

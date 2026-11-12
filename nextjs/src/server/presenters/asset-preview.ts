@@ -1,8 +1,8 @@
 // Port of the oEmbed and Unsplash half of app/models/asset_preview.rb (`as_json`, `url`, `oembed_url`, `oembed_thumbnail_url`,
 // `display_width`, `display_height`). A cover with an upload (blob URL, retina variant, video poster) is not here.
-import { NotPortedError } from "../page-props/not-ported.ts";
 import { psychSafeLoad, type YamlValue } from "../models/concerns/psych.ts";
 import { isPlainHash, isRubyFloat, floatValue } from "../models/concerns/ruby-values.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
 
 const DEFAULT_DISPLAY_WIDTH = 670;
 const SOURCE = "AssetPreview#as_json for an oEmbed cover Node cannot read exactly";
@@ -12,7 +12,7 @@ const handBack = (): never => {
 };
 
 // `String#blank?`: [[:space:]] is Unicode White_Space.
-const BLANK = new RegExp(String.raw`^[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$`, "u");
+const BLANK = /^[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$/u;
 const blank = (value: string): boolean => BLANK.test(value);
 
 // `String#strip` removes ASCII whitespace and, at the end, NUL.
@@ -44,7 +44,11 @@ const IFRAME_ATTRIBUTES = String.raw`((?:[\t-\r ]+[^\t-\r "'<>/=]+(?:[\t-\r ]*=[
 const ATTRIBUTE = /([^\t-\r "'<>/=]+)(?:[\t-\r ]*=[\t-\r ]*(?:"([^"]*)"|'([^']*)'|([^\t-\r "'<>=`]+)))?/gu;
 
 function iframeSrc(html: string): string | null {
-  if (/<(?:!|\?|\/?(?:script|style|textarea|title|xmp|plaintext|noscript|noembed|noframes|template|svg|math|object|embed|frameset|frame|html|head|body))/iu.test(html))
+  if (
+    /<(?:!|\?|\/?(?:script|style|textarea|title|xmp|plaintext|noscript|noembed|noframes|template|svg|math|object|embed|frameset|frame|html|head|body))/iu.test(
+      html,
+    )
+  )
     return handBack();
   const open = /<iframe(?![^\t-\r />])/iu.exec(html);
   if (!open) return null;
@@ -62,7 +66,7 @@ function iframeSrc(html: string): string | null {
 }
 
 function oembedUrl(html: string | null): string | null {
-  if (html === null || /<iframe/iu.test(html) === false) return null;
+  if (html === null || !/<iframe/iu.test(html)) return null;
   const src = iframeSrc(html);
   if (src === null) return null;
   let url = strip(src);
@@ -73,7 +77,7 @@ function oembedUrl(html: string | null): string | null {
   return url;
 }
 
-export type OembedDocument = { html: string | null; info: { [key: string]: YamlValue } };
+export type OembedDocument = { html: string | null; info: Record<string, YamlValue> };
 
 export function loadOembed(text: string | null): OembedDocument | null {
   if (text === null) return null;
@@ -85,9 +89,17 @@ export function loadOembed(text: string | null): OembedDocument | null {
   }
   if (value === null) return null;
   if (!isPlainHash(value)) return handBack();
-  const { html, info } = value as { [key: string]: YamlValue };
+  const { html, info } = value as Record<string, YamlValue>;
   if (!isPlainHash(info) || (html !== undefined && html !== null && typeof html !== "string")) return handBack();
-  return { html: html ?? null, info: info as { [key: string]: YamlValue } };
+  return { html: html ?? null, info: info as Record<string, YamlValue> };
+}
+
+// display_width / display_height: an unusable width means "dimensions unknown".
+export function displaySize(width: number | null, height: number | null) {
+  const displayWidth = width !== null && width > 0 ? Math.min(DEFAULT_DISPLAY_WIDTH, width) : null;
+  const displayHeight =
+    width !== null && width > 0 && height !== null ? Math.trunc(height * (displayWidth! / width)) : null;
+  return { displayWidth, displayHeight };
 }
 
 export type CoverRow = { guid: string | null; oembed: string | null; unsplash_url: string | null };
@@ -115,10 +127,7 @@ export function coverAsJson(row: CoverRow): Record<string, unknown> {
     if (url === null) url = oembedUrl(oembed.html);
   }
 
-  // display_width / display_height: an unusable width means "dimensions unknown".
-  const displayWidth = width !== null && width > 0 ? Math.min(DEFAULT_DISPLAY_WIDTH, width) : null;
-  const displayHeight =
-    width !== null && width > 0 && height !== null ? Math.trunc(height * (displayWidth! / width)) : null;
+  const { displayWidth, displayHeight } = displaySize(width, height);
 
   return {
     url,
