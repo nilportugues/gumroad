@@ -753,6 +753,24 @@ async function loadAvatarAttachment(record: UserRecord): Promise<void> {
   cache.set("avatar_attachment", { foreignKey: record.get("id"), row: row ?? null });
 }
 
+// An avatar assigned to a user that is saved later (`avatar.attach` on a new or changed record): its blob row is already written, and the
+// attachment row, the upload and the analysis job follow the user's save.
+export type PendingAvatar = { contentType: string; save: (record: UserRecord, now: () => Date) => Promise<void> };
+const ALLOWED_AVATAR_EXTENSIONS = ["png", "jpg", "jpeg"];
+
+// validate :avatar_is_valid for a newly attached avatar. The size limit is checked by the caller; the dimension check cannot fail because
+// the blob is not in the bucket yet (ActiveStorage::FileNotFoundError is rescued).
+async function avatarIsValid(record: UserRecord): Promise<void> {
+  await loadAvatarAttachment(record);
+  const pending = record.ivars.pending_avatar as PendingAvatar | undefined;
+  if (pending === undefined) return;
+  if (!ALLOWED_AVATAR_EXTENSIONS.some((extension) => pending.contentType.includes(extension)))
+    record.errors.add(
+      "base",
+      `Please upload a profile picture with one of the following extensions: ${ALLOWED_AVATAR_EXTENSIONS.join(", ")}.`,
+    );
+}
+
 // autosave_associated_records_for_seller_profile (save_has_one_association): only a loaded
 // profile that is new or points at another user is saved, with validation, and a failed save
 // does not roll the user back.
@@ -1026,9 +1044,7 @@ const VALIDATIONS: Callback<User>[] = [
       record.errors.add("base", "Please enter a valid Facebook Pixel ID");
     },
   },
-  // validate :avatar_is_valid only checks a newly attached avatar, and Node attaches no files, but
-  // `avatar.attached?` still loads the attachment.
-  { name: "validate :avatar_is_valid", run: loadAvatarAttachment },
+  { name: "validate :avatar_is_valid", run: avatarIsValid },
   {
     name: "validate :payout_frequency_is_valid",
     run(record) {
@@ -1497,6 +1513,15 @@ const base = defineModel<User>({
   afterSave: [
     // ensure_json_data_fits_column only checks varchar columns; users.json_data is mediumtext.
     { name: "ensure_json_data_fits_column", run: () => undefined },
+    {
+      name: "autosave_associated_records_for_avatar_attachment",
+      async run(record, { now }) {
+        const pending = record.ivars.pending_avatar as PendingAvatar | undefined;
+        if (pending === undefined) return;
+        delete record.ivars.pending_avatar;
+        await pending.save(record, now ?? (() => new Date()));
+      },
+    },
     {
       name: "create_updated_stripe_apple_pay_domain",
       if: (r) => r.savedChangeTo("username"),

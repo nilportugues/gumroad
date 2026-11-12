@@ -139,10 +139,10 @@ export async function planAppleSignIn(data: AppleData, identityUser: UserRecord 
   return { kind: "user", user, uid: data.uid, name: data.name, email, isNew, adopting };
 }
 
-const isBlockedSignup = (error: RecordInvalid) => error.errors.on("base").includes(BLOCKED_SIGNUP_MESSAGE);
+export const isBlockedSignup = (error: RecordInvalid) => error.errors.on("base").includes(BLOCKED_SIGNUP_MESSAGE);
 
 // Devise's `confirm` for a record that is not pending reconfirmation: confirmed_at saved without validation, then User#after_confirmation.
-async function confirm(user: UserRecord, now: () => Date): Promise<void> {
+export async function confirmUser(user: UserRecord, now: () => Date): Promise<void> {
   user.set("confirmed_at", new Date(Math.floor(now().getTime() / 1000) * 1000));
   await Users.save(user, { validate: false, now });
   user.set("reset_password_token", null);
@@ -173,7 +173,7 @@ export async function applyAppleSignIn(
     user.ivars.skip_confirmation_notification = true;
     await Users.saveBang(user, { now });
     // Apple proves only the current address, so a pending change waits for its emailed link.
-    if (!isConfirmed(user) && isBlank(user.get("unconfirmed_email"))) await confirm(user, now);
+    if (!isConfirmed(user) && isBlank(user.get("unconfirmed_email"))) await confirmUser(user, now);
 
     const existing = await selectRows(
       Prisma.sql`SELECT 1 AS one FROM ${table("user_external_authentications")} WHERE ${column("user_external_authentications", "provider")} = ${PROVIDER} AND ${column("user_external_authentications", "uid")} = ${plan.uid} AND ${column("user_external_authentications", "user_id")} = ${user.get("id")} LIMIT 1`,

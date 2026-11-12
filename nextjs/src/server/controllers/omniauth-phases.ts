@@ -492,6 +492,18 @@ async function socialConnect(
   });
 }
 
+// A callback that signs a visitor in (Google) exchanges its code itself. It runs once the checks above passed, with what the middleware took
+// out of the session: the OmniAuth params and the origin the request phase stored.
+export type CodeCallbackContext = { omniauthParams: Record<string, unknown>; origin: unknown; callbackUrl: string };
+type CodeCallback = (input: MutationInput, context: CodeCallbackContext) => Promise<ActionResult>;
+const codeCallbacks = new Map<string, CodeCallback>();
+export const registerCodeCallback = (strategy: string, handler: CodeCallback) =>
+  void codeCallbacks.set(strategy, handler);
+
+// The failure action for a strategy that is no social connect, as a callback that fails after the exchange ends in it.
+export const authFailure = (strategy: string, input: MutationInput, type: string, reason: string | null) =>
+  failure(STRATEGIES[strategy]!, input, type, reason);
+
 function callbackPhase(strategy: Strategy) {
   return async (input: MutationInput): Promise<ActionResult> => {
     assertHtml(input);
@@ -499,6 +511,7 @@ function callbackPhase(strategy: Strategy) {
     const chain = input.chain;
     const saved = { ...chain.session.data };
     const omniauthParams = sessionHash(chain, "omniauth.params");
+    const origin = chain.session.data["omniauth.origin"];
     try {
       if (strategy.social) {
         // The strategy's own check comes before OAuth2's: a disabled connect with a return token fails with that token to return to.
@@ -513,7 +526,15 @@ function callbackPhase(strategy: Strategy) {
       }
       const failed = callbackFailure(strategy, input);
       if (failed === null) {
-        if (!strategy.social) throw new HandBackToRails("a callback with a code to exchange");
+        if (!strategy.social) {
+          const handler = codeCallbacks.get(strategy.name);
+          if (handler === undefined) throw new HandBackToRails("a callback with a code to exchange");
+          return await handler(input, {
+            omniauthParams,
+            origin,
+            callbackUrl: `${fullHost()}${callbackPath(strategy)}`,
+          });
+        }
         return await socialConnect(strategy, input, omniauthParams);
       }
       if (strategy.social) return await socialFailure(strategy, input, failed.type, omniauthParams);
