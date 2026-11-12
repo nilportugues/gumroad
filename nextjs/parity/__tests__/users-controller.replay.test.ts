@@ -36,6 +36,11 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
     "http",
+    // Next.js owns the per-response random values of an Inertia page.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
   ],
 };
 
@@ -96,6 +101,8 @@ describe.skipIf(!url)("UsersController", () => {
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      ...(testEnv("RECAPTCHA_MONEY_SITE_KEY") ? { RECAPTCHA_MONEY_SITE_KEY: testEnv("RECAPTCHA_MONEY_SITE_KEY")! } : {}),
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),

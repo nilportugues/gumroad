@@ -20,7 +20,9 @@ import { queryParam, type RailsRequest } from "../../controllers/rails-request.t
 import type { ActionContext } from "../load-page.ts";
 import type { PageSpec } from "../pages.ts";
 
+import { invoiceFormPage } from "./invoice-form.ts";
 import { libraryProps, purchaseAnalyticsProps, receiptPurchases } from "./library.ts";
+import { purchaseProductPage } from "./purchase-product.ts";
 import { reviewsProps } from "./reviews.ts";
 import { magicLinkProps } from "./subscriptions.ts";
 import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } from "./wishlists.ts";
@@ -133,6 +135,10 @@ export const BUYER_PAGES: Record<string, PageSpec> = {
     options: REVIEWS_OPTIONS,
     props: async (_, action) => reviewsProps(currentSeller(action)),
   },
+  // Purchases::ProductController#show
+  "/purchases/:purchase_id/product": purchaseProductPage,
+  // Purchases::InvoicesController#new
+  "/purchases/:purchase_id/invoice/new": invoiceFormPage,
   // Purchases::InvoicesController#confirm
   "/purchases/:purchase_id/invoice/confirm": {
     component: "Purchases/Invoices/Confirm",

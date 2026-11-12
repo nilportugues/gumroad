@@ -9,7 +9,9 @@
 import { Prisma, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
+import { classifyHost } from "../../../lib/navigation/proxy/hosts.ts";
 import { decrypt, encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
+import { railsLoggedInUser } from "../../auth/resolve.ts";
 import { affiliateCookieForParams } from "../../controllers/affiliate-redirect.ts";
 import {
   type Chain,
@@ -18,6 +20,7 @@ import {
   RoutingError,
 } from "../../controllers/application-controller.ts";
 import { requestCookies } from "../../controllers/rack-cookies.ts";
+import { parseQuery } from "../../controllers/rails-query.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { customStyles, withDefaults } from "../../models/seller-profile-styles.ts";
@@ -32,10 +35,14 @@ import {
   username,
   Users,
 } from "../../models/user.ts";
+import { guidOf, sellerCustomDomainUrl, UNSUPPORTED_PRODUCT_PARAMS, viewerOf } from "../../presenters/product-page.ts";
+import { productProps } from "../../presenters/product-props.ts";
+import { customDomainByHost, findLink } from "../../presenters/product-reads.ts";
 import type { PresenterRequest } from "../../presenters/product.ts";
 import type { Params } from "../../search/ruby-params.ts";
 import { domainConfig } from "../domain.ts";
 import type { MetaTagBuilder } from "../meta-tags.ts";
+import { NotPortedError } from "../not-ported.ts";
 import type { PageSpec } from "../pages.ts";
 import { creatorProfile } from "../settings/profile.ts";
 import { avatarUrl, displayName } from "../signed-in/presenters.ts";
@@ -374,7 +381,108 @@ async function profileProps(seller: User, request: PresenterRequest, visitor: Pa
   };
 }
 
+// SellerProfile#custom_styles
+export async function sellerCustomStyles(seller: User): Promise<string> {
+  return customStyles(withDefaults(profileStyle(await loadSellerProfile(Users.load(seller)))));
+}
+
+const COFFEE_NATIVE_TYPE = "coffee";
+const COFFEE_STATE_KEY = "coffeePageProps";
+const COFFEE_ARCHIVED_FLAG = "archived";
+
+// UsersController#coffee: the receipt notice redirect, the 404 without a visible coffee product, then the product's props with the
+// seller's profile. The props are built here so that anything the port cannot prove hands back before the page renders.
+async function coffeeFilters(chain: Chain): Promise<FilterOutcome> {
+  const seller = await storefrontFilters(chain, { noindex: true });
+  // The props of a signed-in visitor carry their purchase and edit rights, which the port does not build.
+  if (railsLoggedInUser(chain.auth.context) !== null)
+    throw new HandBackToRails("a signed-in visitor on the coffee page");
+  const query = parseQuery(chain.request.queryString);
+  const email = query.purchase_email;
+  if (email !== undefined && typeof email !== "string") throw new HandBackToRails();
+  if (typeof email === "string" && present(email)) {
+    const noindex = chain.headers.get("x-robots-tag");
+    return {
+      halt: {
+        status: 302,
+        location: chain.request.path,
+        flash: { notice: `Your purchase was successful! We sent a receipt to ${email}.` },
+        ...(noindex === null ? {} : { headers: { "x-robots-tag": noindex } }),
+      },
+    };
+  }
+  // `@user.products.visible_and_not_archived.find_by(native_type: "coffee")`
+  const products = await db.link.findMany({
+    where: { user_id: seller.id, deleted_at: null, native_type: COFFEE_NATIVE_TYPE },
+    orderBy: { id: "asc" },
+  });
+  const product = products.find((candidate) => !LinkFlags.isSet(candidate.flags, COFFEE_ARCHIVED_FLAG));
+  if (!product) throw new RoutingError("Not Found");
+  await assertNoShareCard(seller);
+  // product_custom_html_visible?: the landing page of a product with custom HTML replaces this one.
+  const landing = await db.page.findFirst({
+    where: { pageable_type: "Link", pageable_id: product.id, custom_html: { not: null } },
+    select: { custom_html: true },
+  });
+  if (present(landing?.custom_html)) throw new HandBackToRails();
+  for (const name of UNSUPPORTED_PRODUCT_PARAMS) if (name in query) throw new HandBackToRails();
+  // Read by the product page's presenter in ways the coffee page's call does not pin down.
+  for (const name of ["native", "layout", "quantity", "code"]) if (name in query) throw new HandBackToRails();
+
+  const host = { host: chain.request.host, hostWithPort: chain.request.hostWithPort, protocol: chain.request.protocol };
+  // UserCustomDomainRequestService.valid?: any host that is not the Gumroad or Discover domain, nor a product's own domain, which
+  // includes a seller's subdomain.
+  const config = domainConfig(process.env);
+  const custom = await customDomainByHost(chain.request.host);
+  const customProduct = custom?.product_id != null ? await findLink(custom.product_id) : null;
+  const isUserCustomDomain =
+    !classifyHost(chain.request.host, config).gumroad &&
+    chain.request.host !== config.validDiscoverRequestHost &&
+    customProduct === null;
+  const customDomainUrl = sellerCustomDomainUrl(isUserCustomDomain, chain.request.hostWithPort);
+  const viewer = viewerOf(
+    query,
+    null,
+    null,
+    null,
+    null,
+    guidOf(chain.request.headers.get("cookie")),
+    customDomainUrl,
+    host,
+  );
+  try {
+    const props = await productProps(product as never, seller as never, {
+      ...viewer,
+      queryString: chain.request.queryString,
+    });
+    return {
+      state: {
+        [COFFEE_STATE_KEY]: { ...props, creator_profile: await creatorProfile(seller, false) },
+        title: product.name,
+      },
+    };
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
+    throw error;
+  }
+}
+
 export const PROFILE_PAGES: Record<string, PageSpec> = {
+  "seller:/coffee": {
+    component: "Users/Coffee",
+    buyerCurrencyFooter: true,
+    options: { filters: coffeeFilters },
+    props: async (_params, action) => {
+      const built = action.state[COFFEE_STATE_KEY] as Record<string, unknown> | undefined;
+      if (built === undefined) throw new HandBackToRails();
+      const seller = await sellerOfHost(action.url);
+      await setHostMeta(action.meta, seller);
+      await setFaviconMetaTags(action.meta, seller);
+      await setUserPageMeta(action.meta, seller);
+      action.meta.set({ title: action.state.title as string });
+      return built;
+    },
+  },
   "seller:/": {
     component: "Users/Show",
     buyerCurrencyFooter: true,

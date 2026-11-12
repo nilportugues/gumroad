@@ -1,9 +1,9 @@
 // FollowersController#destroy, #confirm, #cancel and #new (app/controllers/followers_controller.rb): a seller removing a subscriber
 // from the subscribers page, the links in the confirmation and unsubscribe emails, and the `/:username/follow` link.
 //
-// #cancel renders an Inertia page after its write for an HTML request, which a mutation cannot do: only the JSON answer and the 404
-// are served here, and an HTML request for a follow that exists goes to Rails whole, before the write. #create and #from_embed_form
-// are throttled by Rack::Attack and stay in Rails.
+// #cancel renders an Inertia page after its write for an HTML request, which a mutation cannot do: only the JSON answer is served here.
+// The HTML answer is the Followers/Cancel page (page-props/audience/follower-cancel.ts), which removes the follow in its filters.
+// #create and #from_embed_form are throttled by Rack::Attack and stay in Rails.
 import { Prisma } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
@@ -107,7 +107,8 @@ async function cancel(input: MutationInput): Promise<ActionResult> {
     if (format === "json") throw new HandBackToRails("an unknown follow requested as JSON");
     throw new RoutingError("Not Found");
   }
-  if (format === "html") throw new HandBackToRails("the cancel page, which renders after the write");
+  // The proxy sends an HTML request to the Followers/Cancel page; one that reaches this handler is not the page's to answer.
+  if (format === "html") throw new HandBackToRails("the cancel page, which the page route serves");
 
   try {
     await withOptOutLockWait(() => markDeletedBang(follower));

@@ -1,6 +1,6 @@
 // Purchases::InvoicesController#confirm_email and the refusals of #create (app/controllers/purchases/invoices_controller.rb): the buyer
 // retyping the purchase's email before the invoice form opens, and the two redirects #create answers before it does any work.
-// #confirm is a native Inertia page; #new answers its refusals here and hands the form back.
+// #confirm and #new are native Inertia pages (page-props/buyer/invoice-form.ts).
 //
 // Handed to Rails whole once the guards pass: a #create that gets past them renders the PDF, uploads it to S3 and may refund VAT.
 // So are the requests this port cannot read as Rails would: an email that is not text, a purchase with no email to compare, and an
@@ -13,7 +13,6 @@ import { column, selectRows, table } from "../models/sql.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult, type Redirected } from "./application-controller.ts";
 import { registerMutations, railsSegment, type MutationInput } from "./mutation.ts";
-import { requestFormat } from "./rails-params.ts";
 import { cgiEscape } from "./rails-query.ts";
 
 const WARNING = "Please enter the purchase's email address to generate the invoice.";
@@ -109,18 +108,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
   throw new HandBackToRails("generating the invoice renders a PDF, uploads it to S3 and may refund VAT");
 }
 
-// #new: set_purchase, the noindex header and require_email_confirmation run ahead of the action, so a refusal carries the header. The
-// form's props (InvoicePresenter: the receipt's amounts, the supplier of the sale's country, the payments of a charge) are Rails'.
-async function newForm(input: MutationInput): Promise<ActionResult> {
-  if (requestFormat(input.request) !== "html") throw new HandBackToRails("a request whose format is not HTML");
-  const purchase = await setPurchase(input);
-  const refused = requireEmailConfirmation(input, purchase);
-  if (refused) return { ...refused, headers: { "x-robots-tag": "noindex" } };
-  throw new HandBackToRails("the invoice form, whose props come from InvoicePresenter");
-}
-
 registerMutations(
-  { method: "GET", pattern: "/purchases/:purchase_id/invoice/new", skipForgeryProtection: true, run: newForm },
   { method: "POST", pattern: "/purchases/:purchase_id/invoice/confirm", run: confirmEmail },
   { method: "POST", pattern: "/purchases/:purchase_id/invoice", run: create },
 );

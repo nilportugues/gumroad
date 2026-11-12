@@ -14,6 +14,7 @@ import { lazy, merge, optional } from "../lazy-props.ts";
 import type { PageSpec } from "../pages.ts";
 
 import { createUserEvent } from "./events.ts";
+import { followersCancelPage } from "./follower-cancel.ts";
 import { followersParams, pagedFollowers, totalCount } from "./followers.ts";
 import { sellerGuard } from "./seller-guard.ts";
 import { rackParam, stringParam } from "./support.ts";
@@ -170,6 +171,7 @@ const workflowEmailsIndex: PageSpec = {
 
 export const AUDIENCE_PAGES: Record<string, PageSpec> = {
   "/followers": followersIndex,
+  "/follow/:id/cancel": followersCancelPage,
   "/workflows": workflowsIndex,
   "/workflows/new": workflowsNew,
   "/workflows/:id/edit": workflowsEdit,

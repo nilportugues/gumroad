@@ -25,7 +25,29 @@ describe "Purchase product page", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands the page of a purchase that exists to Rails", parity: true do
+  it "renders the product as it stood when the purchase was made", parity: true do
+    get "/purchases/#{purchase.external_id}/product"
+
+    expect(response).to be_successful
+    expect(response.body).to include("Purchases/Product/Show")
+    expect(response.headers["X-Robots-Tag"]).to include("noindex")
+  end
+
+  it "hands a product with variants to Rails, which rebuilds the options as of the purchase", parity: true do
+    category = create(:variant_category, link: product, title: "Tier")
+    create(:variant, variant_category: category, name: "Early tier", created_at: Time.utc(2025, 1, 1))
+    create(:variant, variant_category: category, name: "Zebra tier", created_at: Time.current + 1.day)
+
+    get "/purchases/#{purchase.external_id}/product"
+
+    expect(response.body).to include("Early tier")
+    expect(response.body).not_to include("Zebra tier")
+  end
+
+  it "hands a product edited after the purchase to Rails, which rebuilds it from its version", parity: true, versioning: true do
+    purchase
+    product.update!(name: "Renamed after the purchase")
+
     get "/purchases/#{purchase.external_id}/product"
 
     expect(response).to be_successful

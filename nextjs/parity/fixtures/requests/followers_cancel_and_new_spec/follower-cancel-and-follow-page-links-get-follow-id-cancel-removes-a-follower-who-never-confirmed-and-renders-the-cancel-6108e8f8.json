@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/followers_cancel_and_new_spec.rb",
-  "example": "Follower cancel and follow page links GET /follow/:id/cancel hands a cancel page request to Rails",
+  "example": "Follower cancel and follow page links GET /follow/:id/cancel removes a follower who never confirmed and renders the cancel page",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -40,53 +40,6 @@
               }
             ]
           },
-          "audience_members": {
-            "columns": {
-              "id": "bigint",
-              "seller_id": "bigint",
-              "email": "varchar",
-              "details": "json",
-              "created_at": "datetime",
-              "updated_at": "datetime",
-              "customer": "tinyint",
-              "follower": "tinyint",
-              "affiliate": "tinyint",
-              "min_paid_cents": "int",
-              "max_paid_cents": "int",
-              "min_created_at": "datetime",
-              "max_created_at": "datetime",
-              "min_purchase_created_at": "datetime",
-              "max_purchase_created_at": "datetime",
-              "follower_created_at": "datetime",
-              "min_affiliate_created_at": "datetime",
-              "max_affiliate_created_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "seller_id": 1,
-                "email": "page@example.com",
-                "details": "{\"follower\": {\"id\": 1, \"created_at\": \"2025-01-01T12:00:00Z\"}}",
-                "created_at": "<now>",
-                "updated_at": "<now>",
-                "customer": 0,
-                "follower": 1,
-                "affiliate": 0,
-                "min_paid_cents": null,
-                "max_paid_cents": null,
-                "min_created_at": "<now-16295h>",
-                "max_created_at": "<now-16295h>",
-                "min_purchase_created_at": null,
-                "max_purchase_created_at": null,
-                "follower_created_at": "<now-16295h>",
-                "min_affiliate_created_at": null,
-                "max_affiliate_created_at": null
-              }
-            ]
-          },
           "followers": {
             "columns": {
               "id": "int",
@@ -107,13 +60,13 @@
               {
                 "id": 1,
                 "followed_id": 1,
-                "email": "page@example.com",
-                "created_at": "<now-16295h>",
+                "email": "page-unconfirmed@example.com",
+                "created_at": "<now-16325h>",
                 "updated_at": "<now>",
                 "follower_user_id": null,
                 "source": null,
                 "source_product_id": null,
-                "confirmed_at": "<now-16271h>",
+                "confirmed_at": null,
                 "deleted_at": null
               }
             ]
@@ -220,20 +173,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar9e656f02_11@gumroad.com",
-                "encrypted_password": "$2a$04$AoadAHqIWqiM1o9SaoA04.fsdBbYZqWIcmh.VXmJE7XiCUTzT1Pne",
+                "email": "edgar3d2e0fdf_13@gumroad.com",
+                "encrypted_password": "$2a$04$ooSaVzO0/hD.sq2e7UFVdOOooiFIpQSvE/z4mnbsDacUzGQfFsBNG",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "139.103.245.156",
-                "last_sign_in_ip": "112.107.219.123",
+                "current_sign_in_ip": "251.75.59.111",
+                "last_sign_in_ip": "95.14.179.249",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Followed Seller",
-                "payment_address": "edgar616d1591_12@gumroad.com",
+                "payment_address": "edgar751f20b5_14@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -258,8 +211,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "2956705195621",
-                "account_created_ip": "207.166.25.67",
+                "external_id": "4613442675423",
+                "account_created_ip": "151.78.226.229",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -277,7 +230,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "DWLKBSA5T3MXQ464M7RO3QLP6HQXFEWM",
+                "otp_secret_key": "ZGLY26FDHJWKASYGXTIEIDUYXBPO3NZL",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -291,7 +244,6 @@
         },
         "autoIncrement": {
           "affiliates": 2,
-          "audience_members": 2,
           "followers": 2,
           "refund_policies": 2,
           "users": 2
@@ -359,13 +311,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "Rg-Z7t2wVk7u6sVHt0pq_kuP2Y4MVePvkyuK0ekhl6_O3Bm_gfynfCfGLZoMVh6Da4BYPm9dfQqHncMR4Ai_FQ",
+            "value": "mOxKYiwID4pdS6TEeORwRxogDQYjvKoCUBMTQMxmICpL4jkYHxSjLjosBaDh_xWSb1swOqz5dIuw1kpQGv-CgQ",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "zPQyK8PTeDqEUkX78UGCgKg4Bo/76g7BUBVge61qlKuWSQA2yyzfaj1lG6azKIaVyhenl5nePvZFuJIHyM5wDcyNNnVdpY9KqeGIyivBcm6AwnRxQTnSkmyKK9xbpfzmO2KtczWgO/IckiE7mtBtaF3aSmKfIJdX0M/n0GEJ2Kf9PZMkofWyiHF4NHz7TtCNNenfFvfYSZwxSx+q8BE9CLSB9SivMxYGNfqqauuWnSoVMen2yBk+ufFrap7Ioj8VRBdyYWkmNzSP/huN8lYMH/PjSgEoQCinPZoUCs4aMpexRf+ybz61YOCsiRvXZ8SOJ/WFsTwyia6Vy//OdHUI5/H2C0eDZNWVuxYLWrMzq3Q2IZnWgJP7QkFdiOm1dKmkrhOW--xP1EL3/v8Y/Nv0J5--HEQNgAccVZGxXPl0RV/crQ==",
+            "value": "gagyGlxqrlZy+iT/hdzUv1WnJSxs6+QtbbyeGwy4VbfoRP+No8RWlWaizxiF54Nf9N4b40NXvlk9K+bzLfv4F7EKMSdy/z5FyECh2076VBySN8IdXWZDEKLudVmejq1ssWZxafzPjtsOv3eSckYO5osMtRGOqvqKckyg4pFnSYyp/sau9UXBkADsX/uJ0qL3UM+3TQKFZ39vbxLVCEQZxXEOVQ/DRYXlnmHl+5lQ0BLQndD09cCeIOpz/CDgMvtueXMfcc1NCZaWpY3XyIhveAR5kbHI7VfGUtqyqSs337UaWqSjXN7UQVD7HOCJ/cTIX4L53G3oEsaXs7vMl2NX6RIa/f2upMYDTHmEkS/skOtYAHkRP5K241zdFPyPms4etiVL--B5QFEqf3IbK1hGqH--6aCHK6nvgAl40Ciguq74qw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -405,12 +357,12 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "xwZ9p+Dk7NtxmkOKUSjnUCZG1Ox2DdibLi/mhmvcpMo=",
+            "csp_nonce": "njr9rEK7qLe6/H5P1gCfuwFsnRgtlubI8i+PITqhlhk=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "ujqdDXMghKyVbzAXGQR46mpLckd3CCMerh2rCEGiB6oy6R1cL2x1nlxD2MqiGAyXSkTz9xQAvfu6q-LISIsvEA",
+            "authenticity_token": "ZctF--WH77OuohpMJy-VykUuLl0ZUwdEV9BQYkOC0NO2xTaB1ptDF8nFuyi-NPAfMFUTYZYW2c23FQlylRtyeA",
             "flash": null,
             "title": "Local Gumroad",
             "_inertia_meta": [
@@ -429,7 +381,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "1Vc4Q9FwtKk9T2O6vKQBaDYExb3O4ptRMlZscT5PURhdhLgSjTxFm_Rji2cHuHUVFgtEDa3qBbQm4CWxN2Z5og"
+                "content": "xCmR2G19aI8rRAqL5vmJ11IqDwCYHE0GwFGt6h_Xps4XJ-KiXmHEK0wjq-9_4uwCJ1EyPBdZk48glPT6yU4EZQ"
               },
               {
                 "tagName": "meta",
@@ -558,30 +510,6 @@
         }
       },
       "db": {
-        "audience_members": {
-          "deleted": [
-            {
-              "id": 1,
-              "seller_id": 1,
-              "email": "page@example.com",
-              "details": "{\"follower\": {\"id\": 1, \"created_at\": \"2025-01-01T12:00:00Z\"}}",
-              "created_at": "<now>",
-              "updated_at": "<now>",
-              "customer": 0,
-              "follower": 1,
-              "affiliate": 0,
-              "min_paid_cents": null,
-              "max_paid_cents": null,
-              "min_created_at": "<now-16295h>",
-              "max_created_at": "<now-16295h>",
-              "min_purchase_created_at": null,
-              "max_purchase_created_at": null,
-              "follower_created_at": "<now-16295h>",
-              "min_affiliate_created_at": null,
-              "max_affiliate_created_at": null
-            }
-          ]
-        },
         "followers": {
           "updated": [
             {
@@ -589,9 +517,9 @@
                 "id": 1
               },
               "changes": {
-                "confirmed_at": [
-                  "<now-16271h>",
-                  null
+                "updated_at": [
+                  "<now>",
+                  "<now>"
                 ],
                 "deleted_at": [
                   null,
@@ -602,39 +530,7 @@
           ]
         }
       },
-      "jobs": [
-        {
-          "class": "ElasticsearchIndexerWorker",
-          "args": [
-            "index",
-            {
-              "class_name": "ConfirmedFollowerEvent",
-              "id": "22b03ade-6131-4bfe-bf30-cd435bfbc127",
-              "body": {
-                "follower_id": 1,
-                "followed_user_id": 1,
-                "follower_user_id": null,
-                "email": "page@example.com",
-                "name": "removed",
-                "timestamp": "<now>"
-              }
-            }
-          ],
-          "queue": "default"
-        },
-        {
-          "class": "ElasticsearchIndexerWorker",
-          "args": [
-            "delete",
-            {
-              "record_id": 1,
-              "class_name": "AudienceMember"
-            }
-          ],
-          "queue": "default",
-          "at": "<now>"
-        }
-      ],
+      "jobs": [],
       "mails": [],
       "http": []
     }

@@ -1,12 +1,12 @@
 // UsersController (app/controllers/users_controller.rb): the guards, redirects and small reads that need no rendered page.
 //
 // Ported: #edit (redirect to /profile, 404 for another account), #landing_version, the 404 of
-// #landing_iframe_content and #landing_products for a seller whose custom HTML is not live, #coffee's receipt redirect and its 404 without
-// a coffee product, #deactivate's refusal of a non-owner, and the answers of #add_purchase_to_library that need no password or write.
+// #landing_iframe_content and #landing_products for a seller whose custom HTML is not live, #deactivate's refusal of a non-owner, and the answers of #add_purchase_to_library that need no password or write.
 // Handed to Rails before any write:
 //   - #show (`/:username`): a single segment also matches taxonomy pages and Rails-only paths, and the route table has no way to fall
 //     through to the next route when a name is not a profile, so listing it would shadow them. #subscribe_preview renders an Inertia page;
-//   - #landing_iframe_content and #landing_products of a seller whose custom HTML is live, and #coffee with a coffee product (both render);
+//   - #landing_iframe_content and #landing_products of a seller whose custom HTML is live (both render); #coffee is the Users/Coffee page
+//     (page-props/storefront/profile-pages.ts);
 //   - #deactivate by an owner (balance forfeit, sign out, soft delete);
 //   - #add_purchase_to_library once a purchase would move (the logged-in write) or a password is checked (a user owns the email).
 import { Prisma, type User } from "@prisma/client";
@@ -17,7 +17,6 @@ import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
-import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { isAccountActive, Users } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -46,7 +45,6 @@ import { isPresent } from "./rails-request.ts";
 const FOUND = 302;
 const NOT_FOUND = 404;
 const UNAUTHORIZED = 401;
-const COFFEE_NATIVE_TYPE = "coffee";
 const CUSTOM_HTML_FEATURE = "custom_html_pages";
 const CLAIM_ERROR = "This is your customer's purchase, so it can't be moved into your account.";
 
@@ -161,31 +159,6 @@ function landingGate(noindex: boolean) {
   };
 }
 
-// GET /coffee on a seller's host
-async function coffee(input: MutationInput): Promise<ActionResult> {
-  requireHtml(input);
-  const user = await profileUser(input);
-  await setNoindexForUnprovenStorefront(input.chain, user);
-  const email = input.params.purchase_email;
-  if (email !== undefined && email !== null && typeof email !== "string")
-    throw new HandBackToRails("a purchase email that is not text");
-  if (typeof email === "string" && isPresent(email)) {
-    return {
-      status: FOUND,
-      location: input.url.pathname,
-      flash: { notice: `Your purchase was successful! We sent a receipt to ${email}.` },
-      headers: noindexHeaders(input.chain),
-    };
-  }
-  const products = await db.link.findMany({
-    where: { user_id: user.id, deleted_at: null, native_type: COFFEE_NATIVE_TYPE },
-    select: { flags: true },
-  });
-  if (products.some((product) => !LinkFlags.isSet(product.flags, "archived")))
-    throw new HandBackToRails("a seller with a coffee product");
-  throw new RoutingError("Not Found");
-}
-
 // POST /users/deactivate
 async function deactivate(input: MutationInput): Promise<ActionResult> {
   const sellerContext = await loadSellerContext(input.context);
@@ -266,7 +239,6 @@ registerMutations(
   { method: "GET", pattern: "/landing/embed", skipForgeryProtection: true, run: landingGate(true) },
   { method: "GET", pattern: "/:username/landing/products", skipForgeryProtection: true, run: landingGate(false) },
   { method: "GET", pattern: "/landing/products", skipForgeryProtection: true, run: landingGate(false) },
-  { method: "GET", pattern: "/coffee", skipForgeryProtection: true, run: coffee },
   { method: "POST", pattern: "/users/deactivate", formats: ["json"], run: deactivate },
   { method: "POST", pattern: "/add_purchase_to_library", formats: ["any"], run: addPurchaseToLibrary },
 );
