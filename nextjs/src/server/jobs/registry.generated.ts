@@ -1465,7 +1465,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateVideoPosterWorker": {
     "file": "app/sidekiq/generate_video_poster_worker.rb",

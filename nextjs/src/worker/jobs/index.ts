@@ -42,6 +42,7 @@ import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconn
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
+import { generateUsernameJob } from "./generate-username-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
 import { internalNotificationWorker } from "./internal-notification-worker.ts";
@@ -330,6 +331,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdatePurchaseEmailToMatchAccountWorker: updatePurchaseEmailToMatchAccountWorker,
   ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
   RetryStripeJpAddressResyncForSellerJob: retryStripeJpAddressResyncForSellerJob,
+  GenerateUsernameJob: generateUsernameJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
