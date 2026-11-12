@@ -2,7 +2,14 @@
 // Whatever the model port does not prove (see models/link-create.ts) goes to Rails whole, before the first write.
 import { Prisma } from "@prisma/client";
 
-import { createLink, assertCreatable, errorsToHash, parseCreateParams, toSentence } from "../models/link-create.ts";
+import {
+  canCreatePhysicalProducts,
+  createLink,
+  errorsToHash,
+  parseCreateParams,
+  toSentence,
+  type SellerAccount,
+} from "../models/link-create.ts";
 import { LinkInvalid } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
@@ -15,9 +22,13 @@ import type { SellerContext } from "../policies/seller-context.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { railsSegment, registerMutations, type MutationInput } from "./mutation.ts";
+import { requestFormat } from "./signed-in-filters.ts";
 
 const SEE_OTHER = 303;
 const FOUND = 302;
+const FORBIDDEN = 403;
+// `head :forbidden` names the content type of the format asked for.
+const FORMAT_CONTENT_TYPES = { html: "text/html", json: "application/json" } as const;
 const NEW_PRODUCT_PATH = "/products/new";
 const ADD_PRODUCT_EVENT = "add_product";
 
@@ -63,11 +74,26 @@ async function create(input: MutationInput): Promise<ActionResult> {
   const [account] = await selectRows<{ json_data: string | null }>(
     Prisma.sql`SELECT ${column("users", "json_data")} FROM ${table("users")} WHERE ${column("users", "id")} = ${sellerRow.id} LIMIT 1`,
   );
-  await assertCreatable({ id: sellerRow.id, isTeamMember, json_data: account?.json_data ?? null });
+  const seller: SellerAccount = {
+    id: sellerRow.id,
+    flags: sellerRow.flags,
+    verified: sellerRow.verified,
+    confirmed_at: sellerRow.confirmed_at,
+    created_at: sellerRow.created_at,
+    user_risk_state: sellerRow.user_risk_state,
+    json_data: account?.json_data ?? null,
+  };
+
+  if (params.isPhysical && (await canCreatePhysicalProducts(seller, new Date())) === "forbidden") {
+    const format = requestFormat(input.request);
+    if (format !== "html" && format !== "json")
+      throw new HandBackToRails("a request format head :forbidden has no content type for");
+    return { status: FORBIDDEN, body: "", contentType: FORMAT_CONTENT_TYPES[format], paramsRead: true };
+  }
 
   let outcome;
   try {
-    outcome = await createLink(sellerRow, params);
+    outcome = await createLink({ ...seller, isTeamMember }, params);
   } catch (error) {
     // Link::LinkInvalid from the price assignment, rescued ahead of the save.
     if (!(error instanceof LinkInvalid)) throw error;
@@ -75,8 +101,10 @@ async function create(input: MutationInput): Promise<ActionResult> {
   }
   if (!outcome.created) {
     const grouped = errorsToHash(outcome.errors);
+    // A related record (a variant) failed: the product has no errors of its own, so there is no alert to show.
+    if (grouped.length === 0) return { status: FOUND, location: NEW_PRODUCT_PATH, inertiaErrors: {} };
     return refusal(
-      toSentence(grouped[0]?.[1] ?? []),
+      toSentence(grouped[0]![1]),
       Object.fromEntries(grouped.map(([attribute, messages]) => [`link.${attribute}`, toSentence(messages)])),
     );
   }
