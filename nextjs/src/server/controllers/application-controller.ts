@@ -118,7 +118,8 @@ export type ActionOptions = {
   // Devise's `prepend_before_action`s, which run ahead of every ApplicationController filter and so
   // before the session is checked or the host redirected. A redirect answers with the session
   // cookie only: debug_headers has not run yet.
-  prepended?: (chain: Chain) => Promise<Redirected | ForceRefresh | null>;
+  // A mutation's also gets the request's parameters.
+  prepended?: (chain: Chain, params?: Record<string, unknown>) => Promise<Redirected | ForceRefresh | null>;
   // The controller's own before_actions and the start of its action, after ApplicationController's.
   // `state` reaches the page's props (ActionContext.state).
   filters?: (chain: Chain) => Promise<FilterOutcome>;

@@ -77,19 +77,29 @@ export const signedInUserHome = async (userId: bigint) => ((await isBuyer(userId
 
 // Devise's require_no_authentication, as Gumroad overrides it (SilentAlreadySignedInRedirect): a
 // signed-in visitor is sent where a login would have sent them.
-export async function requireNoAuthentication(chain: Chain): Promise<Redirected | null> {
+// `params` are those of a POST (the form's `next` field); a GET reads the query string.
+export async function requireNoAuthentication(chain: Chain, params?: Record<string, unknown>): Promise<Redirected | null> {
   const { auth, request } = chain;
   const current = auth.context.loggedInUser ?? auth.effects.signedOut?.user ?? null;
   if (!current) return null;
 
   const format = requestFormat(request);
   if (format === "other") throw new HandBackToRails();
-  // Not a navigational format: Devise lets the request through.
-  if (format === "json") return null;
+  // Not a navigational format: Devise lets the request through. A POST then runs its action for a signed-in visitor.
+  if (format === "json") {
+    if (params) throw new HandBackToRails("a signed-in visitor posting for JSON");
+    return null;
+  }
   if (auth.effects.signedOut?.impersonating) throw new HandBackToRails();
 
   const loggedIn = railsLoggedInUser(auth.context) ?? current;
-  const next = nextParam(chain);
+  let next: string | null;
+  if (params) {
+    const posted = params.next;
+    if (posted !== undefined && posted !== null && typeof posted !== "string")
+      throw new HandBackToRails("a next parameter that is not text");
+    next = (posted as string | null | undefined) ?? null;
+  } else next = nextParam(chain);
   // ApplicationController#after_sign_in_path_for; omniauth.origin is never set on a plain GET.
   const home = isPresent(next) ? next : await signedInUserHome(loggedIn.id);
   const location = safeRedirectPath(home, request, { allowSubdomainHost: false, rootDomain: config().rootDomain });

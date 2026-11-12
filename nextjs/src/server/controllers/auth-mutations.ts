@@ -30,6 +30,7 @@ import {
 } from "./application-controller.ts";
 import {
   referrerIsValidAfterLoginPath,
+  requireNoAuthentication,
   sessionPresent,
   setWarning,
   signedInUserHome,
@@ -86,13 +87,10 @@ function clientIp(input: MutationInput): string {
   return ip;
 }
 
-// The Devise `prepend_before_action :require_no_authentication` of LoginsController#create: a signed-in visitor is sent where a login
-// would have sent them, which depends on `params[:next]` and the referrer; the port leaves it to Rails.
-export async function requireSignedOut(chain: Chain): Promise<Redirected | null> {
-  if (chain.auth.context.loggedInUser || chain.auth.effects.signedOut)
-    throw new HandBackToRails("a signed-in visitor posting the login form");
-  return null;
-}
+// The Devise `prepend_before_action :require_no_authentication` of LoginsController#create and SignupController#create: a signed-in
+// visitor is sent where a login would have sent them (`params[:next]`, else their home). CSRF was verified before the action ran.
+export const requireSignedOut = (chain: Chain, params: Record<string, unknown> = {}): Promise<Redirected | null> =>
+  requireNoAuthentication(chain, params);
 
 // ApplicationController#login_path_for
 export async function loginPathFor(chain: Chain, userId: bigint, params: Record<string, unknown>): Promise<string> {

@@ -89,6 +89,40 @@ describe "Authentication mutations", type: :request do
       expect(user.confirmed_at).to be_nil
     end
 
+    describe "from a browser that is already signed in" do
+      let(:other) { create(:user, email: "already-in@example.com", username: "alreadyin", password: "a-long-password-2", created_at: Time.utc(2025, 1, 1)) }
+
+      before { log_in(other) }
+
+      it "sends the visitor home without signing anyone in", parity: true do
+        post login_path, params: login_params(user.email, user.password)
+
+        expect(response).to redirect_to("/dashboard")
+        expect(user.reload.sign_in_count).to eq(0)
+      end
+
+      it "sends the visitor to the next path", parity: true do
+        post login_path, params: login_params(user.email, user.password).merge(next: "/products")
+
+        expect(response).to redirect_to("/products")
+      end
+
+      it "sends a buyer to the library", parity: true do
+        build(:purchase, purchaser: other, email: other.email).save!(validate: false)
+
+        post login_path, params: login_params(user.email, user.password)
+
+        expect(response).to redirect_to("/library")
+      end
+
+      it "ignores an unsafe next path", parity: true do
+        post login_path, params: login_params(user.email, user.password).merge(next: "https://evil.example.org/phish")
+
+        expect(response).to have_http_status(:found)
+        expect(response.location).not_to include("evil.example.org")
+      end
+    end
+
     it "goes to the next path", parity: true do
       post login_path, params: login_params(user.email, user.password).merge(next: "/products")
 
