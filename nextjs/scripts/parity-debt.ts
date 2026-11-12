@@ -6,7 +6,7 @@
 // rubocop-formatted, so the nesting of describe/context/it blocks is read from indentation, and an
 // example matches a fixture when its reconstructed full description equals the fixture's recorded
 // `example` field (same spec file). What it cannot resolve is reported, not guessed:
-//   dynamic   the description has `#{}` interpolation (a loop or a helper); matched as a pattern,
+//   dynamic   the description has `#{}` interpolation or a `describe some_variable` loop; matched as a pattern,
 //             and listed under "unresolved" when no fixture matches the pattern
 //   shared    the example sits inside shared_examples, so its real name depends on the includer
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -28,7 +28,9 @@ function readDescription(rest: string): Part | null {
   const quote = rest[0];
   if (quote !== '"' && quote !== "'") {
     const constant = /^([A-Z][\w:]*)/u.exec(rest);
-    return constant ? { text: constant[1] ?? "", module: true, dynamic: false } : null;
+    if (constant) return { text: constant[1] ?? "", module: true, dynamic: false };
+    // `describe provider do` inside a loop: the description is a variable, so it is a hole like an interpolation.
+    return /^[a-z_]\w*(?:\s+do\b|\s*,|\s*\)|\s*$)/u.test(rest) ? { text: HOLE, module: false, dynamic: true } : null;
   }
   let text = "";
   let dynamic = false;
