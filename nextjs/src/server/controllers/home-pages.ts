@@ -1,9 +1,10 @@
 // HomeController's marketing pages: /about, /terms, /privacy, /prohibited, /dpa, /pricing, /features, /saas, /small-bets and /hackathon. The markup is app/views/home/*.html.erb, read from the
 // files; the tables below list the Ruby expressions in them that the helper calls cannot evaluate.
 import { homeHelpers, type LayoutContext, scriptBlocks } from "../erb/home-layout.ts";
-import { getRedis } from "../infra/redis.ts";
 import { linkTo } from "../erb/html.ts";
 import { type ErbTable, renderErb } from "../erb/template.ts";
+import { getRedis } from "../infra/redis.ts";
+
 import { type ActionOptions, type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
 import { type PageMeta, renderHomePage } from "./erb-pages.ts";
 import { numberWithDelimiter } from "./number-with-delimiter.ts";
@@ -66,7 +67,9 @@ const HOME_PAGES: Record<string, HomePage> = {
       blocks: scriptBlocks(ctx.nonce),
       values: {
         "((value - min).to_f / (max - min) * 100).round": (scope) =>
-          Math.round((((scope.value as number) - (scope.min as number)) / ((scope.max as number) - (scope.min as number))) * 100),
+          Math.round(
+            (((scope.value as number) - (scope.min as number)) / ((scope.max as number) - (scope.min as number))) * 100,
+          ),
       },
     }),
   },
@@ -84,8 +87,7 @@ const HOME_PAGES: Record<string, HomePage> = {
   prohibited: {
     view: "home/prohibited.html.erb",
     title: "Prohibited products on Gumroad",
-    description:
-      "Understand what products and activities are not allowed on Gumroad to comply with our policies.",
+    description: "Understand what products and activities are not allowed on Gumroad to comply with our policies.",
     table: ({ config }) => ({
       values: {
         [`link_to "Discover category", discover_taxonomy_url("${TAROT_TAXONOMY}", host: DISCOVER_DOMAIN)`]: () =>
@@ -130,7 +132,9 @@ const HOME_PAGES: Record<string, HomePage> = {
 function edgeCacheable(request: RailsRequest): boolean {
   if (request.method !== "GET" || request.cookies.size > 0) return false;
   try {
-    const keys = request.queryString.split("&").map((pair) => decodeURIComponent((pair.split("=")[0] ?? "").replace(/\+/gu, " ")));
+    const keys = request.queryString
+      .split("&")
+      .map((pair) => decodeURIComponent((pair.split("=")[0] ?? "").replace(/\+/gu, " ")));
     return !keys.some((key) => key.startsWith(UTM_PARAM_PREFIX));
   } catch {
     // A malformed escape is a 400 Rails answers.
@@ -155,6 +159,9 @@ export async function homePage(request: RailsRequest, action: ActionContext, nam
     (origin) => ({ title: page.title, description: page.description, url: `${origin}/${name}` }) satisfies PageMeta,
     (ctx) => renderErb(page.view, { helpers: homeHelpers(ctx.config, ctx.nonce), ...page.table?.(ctx, payout) }),
     // The params are read only by edge_cacheable_request?, which runs its last test for a cookie-less GET.
-    { paramsRead: request.cookies.size === 0, ...(cacheable ? { headers: { "cache-control": EDGE_CACHE_CONTROL } } : {}) },
+    {
+      paramsRead: request.cookies.size === 0,
+      ...(cacheable ? { headers: { "cache-control": EDGE_CACHE_CONTROL } } : {}),
+    },
   );
 }

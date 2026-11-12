@@ -158,7 +158,9 @@ ${rows}  </div>
 
 // The home/shared partials that take locals. Their markup is read from the .erb file; the table is the Ruby in them, written out.
 const hashOf = (value: unknown): Record<string, unknown> =>
-  value !== null && typeof value === "object" && !(value instanceof SafeString) ? (value as Record<string, unknown>) : {};
+  value !== null && typeof value === "object" && !(value instanceof SafeString)
+    ? (value as Record<string, unknown>)
+    : {};
 const required = (keywords: Record<string, unknown>, key: string): string => {
   const value = keywords[key];
   if (typeof value !== "string") throw new NotPortedError(`the partial local ${key}`);
@@ -332,8 +334,7 @@ export function homeHelpers(config: DomainConfig, nonce?: string): Helpers {
           throw new NotPortedError(`the partial ${String(partial)}`);
       }
     },
-    image_tag: ({ positional, keywords }) =>
-      imageTag(imagePath(config, String(positional[0])), keywords as Attributes),
+    image_tag: ({ positional, keywords }) => imageTag(imagePath(config, String(positional[0])), keywords as Attributes),
     link_to: ({ positional, keywords }) => linkTo(String(positional[0]), String(positional[1]), keywords as Attributes),
     DISCOVER_DOMAIN: () => config.discoverDomain,
     discover_taxonomy_url: ({ positional, keywords }) => taxonomyUrl(config, String(positional[0]), keywords),

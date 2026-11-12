@@ -136,7 +136,8 @@ function interpolate(raw: string, helpers: Helpers, scope: Scope): string {
   for (const match of raw.matchAll(/#\{([^}]*)\}/gu)) {
     output += unescape(raw.slice(position, match.index));
     const result = evaluate(match[1]!, helpers, scope);
-    output += result === null || (typeof result === "object" && !(result instanceof SafeString)) ? "" : result.toString();
+    output +=
+      result === null || (typeof result === "object" && !(result instanceof SafeString)) ? "" : result.toString();
     position = match.index + match[0].length;
   }
   return output + unescape(raw.slice(position));
@@ -170,8 +171,7 @@ function evaluate(source: string, helpers: Helpers, scope: Scope = {}, block?: S
     throw new NotPortedError(`the ERB expression ${source}`);
   };
   const isPunct = (value: string) => tokens[position]?.type === "punct" && tokens[position]?.value === value;
-  const endsArguments = () =>
-    position >= tokens.length || isPunct(")") || isPunct(",") || isPunct("}") || isPunct("]");
+  const endsArguments = () => position >= tokens.length || isPunct(")") || isPunct(",") || isPunct("}") || isPunct("]");
 
   function value(): Value {
     if (isPunct("{")) return hash();
@@ -245,7 +245,8 @@ function evaluate(source: string, helpers: Helpers, scope: Scope = {}, block?: S
         } else if (isPunct("**")) {
           position++;
           const splat = value();
-          if (splat === null || typeof splat !== "object" || splat instanceof SafeString || Array.isArray(splat)) fail();
+          if (splat === null || typeof splat !== "object" || splat instanceof SafeString || Array.isArray(splat))
+            fail();
           Object.assign(keywords, splat);
         } else positional.push(value());
         if (isPunct(",")) position++;
@@ -280,7 +281,8 @@ function evaluate(source: string, helpers: Helpers, scope: Scope = {}, block?: S
 function evaluateCall(source: string, helpers: Helpers, scope: Scope = {}, block?: SafeString): Html | number {
   const result = evaluate(source, helpers, scope, block);
   if (result === null) return "";
-  if (typeof result === "object" && !(result instanceof SafeString)) throw new NotPortedError(`the ERB expression ${source}`);
+  if (typeof result === "object" && !(result instanceof SafeString))
+    throw new NotPortedError(`the ERB expression ${source}`);
   return typeof result === "boolean" ? String(result) : result;
 }
 
@@ -345,7 +347,8 @@ function run(nodes: Node[], scope: Scope, table: ErbTable): string {
       case "capture": {
         const body = new SafeString(run(node.body, scope, table));
         const closure = table.blocks?.[node.source];
-        output += html(closure ? closure(scope, body) : evaluateCall(node.source, table.helpers ?? {}, scope, body));
+        const result = closure ? closure(scope, body) : evaluateCall(node.source, table.helpers ?? {}, scope, body);
+        output += typeof result === "number" ? String(result) : html(result);
         break;
       }
       case "each": {

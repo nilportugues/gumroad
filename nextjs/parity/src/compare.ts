@@ -94,7 +94,10 @@ function matches(pattern: string[], path: string[]): boolean {
   if (path.length === 0) return false;
   // `name_*` matches a segment by prefix: a cookie whose name carries a random id.
   const segment = path[0]!;
-  const segmentMatches = head === "*" || head === segment || (head!.length > 1 && head!.endsWith("*") && segment.startsWith(head!.slice(0, -1)));
+  const segmentMatches =
+    head === "*" ||
+    head === segment ||
+    (head!.length > 1 && head!.endsWith("*") && segment.startsWith(head!.slice(0, -1)));
   return segmentMatches && matches(rest, path.slice(1));
 }
 

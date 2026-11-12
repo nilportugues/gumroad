@@ -3,9 +3,9 @@
 // #analytics is a different template and stays in public-handlers.ts.
 import { SafeString } from "../erb/html.ts";
 import { type ErbTable, renderErb } from "../erb/template.ts";
-import { domainConfig } from "../page-props/domain.ts";
-import { assetHost } from "../page-props/domain.ts";
 import { viteAssetPath, viteEntrypointStylesheets } from "../infra/vite.ts";
+import { domainConfig, assetHost } from "../page-props/domain.ts";
+
 import { HandBackToRails, type Rendered } from "./application-controller.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import type { RailsRequest } from "./rails-request.ts";
@@ -57,7 +57,9 @@ export function embeddedJavascript(request: RailsRequest, kind: EmbeddedJavascri
     body: renderErb("embedded_javascripts/index.js.erb", table),
     contentType: JAVASCRIPT,
     // stylesheet_link_tag preloads each stylesheet.
-    ...(hrefs.length > 0 ? { headers: { link: hrefs.map((href) => `<${href}>; rel=preload; as=style; nopush`).join(",") } } : {}),
+    ...(hrefs.length > 0
+      ? { headers: { link: hrefs.map((href) => `<${href}>; rel=preload; as=style; nopush`).join(",") } }
+      : {}),
     paramsRead: false,
   };
 }
