@@ -90,6 +90,8 @@ export type StripeRequest = {
   path: string;
   headers: Record<string, string>;
   body: string;
+  // The parameters `body` encodes, for a caller that sends the request through the Stripe client
+  params: StripeParams;
   // Only the create has a caller-chosen key; the confirm (and a create without one) takes a fresh random key per attempt, which the
   // caller generates and reuses on a retry of the same call.
   idempotencyKey: "explicit" | "generated";
@@ -336,6 +338,7 @@ export function buildPaymentIntentRequests(input: PaymentIntentRequestInput): Pa
         path: "/v1/payment_intents",
         headers,
         body: encodeStripeParams(params),
+        params,
         idempotencyKey: present(input.idempotencyKey) ? "explicit" : "generated",
       },
       confirm: {
@@ -343,6 +346,7 @@ export function buildPaymentIntentRequests(input: PaymentIntentRequestInput): Pa
         path: "/v1/payment_intents/pi_ID/confirm",
         headers,
         body: "",
+        params: {},
         idempotencyKey: "generated",
       },
       notifications,
