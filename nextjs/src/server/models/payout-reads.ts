@@ -12,7 +12,7 @@ import { Prisma, type Balance, type UserComplianceInfo } from "@prisma/client";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 
 import { Balances, balanceMerchantAccount, type BalanceRecord } from "./balance.ts";
-import { jsonDataForAttr as sharedJsonDataForAttr } from "./concerns/json-data.ts";
+import { jsonData, jsonDataForAttr as sharedJsonDataForAttr } from "./concerns/json-data.ts";
 import {
   HOLDER_OF_FUNDS,
   holderOfFunds,
@@ -88,6 +88,8 @@ export function isBalancePayable({ balance, account, holder }: HeldBalance): boo
 
 // `user.has_stripe_account_connected?`, for a seller it is false for.
 export async function assertNoStripeConnect(user: UserRecord): Promise<void> {
+  // Rails reads the user's json_data on the way to the feature check, which counts a NULL column as changed.
+  if (!isFlagSet(user, "check_merchant_account_is_linked")) jsonData(user);
   if (
     isFlagSet(user, "check_merchant_account_is_linked") ||
     (await collaborators.isFeatureEnabled(MERCHANT_MIGRATION_FEATURE, userActor(user.get("id"))))

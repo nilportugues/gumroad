@@ -66,15 +66,39 @@ module HttpCapture
 
     attr_writer :responses
 
+    # A case that sets `http_timeline: true` records, per request, how many statements preceded it (`after_statement`) and only the
+    # headers a port must match: the Stripe-Account and the Idempotency-Key (random, so numbered by first appearance).
+    attr_accessor :timeline
+
     def next_response = (@responses&.shift || {})
+
+    def request_entry(request)
+      entry = { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
+      return entry unless timeline
+
+      headers = entry["headers"]
+      keys = (@idempotency_keys ||= [])
+      key = headers["Idempotency-Key"]
+      keys << key if key && !keys.include?(key)
+      entry["headers"] = { "Stripe-Account" => headers["Stripe-Account"], "Idempotency-Key" => key && "key-#{keys.index(key) + 1}" }.compact
+      entry["after_statement"] = RailsRecorder.log&.size
+      entry
+    end
+
+    def reset_idempotency_keys = (@idempotency_keys = [])
 
     def start
       require "webmock"
       WebMock.enable!
       WebMock.disable_net_connect!(allow: [/127\.0\.0\.1/, /elasticsearch/, /dynamodb/, /minio/, /redis/])
       WebMock.stub_request(:any, /./).to_return do |request|
-        requests << { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
+        entry = request_entry(request)
+        requests << entry
         answer = next_response
+        if answer[:dropped]
+          entry["dropped"] = true
+          raise Errno::ECONNRESET
+        end
         { status: answer[:status] || 200, body: answer[:body] || "{}", headers: answer[:headers] || {} }
       end
     end
@@ -158,6 +182,8 @@ module RailsCases
     EsCapture.bodies = extra[:es_bodies]&.map(&:to_json)
     HttpCapture.requests.clear
     HttpCapture.responses = extra[:http_responses]&.dup
+    HttpCapture.timeline = extra[:http_timeline]
+    HttpCapture.reset_idempotency_keys
     error = nil
     cache = []
     subscriber = ActiveSupport::Notifications.subscribe(/\Acache_(delete|write)\.active_support\z/) do |event, *, payload|
