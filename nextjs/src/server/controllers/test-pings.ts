@@ -30,6 +30,10 @@ async function create(input: MutationInput): Promise<ActionResult> {
   // regexp's call, and a valid one makes Rails send the ping.
   if (url === undefined || url === null || (typeof url === "string" && !url.includes(":")))
     return json({ success: false, error_message: INVALID_URL_MESSAGE });
+  // A non-empty list of strings reaches Regexp#match? as an Array, which raises TypeError into the action's `rescue Exception`. Other
+  // non-strings (numbers, objects) take the same road but have no recording, so they stay handed back.
+  if (Array.isArray(url) && url.length > 0 && url.every((entry) => typeof entry === "string"))
+    return json({ success: false, error_message: FAILED_MESSAGE });
   throw new HandBackToRails("a ping URL that needs the URI regexp and the HTTP call");
 }
 
