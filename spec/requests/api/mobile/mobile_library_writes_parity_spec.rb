@@ -2,8 +2,7 @@
 
 require "spec_helper"
 
-# Api::Mobile::PurchasesController#archive, #unarchive and #destroy for a plain purchase (no url redirect, preorder, subscription,
-# refund or review), which the Next.js port writes itself (nextjs/src/server/controllers/mobile-purchases.ts). `parity_timeline`
+# Api::Mobile::PurchasesController#archive, #unarchive and #destroy for a plain purchase (no url redirect, subscription or gift), which the Next.js port writes itself (nextjs/src/server/controllers/mobile-purchases.ts). `parity_timeline`
 # records the order of the statements and jobs inside each write. The examples that end in `hands a ...` are the purchases it
 # leaves to Rails whole; the replay asserts Node forwards each one and writes nothing.
 describe "Mobile API library writes", type: :request, parity_timeline: true do
@@ -125,6 +124,39 @@ describe "Mobile API library writes", type: :request, parity_timeline: true do
       get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
 
       expect(response.parsed_body["product"]["file_data"].find { _1["id"] == pdf.external_id }["latest_media_location"]).to be_present
+    end
+  end
+
+  describe "with a preorder" do
+    let(:preorder_product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+    let(:preorder_link) { create(:preorder_link, link: preorder_product, release_at: Time.utc(2030, 1, 15, 12)) }
+    let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "authorization_successful") }
+    let!(:authorization) do
+      purchase_row(:preorder_authorization_purchase, link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true, stripe_transaction_id: "ch_#{SecureRandom.hex(6)}", stripe_fingerprint: "fp_library", charge_processor_id: StripeChargeProcessor.charge_processor_id, merchant_account:)
+    end
+
+    it "archives the authorization purchase and answers with the release date", parity: true do
+      post "/mobile/purchases/#{authorization.external_id}/archive", params: auth(buyer)
+
+      expect(response.parsed_body["product"]).to include("is_archived" => true, "preorder_data" => { "external_id" => preorder.external_id, "release_at" => "2030-01-15T12:00:00Z" })
+      expect(authorization.reload.is_archived).to eq(true)
+    end
+
+    it "deletes the authorization purchase from the library", parity: true do
+      delete "/mobile/purchases/#{authorization.external_id}", params: auth(buyer)
+
+      expect(response).to have_http_status(:ok)
+      expect(authorization.reload.is_deleted_by_buyer).to eq(true)
+    end
+
+    it "hands an archive of a preorder whose charge purchase has a url redirect to Rails", parity: true do
+      charge = purchase_row(link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "successful", stripe_transaction_id: "ch_#{SecureRandom.hex(6)}", stripe_fingerprint: "fp_library", charge_processor_id: StripeChargeProcessor.charge_processor_id, merchant_account:)
+      create(:url_redirect, purchase: charge, link: preorder_product)
+
+      post "/mobile/purchases/#{authorization.external_id}/archive", params: auth(buyer)
+
+      expect(response.parsed_body["product"]).to include("url_redirect_token" => be_present)
+      expect(authorization.reload.is_archived).to eq(true)
     end
   end
 

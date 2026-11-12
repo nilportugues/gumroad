@@ -145,6 +145,75 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       end
     end
 
+    describe "preorders" do
+      let(:preorder_product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+      let(:preorder_link) { create(:preorder_link, link: preorder_product, release_at: Time.utc(2030, 1, 15, 12)) }
+      let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "authorization_successful") }
+      let!(:authorization) { purchase_row(:preorder_authorization_purchase, link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true) }
+
+      def charge_purchase(**attributes)
+        purchase_row(link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "successful", **attributes)
+      end
+
+      it "reads the authorization purchase of a preorder with its release date", parity: true do
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => authorization.external_id, "preorder_data" => { "external_id" => preorder.external_id, "release_at" => "2030-01-15T12:00:00Z" })
+      end
+
+      it "reads the preorder of a purchase made by a buyer with a name and an archived authorization", parity: true do
+        authorization.update_columns(flags: authorization.flags | Purchase.flag_mapping["flags"][:is_archived], full_name: "  Preorder Buyer ")
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("is_archived" => true, "full_name" => "Preorder Buyer")
+      end
+
+      it "reads a preorder whose latest purchase failed as the authorization", parity: true do
+        purchase_row(link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "failed")
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => authorization.external_id)
+        expect(response.parsed_body["product"]).to have_key("preorder_data")
+      end
+
+      it "reads the charge purchase of a preorder from the charge purchase itself", parity: true do
+        charge = charge_purchase
+
+        get "/mobile/purchases/purchase_attributes/#{charge.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id)
+        expect(response.parsed_body["product"]).not_to have_key("preorder_data")
+        expect(response.parsed_body["product"]).not_to have_key("custom_delivery_url")
+      end
+
+      it "reads the charge of a preorder from the authorization purchase when the charge has no url redirect", parity: true do
+        charge = charge_purchase
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id)
+      end
+
+      it "hands a preorder whose charge purchase has a url redirect to Rails", parity: true do
+        charge = charge_purchase
+        create(:url_redirect, purchase: charge, link: preorder_product)
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id, "url_redirect_token" => be_present)
+      end
+
+      it "hands a preorder whose seller has a post to Rails", parity: true do
+        create(:installment, link: preorder_product, published_at: Time.current, shown_on_profile: true, send_emails: false)
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]["product_updates_data"].size).to eq(1)
+      end
+    end
+
     it "does not find a refunded purchase", parity: true do
       purchase = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", stripe_refunded: true)
 

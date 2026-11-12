@@ -325,6 +325,23 @@ describe("Purchase#json_data_for_mobile", () => {
     expect(keys.indexOf("user_id")).toBe(keys.indexOf("product_updates_data") + 1);
   });
 
+  it("takes the purchase fields of a preorder from its source purchase, ends them with preorder_data and leaves out custom_delivery_url", () => {
+    const source = purchase({ id: 99n, flags: IS_ARCHIVED_BIT });
+    const json = mobile({
+      productUpdatesData: [],
+      preorder: {
+        source,
+        sourcePurchaser: buyer,
+        preorderData: { external_id: "pre1", release_at: "2030-01-15T12:00:00Z" },
+      },
+    });
+    expect(json).toMatchObject({ purchase_id: "enc99", is_archived: true, order_id: 1011 });
+    expect(json).not.toHaveProperty("custom_delivery_url");
+    const keys = Object.keys(json);
+    expect(keys.indexOf("user_id")).toBe(keys.indexOf("purchased_at") + 1);
+    expect(keys.indexOf("preorder_data")).toBe(keys.indexOf("is_archived") + 1);
+  });
+
   it("refuses gifts and subscriptions", () => {
     expect(() => mobile({}, purchase({ flags: GIFT_SENDER_BIT }))).toThrow(/not ported/u);
     expect(() => mobile({}, purchase({ subscription_id: 4n }))).toThrow(/not ported/u);

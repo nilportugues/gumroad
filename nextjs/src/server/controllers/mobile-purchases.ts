@@ -2,13 +2,13 @@
 //
 // Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, sales#index rows
 // whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence), and
-// purchase_attributes, archive, unarchive and destroy of a plain purchase (no url redirect, preorder, subscription, refund or review) whose seller and product have no
-// post. Everything else (the rest of those, a non-empty library page, sales#show) goes to Rails whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the posts of
-// the product-updates preloader are not ported.
-import { Prisma, type Purchase } from "@prisma/client";
+// purchase_attributes, archive, unarchive and destroy of a purchase that is not a membership or a gift (refunds, a review, a url
+// redirect and a preorder are serialized) whose seller and product have no post. Everything else (the rest of those, a non-empty
+// library page, sales#show) goes to Rails whole, because the posts of the product-updates preloader are not ported.
+import { Prisma, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
-import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { type LibraryFlag, loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
 import { column, selectRows, table } from "../models/sql.ts";
@@ -22,7 +22,7 @@ import {
   ratingByPurchase,
   thumbnailUrlsByProduct,
 } from "../presenters/mobile-serializer-reads.ts";
-import { purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
+import { jsonTime, purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
 import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { linkOptions } from "../presenters/product-props.ts";
 import { findLink } from "../presenters/product-reads.ts";
@@ -138,11 +138,50 @@ async function fetchPurchase(input: MobileInput, auth: MobileAuth | null): Promi
   return purchase;
 }
 
+// Preorder#mobile_json_data for a purchase without a url redirect: the latest purchase when it was charged (its own url redirect,
+// which Node does not serialize here, hands back), else the authorization purchase with the release date.
+async function preorderSource(purchase: Purchase, productId: bigint, purchaser: User) {
+  const [preorder] = await selectRows<{ id: bigint; preorder_link_id: bigint | null }>(
+    Prisma.sql`SELECT ${column("preorders", "id")}, ${column("preorders", "preorder_link_id")} FROM ${table("preorders")} WHERE ${column("preorders", "id")} = ${purchase.preorder_id} LIMIT 1`,
+  );
+  if (preorder?.preorder_link_id == null)
+    throw new NotPortedError("a purchase whose preorder or preorder link is missing");
+  const [preorderLink] = await selectRows<{ link_id: bigint | null; release_at: Date | null }>(
+    Prisma.sql`SELECT ${column("preorder_links", "link_id")}, ${column("preorder_links", "release_at")} FROM ${table("preorder_links")} WHERE ${column("preorder_links", "id")} = ${preorder.preorder_link_id} LIMIT 1`,
+  );
+  if (preorderLink?.link_id == null || BigInt(preorderLink.link_id) !== productId)
+    throw new NotPortedError("a preorder link for another product");
+  // Preorder#authorization_purchase is purchases.first and charge_purchase_successful? reads purchases.last
+  const purchases = await db.purchase.findMany({
+    where: { preorder_id: purchase.preorder_id },
+    orderBy: { id: "asc" },
+  });
+  const first = purchases[0];
+  const last = purchases[purchases.length - 1];
+  if (first === undefined || last === undefined) throw new NotPortedError("a preorder without purchases");
+  const charged = last.purchase_state === "successful";
+  if (charged && (await db.urlRedirect.count({ where: { purchase_id: last.id } })) > 0)
+    throw new HandBackToRails("the url redirect of a preorder's charge purchase");
+  const source = charged ? last : first;
+  const sourcePurchaser =
+    source.purchaser_id === null
+      ? null
+      : source.purchaser_id === purchaser.id
+        ? purchaser
+        : await db.user.findUnique({ where: { id: source.purchaser_id } });
+  return {
+    source,
+    sourcePurchaser,
+    preorderData: charged
+      ? null
+      : { external_id: encrypt(BigInt(preorder.id)), release_at: jsonTime(preorderLink.release_at) },
+  };
+}
+
 // What Purchase#json_data_for_mobile needs for a plain purchase, loaded and checked before any write, so a purchase Node
 // cannot serialize hands back (or throws NotPortedError) unchanged. `render` takes the row as the action leaves it.
 async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
   if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
-  if (purchase.preorder_id !== null) throw new HandBackToRails("Preorder#mobile_json_data");
   const amountRefundedCents = (await amountRefundedCentsByPurchase([purchase.id])).get(purchase.id) ?? 0;
   const productRating = (await ratingByPurchase([purchase.id])).get(purchase.id) ?? null;
 
@@ -166,7 +205,12 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
           product: link,
           seller,
         });
-  const productUpdates = (await preloadProductUpdatesData([purchase])).get(purchase.id)!;
+  const preorder =
+    urlRedirect === undefined && purchase.preorder_id !== null
+      ? await preorderSource(purchase, link.id, libraryOwner(auth))
+      : undefined;
+  const updatesFor = preorder?.source ?? purchase;
+  const productUpdates = (await preloadProductUpdatesData([updatesFor])).get(updatesFor.id)!;
 
   const thumbnails = await thumbnailUrlsByProduct([link.id]);
   const { preview, thumbnailOrCoverUrl } = await mobilePreview(link.id, thumbnails.get(link.id) ?? null);
@@ -190,6 +234,11 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
         amountRefundedCents,
         productUpdatesData: productUpdates,
         urlRedirect,
+        // The write left this row as it is; the preorder's source purchase is read after it, so it is this row when it is the same one.
+        preorder:
+          preorder === undefined
+            ? undefined
+            : { ...preorder, source: preorder.source.id === row.id ? row : preorder.source },
       }),
   };
 }
