@@ -33,6 +33,9 @@ export async function holdPayoutsForUnaccountedMoneyBang(
   options: SaveOptions = {},
 ): Promise<void> {
   const user = (await paymentUser(payment))!;
+  // lock! raises on unpersisted changes, and a user read through json_data earlier in the payout carries one; the hold needs the row
+  // as the database has it.
+  if (user.hasChangesToSave()) await Users.reload(user);
   const marker = `payout ${encrypt(payment.get("id"))} ${UNACCOUNTED_MONEY_HOLD_MARKER}`;
   await Users.withLock(user, async () => {
     if (!isFlagSet(user, "payouts_paused_internally")) {

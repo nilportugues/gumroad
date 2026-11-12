@@ -92,8 +92,13 @@ module HttpCapture
       WebMock.enable!
       WebMock.disable_net_connect!(allow: [/127\.0\.0\.1/, /elasticsearch/, /dynamodb/, /minio/, /redis/])
       WebMock.stub_request(:any, /./).to_return do |request|
-        requests << request_entry(request)
+        entry = request_entry(request)
+        requests << entry
         answer = next_response
+        if answer[:dropped]
+          entry["dropped"] = true
+          raise Errno::ECONNRESET
+        end
         { status: answer[:status] || 200, body: answer[:body] || "{}", headers: answer[:headers] || {} }
       end
     end

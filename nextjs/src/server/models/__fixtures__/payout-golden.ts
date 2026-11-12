@@ -83,7 +83,12 @@ export type Replay = {
   calls: ReturnType<typeof normalizeCall>[];
   statementsBeforeCall: number[];
   cache: [string, string][];
+  redis: unknown;
 };
+
+// ActiveJob mints a random job_id; everything else in an enqueued item is compared as recorded.
+export const withoutJobIds = (value: unknown): unknown =>
+  JSON.parse(JSON.stringify(value).replace(/\\"job_id\\":\\"[0-9a-f-]{36}\\"/gu, '\\"job_id\\":\\"<uuid>\\"'));
 
 // Runs `action` inside the case's world. The Idempotency-Key the client generates is random, so it is numbered by first appearance as
 // the golden's was.
@@ -149,7 +154,15 @@ export async function replayCase(golden: Golden, c: GoldenCase, action: () => Pr
     resetUserCollaborators();
     resetLinkCollaborators();
   }
-  return { sqlLog: sql.log, expectedSql: sql.expected, error, calls, statementsBeforeCall, cache };
+  return {
+    sqlLog: sql.log,
+    expectedSql: sql.expected,
+    error,
+    calls,
+    statementsBeforeCall,
+    cache,
+    redis: withoutJobIds(recording.snapshot()),
+  };
 }
 
 // The calls the golden recorded, in the same shape. A dropped answer is recorded once per attempt by the gem, as it is by Node's client.

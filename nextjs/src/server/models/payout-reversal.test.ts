@@ -3,7 +3,13 @@
 // Rails sent, with the same number of statements before each call.
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { goldenCalls, goldenStatementsBeforeCall, loadGolden, replayCase } from "./__fixtures__/payout-golden.ts";
+import {
+  goldenCalls,
+  goldenStatementsBeforeCall,
+  loadGolden,
+  replayCase,
+  withoutJobIds,
+} from "./__fixtures__/payout-golden.ts";
 import { reverseInternalTransferOrHoldPayoutsBang } from "./payment-hold.ts";
 import { findPaymentBang } from "./payment.ts";
 
@@ -50,6 +56,7 @@ describe("reversal of a failed payout's internal transfer", () => {
       expect(replay.statementsBeforeCall).toEqual(goldenStatementsBeforeCall(c));
       expect(replay.error === null ? null : (replay.error as Error).message).toEqual(c.error?.message ?? null);
       expect(replay.cache).toEqual(c.cache);
+      expect(replay.redis).toEqual(withoutJobIds(c.redis));
     });
   }
 });
