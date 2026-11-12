@@ -162,3 +162,35 @@ describe("login, signup and settings rules", () => {
     expect(RACK_ATTACK_RULES.find((rule) => rule.name === "logins/login")?.productionOnly).toBeFalsy();
   });
 });
+
+describe("oauth_token/ip", () => {
+  const TOKEN_LIMIT = 3000;
+  const rules = RACK_ATTACK_RULES.filter((rule) => rule.name === "oauth_token/ip");
+
+  it.each(["/oauth/token", "/muse/v1/oauth2/token", "/claude/v1/oauth2/token", "/chatgpt/v1/oauth2/token"])(
+    "answers the 3001st POST to %s from one address over the limit",
+    async (path) => {
+      const store = memoryStore();
+      for (let i = 0; i < TOKEN_LIMIT; i += 1)
+        expect(await evaluate(request(path, { method: "POST" }), store, rules, () => NOW)).toBeNull();
+      expect(await evaluate(request(path, { method: "POST" }), store, rules, () => NOW)).toEqual({
+        name: "oauth_token/ip",
+        period: 60,
+        epochTime: NOW,
+      });
+    },
+  );
+
+  it("shares one counter between the four paths and leaves other addresses and the IFTTT and Notion endpoints out of it", async () => {
+    const store = memoryStore();
+    await evaluate(request("/oauth/token", { method: "POST" }), store, rules, () => NOW);
+    await evaluate(request("/claude/v1/oauth2/token", { method: "POST" }), store, rules, () => NOW);
+    await evaluate(request("/oauth/token", { method: "POST", ip: "203.0.113.10" }), store, rules, () => NOW);
+    await evaluate(request("/ifttt/v1/oauth2/token", { method: "POST" }), store, rules, () => NOW);
+    await evaluate(request("/notion/oauth2/token", { method: "POST" }), store, rules, () => NOW);
+    const window = Math.floor(NOW / 60);
+    expect(store.counts.get(`rack::attack:${window}:oauth_token/ip:203.0.113.9`)).toBe(2);
+    expect(store.counts.get(`rack::attack:${window}:oauth_token/ip:203.0.113.10`)).toBe(1);
+    expect(store.counts.size).toBe(2);
+  });
+});

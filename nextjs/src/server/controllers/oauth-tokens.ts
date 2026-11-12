@@ -1,15 +1,16 @@
 // Oauth::TokensController (app/controllers/oauth/tokens_controller.rb over Doorkeeper::TokensController, doorkeeper 5.7.1): POST
-// /oauth/revoke, /oauth/introspect and the IFTTT and Notion token endpoints (/oauth/token and the MCP connector aliases stay in Rails,
-// see TOKEN_PATHS).
+// /oauth/token with the muse, claude, chatgpt, IFTTT and Notion aliases, /oauth/revoke, /oauth/introspect and GET /oauth/token/info.
 //
-// Revoke and introspect run in full. The token endpoint answers what fails before a credential is issued: a grant type Doorkeeper
-// does not offer, an authorization_code request that is missing its code or redirect URI or whose client or grant is wrong, and a
-// client_credentials request from an unknown or dynamically registered client.
-//
-// Handed to Rails whole, before any write: every request that would issue or refresh a token (so token generation, PKCE and
-// redirect URI checks stay in Ruby), the refresh_token grant, the device-code grant (Rack::Attack throttles it per device code, and
-// polling writes), a code that belongs to a dynamically registered MCP client, and any parameter that is not a string.
+// The token endpoint runs the authorization_code, client_credentials and refresh_token grants in full: validation order, PKCE, the
+// redirect URI check (models/oauth-redirect-uri.ts), the grant and refresh locks, the shared application lock around a refresh and
+// the rows Doorkeeper writes (random urlsafe tokens, a revoked grant or refresh token). Dynamically registered MCP clients get
+// Gumroad's S256 and resource checks. Handed to Rails whole, before any write: a brand account token (team membership), the
+// device-code grant (until the device flow is ported), a request that carries a session cookie, and any parameter that is not a string.
+import { createHash } from "node:crypto";
+
 import { railsSessionCookieName } from "../auth/rails-session-config.ts";
+import { withApplicationLock } from "../models/oauth-application-writes.ts";
+import { redirectUriAllowed } from "../models/oauth-redirect-uri.ts";
 import {
   type AccessGrantRow,
   type AccessTokenRow,
@@ -19,8 +20,14 @@ import {
   findAccessToken,
   findApplicationById,
   findApplicationByUid,
+  insertAccessToken,
+  type IssuedAccessToken,
+  lockAccessGrant,
+  lockAccessToken,
+  revokeAccessGrant,
   revokeAccessToken,
   secretMatches,
+  transaction,
   truthy,
 } from "../models/oauth-tokens.ts";
 import { NotPortedError } from "../models/user.ts";
@@ -58,6 +65,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "The provided authorization grant is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client.",
   unauthorized_client: "The client is not authorized to perform this request using this method.",
   unsupported_grant_type: "The authorization grant type is not supported by the authorization server.",
+  invalid_scope: "The requested scope is invalid, unknown, or malformed.",
   invalid_request_unknown:
     "The request is missing a required parameter, includes an unsupported parameter value, or is otherwise malformed.",
   revoked: "The access token was revoked",
@@ -78,6 +86,13 @@ function stringParam(params: Params, name: string): string | null {
 function assertNoSession(input: MutationInput): void {
   if (input.request.cookies.has(railsSessionCookieName()))
     throw new NotPortedError("a request that carries a session cookie", RUBY_FILE);
+}
+
+// An ActionController::API session holds only its session_id, and the cookie of a client that kept the one the last response set is
+// answered with that session again. A cookie carrying more (a browser signed in on the website) stays in Rails.
+function assertPlainSession(input: MutationInput): void {
+  if (Object.keys(input.chain.session.data).some((key) => key !== "session_id"))
+    throw new NotPortedError("a request whose session cookie holds more than a session id", RUBY_FILE);
 }
 
 type Credentials = { uid: string; secret: string | null };
@@ -140,19 +155,121 @@ const revocationRefusal = (): Rendered =>
 
 // ---- /oauth/token
 
-// Gumroad's pre-check: a code of a dynamically registered MCP client answers to Mcp::DynamicClientOauth, which stays in Rails.
-async function assertNotDynamicClientCode(grant: AccessGrantRow | null): Promise<void> {
-  if (grant === null) return;
-  const application = await findApplicationById(grant.application_id);
-  if (application !== null && truthy(application.mcp_dynamic_client))
-    throw new NotPortedError("a code granted to a dynamically registered client", RUBY_FILE);
+const SERVER_SCOPES = [
+  "view_public",
+  "edit_products",
+  "edit_emails",
+  "view_sales",
+  "view_payouts",
+  "mark_sales_as_shipped",
+  "refund_sales",
+  "edit_sales",
+  "revenue_share",
+  "ifttt",
+  "mobile_api",
+  "creator_api",
+  "view_profile",
+  "edit_profile",
+  "unfurl",
+  "helper_api",
+  "view_tax_data",
+  "account",
+];
+const DEFAULT_SCOPES = ["view_public"];
+const S256 = "S256";
+const PLAIN = "plain";
+
+// String#split with no argument: ASCII whitespace only.
+const splitScopes = (value: string) => value.split(/[ \t\n\v\f\r]+/u).filter((scope) => scope !== "");
+// Scopes#add dedups and Scopes#to_s joins with a space.
+const scopeString = (scopes: string[]) => [...new Set(scopes)].join(" ");
+
+// ScopeChecker::Validator#valid?
+function validScopeString(scopeStr: string, validScopes: string[]): boolean {
+  return (
+    isPresent(scopeStr) &&
+    !/[\n\r\t]/u.test(scopeStr) &&
+    splitScopes(scopeStr).every((scope) => validScopes.includes(scope))
+  );
 }
 
-// OAuth::AuthorizationCodeRequest#authorize, up to the validations that need the redirect URI and PKCE.
+// render_oauth_json_error: Gumroad's own 400s carry no WWW-Authenticate.
+const gumroadError = (name: string, description: string): Rendered =>
+  jsonBody({ error: name, error_description: description }, BAD_REQUEST, { "cache-control": NO_STORE });
+
+// Mcp::DynamicClientOauth.code_exchange_error: credentials of a dynamically registered MCP client only redeem with S256 PKCE and for
+// the resource they were granted for.
+async function dynamicCodeExchangeError(grant: AccessGrantRow, input: MutationInput): Promise<Rendered | null> {
+  const application = await findApplicationById(grant.application_id);
+  if (application === null || !truthy(application.mcp_dynamic_client)) return null;
+  if (!isPresent(grant.code_challenge) || grant.code_challenge_method !== S256)
+    return gumroadError("invalid_grant", `authorization code was not issued with an ${S256} code challenge`);
+  if (!isPresent(stringParam(input.params, "code_verifier")))
+    return gumroadError("invalid_request", "code_verifier is required");
+  if (!isPresent(grant.resource)) return gumroadError("invalid_grant", "authorization code has no bound resource");
+  const resource = stringParam(input.params, "resource");
+  if (isPresent(resource) && resource !== grant.resource)
+    return gumroadError("invalid_target", "resource does not match the authorization request");
+  return null;
+}
+
+// MobileAccountToken.valid? can only fail for a brand token (one with a team membership), whose membership, member and session
+// checks stay in Rails; Mcp::DynamicClientOauth.refresh_error is the dynamic client's resource binding.
+async function dynamicRefreshError(token: AccessTokenRow, input: MutationInput): Promise<Rendered | null> {
+  if (token.team_membership_id !== null) throw new NotPortedError("a brand account token", RUBY_FILE);
+  const application = await findApplicationById(token.application_id);
+  if (application === null || !truthy(application.mcp_dynamic_client)) return null;
+  if (!isPresent(token.resource)) return gumroadError("invalid_grant", "refresh token has no bound resource");
+  const resource = stringParam(input.params, "resource");
+  if (isPresent(resource) && resource !== token.resource)
+    return gumroadError("invalid_target", "resource does not match the refresh token");
+  return null;
+}
+
+const invalidGrant = (state: string | null) =>
+  oauthError("invalid_grant", DESCRIPTIONS.invalid_grant!, BAD_REQUEST, state);
+
+// Models::Expirable#expires_in_seconds, counted from the clock when the response is built.
+function expiresInSeconds(expiresIn: number | null, createdAt: Date): number | null {
+  if (expiresIn === null) return null;
+  // ActiveRecord keeps `created_at` in whole seconds, so the count is up to a second short of the lifetime.
+  const created = Math.floor(createdAt.getTime() / MILLISECONDS_PER_SECOND) * MILLISECONDS_PER_SECOND;
+  const remaining = Math.round((created + expiresIn * MILLISECONDS_PER_SECOND - Date.now()) / MILLISECONDS_PER_SECOND);
+  return Math.max(remaining, 0);
+}
+
+// OAuth::TokenResponse: blank values (no refresh token, no lifetime, empty scopes) are dropped.
+function tokenResponse(token: IssuedAccessToken): Rendered {
+  const body: Record<string, JsonValue> = { access_token: token.token, token_type: TOKEN_TYPE };
+  const expiresIn = expiresInSeconds(token.expiresIn, token.createdAt);
+  if (expiresIn !== null && expiresIn !== 0) body.expires_in = expiresIn;
+  if (token.refreshToken !== null) body.refresh_token = token.refreshToken;
+  if (token.scopes !== "") body.scope = token.scopes;
+  body.created_at = Math.floor(token.createdAt.getTime() / MILLISECONDS_PER_SECOND);
+  return jsonBody(body, 200, { "cache-control": NO_STORE });
+}
+
+// Revocable#revoked? on a row read under lock: Errors::InvalidGrantReuse renders invalid_grant.
+const revokedNow = (row: { revoked_at: Date | null }, now: Date) =>
+  row.revoked_at !== null && row.revoked_at.getTime() <= now.getTime();
+
+// AuthorizationCodeRequest#validate_code_verifier
+function codeVerifierMatches(grant: AccessGrantRow, codeVerifier: string | null): boolean {
+  if (!isPresent(codeVerifier)) return !isPresent(grant.code_challenge);
+  if (grant.code_challenge_method === S256)
+    return grant.code_challenge === createHash("sha256").update(codeVerifier).digest("base64url");
+  if (grant.code_challenge_method === PLAIN) return grant.code_challenge === codeVerifier;
+  return false;
+}
+
+// OAuth::AuthorizationCodeRequest#authorize
 async function authorizationCode(input: MutationInput, state: string | null, now: Date): Promise<ActionResult> {
   const code = stringParam(input.params, "code");
   const grant = isPresent(code) ? await findAccessGrant(code) : null;
-  await assertNotDynamicClientCode(grant);
+  if (grant !== null) {
+    const refused = await dynamicCodeExchangeError(grant, input);
+    if (refused !== null) return refused;
+  }
   if (!isPresent(code)) return oauthError("invalid_request", missingParam("code"), BAD_REQUEST, state);
 
   const client = await authenticateClient(clientCredentials(input));
@@ -165,32 +282,128 @@ async function authorizationCode(input: MutationInput, state: string | null, now
   // validate :client
   if (client === null) return clientError("invalid_client");
   // validate :grant
-  if (grant === null || grant.application_id !== client.id || !accessible(grant, now))
-    return oauthError("invalid_grant", DESCRIPTIONS.invalid_grant!, BAD_REQUEST);
-  throw new NotPortedError("an authorization code that passes the client and grant checks", RUBY_FILE);
+  if (grant === null || grant.application_id !== client.id || !accessible(grant, now)) return invalidGrant(null);
+  // validate :redirect_uri, validate :code_verifier
+  if (!redirectUriAllowed(redirectUri, grant.redirect_uri) || !codeVerifierMatches(grant, codeVerifier))
+    return invalidGrant(null);
+
+  return transaction(async () => {
+    // before_successful_response: grant.lock!, then the reuse check.
+    const locked = await lockAccessGrant(grant.id);
+    if (locked === null || revokedNow(locked, new Date())) return invalidGrant(state);
+    await revokeAccessGrant(grant.id, now);
+    // Gumroad does not reuse access tokens (no reuse_access_token), so a row is always created.
+    const issued = await insertAccessToken({
+      applicationId: client.id,
+      resourceOwnerId: grant.resource_owner_id,
+      scopes: scopeString(splitScopes(grant.scopes)),
+      expiresIn: null,
+      useRefreshToken: true,
+      resource: grant.resource,
+      createdAt: now,
+    });
+    return tokenResponse(issued);
+  });
 }
 
-// OAuth::ClientCredentialsRequest: the client validations run before scopes and issuance.
-async function clientCredentialsGrant(input: MutationInput): Promise<ActionResult> {
+// OAuth::ClientCredentialsRequest with ClientCredentials::Validator and Creator
+async function clientCredentialsGrant(input: MutationInput, now: Date): Promise<ActionResult> {
   const client = await authenticateClient(clientCredentials(input));
   if (client === null) return clientError("invalid_client");
   // allow_grant_flow_for_client: a dynamically registered client only redeems authorization codes.
   if (truthy(client.mcp_dynamic_client)) return clientError("unauthorized_client");
-  throw new NotPortedError("a client_credentials grant that passes the client checks", RUBY_FILE);
+
+  const applicationScopes = splitScopes(client.scopes);
+  const original = stringParam(input.params, "scope");
+  const requested = isPresent(original)
+    ? splitScopes(original)
+    : DEFAULT_SCOPES.filter((scope) => applicationScopes.includes(scope));
+  const requestedString = scopeString(requested);
+  // validate :scopes, on the normalised string
+  const valid =
+    (requested.length === 0 && applicationScopes.length === 0) ||
+    validScopeString(requestedString, applicationScopes.length > 0 ? applicationScopes : SERVER_SCOPES);
+  if (!valid) return oauthError("invalid_scope", DESCRIPTIONS.invalid_scope!, BAD_REQUEST);
+
+  // custom_access_token_attributes: the `resource` parameter is stored on the token.
+  const issued = await insertAccessToken({
+    applicationId: client.id,
+    resourceOwnerId: null,
+    scopes: requestedString,
+    expiresIn: null,
+    useRefreshToken: false,
+    resource: stringParam(input.params, "resource"),
+    createdAt: now,
+  });
+  return tokenResponse(issued);
+}
+
+// OAuth::RefreshTokenRequest
+async function refreshTokenGrant(input: MutationInput, state: string | null, now: Date): Promise<ActionResult> {
+  const refreshParam = stringParam(input.params, "refresh_token");
+  const old = refreshParam === null ? null : await findAccessToken("refresh_token", refreshParam);
+  if (old !== null) {
+    const refused = await dynamicRefreshError(old, input);
+    if (refused !== null) return refused;
+  }
+  const credentials = clientCredentials(input);
+  const client = credentials === null ? null : await authenticateClient(credentials);
+  const scopeParam = stringParam(input.params, "scope") ?? stringParam(input.params, "scopes");
+
+  const run = async (): Promise<ActionResult> => {
+    // validate :token_presence, :token
+    if (old === null && !isPresent(refreshParam))
+      return oauthError("invalid_request", missingParam("refresh_token"), BAD_REQUEST);
+    if (old === null || revokedNow(old, now)) return invalidGrant(null);
+    // validate :client
+    if (credentials !== null && client === null) return clientError("invalid_client");
+    // validate :client_match
+    if (client === null || old.application_id !== client.id) return invalidGrant(null);
+    // validate :scope
+    const oldScopes = splitScopes(old.scopes ?? "");
+    if (isPresent(scopeParam) && !validScopeString(scopeParam, oldScopes))
+      return oauthError("invalid_scope", DESCRIPTIONS.invalid_scope!, BAD_REQUEST);
+    // build_scopes: the scopes asked for, else the old token's that the application still offers.
+    const applicationScopes = splitScopes(client.scopes);
+    const scopes = isPresent(scopeParam)
+      ? splitScopes(scopeParam)
+      : applicationScopes.length === 0
+        ? oldScopes
+        : oldScopes.filter((scope) => applicationScopes.includes(scope));
+
+    return transaction(async () => {
+      const locked = await lockAccessToken(old.id);
+      if (locked === null || revokedNow(locked, new Date())) return invalidGrant(state);
+      await revokeAccessToken(old.id, now);
+      const issued = await insertAccessToken({
+        applicationId: old.application_id,
+        resourceOwnerId: old.resource_owner_id,
+        scopes: scopeString(scopes),
+        expiresIn: old.expires_in,
+        useRefreshToken: true,
+        resource: old.resource,
+        createdAt: now,
+      });
+      return tokenResponse(issued);
+    });
+  };
+  // Oauth::TokensController#authorize_response: the whole refresh runs under the shared application lock.
+  const application = old === null ? null : await findApplicationById(old.application_id);
+  return application === null ? run() : withApplicationLock(application.id, true, run);
 }
 
 async function createToken(input: MutationInput): Promise<ActionResult> {
-  assertNoSession(input);
+  assertPlainSession(input);
   const grantType = stringParam(input.params, "grant_type");
   const state = stringParam(input.params, "state");
-  const path = input.request.path;
-  if (grantType === DEVICE_GRANT_TYPE && path === "/oauth/token")
+  if (grantType === DEVICE_GRANT_TYPE && input.request.path === "/oauth/token")
     throw new NotPortedError("a device code grant", RUBY_FILE);
   // The `strategy` override: a blank grant_type is an authorization code exchange.
   const effective = isPresent(grantType) ? grantType : AUTHORIZATION_CODE;
-  if (effective === AUTHORIZATION_CODE) return authorizationCode(input, state, new Date());
-  if (effective === CLIENT_CREDENTIALS) return clientCredentialsGrant(input);
-  if (effective === REFRESH_TOKEN) throw new NotPortedError("a refresh token grant", RUBY_FILE);
+  const now = new Date();
+  if (effective === AUTHORIZATION_CODE) return authorizationCode(input, state, now);
+  if (effective === CLIENT_CREDENTIALS) return clientCredentialsGrant(input, now);
+  if (effective === REFRESH_TOKEN) return refreshTokenGrant(input, state, now);
   return oauthError("unsupported_grant_type", DESCRIPTIONS.unsupported_grant_type!, BAD_REQUEST, state);
 }
 
@@ -256,7 +469,10 @@ async function tokenInfo(input: MutationInput): Promise<ActionResult> {
   const now = new Date();
   const token = await bearerToken(input);
   if (token === null || !accessible(token, now)) return invalidToken(null, now);
-  throw new NotPortedError("an accessible token, whose JSON counts expires_in from the clock", "doorkeeper-5.7.1/app/controllers/doorkeeper/token_info_controller.rb");
+  throw new NotPortedError(
+    "an accessible token, whose JSON counts expires_in from the clock",
+    "doorkeeper-5.7.1/app/controllers/doorkeeper/token_info_controller.rb",
+  );
 }
 
 // OAuth::TokenIntrospection: the caller proves itself with client credentials or a bearer token of the same application.
@@ -306,10 +522,16 @@ async function introspect(input: MutationInput): Promise<ActionResult> {
   );
 }
 
-// Not /oauth/token or the muse, claude and chatgpt aliases: Rack::Attack's `oauth_token/ip` rule (3000 a minute per IP, plus backoff
-// tiers) counts them in Rails' Redis. A Node answer would skip that counter, and counting here as well would double-count every
-// request handed back, so those four stay in Rails whole. IFTTT and Notion have no throttle in rack_attack.rb.
-const TOKEN_PATHS = ["/ifttt/v1/oauth2/token", "/notion/oauth2/token"];
+// Rack::Attack's `oauth_token/ip` rule counts `/oauth/token` and the muse, claude and chatgpt aliases in rack-attack.ts before the action
+// chain runs, once per request whichever way it leaves; IFTTT and Notion have no throttle in rack_attack.rb.
+const TOKEN_PATHS = [
+  "/oauth/token",
+  "/muse/v1/oauth2/token",
+  "/claude/v1/oauth2/token",
+  "/chatgpt/v1/oauth2/token",
+  "/ifttt/v1/oauth2/token",
+  "/notion/oauth2/token",
+];
 
 // An ActionController::API controller: no guid or CSRF token, no CSRF check.
 const OPTIONS = { options: { bare: true, metal: true }, skipForgeryProtection: true } as const;

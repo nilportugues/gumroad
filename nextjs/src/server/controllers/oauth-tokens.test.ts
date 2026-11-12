@@ -8,12 +8,19 @@ const models = vi.hoisted(() => ({
   findAccessToken: vi.fn(),
   findAccessGrant: vi.fn(),
   revokeAccessToken: vi.fn(),
+  revokeAccessGrant: vi.fn(),
+  insertAccessToken: vi.fn(),
+  lockAccessGrant: vi.fn(),
+  lockAccessToken: vi.fn(),
+  transaction: vi.fn(),
 }));
+const locks = vi.hoisted(() => ({ withApplicationLock: vi.fn() }));
 
 vi.mock("../models/oauth-tokens.ts", async (original) => ({
   ...(await original<typeof import("../models/oauth-tokens.ts")>()),
   ...models,
 }));
+vi.mock("../models/oauth-application-writes.ts", () => locks);
 vi.mock("./mutation.ts", () => ({ registerMutations: vi.fn() }));
 
 import type { Rendered } from "./application-controller.ts";
@@ -25,10 +32,22 @@ const input = (
   headers: Record<string, string> = {},
   path = "/oauth/token",
   cookies: [string, string][] = [],
+  session: Record<string, unknown> = { session_id: "abc" },
 ) =>
-  ({ params, request: { headers: new Headers(headers), path, cookies: new Map(cookies) } }) as unknown as MutationInput;
+  ({
+    params,
+    chain: { session: { data: session } },
+    request: { headers: new Headers(headers), path, cookies: new Map(cookies) },
+  }) as unknown as MutationInput;
 const basic = (value: string) => ({ authorization: `Basic ${Buffer.from(value).toString("base64")}` });
-const publicApp = { id: 1, uid: "pub", secret: "s3cret", confidential: 0, mcp_dynamic_client: 0 };
+const publicApp = {
+  id: 1,
+  uid: "pub",
+  secret: "s3cret",
+  confidential: 0,
+  mcp_dynamic_client: 0,
+  scopes: "view_profile edit_products",
+};
 const confidentialApp = { ...publicApp, id: 2, uid: "conf", confidential: 1 };
 const body = (result: unknown) => JSON.parse((result as Rendered).body as string) as Record<string, unknown>;
 const status = (result: unknown) => (result as Rendered).status;
@@ -39,6 +58,17 @@ beforeEach(() => {
   models.findApplicationById.mockResolvedValue(null);
   models.findAccessToken.mockResolvedValue(null);
   models.findAccessGrant.mockResolvedValue(null);
+  models.transaction.mockImplementation((run: () => unknown) => run());
+  locks.withApplicationLock.mockImplementation((_id: number, _shared: boolean, run: () => unknown) => run());
+  models.lockAccessGrant.mockImplementation((id: number) => Promise.resolve({ id, revoked_at: null }));
+  models.lockAccessToken.mockImplementation((id: number) => Promise.resolve({ id, revoked_at: null }));
+  models.insertAccessToken.mockImplementation((attributes: Record<string, unknown>) =>
+    Promise.resolve({
+      ...attributes,
+      token: "new-token",
+      refreshToken: attributes.useRefreshToken ? "new-refresh" : null,
+    }),
+  );
 });
 
 describe("client credentials", () => {
@@ -75,29 +105,35 @@ describe("client credentials", () => {
 });
 
 describe("registered token paths", () => {
-  // config/initializers/rack_attack.rb: `oauth_token/ip` counts these in Rails' Redis; Node must never answer them.
-  it("leaves the paths Rack::Attack throttles to Rails", () => {
-    expect(TOKEN_PATHS).toEqual(["/ifttt/v1/oauth2/token", "/notion/oauth2/token"]);
+  it("serves /oauth/token and every alias, which rack-attack.ts counts once before the action chain", () => {
+    expect(TOKEN_PATHS).toEqual([
+      "/oauth/token",
+      "/muse/v1/oauth2/token",
+      "/claude/v1/oauth2/token",
+      "/chatgpt/v1/oauth2/token",
+      "/ifttt/v1/oauth2/token",
+      "/notion/oauth2/token",
+    ]);
   });
 
-  it("keeps routes.json free of the throttled token paths", () => {
+  it("lists each of them in routes.json", () => {
     const routes = JSON.parse(readFileSync(new URL("../../../routes.json", import.meta.url), "utf8")) as Record<
       string,
       unknown
     >;
-    const throttled = ["/oauth/token", "/muse/v1/oauth2/token", "/claude/v1/oauth2/token", "/chatgpt/v1/oauth2/token"];
-    expect(
-      Object.keys(routes).filter((key) => throttled.some((path) => key.endsWith(` ${path}`) || key === path)),
-    ).toEqual([]);
+    for (const path of TOKEN_PATHS) expect(routes).toHaveProperty([`POST ${path}`]);
   });
 });
 
 describe("session cookie", () => {
-  it("hands a request that carries one back", async () => {
-    process.env.RAILS_ENV = "test";
-    await expect(createToken(input({}, {}, "/oauth/token", [["_gumroad_app_session_test", "x"]]))).rejects.toThrow(
-      /session cookie/u,
-    );
+  it("hands back a session that holds more than its session id", async () => {
+    await expect(
+      createToken(input({}, {}, "/oauth/token", [["_gumroad_app_session_test", "x"]], { session_id: "a", warden: 1 })),
+    ).rejects.toThrow(/more than a session id/u);
+  });
+
+  it("answers a request whose session holds only its session id", async () => {
+    expect(status(await createToken(input({ grant_type: "password" })))).toBe(400);
   });
 });
 
@@ -163,18 +199,100 @@ describe("token endpoint", () => {
     });
   });
 
-  it("hands a code that passes the client and grant checks back", async () => {
+  it("issues a token and revokes the code for one that passes the checks", async () => {
     models.findApplicationByUid.mockResolvedValue(publicApp);
-    models.findAccessGrant.mockResolvedValue(grant);
-    await expect(createToken(input({ code: "c", redirect_uri: "https://x", client_id: "pub" }))).rejects.toThrow(
-      /not ported/u,
+    models.findAccessGrant.mockResolvedValue({
+      ...grant,
+      id: 7,
+      scopes: "view_profile  edit_products view_profile",
+      redirect_uri: "https://x.example.com/cb",
+      resource_owner_id: 3,
+      resource: "r",
+    });
+    const result = await createToken(input({ code: "c", redirect_uri: "https://x.example.com/cb", client_id: "pub" }));
+    expect(models.revokeAccessGrant).toHaveBeenCalledWith(7, expect.any(Date));
+    expect(models.insertAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationId: 1,
+        resourceOwnerId: 3,
+        scopes: "view_profile edit_products",
+        expiresIn: null,
+        useRefreshToken: true,
+        resource: "r",
+      }),
     );
+    expect(body(result)).toMatchObject({
+      access_token: "new-token",
+      token_type: "Bearer",
+      refresh_token: "new-refresh",
+      scope: "view_profile edit_products",
+    });
+    expect(body(result)).not.toHaveProperty("expires_in");
   });
 
-  it("hands a code of a dynamically registered client back", async () => {
-    models.findAccessGrant.mockResolvedValue({ ...grant, application_id: 3 });
+  it("answers invalid_grant with the state when the code was revoked while the request waited for its lock", async () => {
+    models.findApplicationByUid.mockResolvedValue(publicApp);
+    models.findAccessGrant.mockResolvedValue({
+      ...grant,
+      id: 7,
+      redirect_uri: "https://x.example.com/cb",
+      scopes: "a",
+    });
+    models.lockAccessGrant.mockResolvedValue({ id: 7, revoked_at: new Date(Date.now() - 1000) });
+    const result = await createToken(
+      input({ code: "c", redirect_uri: "https://x.example.com/cb", client_id: "pub", state: "s" }),
+    );
+    expect(body(result)).toMatchObject({ error: "invalid_grant", state: "s" });
+    expect(models.insertAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("answers invalid_grant for a redirect URI that is not the one of the code", async () => {
+    models.findApplicationByUid.mockResolvedValue(publicApp);
+    models.findAccessGrant.mockResolvedValue({ ...grant, redirect_uri: "https://x.example.com/cb" });
+    const result = await createToken(input({ code: "c", redirect_uri: "https://y.example.com/cb", client_id: "pub" }));
+    expect(body(result)).toMatchObject({ error: "invalid_grant" });
+    expect(models.insertAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("verifies an S256 challenge against the SHA-256 of the verifier", async () => {
+    models.findApplicationByUid.mockResolvedValue(publicApp);
+    // RFC 7636 appendix B
+    const verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+    const challenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
+    models.findAccessGrant.mockResolvedValue({
+      ...grant,
+      redirect_uri: "https://x.example.com/cb",
+      scopes: "a",
+      code_challenge: challenge,
+      code_challenge_method: "S256",
+    });
+    const params = { code: "c", redirect_uri: "https://x.example.com/cb", client_id: "pub" };
+    expect(body(await createToken(input({ ...params, code_verifier: verifier })))).toMatchObject({
+      access_token: "new-token",
+    });
+    expect(body(await createToken(input({ ...params, code_verifier: `${verifier}x` })))).toMatchObject({
+      error: "invalid_grant",
+    });
+  });
+
+  it("holds a dynamically registered client to S256 PKCE and the resource of its code", async () => {
     models.findApplicationById.mockResolvedValue({ ...publicApp, id: 3, mcp_dynamic_client: 1 });
-    await expect(createToken(input({ code: "c" }))).rejects.toThrow(/dynamically registered/u);
+    const dynamic = { ...grant, application_id: 3, resource: "r", code_challenge: "c", code_challenge_method: "S256" };
+    models.findAccessGrant.mockResolvedValue({ ...dynamic, code_challenge_method: "plain" });
+    expect(body(await createToken(input({ code: "c", code_verifier: "v" })))).toEqual({
+      error: "invalid_grant",
+      error_description: "authorization code was not issued with an S256 code challenge",
+    });
+    models.findAccessGrant.mockResolvedValue(dynamic);
+    expect(body(await createToken(input({ code: "c" })))).toMatchObject({ error: "invalid_request" });
+    models.findAccessGrant.mockResolvedValue({ ...dynamic, resource: null });
+    expect(body(await createToken(input({ code: "c", code_verifier: "v" })))).toMatchObject({
+      error_description: "authorization code has no bound resource",
+    });
+    models.findAccessGrant.mockResolvedValue(dynamic);
+    expect(body(await createToken(input({ code: "c", code_verifier: "v", resource: "other" })))).toMatchObject({
+      error: "invalid_target",
+    });
   });
 
   it("answers unauthorized_client for a dynamically registered client_credentials grant", async () => {
@@ -184,8 +302,89 @@ describe("token endpoint", () => {
     });
   });
 
-  it("hands the refresh_token grant and the device code grant back", async () => {
-    await expect(createToken(input({ grant_type: "refresh_token" }))).rejects.toThrow(/not ported/u);
+  const oldToken = {
+    id: 5,
+    application_id: 1,
+    token: "old",
+    refresh_token: "old-refresh",
+    expires_in: null,
+    revoked_at: null,
+    created_at: new Date(),
+    scopes: "view_profile edit_products",
+    resource_owner_id: 3,
+    resource: null,
+    team_membership_id: null,
+  };
+
+  it("refreshes under the shared application lock, revoking the old token and keeping its scopes and lifetime", async () => {
+    models.findApplicationByUid.mockResolvedValue({ ...publicApp, scopes: "edit_products view_profile" });
+    models.findApplicationById.mockResolvedValue(publicApp);
+    models.findAccessToken.mockResolvedValue({ ...oldToken, expires_in: 7200 });
+    const result = await createToken(
+      input({ grant_type: "refresh_token", refresh_token: "old-refresh", client_id: "pub" }),
+    );
+    expect(locks.withApplicationLock).toHaveBeenCalledWith(1, true, expect.any(Function));
+    expect(models.revokeAccessToken).toHaveBeenCalledWith(5, expect.any(Date));
+    expect(models.insertAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: "view_profile edit_products",
+        expiresIn: 7200,
+        resourceOwnerId: 3,
+        useRefreshToken: true,
+      }),
+    );
+    expect(body(result)).toMatchObject({ refresh_token: "new-refresh" });
+  });
+
+  it("answers invalid_scope for a scope the old token lacks, writing nothing", async () => {
+    models.findApplicationByUid.mockResolvedValue(publicApp);
+    models.findApplicationById.mockResolvedValue(publicApp);
+    models.findAccessToken.mockResolvedValue({ ...oldToken, scopes: "view_profile" });
+    const result = await createToken(
+      input({ grant_type: "refresh_token", refresh_token: "r", client_id: "pub", scope: "edit_products" }),
+    );
+    expect(body(result)).toMatchObject({ error: "invalid_scope" });
+    expect(models.revokeAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("asks for the refresh token when none is sent", async () => {
+    expect(body(await createToken(input({ grant_type: "refresh_token", client_id: "pub" })))).toMatchObject({
+      error_description: "Missing required parameter: refresh_token.",
+    });
+  });
+
+  it("hands a brand account token back", async () => {
+    models.findAccessToken.mockResolvedValue({ ...oldToken, team_membership_id: 9 });
+    await expect(createToken(input({ grant_type: "refresh_token", refresh_token: "r" }))).rejects.toThrow(
+      /brand account/u,
+    );
+  });
+
+  it("answers invalid_scope for a client_credentials grant that asks for what the application lacks", async () => {
+    models.findApplicationByUid.mockResolvedValue({ ...confidentialApp, secret: "s", scopes: "view_profile" });
+    const result = await createToken(
+      input({ grant_type: "client_credentials", client_id: "conf", client_secret: "s", scope: "view_sales" }),
+    );
+    expect(body(result)).toMatchObject({ error: "invalid_scope" });
+    expect(models.insertAccessToken).not.toHaveBeenCalled();
+  });
+
+  it("issues a client_credentials token with no owner and no refresh token", async () => {
+    models.findApplicationByUid.mockResolvedValue({
+      ...confidentialApp,
+      secret: "s",
+      scopes: "view_profile edit_products",
+    });
+    const result = await createToken(
+      input({ grant_type: "client_credentials", client_id: "conf", client_secret: "s", scope: "view_profile" }),
+    );
+    expect(models.insertAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceOwnerId: null, useRefreshToken: false, scopes: "view_profile" }),
+    );
+    expect(body(result)).not.toHaveProperty("refresh_token");
+  });
+
+  it("hands the device code grant on /oauth/token back", async () => {
     await expect(createToken(input({ grant_type: "urn:ietf:params:oauth:grant-type:device_code" }))).rejects.toThrow(
       /device code/u,
     );

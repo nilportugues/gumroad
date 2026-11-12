@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/oauth_tokens_parity_spec.rb",
-  "example": "OAuth tokens POST /oauth/token and the muse, claude and chatgpt aliases hands a failing code exchange on /oauth/token back to Rails",
+  "spec": "spec/requests/oauth_token_issuance_parity_spec.rb",
+  "example": "OAuth token issuance refresh_token answers invalid_scope for a scope the old token lacks",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -37,6 +37,51 @@
                 "flags": 0,
                 "destination_url": null,
                 "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "oauth_access_tokens": {
+            "columns": {
+              "id": "int",
+              "resource_owner_id": "int",
+              "application_id": "int",
+              "token": "varchar",
+              "refresh_token": "varchar",
+              "expires_in": "int",
+              "revoked_at": "datetime",
+              "created_at": "datetime",
+              "scopes": "varchar",
+              "resource": "varchar",
+              "team_membership_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "resource_owner_id": 2,
+                "application_id": 1,
+                "token": "dzJMJxDyg0LCo99QelHW7V6UWfNGI-j8BMf8wuN6n-Y",
+                "refresh_token": "gn5tv7eTtH93srohTRcpF-6AcmPnJ0aFn315maeH4tM",
+                "expires_in": null,
+                "revoked_at": null,
+                "created_at": "<now>",
+                "scopes": "view_profile",
+                "resource": null,
+                "team_membership_id": null
               }
             ]
           },
@@ -65,9 +110,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app27",
-                "uid": "BM6p-hfjVFzWjLTF4PWoyRhBQdBIFjPz3kvGZOrZXko",
-                "secret": "9e0ugiYbJVUfLeGlGtWAP4ors4_QoA-MeXyqxYhw4uc",
+                "name": "app40",
+                "uid": "eSQPWW4Awrua7UndE0oxHEZx0irniUTHTGpPau3OkXc",
+                "secret": "xB4UTu7iDQ5iOiSymdFDtYUaLnl_rY2EbXn-0rcuBqA",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -101,6 +146,16 @@
               {
                 "id": 1,
                 "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
                 "product_id": null,
                 "title": null,
                 "fine_print": null,
@@ -185,20 +240,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgare37d5f59_73@gumroad.com",
-                "encrypted_password": "$2a$04$/kyW1HE6mbZtLl67Dhh/8e6IHYaj6LP/vqSNXG3aCipLfaYz0AniG",
+                "email": "edgar07b1d069_141@gumroad.com",
+                "encrypted_password": "$2a$04$3gGSjt15z4HAD1Fd45OfdOzewg1bo6./4XP/8mK0q0bQcxgeqLVfm",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "223.106.144.207",
-                "last_sign_in_ip": "64.237.71.126",
+                "current_sign_in_ip": "54.39.201.17",
+                "last_sign_in_ip": "200.247.133.80",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgarfc1df641_74@gumroad.com",
+                "payment_address": "edgar879e5516_142@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -210,7 +265,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgarbb33c84e37",
+                "username": "edgar94ea497b71",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -223,8 +278,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "7249780565431",
-                "account_created_ip": "162.51.23.28",
+                "external_id": "2371880634904",
+                "account_created_ip": "101.91.173.210",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -242,7 +297,75 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "4V4ZJYZINSAH5IRTTVRRNVIUPR4JKPGI",
+                "otp_secret_key": "RAJJ6QNTRPYJ6F4U7RQMUB7VSBWH4KTJ",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar24902699_143@gumroad.com",
+                "encrypted_password": "$2a$04$XiJSfepNqFvDOrNgTywUZOT6kps.po/DOXNOSVJSo9IAy4ByD8Sua",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "44.180.198.167",
+                "last_sign_in_ip": "185.7.211.126",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgar1628c4f4_144@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgar4ec221f672",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "7464482987209",
+                "account_created_ip": "208.32.218.49",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "XH54NOBEXX43OX2MSRBNNSE7NZ5KYYJP",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -255,10 +378,11 @@
           }
         },
         "autoIncrement": {
-          "affiliates": 2,
+          "affiliates": 3,
+          "oauth_access_tokens": 2,
           "oauth_applications": 2,
-          "refund_policies": 2,
-          "users": 2
+          "refund_policies": 3,
+          "users": 3
         }
       },
       "redis": {
@@ -306,7 +430,7 @@
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "grant_type=authorization_code&code=unknown&client_id=BM6p-hfjVFzWjLTF4PWoyRhBQdBIFjPz3kvGZOrZXko&redirect_uri=https%3A%2F%2Ffoo"
+        "body": "grant_type=refresh_token&refresh_token=gn5tv7eTtH93srohTRcpF-6AcmPnJ0aFn315maeH4tM&client_id=eSQPWW4Awrua7UndE0oxHEZx0irniUTHTGpPau3OkXc&scope=edit_products"
       },
       "response": {
         "status": 400,
@@ -314,7 +438,7 @@
           "cache-control": "no-store",
           "content-type": "application/json; charset=utf-8",
           "vary": "Origin",
-          "www-authenticate": "Bearer realm=\"Doorkeeper\", error=\"invalid_grant\", error_description=\"The provided authorization grant is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client.\"",
+          "www-authenticate": "Bearer realm=\"Doorkeeper\", error=\"invalid_scope\", error_description=\"The requested scope is invalid, unknown, or malformed.\"",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
           "x-original-headers-class": "Rack::Headers",
@@ -323,7 +447,7 @@
         },
         "cookies": {
           "_gumroad_app_session_test": {
-            "value": "Xwp/0MJuAi+79G6Hmbq/hs2vb8bSVdjDlMmXAvzjT+Q8HXftwJwSWO11/icVxTxRvq3F6db7yfEXW6P53cAuGGXMKi3Ektqy9DEjIy80b362LvoeG8touxoTAcDkojXgOAfiWvamTodcmKAiNImXXLzjps2G5lldHeVIXK45XbNMbjEREZmaUWtiKVdYd+t4uSD5bK3YSECvV+boY1DJcqIztqw7IwY=--SWEMmfoM7uKm8fXg--0Hmc0tBNsFTbUBDqk5hdMw==",
+            "value": "g02rC0B/tYeoc1Bg1PU0tyBUK+IVXqAYpa7hn0McVH1V5Csu9lJnVXr3Dn1vvxrP19kzLar46MjfICNhz0w5HCG/FARHjD+Jf1aK7Zt0Xah6JbabLBYPqrCZUknC7kQ78v61zqWkzfOGD0TVH2EI2ZWYR3apzuTFL0LyDxFgGFemeEn2d26xwNBIDlc03ezXivc1vgQqyzhgbDGlUOSZw5k8VcmvwDg=--3HeMOqcZhoIHQJaJ--T3Huh8yryYdoXu8aWofr+Q==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -332,8 +456,8 @@
           }
         },
         "json": {
-          "error": "invalid_grant",
-          "error_description": "The provided authorization grant is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client."
+          "error": "invalid_scope",
+          "error_description": "The requested scope is invalid, unknown, or malformed."
         }
       },
       "db": {},

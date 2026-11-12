@@ -1,9 +1,10 @@
 // The Doorkeeper lookups behind Oauth::TokensController (doorkeeper 5.7.1). Gumroad stores tokens and client secrets as plaintext
 // (no hash_token_secrets / hash_application_secrets), so a lookup is an equality the database decides, collation included.
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 
+import { transaction } from "./runtime/transaction.ts";
 import { column, execute, selectRows, table } from "./sql.ts";
 
 export type ApplicationRow = {
@@ -12,6 +13,7 @@ export type ApplicationRow = {
   secret: string;
   confidential: unknown;
   mcp_dynamic_client: unknown;
+  scopes: string;
 };
 export type AccessTokenRow = {
   id: number;
@@ -21,6 +23,10 @@ export type AccessTokenRow = {
   revoked_at: Date | null;
   created_at: Date;
   scopes: string | null;
+  refresh_token: string | null;
+  resource_owner_id: number | null;
+  resource: string | null;
+  team_membership_id: number | bigint | null;
 };
 export type AccessGrantRow = {
   id: number;
@@ -29,7 +35,12 @@ export type AccessGrantRow = {
   revoked_at: Date | null;
   created_at: Date;
   redirect_uri: string;
+  token: string;
+  scopes: string;
+  resource_owner_id: number;
   code_challenge: string | null;
+  code_challenge_method: string | null;
+  resource: string | null;
 };
 
 const APPLICATIONS = "oauth_applications";
@@ -94,3 +105,55 @@ export async function revokeAccessToken(id: number, now: Date): Promise<void> {
     Prisma.sql`UPDATE ${table(TOKENS)} SET ${column(TOKENS, "revoked_at")} = ${seconds} WHERE ${column(TOKENS, "id")} = ${id}`,
   );
 }
+
+const wholeSeconds = (date: Date) =>
+  new Date(Math.floor(date.getTime() / MILLISECONDS_PER_SECOND) * MILLISECONDS_PER_SECOND);
+
+// Helpers::UniqueToken: SecureRandom.urlsafe_base64(32)
+export const generateUniqueToken = (): string => randomBytes(32).toString("base64url");
+
+export type NewAccessToken = {
+  applicationId: number;
+  resourceOwnerId: number | null;
+  scopes: string;
+  expiresIn: number | null;
+  useRefreshToken: boolean;
+  resource: string | null;
+  createdAt: Date;
+};
+export type IssuedAccessToken = NewAccessToken & { token: string; refreshToken: string | null };
+
+// AccessToken.create_for: the token is generated before the row is saved, and the refresh token after it (generate_token, then
+// generate_refresh_token when `use_refresh_token` is set). `created_at` is a DATETIME(0): whole seconds in the row.
+export async function insertAccessToken(attributes: NewAccessToken): Promise<IssuedAccessToken> {
+  const token = generateUniqueToken();
+  const refreshToken = attributes.useRefreshToken ? generateUniqueToken() : null;
+  await execute(
+    Prisma.sql`INSERT INTO ${table(TOKENS)} (${column(TOKENS, "resource_owner_id")}, ${column(TOKENS, "application_id")}, ${column(TOKENS, "token")}, ${column(TOKENS, "refresh_token")}, ${column(TOKENS, "expires_in")}, ${column(TOKENS, "created_at")}, ${column(TOKENS, "scopes")}, ${column(TOKENS, "resource")}) VALUES (${attributes.resourceOwnerId}, ${attributes.applicationId}, ${token}, ${refreshToken}, ${attributes.expiresIn}, ${wholeSeconds(attributes.createdAt)}, ${attributes.scopes}, ${attributes.resource})`,
+  );
+  return { ...attributes, token, refreshToken };
+}
+
+// Revocable#revoke: `update_attribute(:revoked_at, Time.now.utc)`.
+export async function revokeAccessGrant(id: number, now: Date): Promise<void> {
+  await execute(
+    Prisma.sql`UPDATE ${table(GRANTS)} SET ${column(GRANTS, "revoked_at")} = ${wholeSeconds(now)} WHERE ${column(GRANTS, "id")} = ${id}`,
+  );
+}
+
+// `record.lock!` in a transaction: the row is read again FOR UPDATE, so a request that lost the race sees it revoked.
+export async function lockAccessGrant(id: number): Promise<AccessGrantRow | null> {
+  const [row] = await selectRows<AccessGrantRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`oauth_access_grants`.*")} FROM ${table(GRANTS)} WHERE ${column(GRANTS, "id")} = ${id} LIMIT 1 FOR UPDATE`,
+  );
+  return row ?? null;
+}
+
+export async function lockAccessToken(id: number): Promise<AccessTokenRow | null> {
+  const [row] = await selectRows<AccessTokenRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`oauth_access_tokens`.*")} FROM ${table(TOKENS)} WHERE ${column(TOKENS, "id")} = ${id} LIMIT 1 FOR UPDATE`,
+  );
+  return row ?? null;
+}
+
+export { transaction };
