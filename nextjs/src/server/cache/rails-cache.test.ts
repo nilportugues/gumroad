@@ -14,6 +14,7 @@ import {
   RubyAsciiString,
   RubyFloat,
   RubySymbol,
+  RubyTimeWithZone,
   marshalDump,
   marshalLoad,
   type MarshalValue,
@@ -25,6 +26,7 @@ type Desc =
   | { t: "nil" }
   | { t: "bool"; v: boolean }
   | { t: "int" | "str" | "bin" | "ascii" | "sym" | "float"; v: string }
+  | { t: "twz"; sec: string; nsec: number }
   | { t: "arr"; v: Desc[] }
   | { t: "hash"; v: [Desc, Desc][] };
 
@@ -88,6 +90,8 @@ function build(desc: Desc): MarshalValue {
       return new RubyAsciiString(desc.v);
     case "sym":
       return new RubySymbol(desc.v);
+    case "twz":
+      return new RubyTimeWithZone(Number(desc.sec), desc.nsec);
     case "arr":
       return desc.v.map(build);
     case "hash":
@@ -114,6 +118,7 @@ function toDesc(value: MarshalValue | undefined): Desc {
   if (value instanceof Uint8Array) return { t: "bin", v: Buffer.from(value).toString("hex") };
   if (value instanceof RubyAsciiString) return { t: "ascii", v: value.value };
   if (value instanceof RubySymbol) return { t: "sym", v: value.name };
+  if (value instanceof RubyTimeWithZone) return { t: "twz", sec: String(value.seconds), nsec: value.nanoseconds };
   if (Array.isArray(value)) return { t: "arr", v: value.map(toDesc) };
   if (value instanceof Map)
     return { t: "hash", v: [...value].map(([key, element]) => [toDesc(key), toDesc(element)] as [Desc, Desc]) };
@@ -154,6 +159,19 @@ describe("Marshal subset", () => {
       ),
     );
     expect(marshalDump(12345.678)).toEqual(marshalDump(new RubyFloat(12345.678)));
+  });
+
+  it("refuses a TimeWithZone it cannot reproduce", () => {
+    expect(() => new RubyTimeWithZone(Date.UTC(1899, 11, 31) / 1000)).toThrow(MarshalRefusedError);
+    expect(() => new RubyTimeWithZone(Date.UTC(10000, 0, 1) / 1000)).toThrow(MarshalRefusedError);
+    expect(() => new RubyTimeWithZone(0, 1e9)).toThrow(MarshalRefusedError);
+    expect(() => new RubyTimeWithZone(1.5)).toThrow(MarshalRefusedError);
+    const dumped = marshalDump(new RubyTimeWithZone(1_761_955_200, 789)).toString("hex");
+    // The zone name changed from UTC to another three-letter name, and a truncation.
+    expect(() => marshalLoad(Buffer.from(dumped.replace(/555443063a064546/u, "555453063a064546"), "hex"))).toThrow(MarshalRefusedError);
+    expect(() => marshalLoad(Buffer.from(dumped.slice(0, -4), "hex"))).toThrow(MarshalRefusedError);
+    const sharedTime = new RubyTimeWithZone(1, 1);
+    expect(() => marshalDump([sharedTime, sharedTime])).toThrow(MarshalRefusedError);
   });
 
   it("refuses what it does not port", () => {
