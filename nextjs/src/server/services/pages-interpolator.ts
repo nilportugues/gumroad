@@ -10,9 +10,9 @@ export type PriceEntry = {
   price?: string | null;
   original_price?: string | null;
   currency_code?: string | null;
-  options?: PriceEntry[] & { name?: string }[];
+  options?: (PriceEntry & { name: string })[];
 };
-export type ProductPrices = Record<string, PriceEntry & { options?: (PriceEntry & { name: string })[] }>;
+export type ProductPrices = Record<string, PriceEntry>;
 
 // `String#blank?`: [[:space:]] is Unicode White_Space.
 const BLANK = /^[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$/u;
