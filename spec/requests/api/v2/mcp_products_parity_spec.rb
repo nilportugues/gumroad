@@ -264,4 +264,127 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       analytics({}, "view_public")
     end
   end
+
+  describe "get_subscriptions" do
+    let!(:club) { create(:product, user: seller, name: "Club", unique_permalink: "clubpass", is_recurring_billing: true, subscription_duration: "monthly") }
+
+    # A subscription with its original purchase, on the hour so the cursor and the started_at are exact.
+    def subscribe(email, day, link: club, user: nil, **columns)
+      subscription = create(:subscription, link:, user:)
+      subscription.update_columns(created_at: Time.utc(2026, 3, day, 10), **columns)
+      sell(link, email:, price_cents: 500, is_original_subscription_purchase: true, subscription_id: subscription.id)
+      subscription
+    end
+
+    def subscriptions(arguments = {}, scopes = "view_sales")
+      call_tool("get_subscriptions", arguments, scopes:)
+    end
+
+    it "lists the subscriptions newest first with the email of the original purchase", parity: true do
+      subscribe("ada@example.com", 2)
+      subscribe("bob@example.com", 3)
+      subscriptions
+    end
+
+    it "reports the email of the subscriber's account before the purchase's", parity: true do
+      subscribe("ignored@example.com", 2, user: create(:user, email: "account@example.com"))
+      subscriptions
+    end
+
+    it "reports the status of each kind of subscription", parity: true do
+      subscribe("alive@example.com", 2)
+      subscribe("pending@example.com", 3, cancelled_at: Time.current + 400.days)
+      subscribe("cancelled@example.com", 4, cancelled_at: Time.utc(2026, 3, 20), deactivated_at: Time.utc(2026, 3, 20))
+      subscribe("failed@example.com", 5, failed_at: Time.utc(2026, 3, 21), deactivated_at: Time.utc(2026, 3, 21))
+      subscribe("ended@example.com", 6, ended_at: Time.utc(2026, 3, 22), deactivated_at: Time.utc(2026, 3, 22))
+      subscriptions
+    end
+
+    it "counts failed payments and reports a failed latest charge as pending failure", parity: true do
+      subscription = subscribe("late@example.com", 2)
+      sell(club, email: "late@example.com", price_cents: 500, subscription_id: subscription.id, purchase_state: "failed", created_at: Time.utc(2026, 3, 9, 10))
+      subscriptions
+    end
+
+    it "reports a recovered subscription as alive after a failed charge", parity: true do
+      subscription = subscribe("back@example.com", 2)
+      sell(club, email: "back@example.com", price_cents: 500, subscription_id: subscription.id, purchase_state: "failed", created_at: Time.utc(2026, 3, 9, 10))
+      sell(club, email: "back@example.com", price_cents: 500, subscription_id: subscription.id, created_at: Time.utc(2026, 3, 10, 10))
+      subscriptions
+    end
+
+    it "lists only subscriptions that are still delivering with status alive", parity: true do
+      subscribe("alive@example.com", 2)
+      subscribe("pending@example.com", 3, cancelled_at: Time.current + 400.days)
+      subscribe("cancelled@example.com", 4, cancelled_at: Time.utc(2026, 3, 20), deactivated_at: Time.utc(2026, 3, 20))
+      subscriptions({ status: "alive" })
+    end
+
+    it "lists only stopped subscriptions with status ended", parity: true do
+      subscribe("alive@example.com", 2)
+      subscribe("pending@example.com", 3, cancelled_at: Time.current + 400.days)
+      subscribe("cancelled@example.com", 4, cancelled_at: Time.utc(2026, 3, 20), deactivated_at: Time.utc(2026, 3, 20))
+      subscribe("failed@example.com", 5, failed_at: Time.utc(2026, 3, 21), deactivated_at: Time.utc(2026, 3, 21))
+      subscriptions({ status: "ended" })
+    end
+
+    it "narrows the list to one product", parity: true do
+      subscribe("ada@example.com", 2)
+      other = create(:product, user: seller, name: "Newsletter", unique_permalink: "newsletter", is_recurring_billing: true, subscription_duration: "monthly")
+      subscribe("bob@example.com", 3, link: other)
+      subscriptions({ product_id: "newsletter" })
+    end
+
+    it "leaves out a test subscription and another seller's subscription", parity: true do
+      subscribe("ada@example.com", 2)
+      test = subscribe("test@example.com", 3)
+      test.update_columns(flags: test.flags | Subscription.flag_mapping["flags"][:is_test_subscription])
+      theirs = create(:product, user: create(:user), unique_permalink: "theirs", is_recurring_billing: true, subscription_duration: "monthly")
+      subscribe("eve@example.com", 4, link: theirs)
+      subscriptions
+    end
+
+    it "pages with a cursor", parity: true do
+      subscribe("ada@example.com", 2)
+      subscribe("bob@example.com", 3)
+      subscribe("cy@example.com", 4)
+      subscriptions({ limit: 2 })
+    end
+
+    it "lists the page after a cursor", parity: true do
+      subscribe("ada@example.com", 2)
+      subscribe("bob@example.com", 3)
+      subscribe("cy@example.com", 4)
+      second = Subscription.find_by!(created_at: Time.utc(2026, 3, 3, 10))
+      subscriptions({ limit: 2, cursor: "#{(second.created_at.to_r * 1_000_000).to_i}_#{second.id}" })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      subscriptions({ product_id: "nope" })
+    end
+
+    it "refuses a limit of 0", parity: true do
+      subscriptions({ limit: 0 })
+    end
+
+    it "hands back the churn breakdown", parity: true do
+      subscriptions({ breakdown: "churn" })
+    end
+
+    it "hands back a subscription whose renewals a card mandate disabled", parity: true do
+      subscription = subscribe("ada@example.com", 2)
+      subscription.update_columns(flags: subscription.flags | Subscription.flag_mapping["flags"][:renewal_disabled_due_to_indian_card_mandate])
+      subscriptions
+    end
+
+    it "hands back a gifted subscription", parity: true do
+      subscribe("ada@example.com", 2)
+      Purchase.find_by!(email: "ada@example.com").update_columns(flags: Purchase.flag_mapping["flags"][:is_original_subscription_purchase] | Purchase.flag_mapping["flags"][:is_gift_sender_purchase])
+      subscriptions
+    end
+
+    it "hands back a token without a sales scope", parity: true do
+      subscriptions({}, "view_public")
+    end
+  end
 end

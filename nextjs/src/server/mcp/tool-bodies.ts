@@ -23,6 +23,7 @@ import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
 import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
+import { subscriptionStatus } from "../page-props/customers/customers.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import type { LinkRow, UserRow } from "../presenters/product-reads.ts";
 import { longUrl } from "../presenters/product.ts";
@@ -209,6 +210,7 @@ export type ToolContext = {
   products?: ProductsReader;
   // Link#successful_sales_count and Link#total_usd_cents (both Elasticsearch searches).
   analytics?: AnalyticsReader;
+  subscriptions?: SubscriptionsReader;
   productStats?: (productId: bigint) => Promise<{ sales_count: number | null; sales_usd_cents: FloatValue | number }>;
   now?: () => Date;
 };
@@ -1059,6 +1061,186 @@ async function listPayouts(args: Hash, context: ToolContext): Promise<Hash> {
   };
 }
 
+export type SubscriptionRow = {
+  id: bigint;
+  link_id: bigint | null;
+  product_name: string | null;
+  created_at: Date;
+  created_micros: bigint;
+  cancelled_at: Date | null;
+  failed_at: Date | null;
+  ended_at: Date | null;
+  deactivated_at: Date | null;
+  flags: bigint;
+  user_email: string | null;
+  user_unconfirmed_email: string | null;
+};
+export type SubscriptionPurchaseRow = {
+  id: bigint;
+  subscription_id: bigint;
+  purchase_state: string | null;
+  flags: bigint | null;
+  email: string | null;
+  created_micros: bigint;
+};
+export type SubscriptionsQuery = {
+  sellerId: bigint;
+  productId: bigint | null;
+  status: "alive" | "ended" | null;
+  limit: number;
+  after: { at: string; id: bigint } | null;
+  now: Date;
+};
+export type SubscriptionsReader = {
+  // The seller's non-test subscriptions, newest first (`Mcp::Server#subscriptions_payload`).
+  list: (query: SubscriptionsQuery) => Promise<SubscriptionRow[]>;
+  purchases: (subscriptionIds: bigint[]) => Promise<SubscriptionPurchaseRow[]>;
+};
+
+const microsOf = (column: string) => Prisma.raw(`TIMESTAMPDIFF(MICROSECOND, '1970-01-01', ${column})`);
+
+export const readSubscriptions: SubscriptionsReader = {
+  async list({ sellerId, productId, status, limit, after, now }) {
+    const product = productId === null ? Prisma.empty : Prisma.sql`AND subscriptions.link_id = ${productId}`;
+    // Subscription.active, whose complement is the ended list.
+    const active = Prisma.sql`subscriptions.failed_at IS NULL AND subscriptions.ended_at IS NULL
+      AND (subscriptions.cancelled_at IS NULL OR subscriptions.cancelled_at > ${utc(now)})`;
+    const state =
+      status === "alive"
+        ? Prisma.sql`AND ${active}`
+        : status === "ended"
+          ? Prisma.sql`AND NOT (${active})`
+          : Prisma.empty;
+    const cursor =
+      after === null
+        ? Prisma.empty
+        : Prisma.sql`AND (subscriptions.created_at < ${after.at} OR (subscriptions.created_at = ${after.at} AND subscriptions.id < ${after.id}))`;
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT subscriptions.id, subscriptions.link_id,
+        links.name AS product_name, subscriptions.created_at, ${microsOf("subscriptions.created_at")} AS created_micros,
+        subscriptions.cancelled_at, subscriptions.failed_at, subscriptions.ended_at, subscriptions.deactivated_at,
+        subscriptions.flags, subscribers.email AS user_email, subscribers.unconfirmed_email AS user_unconfirmed_email
+      FROM subscriptions INNER JOIN links ON links.id = subscriptions.link_id
+      INNER JOIN users ON users.id = links.user_id
+      LEFT JOIN users subscribers ON subscribers.id = subscriptions.user_id
+      WHERE users.id = ${sellerId} AND ${SubscriptionFlags.condition("is_test_subscription", false)} ${product} ${state} ${cursor}
+      ORDER BY subscriptions.created_at DESC, subscriptions.id DESC LIMIT ${limit}`;
+    return rows.map((row) => ({
+      ...(row as unknown as SubscriptionRow),
+      id: BigInt(row.id as bigint),
+      link_id: row.link_id === null ? null : BigInt(row.link_id as bigint),
+      flags: BigInt(row.flags as bigint),
+      created_micros: BigInt(row.created_micros as bigint),
+    }));
+  },
+  async purchases(subscriptionIds) {
+    if (subscriptionIds.length === 0) return [];
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT id, subscription_id, purchase_state, flags, email,
+        ${microsOf("created_at")} AS created_micros
+      FROM purchases WHERE subscription_id IN (${Prisma.join(subscriptionIds)})`;
+    return rows.map((row) => ({
+      ...(row as unknown as SubscriptionPurchaseRow),
+      id: BigInt(row.id as bigint),
+      subscription_id: BigInt(row.subscription_id as bigint),
+      flags: row.flags === null ? null : BigInt(row.flags as bigint),
+      created_micros: BigInt(row.created_micros as bigint),
+    }));
+  },
+};
+
+const isPurchaseFlag = (row: SubscriptionPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) =>
+  PurchaseFlags.isSet(row.flags, name);
+const presentText = (value: string | null): string | null => (value === null || value.trim() === "" ? null : value);
+
+// Mcp::Server#subscription_email
+function subscriptionEmail(row: SubscriptionRow, purchases: SubscriptionPurchaseRow[]): string | null {
+  const formEmail = presentText(row.user_unconfirmed_email) ?? presentText(row.user_email);
+  if (formEmail !== null) return formEmail;
+  const originals = purchases
+    .filter((purchase) => isPurchaseFlag(purchase, "is_original_subscription_purchase"))
+    .sort((a, b) => Number(a.id - b.id));
+  const trueOriginal = originals[0];
+  if (trueOriginal === undefined) return null;
+  // The giftee's address lives on the gift row.
+  if (isPurchaseFlag(trueOriginal, "is_gift_sender_purchase")) throw new HandBackToRails("a gifted subscription");
+  const candidates = originals.filter(
+    (purchase) => !isPurchaseFlag(purchase, "is_archived_original_subscription_purchase"),
+  );
+  // has_one :original_purchase has no order, so it is only the first row when it is the only one.
+  if (candidates.length > 1) throw new HandBackToRails("a subscription with several original purchases");
+  return (candidates[0] ?? trueOriginal).email;
+}
+
+// Subscription#status, as customers.ts reads it. A card mandate that disabled renewals changes the answer in ways that
+// need the mandate's feature flag and the next charge, which are Rails's.
+function subscriptionState(row: SubscriptionRow, purchases: SubscriptionPurchaseRow[], now: Date): string | null {
+  if (SubscriptionFlags.isSet(row.flags, "renewal_disabled_due_to_indian_card_mandate"))
+    throw new HandBackToRails("a subscription whose renewals a card mandate disabled");
+  const newest = purchases.reduce<SubscriptionPurchaseRow | undefined>(
+    (best, purchase) => (best === undefined || purchase.created_micros > best.created_micros ? purchase : best),
+    undefined,
+  );
+  // max_by keeps the first of equal timestamps, in no order this port can see.
+  if (
+    newest !== undefined &&
+    purchases.filter((purchase) => purchase.created_micros === newest.created_micros).length > 1
+  )
+    throw new HandBackToRails("a subscription whose newest purchases share a timestamp");
+  return subscriptionStatus(
+    row as unknown as Parameters<typeof subscriptionStatus>[0],
+    newest?.purchase_state ?? null,
+    now,
+  );
+}
+
+// tool_get_subscriptions, for breakdown=subscriptions. The churn breakdown reads CreatorAnalytics::Churn, whose rates are
+// Ruby Floats the port's cached payload does not keep apart from integers.
+async function getSubscriptions(args: Hash, context: ToolContext): Promise<Hash> {
+  const breakdown = "breakdown" in args ? args.breakdown : "subscriptions";
+  if (breakdown === "churn") throw new HandBackToRails("get_subscriptions churn");
+  let product: ProductDetailRow | null = null;
+  if (isPresent(args.product_id)) {
+    product = await (context.products ?? readProducts).find(BigInt(context.user.id), args.product_id);
+    if (product === null) throw new ToolError("The product was not found.");
+  }
+  const limit = limitFor(args, 25);
+  const after = parseCursor(args);
+  const status = args.status === "alive" || args.status === "ended" ? args.status : null;
+  if (args.status !== undefined && status === null) throw new HandBackToRails("a subscription status filter");
+  const now = (context.now ?? (() => new Date()))();
+  const reader = context.subscriptions ?? readSubscriptions;
+  const rows = await reader.list({
+    sellerId: BigInt(context.user.id),
+    productId: product?.id ?? null,
+    status,
+    limit: limit + 1,
+    after,
+    now,
+  });
+  const page = rows.slice(0, limit);
+  const purchases = await reader.purchases(page.map((row) => row.id));
+  const subscriptions = page.map((row) => {
+    const own = purchases.filter((purchase) => purchase.subscription_id === row.id);
+    return {
+      id: encrypt(row.id),
+      product_id: row.link_id === null ? null : encrypt(row.link_id),
+      product_name: row.product_name,
+      email: subscriptionEmail(row, own),
+      status: subscriptionState(row, own, now),
+      started_at: iso8601(row.created_at),
+      cancelled_at: row.cancelled_at === null ? null : iso8601(row.cancelled_at),
+      failed_at: row.failed_at === null ? null : iso8601(row.failed_at),
+      ended_at: row.ended_at === null ? null : iso8601(row.ended_at),
+      failed_payments: own.filter((purchase) => purchase.purchase_state === "failed").length,
+    };
+  });
+  const last = page[page.length - 1];
+  return {
+    breakdown: "subscriptions",
+    subscriptions,
+    ...(rows.length > limit && last !== undefined ? { next_cursor: `${last.created_micros}_${last.id}` } : {}),
+  };
+}
+
 const ANALYTICS_DEFAULT_DAYS = 30;
 const ANALYTICS_MAX_DAYS = 366;
 const ANALYTICS_MAX_REFERRERS = 50;
@@ -1216,6 +1398,9 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "get_product":
       requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);
+    case "get_subscriptions":
+      requireScopes(context.token, ["view_sales", "account"]);
+      return getSubscriptions(args, context);
     case "get_analytics":
       requireScopes(context.token, ["view_sales", "account"]);
       return getAnalytics(args, context);

@@ -139,7 +139,8 @@ const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
   ["-sales-totals-by-country-reports-sales-totals-by-country", "2026-11-12T05:00:00Z"],
   ["-list-sales-", "2026-11-12T05:00:00Z"],
   ["-list-products-", "2026-11-12T06:00:00Z"],
-  ["-get-analytics-", "2026-11-12T10:30:00Z"],
+  ["-get-analytics-", "2026-11-12T11:00:00Z"],
+  ["-get-subscriptions-", "2026-11-12T11:00:00Z"],
   ["-reports-sales-totals-", "2026-11-10T16:45:00Z"],
   ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
 ];

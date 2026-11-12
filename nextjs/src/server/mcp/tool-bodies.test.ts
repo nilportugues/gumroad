@@ -17,6 +17,9 @@ import {
   type ProductListRow,
   type ProductsReader,
   type SaleRow,
+  type SubscriptionPurchaseRow,
+  type SubscriptionRow,
+  type SubscriptionsReader,
   type SalesReader,
   type SalesTotalsReader,
 } from "./tool-bodies.ts";
@@ -662,7 +665,9 @@ describe("tools/call through the session", () => {
   });
 
   it("still hands back a tool that is not ported", async () => {
-    await expect(session("account").handle(call("publish_product", { id: "x" }))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(session("account").handle(call("publish_product", { id: "x" }))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
   });
 });
 
@@ -1048,5 +1053,93 @@ describe("get_analytics", () => {
     await expect(
       toolBody("get_analytics", { start_date: "2024-01-01", end_date: "2026-03-31" }, context),
     ).rejects.toMatchObject({ message: "The date range cannot exceed 366 days" });
+  });
+});
+
+describe("get_subscriptions", () => {
+  const subscription = (attributes: Partial<SubscriptionRow> = {}): SubscriptionRow => ({
+    id: 5n,
+    link_id: 9n,
+    product_name: "Club",
+    created_at: new Date("2026-03-02T10:00:00Z"),
+    created_micros: 1772445600000000n,
+    cancelled_at: null,
+    failed_at: null,
+    ended_at: null,
+    deactivated_at: null,
+    flags: 0n,
+    user_email: null,
+    user_unconfirmed_email: null,
+    ...attributes,
+  });
+  const purchase = (id: number, attributes: Partial<SubscriptionPurchaseRow> = {}): SubscriptionPurchaseRow => ({
+    id: BigInt(id),
+    subscription_id: 5n,
+    purchase_state: "successful",
+    flags: 1n << 2n,
+    email: "ada@example.com",
+    created_micros: BigInt(id) * 1_000_000n,
+    ...attributes,
+  });
+  const subscriptionsContext = (rows: SubscriptionRow[], purchases: SubscriptionPurchaseRow[]) => ({
+    ...productsContext([], "view_sales"),
+    now: () => new Date("2026-03-10T00:00:00Z"),
+    subscriptions: {
+      list: vi.fn<SubscriptionsReader["list"]>().mockResolvedValue(rows),
+      purchases: vi.fn<SubscriptionsReader["purchases"]>().mockResolvedValue(purchases),
+    },
+  });
+
+  it("reports each subscription with its email, status and failed payments", async () => {
+    const context = subscriptionsContext(
+      [subscription()],
+      [purchase(1), purchase(2, { purchase_state: "failed", flags: 0n, created_micros: 9_000_000n })],
+    );
+    expect(await toolBody("get_subscriptions", {}, context)).toEqual({
+      breakdown: "subscriptions",
+      subscriptions: [
+        {
+          id: expect.any(String),
+          product_id: expect.any(String),
+          product_name: "Club",
+          email: "ada@example.com",
+          status: "pending_failure",
+          started_at: "2026-03-02T10:00:00Z",
+          cancelled_at: null,
+          failed_at: null,
+          ended_at: null,
+          failed_payments: 1,
+        },
+      ],
+    });
+  });
+
+  it("prefers the subscriber's account email and gives the cursor in microseconds when another page exists", async () => {
+    const context = subscriptionsContext(
+      [
+        subscription({ user_unconfirmed_email: "new@example.com", user_email: "old@example.com" }),
+        subscription({ id: 4n }),
+      ],
+      [purchase(1)],
+    );
+    const body = (await toolBody("get_subscriptions", { limit: 1 }, context)) as {
+      subscriptions: { email: string }[];
+      next_cursor: string;
+    };
+    expect(body.subscriptions[0]!.email).toBe("new@example.com");
+    expect(body.next_cursor).toBe("1772445600000000_5");
+    expect(context.subscriptions.list).toHaveBeenCalledWith(expect.objectContaining({ limit: 2, status: null }));
+  });
+
+  it("hands back churn, a mandate, a gift, several original purchases and tied newest purchases", async () => {
+    const hands = async (context: ReturnType<typeof subscriptionsContext>, args = {}) =>
+      expect(toolBody("get_subscriptions", args, context)).rejects.toBeInstanceOf(HandBackToRails);
+    await hands(subscriptionsContext([], []), { breakdown: "churn" });
+    await hands(subscriptionsContext([subscription({ flags: 1n << 7n })], [purchase(1)]));
+    await hands(subscriptionsContext([subscription()], [purchase(1, { flags: (1n << 2n) | (1n << 6n) })]));
+    await hands(subscriptionsContext([subscription()], [purchase(1), purchase(2)]));
+    await hands(
+      subscriptionsContext([subscription()], [purchase(1), purchase(2, { flags: 0n, created_micros: 1_000_000n })]),
+    );
   });
 });
