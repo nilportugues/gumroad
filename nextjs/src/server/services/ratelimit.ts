@@ -13,7 +13,11 @@ const nowSeconds = () => Math.floor(Date.now() / MILLISECONDS_PER_SECOND);
 const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export class Ratelimit {
-  constructor(private readonly key: string) {}
+  private readonly key: string;
+
+  constructor(key: string) {
+    this.key = key;
+  }
 
   private subjectKey(subject: string): string {
     return `ratelimit:${this.key}:${subject}`;
