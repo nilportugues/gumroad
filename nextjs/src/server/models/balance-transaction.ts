@@ -139,12 +139,22 @@ export async function findOrCreateBalance(
 
   if (balance === null) {
     if (!credit) throw new BalanceCouldNotBeFoundOrCreated(bt.get("id"));
-    if (credit.get("returned_payment_id") != null)
-      throw new NotPortedError(
-        "BalanceTransaction balance date for a returned payment",
-        "app/models/balance_transaction.rb:195",
+    const returnedPaymentId = credit.get("returned_payment_id");
+    let occurredAt: Date;
+    if (returnedPaymentId != null) {
+      // credit.returned_payment.balances.order(date: :asc).first&.date || credit.created_at.to_date
+      const [payment] = await selectRows(
+        Prisma.sql`SELECT ${Prisma.raw("`payments`.*")} FROM ${table("payments")} WHERE ${column("payments", "id")} = ${returnedPaymentId} LIMIT 1`,
       );
-    const occurredAt = capitalDeductionDate(credit) ?? toDate(credit.get("created_at") as Date);
+      const [oldest] = payment
+        ? await selectRows(
+            Prisma.sql`SELECT ${Prisma.raw("`balances`.*")} FROM ${table("balances")} INNER JOIN ${table("payments_balances")} ON ${column("balances", "id")} = ${column("payments_balances", "balance_id")} WHERE ${column("payments_balances", "payment_id")} = ${returnedPaymentId} ORDER BY ${column("balances", "date")} ASC LIMIT 1`,
+          )
+        : [];
+      occurredAt = (oldest?.date as Date | undefined) ?? toDate(credit.get("created_at") as Date);
+    } else {
+      occurredAt = capitalDeductionDate(credit) ?? toDate(credit.get("created_at") as Date);
+    }
     try {
       balance = await createBalanceBang(
         {
