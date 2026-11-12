@@ -3071,7 +3071,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendStripeBalanceCheckNotificationJob": {
     "file": "app/sidekiq/send_stripe_balance_check_notification_job.rb",

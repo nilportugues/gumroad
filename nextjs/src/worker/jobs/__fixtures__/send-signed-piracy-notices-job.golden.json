@@ -1,0 +1,1437 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "the feature is none and nothing is signed",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "none"
+    },
+    {
+      "name": "the feature is none and a report is signed",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "none"
+    },
+    {
+      "name": "the feature is off and nothing is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "off"
+    },
+    {
+      "name": "the feature is off and a report is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "off"
+    },
+    {
+      "name": "the feature is on and nothing is signed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "on"
+    },
+    {
+      "name": "the feature is on and a report is signed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "report1",
+                1,
+                1,
+                "web",
+                null,
+                "signed",
+                "https://example.com/1",
+                "digest1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": true,
+      "gate": "on"
+    },
+    {
+      "name": "the feature is actors100 and nothing is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "actors100"
+    },
+    {
+      "name": "the feature is actors100 and a report is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "100"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "actors100"
+    },
+    {
+      "name": "the feature is actors50 and nothing is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "50"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "50"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "actors50"
+    },
+    {
+      "name": "the feature is actors50 and a report is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "50"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_actors": "50"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "actors50"
+    },
+    {
+      "name": "the feature is time100 and nothing is signed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "time100"
+    },
+    {
+      "name": "the feature is time100 and a report is signed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "report1",
+                1,
+                1,
+                "web",
+                null,
+                "signed",
+                "https://example.com/1",
+                "digest1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "100"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": true,
+      "gate": "time100"
+    },
+    {
+      "name": "the feature is time0 and nothing is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "0"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "0"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "time0"
+    },
+    {
+      "name": "the feature is time0 and a report is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "0"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "percentage_of_time": "0"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "time0"
+    },
+    {
+      "name": "the feature is actor and nothing is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "actors/User;5": "1"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "actors/User;5": "1"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "actor"
+    },
+    {
+      "name": "the feature is actor and a report is signed",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "actors/User;5": "1"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "actors/User;5": "1"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "actor"
+    },
+    {
+      "name": "the feature is on_and_time50 and nothing is signed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true",
+            "percentage_of_time": "50"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true",
+            "percentage_of_time": "50"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "on_and_time50"
+    },
+    {
+      "name": "the feature is on_and_time50 and a report is signed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "report1",
+                1,
+                1,
+                "web",
+                null,
+                "signed",
+                "https://example.com/1",
+                "digest1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true",
+            "percentage_of_time": "50"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true",
+            "percentage_of_time": "50"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": true,
+      "gate": "on_and_time50"
+    },
+    {
+      "name": "a signed report among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "report2",
+                1,
+                2,
+                "web",
+                null,
+                "signed",
+                "https://example.com/2",
+                "digest2",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": true,
+      "gate": "on"
+    },
+    {
+      "name": "only reports in other states",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": false,
+      "gate": "on"
+    },
+    {
+      "name": "the second signed report",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `piracy_reports`.* FROM `piracy_reports` WHERE `piracy_reports`.`state` = 'signed' ORDER BY `piracy_reports`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "external_id",
+              "seller_id",
+              "product_id",
+              "source",
+              "ticket_url",
+              "state",
+              "url",
+              "normalized_url_digest",
+              "recipient_name",
+              "recipient_email",
+              "recipient_source_url",
+              "screening_verdict",
+              "screening_checks",
+              "screened_at",
+              "notice_text",
+              "notice_digest",
+              "signed_at",
+              "signed_by_name",
+              "signature_statement_version",
+              "signed_ip",
+              "reply_token",
+              "sent_at",
+              "sent_message_id",
+              "sent_to_email",
+              "last_contact_email",
+              "delivered_at",
+              "delivery_failed_at",
+              "counter_notice_body",
+              "counter_notice_received_on",
+              "counter_notice_forwarded_at",
+              "outcome",
+              "outcome_reason",
+              "resolved_at",
+              "outcome_notified_at",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "report2",
+                1,
+                2,
+                "web",
+                null,
+                "signed",
+                "https://example.com/2",
+                "digest2",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "piracy_reports_sending"
+          ],
+          "expires": false
+        },
+        "piracy_reports_sending": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        }
+      },
+      "job": "SendSignedPiracyNoticesJob",
+      "args": [],
+      "hands_back": true,
+      "gate": "on"
+    }
+  ]
+}
