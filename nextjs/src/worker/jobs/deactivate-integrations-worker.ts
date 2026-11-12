@@ -1,8 +1,8 @@
-// Port of app/sidekiq/deactivate_integrations_worker.rb up to the first integration API call. `Purchase.find`, the purchase's
-// subscription and the sibling purchases that hold a live purchase integration, and each purchase's Circle and Discord lookups
-// (an integration that keeps inactive members, or a Discord one with no member to remove, changes nothing) run in Node. A Circle
-// integration to leave, or a Discord member to remove, means a CircleApi / DiscordApi call and a PurchaseIntegration write, which
-// hand back to Rails before anything is written, as does an id Rails casts.
+// Port of app/sidekiq/deactivate_integrations_worker.rb. `Purchase.find`, the purchase's subscription and the sibling purchases that
+// hold a live purchase integration, and each purchase's Circle and Discord lookups (an integration that keeps inactive members, or a
+// Discord one with no member to remove, changes nothing) run in Node, then each Circle integration to leave is a `CircleApi#remove_member`
+// call, as Rails made it. A Discord member to remove (a DiscordApi call and a PurchaseIntegration write) hands the whole job back to
+// Rails before any Circle call, as does an id Rails casts or a Circle key or detail Ruby would render differently.
 // Golden: __fixtures__/deactivate-integrations-worker.golden.json (scripts/golden/deactivate-integrations-worker.rb).
 import { Prisma, type Purchase, type Subscription } from "@prisma/client";
 
@@ -12,7 +12,7 @@ import { PurchaseRecord } from "../../server/models/purchase-pricing.ts";
 import { findById, findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 
-import { deactivateIntegration } from "./support/integration-services.ts";
+import { deactivateIntegration, runVendorCalls, type VendorCall } from "./support/integration-services.ts";
 import { modelJob } from "./support/job-deps.ts";
 
 // purchase.subscription.purchases.joins(:live_purchase_integrations).distinct
@@ -36,10 +36,14 @@ export const deactivateIntegrationsWorkerWith = modelJob({ min: 1 }, async ([pur
   const id = await beforeSideEffects(() => recordIdFrom(purchaseId, "Purchase.find"));
   const purchase = new PurchaseRecord(await findByIdBang<Purchase>("Purchase", id), null);
 
-  await beforeSideEffects(async () => {
+  const calls = await beforeSideEffects(async () => {
+    const planned: VendorCall[] = [];
     for (const candidate of await purchasesToProcess(purchase)) {
-      for (const name of [CIRCLE_INTEGRATION, DISCORD_INTEGRATION]) await deactivateIntegration(candidate, name);
+      for (const name of [CIRCLE_INTEGRATION, DISCORD_INTEGRATION])
+        planned.push(...(await deactivateIntegration(candidate, name)));
     }
+    return planned;
   });
+  await runVendorCalls(calls);
 });
 export const deactivateIntegrationsWorker = deactivateIntegrationsWorkerWith();

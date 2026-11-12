@@ -8,6 +8,7 @@
 require_relative "support/rails_cases"
 require_relative "support/integration_rows"
 include RailsCases
+capture_http!
 
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/update-integrations-on-tier-change-worker.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
@@ -16,7 +17,7 @@ ARCHIVED = 1 << 17
 
 Rails.logger = ActiveSupport::Logger.new(nil)
 
-def run(name, args, seed) = run_job(UpdateIntegrationsOnTierChangeWorker, name, args, seed)
+def run(name, args, seed, http = []) = run_job(UpdateIntegrationsOnTierChangeWorker, name, args, seed, http)
 
 def merge(*seeds) = seeds.each_with_object({}) { |s, all| s.each { |table, rows| all[table] = (all[table] || []) + rows } }
 def circle(id, product, **flags) = { integrations: [integration_row(id, CIRCLE, **flags)], product_integrations: [product_integration_row(id, product, id)] }
@@ -63,6 +64,11 @@ cases << run("three original purchases, the one before the last is the previous 
 cases << run("a previous original purchase that was not archived is also read as the current one", [1], tier_seed(circle(1, 1), previous_flags: ORIGINAL))
 cases << run("every original purchase archived", [1], tier_seed(circle(1, 1), previous_flags: ORIGINAL | ARCHIVED, current_flags: ORIGINAL | ARCHIVED))
 cases << run("a recurring charge that is not an original purchase", [1], tier_seed(circle(1, 1), current_flags: 0))
+cases << run("circle answers not found when the buyer is added", [1], tier_seed(circle(1, 2)), [circle_answer(404, { error: "no group" })])
+cases << run("circle answers a server error when the buyer is removed", [1], tier_seed(circle(1, 1)), [circle_answer(500, { error: "backend" })])
+cases << run("the previous buyer's email needs escaping", [1], tier_seed(circle(1, 1)).merge(purchases: [purchase_row(1, subscription_id: 1, flags: ORIGINAL | ARCHIVED, email: "Bu+yer name@example.com"), purchase_row(2, link_id: 2, subscription_id: 1, flags: ORIGINAL)]))
+cases << run("a circle integration with no details", [1], tier_seed(circle(1, 2, json_data: nil)))
+cases << run("a circle integration with no api key", [1], tier_seed(circle(1, 2, api_key: nil)))
 cases << run("a subscription id as a digit string", ["1"], tier_seed)
 cases << run("a subscription id of nil", [nil], tier_seed)
 cases << run("a subscription id as a float", [1.0], tier_seed)

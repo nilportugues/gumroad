@@ -68,12 +68,21 @@ module HttpCapture
 
     def next_response = (@responses&.shift || {})
 
+    # WebMock hands the stub a normalized URI (`@` and `/` unescaped in a query); the request line Net::HTTP wrote is what a vendor sees.
+    def wire_paths = (@wire_paths ||= [])
+
     def start
       require "webmock"
       WebMock.enable!
+      WebMock::NetHTTPUtility.singleton_class.prepend(Module.new do
+        def request_signature_from_request(net_http, request, body = nil)
+          HttpCapture.wire_paths << request.path
+          super
+        end
+      end)
       WebMock.disable_net_connect!(allow: [/127\.0\.0\.1/, /elasticsearch/, /dynamodb/, /minio/, /redis/])
       WebMock.stub_request(:any, /./).to_return do |request|
-        requests << { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
+        requests << { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "wire_path" => wire_paths.shift, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
         answer = next_response
         { status: answer[:status] || 200, body: answer[:body] || "{}", headers: answer[:headers] || {} }
       end

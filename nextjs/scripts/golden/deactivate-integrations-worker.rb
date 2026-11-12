@@ -8,13 +8,14 @@
 require_relative "support/rails_cases"
 require_relative "support/integration_rows"
 include RailsCases
+capture_http!
 
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/deactivate-integrations-worker.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
 
 Rails.logger = ActiveSupport::Logger.new(nil)
 
-def run(name, args, seed) = run_job(DeactivateIntegrationsWorker, name, args, seed)
+def run(name, args, seed, http = []) = run_job(DeactivateIntegrationsWorker, name, args, seed, http)
 
 def circle(product: 1, **flags) = { integrations: [integration_row(1, CIRCLE, **flags)], product_integrations: [product_integration_row(1, product, 1)] }
 def discord(**flags) = { integrations: [integration_row(2, DISCORD, **flags)], product_integrations: [product_integration_row(2, 1, 2)] }
@@ -47,6 +48,16 @@ cases << run("a subscription whose other purchase has a deleted purchase integra
 cases << run("a subscription whose own purchase has the live purchase integration", [1], seed(**sub, **discord, purchases: [purchase_row(1, subscription_id: 1), purchase_row(2, subscription_id: 1)], purchase_integrations: [purchase_integration_row(1, 1, 2)]))
 cases << run("a subscription whose purchases both have live purchase integrations, none with a member", [1], seed(**sub, **discord, purchases: [purchase_row(1, subscription_id: 1), purchase_row(2, subscription_id: 1)], purchase_integrations: [purchase_integration_row(1, 1, 2), purchase_integration_row(2, 2, 2)]))
 cases << run("a purchase of another subscription with an integration", [1], seed(subscriptions: [subscription_row(1), subscription_row(2)], **discord, purchases: [purchase_row(1, subscription_id: 1), purchase_row(2, subscription_id: 2)], purchase_integrations: [purchase_integration_row(1, 2, 2, discord_user_id: "d2")]))
+cases << run("circle answers not found", [1], seed(**circle), [circle_answer(404, { error: "no member" })])
+cases << run("circle answers a server error", [1], seed(**circle), [circle_answer(500, { error: "backend" })])
+cases << run("circle answers a body that is not json", [1], seed(**circle), [{ status: 200, body: "<html>ok</html>", headers: { "Content-Type" => "text/html" } }])
+cases << run("the buyer's email needs escaping", [1], seed(**circle, purchases: [purchase_row(1, email: "Bu+yer name@example.com")]))
+cases << run("a circle integration with no details", [1], seed(**circle(json_data: nil)))
+cases << run("a circle integration whose details need escaping", [1], seed(**circle(json_data: { community_id: "a b&c", space_group_id: "é/200" }.to_json)))
+cases << run("a circle integration whose details are numbers", [1], seed(**circle(json_data: { community_id: 100, space_group_id: 200.5 }.to_json)))
+cases << run("a circle integration with no api key", [1], seed(**circle(api_key: nil)))
+cases << run("a circle integration with an api key that needs escaping in a header", [1], seed(**circle(api_key: "k e/y+1=")))
+cases << run("a subscription whose two purchases both hold the circle integration", [1], seed(**sub, **circle, purchases: [purchase_row(1, subscription_id: 1), purchase_row(2, subscription_id: 1, email: "second@example.com")], purchase_integrations: [purchase_integration_row(1, 2, 1)]))
 cases << run("a purchase id as a digit string", ["1"], seed)
 cases << run("a purchase id of nil", [nil], seed)
 cases << run("a purchase id as a float", [1.0], seed)

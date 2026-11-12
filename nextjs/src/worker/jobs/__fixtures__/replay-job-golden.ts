@@ -4,7 +4,7 @@
 // the cases whose arguments Node does not reproduce: they hand back before any statement.
 import { readFileSync } from "node:fs";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createJobsRuntime } from "../../../server/jobs/runtime.ts";
 import { parseRubyJson, type JsonValue } from "../../../server/jobs/sidekiq/ruby-json.ts";
@@ -18,6 +18,7 @@ import {
   sequentialJids,
   type RedisSnapshot,
 } from "./golden.ts";
+import { ratelimitSnapshot, resetRatelimitRedis } from "./ratelimit-redis.ts";
 import { sqlReplay, type Statement } from "./sql-replay.ts";
 
 export type JobCase = {
@@ -27,6 +28,9 @@ export type JobCase = {
   statements: Statement[];
   redis: RedisSnapshot;
   hands_back?: boolean;
+  // With capture_http!: each request Rails sent (`wire_path` is the request line, `url` WebMock's normalized form) and each answer it got.
+  http?: { method: string; url: string; wire_path: string; headers: Record<string, string>; body: string | null }[];
+  http_responses?: { status?: number; body?: string; headers?: Record<string, string> }[];
 };
 
 // ActiveJob's job_id is a random UUID in production; the generators drew them in push order.
@@ -42,9 +46,25 @@ export function replayJobGolden(
   golden: { now: number; cases: JobCase[] },
   handler: JobHandler,
   handsBackEarly: (c: JobCase) => boolean = () => false,
-  options: { parseJsonOf?: string[] } = {},
+  options: {
+    parseJsonOf?: string[];
+    // Cases Rails serves that Node hands back after the same reads and before any vendor call.
+    handsBack?: (c: JobCase) => boolean;
+    // The vendor's origin: the requests Node sends are compared with Rails' (request line, authorization, order), the rate-limit writes with its Redis.
+    vendor?: string;
+  } = {},
 ): void {
   describe(title, () => {
+    beforeEach(() => {
+      resetRatelimitRedis();
+      // The rate limit buckets Date.now() into five seconds.
+      if (options.vendor !== undefined) vi.useFakeTimers({ now: Math.round(golden.now * 1000), toFake: ["Date"] });
+    });
+    afterEach(() => {
+      if (options.vendor !== undefined) vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
     for (const c of golden.cases) {
       it(c.name, async () => {
         const sql = sqlReplay(c.statements, options);
@@ -56,6 +76,20 @@ export function replayJobGolden(
           now: () => golden.now,
           newJid: sequentialJids(),
         });
+        const sent: { method: string; url: string; headers: Record<string, string> }[] = [];
+        const answers = [...(c.http_responses ?? [])];
+        if (options.vendor !== undefined)
+          vi.stubGlobal("fetch", (url: string | URL, init: RequestInit = {}) => {
+            sent.push({
+              method: init.method ?? "GET",
+              url: String(url),
+              headers: Object.fromEntries(new Headers(init.headers)),
+            });
+            const answer = answers.shift() ?? {};
+            return Promise.resolve(
+              new Response(answer.body ?? "{}", { status: answer.status ?? 200, headers: answer.headers }),
+            );
+          });
         let error: unknown = null;
         try {
           await asSidekiqJob(() => handler(c.args, contextFor(jobs)), golden.now);
@@ -67,7 +101,10 @@ export function replayJobGolden(
           expect((error as Error | null)?.name).toBe("HandBackToRuby");
           expect(sql.log).toEqual([]);
           expect(recording.snapshot()).toEqual({});
-        } else if (c.hands_back) {
+          expect(sent).toEqual([]);
+        } else if (c.hands_back || options.handsBack?.(c)) {
+          expect(sent).toEqual([]);
+          expect(ratelimitSnapshot()).toEqual({});
           expect((error as Error | null)?.name).toBe("HandBackToRuby");
           expect(sql.log.length).toBeGreaterThan(0);
           expect(sql.log).toEqual(sql.expected.slice(0, sql.log.length));
@@ -75,7 +112,10 @@ export function replayJobGolden(
         } else {
           expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
           expect(sql.log).toEqual(sql.expected);
-          expect(withoutJobIds(recording.snapshot())).toEqual(withoutJobIds(c.redis));
+          expect(withoutJobIds({ ...recording.snapshot(), ...ratelimitSnapshot() })).toEqual(withoutJobIds(c.redis));
+          expect(sent.map((r) => [r.method, r.url, r.headers.authorization])).toEqual(
+            (c.http ?? []).map((r) => [r.method, `${options.vendor ?? ""}${r.wire_path}`, r.headers.Authorization]),
+          );
         }
       });
     }
