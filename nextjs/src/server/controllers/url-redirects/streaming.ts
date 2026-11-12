@@ -52,7 +52,7 @@ export function findFile(files: DeliveryFile[], externalId: string): DeliveryFil
 }
 
 // #mark_rental_as_viewed (`update!(rental_first_viewed_at: Time.current)`)
-async function markRentalAsViewed(loaded: Loaded, now: Date): Promise<void> {
+export async function markRentalAsViewed(loaded: Loaded, now: Date): Promise<void> {
   const { redirect } = loaded;
   if (UrlRedirectFlags.isSet(redirect.flags, "is_rental") && redirect.rental_first_viewed_at === null) {
     await db.$executeRaw`UPDATE url_redirects SET rental_first_viewed_at = ${now}, updated_at = ${now} WHERE id = ${redirect.id}`;

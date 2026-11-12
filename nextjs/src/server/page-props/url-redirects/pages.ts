@@ -1,11 +1,12 @@
 // UrlRedirectsController pages Next.js serves (GET renders only; reading and the file deliveries not listed in
 // controllers/url-redirects stay in Rails). Registered in ../pages.ts.
 import { railsLoggedInUser } from "../../auth/resolve.ts";
-import type { ActionOptions } from "../../controllers/application-controller.ts";
+import { HandBackToRails, type ActionOptions } from "../../controllers/application-controller.ts";
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
 import type { ActionContext } from "../load-page.ts";
 import type { PageSpec } from "../pages.ts";
 import { downloadPageFilters, downloadPageProps, setDownloadPageMeta } from "./download-page.ts";
+import { PLAY_STATE_KEY, playFilters } from "./play-page.ts";
 import { READ_STATE_KEY, readFilters, readPage } from "./read-page.ts";
 import { STREAM_STATE_KEY, streamFilters, streamPageProps } from "./player-pages.ts";
 import { unavailableFilters, unavailablePageProps, unavailableTitle, type UnavailablePage } from "./unavailable.ts";
@@ -92,11 +93,24 @@ const readPageSpec: PageSpec = {
   },
 };
 
+// UrlRedirectsController#play. Its filters issue the grant and count the visit, so the props are the ones they leave in the state.
+const playPageSpec: PageSpec = {
+  component: "UrlRedirects/Play",
+  options: { filters: playFilters },
+  props: (_params, action) => {
+    const built = action.state[PLAY_STATE_KEY] as Record<string, unknown> | undefined;
+    if (built === undefined) throw new HandBackToRails("the play page without its filter chain");
+    action.meta.set({ title: built.title as string });
+    return built;
+  },
+};
+
 export const URL_REDIRECT_PAGES: Record<string, PageSpec> = {
   "/r/:id/expired": unavailablePage("UrlRedirects/Expired", "expired"),
   "/r/:id/rental_expired": unavailablePage("UrlRedirects/RentalExpired", "rental_expired"),
   "/r/:id/membership_inactive": unavailablePage("UrlRedirects/MembershipInactive", "membership_inactive"),
   "/d/:id": downloadPage,
+  "/d/:id/play": playPageSpec,
   "/read/:id": readPageSpec,
   "/read/:id/:product_file_id": readPageSpec,
   "/s/:id": streamPage,

@@ -397,4 +397,78 @@ describe "Url redirect players", type: :request do
       expect(response).to be_successful
     end
   end
+
+  describe "GET /d/:id/play" do
+    let!(:build) { create(:product_build, :live, product:, number: 1, site_unpacked_at: Time.current) }
+
+    before { Feature.activate_user(:product_build_player, seller) }
+
+    it "frames the live build under a grant and counts the visit", parity: true do
+      log_in(buyer)
+
+      get url_redirect_play_path(token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("title" => "Player product", "content_page_url" => url_redirect.download_page_url)
+      expect(inertia_props_of(response)["frame_url"]).to match(%r{\A/d/#{token}/play/[^/]+/\z})
+      expect(url_redirect.reload).to have_attributes(uses: 1, has_been_seen: true)
+    end
+
+    it "starts a rental's viewing window", parity: true do
+      purchase.is_rental = true
+      purchase.update_columns(flags: purchase.flags)
+      url_redirect.update!(is_rental: true)
+      log_in(buyer)
+
+      get url_redirect_play_path(token)
+
+      expect(response).to be_successful
+      expect(url_redirect.reload.rental_first_viewed_at).to be_present
+    end
+
+    it "plays a guest purchase for the address that bought it", parity: true do
+      purchase.update_columns(purchaser_id: nil)
+
+      get url_redirect_play_path(token), headers: forwarded
+
+      expect(response).to be_successful
+    end
+
+    it "answers 404 while the seller has no player", parity: true do
+      Feature.deactivate_user(:product_build_player, seller)
+      log_in(buyer)
+
+      get url_redirect_play_path(token)
+
+      expect(response).to have_http_status(:not_found)
+      expect(url_redirect.reload.uses).to eq(0)
+    end
+
+    it "answers 404 for a build that is not live", parity: true do
+      build.update_columns(status: "uploaded")
+      log_in(buyer)
+
+      get url_redirect_play_path(token)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a build whose site is not unpacked", parity: true do
+      build.update_columns(site_unpacked_at: nil)
+      log_in(buyer)
+
+      get url_redirect_play_path(token)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "asks a seen redirect's visitor to confirm the email", parity: true do
+      url_redirect.mark_as_seen
+      purchase.update_columns(purchaser_id: nil)
+
+      get url_redirect_play_path(token), headers: { "X-Forwarded-For" => "198.51.100.4" }
+
+      expect(response).to redirect_to(confirm_page_path(id: token, destination: "play"))
+    end
+  end
 end

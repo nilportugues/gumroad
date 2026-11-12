@@ -153,6 +153,7 @@ const COMPARE = {
 const mask = (value: unknown): unknown => {
   if (typeof value === "string")
     return value
+      .replace(/(\/play\/)[\w-]+--[\w-]+--[\w-]+\//gu, "$1<grant>/")
       .replace(/X-Amz-Date=\d{8}T\d{6}Z/gu, "X-Amz-Date=<signed-at>")
       .replace(/(X-Amz-Credential=[^&]*?)%2F\d{8}%2F/gu, "$1%2F<date>%2F")
       .replace(/X-Amz-Signature=[0-9a-f]{64}/gu, "X-Amz-Signature=<signature>")
