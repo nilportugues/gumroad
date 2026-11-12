@@ -19,11 +19,11 @@ import {
   startOfDayIso8601,
   utcOffsetAt,
 } from "../models/concerns/rails-time-zone.ts";
+import { rubySortByInteger } from "../models/concerns/ruby-sort-by.ts";
 import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
 import { createApiLink, type CreateSeller } from "../models/link-create.ts";
-import { rubySortByInteger } from "../models/concerns/ruby-sort-by.ts";
 import { Links } from "../models/link.ts";
 import {
   addProduct,
