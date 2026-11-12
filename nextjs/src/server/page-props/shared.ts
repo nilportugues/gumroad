@@ -65,9 +65,25 @@ export type RequestInfo = { headers: Headers; url: URL };
 // before_actions in ApplicationController that set meta tags, in their declared order.
 export async function applicationMetaTags(
   meta: MetaTagBuilder,
-  { context, config, csrfToken, ports, analyticsEnabled: analyticsOverride }: { context: RequestContext; config: DomainConfig; csrfToken: string; ports: SharedPropsPorts; analyticsEnabled?: boolean },
+  { context, config, csrfToken, ports, analyticsEnabled: analyticsOverride, analyticsFirst }: { context: RequestContext; config: DomainConfig; csrfToken: string; ports: SharedPropsPorts; analyticsEnabled?: boolean; analyticsFirst?: boolean },
 ) {
   const env = config.railsEnv;
+  // A controller that re-declares set_default_page_title, set_csrf_meta_tags and set_default_meta_tags (Devise's) moves them
+  // behind set_analytics_meta_tags, so the analytics tags come first.
+  const setAnalytics = async () => {
+    // PageMeta::Analytics#analytics_enabled? with seller = current_seller (no @user on these pages).
+    const seller = context.currentSeller;
+    let analyticsEnabled = true;
+    if (analyticsOverride !== undefined) analyticsEnabled = analyticsOverride;
+    else if (seller) analyticsEnabled = (env === "production" || env === "staging") && !(await ports.presenters.thirdPartyAnalyticsDisabled(seller));
+    const loggedInUser = context.impersonatedUser ?? context.loggedInUser;
+    meta.set({ property: "gr:google_analytics:enabled", content: String(analyticsEnabled) });
+    meta.set({ property: "gr:fb_pixel:enabled", content: String(analyticsEnabled) });
+    meta.set({ property: "gr:tiktok_pixel:enabled", content: String(analyticsEnabled) });
+    meta.set({ property: "gr:logged_in_user:id", content: loggedInUser ? loggedInUser.external_id : "" });
+    meta.set({ property: "gr:page:type", content: "" });
+  };
+  if (analyticsFirst) await setAnalytics();
   meta.set({ title: defaultPageTitle(env) });
 
   meta.set({ name: "csrf-param", content: "authenticity_token" });
@@ -93,17 +109,7 @@ export async function applicationMetaTags(
   meta.set({ tag_name: "link", rel: "shortcut icon", href: publicAssetUrl(config, "images", "pink-icon.png"), head_key: "shortcut-icon" });
   meta.set({ tag_name: "link", rel: "apple-touch-icon", href: publicAssetUrl(config, "images", "pink-icon.png"), head_key: "apple-touch-icon" });
 
-  // PageMeta::Analytics#analytics_enabled? with seller = current_seller (no @user on these pages).
-  const seller = context.currentSeller;
-  let analyticsEnabled = true;
-  if (analyticsOverride !== undefined) analyticsEnabled = analyticsOverride;
-  else if (seller) analyticsEnabled = (env === "production" || env === "staging") && !(await ports.presenters.thirdPartyAnalyticsDisabled(seller));
-  const loggedInUser = context.impersonatedUser ?? context.loggedInUser;
-  meta.set({ property: "gr:google_analytics:enabled", content: String(analyticsEnabled) });
-  meta.set({ property: "gr:fb_pixel:enabled", content: String(analyticsEnabled) });
-  meta.set({ property: "gr:tiktok_pixel:enabled", content: String(analyticsEnabled) });
-  meta.set({ property: "gr:logged_in_user:id", content: loggedInUser ? loggedInUser.external_id : "" });
-  meta.set({ property: "gr:page:type", content: "" });
+  if (!analyticsFirst) await setAnalytics();
 }
 
 export async function sharedProps({

@@ -40,7 +40,9 @@ const COMPARE = {
 export const maskVolatile = (text: string) =>
   text
     .replace(/(<meta name="csrf-token" content=")[^"]*(")/u, "$1<csrf-token>$2")
-    .replace(/(<script nonce=")[^"]*(")/gu, "$1<nonce>$2");
+    .replace(/(<script nonce=")[^"]*(")/gu, "$1<nonce>$2")
+    // The per-form tokens of a Devise view: csrf.test.ts pins how each is derived from the session's.
+    .replace(/(name="authenticity_token" value=")[^"]*(")/gu, "$1<csrf-token>$2");
 
 // The recorder drops the CSP header as volatile, so masking the nonce would hide a header that names another nonce than the body's.
 // The live response is the only place both exist: every nonce in the body must be allowed by the header.

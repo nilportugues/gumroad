@@ -27,6 +27,12 @@ export function unmaskToken(maskedToken: string): Buffer {
   return Buffer.from(encrypted.map((byte, i) => byte ^ (pad[i] ?? 0)));
 }
 
+// per_form_csrf_token: a form's token is bound to its action path and method (`form_authenticity_token(form_options:)`).
+export function perFormCsrfToken(sessionCsrfToken: string, actionPath: string, method: string): string {
+  const raw = createHmac("sha256", decode(sessionCsrfToken)).update(`${actionPath}#${method.toLowerCase()}`).digest();
+  return maskToken(raw);
+}
+
 export function formAuthenticityToken(sessionCsrfToken: string): string {
   return maskToken(globalCsrfToken(sessionCsrfToken));
 }

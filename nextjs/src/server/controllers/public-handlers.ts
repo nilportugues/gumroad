@@ -31,6 +31,7 @@ import {
   processAction,
   type Rendered,
 } from "./application-controller.ts";
+import { confirmationNewPage } from "./devise-pages.ts";
 import { discordHandlers } from "./discord.ts";
 import { gumclawPage } from "./erb-pages.ts";
 import { embeddedJavascript } from "./embedded-javascripts.ts";
@@ -324,6 +325,7 @@ const HANDLERS: Record<string, Handler> = {
     run: (request, url, action) => Promise.resolve(featuresMd(request, url, action.chain.now)),
   },
   gumclaw: { run: (request, _url, action) => gumclawPage(request, action) },
+  confirmation_new: { run: (request, _url, action) => confirmationNewPage(request, action) },
   home_page: {
     options: homePageOptions,
     run: (request, url, action) => homePage(request, action, url.pathname.replace(/^\/|\/$/gu, "")),
