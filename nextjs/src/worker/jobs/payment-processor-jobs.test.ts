@@ -287,8 +287,8 @@ describe("HandleStripeEventWorker events for the platform account", () => {
       { type: "account.updated", user_id: "acct_connected_example", account: PLATFORM },
     ],
     [
-      "account.application.deauthorized for a connected account",
-      { type: "account.application.deauthorized", account: "acct_connected_example" },
+      "account.application.deauthorized.v2 for a connected account",
+      { type: "account.application.deauthorized.v2", account: "acct_connected_example" },
     ],
     ["a charge event for the platform account", { type: "charge.succeeded", account: PLATFORM }],
     ["a refund event for the platform account", { type: "refund.updated" }],

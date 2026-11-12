@@ -5525,10 +5525,34 @@
       }
     },
     {
-      "name": "stripe event: a deauthorization is handed back",
+      "name": "stripe event: a deauthorization of an account nobody has",
       "seed": [],
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleStripeEventWorker",
@@ -5538,7 +5562,7 @@
           "account": "acct_1"
         }
       ],
-      "hands_back": true,
+      "hands_back": false,
       "stripe": {
         "responses": [],
         "requests": []

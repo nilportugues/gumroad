@@ -30,7 +30,7 @@ const MERCHANT_MIGRATION_FEATURE = "merchant_migration";
 const DISCONNECT_REF = "stripe_merchant_account_manager.rb StripeMerchantAccountManager.disconnect";
 
 // User#merchant_migration_enabled?
-async function merchantMigrationEnabled(seller: UserRecord): Promise<boolean> {
+export async function merchantMigrationEnabled(seller: UserRecord): Promise<boolean> {
   if (isFlagSet(seller, "check_merchant_account_is_linked")) return true;
   const actor = userActor(seller.get("id"));
   if (!(await isFeatureEnabled(MERCHANT_MIGRATION_FEATURE, actor))) return false;

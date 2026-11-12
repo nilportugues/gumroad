@@ -18,7 +18,7 @@ include RailsCases
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/payment-processor-jobs.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
 SEEDED_AT = "2026-01-01 00:00:00"
-TABLES = %w[users purchases payments scheduled_payouts balances large_sellers].freeze
+TABLES = %w[users purchases payments scheduled_payouts balances large_sellers merchant_accounts].freeze
 
 SERVER = CaptureServer.new
 Stripe.api_base = "http://127.0.0.1:#{SERVER.port}"
@@ -62,7 +62,6 @@ StripeEventHandler.prepend(Module.new do
   private
     def handle_event_for_gumroad = raise(HandBackMarker)
     def handle_event_for_connected_account(**) = raise(HandBackMarker)
-    def handle_event_for_connected_account_deauthorized = raise(HandBackMarker)
 end)
 
 def user_row(id, **overrides)
@@ -187,7 +186,7 @@ cases << stripe_event("stripe event: an unhandled event for a connected account"
 cases << stripe_event("stripe event: a charge event is handed back", { "type" => "charge.succeeded", "data" => { "object" => { "id" => "ch_1" } } }, hands_back: true)
 cases << stripe_event("stripe event: a refund event is handed back", { "type" => "refund.updated" }, hands_back: true)
 cases << stripe_event("stripe event: a payout event for a connected account is handed back", { "type" => "payout.paid", "account" => "acct_1" }, hands_back: true)
-cases << stripe_event("stripe event: a deauthorization is handed back", { "type" => "account.application.deauthorized", "account" => "acct_1" }, hands_back: true)
+cases << stripe_event("stripe event: a deauthorization of an account nobody has", { "type" => "account.application.deauthorized", "account" => "acct_1" })
 cases << stripe_event("stripe event: a subscription event is handed back", { "type" => "customer.subscription.updated" }, hands_back: true)
 cases << stripe_event("stripe event: a checkout session is handed back", { "type" => "checkout.session.completed" }, hands_back: true)
 cases << stripe_event("stripe event: a payment intent that is not handled", { "type" => "payment_intent.created" })
