@@ -128,8 +128,180 @@ describe "API v2 MCP and Notion", type: :request do
       call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", product_id: deleted.unique_permalink })
     end
 
-    it "hands back a sales totals breakdown by country", parity: true do
-      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "country" })
+    describe "sales totals by country" do
+      before do
+        sell(product, email: "dee@example.com", price_cents: 4000, at: [2026, 3, 10, 9], country: "Germany")
+        sell(product, email: "eve@example.com", price_cents: 300, at: [2026, 3, 11, 9], country: "USA")
+        sell(other_product, email: "fay@example.com", price_cents: 200, at: [2026, 3, 12, 9], country: "United States")
+        sell(other_product, email: "gus@example.com", price_cents: 1200, at: [2026, 3, 13, 9], country: " ", ip_country: "France")
+      end
+
+      it "reports sales totals by country", parity: true do
+        call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "country" })
+      end
+
+      it "hands back a country breakdown with two countries that earned the same", parity: true do
+        sell(other_product, email: "hal@example.com", price_cents: 4000, at: [2026, 3, 14, 9], country: "Japan")
+        call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "country" })
+      end
+
+      it "hands back a country breakdown with a country the list does not know", parity: true do
+        sell(other_product, email: "ivy@example.com", price_cents: 1, at: [2026, 3, 15, 9], country: "Atlantis")
+        call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "country" })
+      end
+    end
+
+    %w[day week month].each do |breakdown|
+      it "reports sales totals by #{breakdown}", parity: true do
+        call_tool("get_sales_totals", { start_date: "2026-02-20", end_date: "2026-03-31", breakdown: })
+      end
+    end
+
+    it "reports sales totals by day across a daylight saving change in the seller's zone", parity: true do
+      # US daylight saving began 2026-03-08 at 10:00 UTC; the sales sit on the hour on both sides of it and of the next local midnight.
+      seller.update!(timezone: "Pacific Time (US & Canada)")
+      sell(product, email: "dee@example.com", price_cents: 900, at: [2026, 3, 8, 9])
+      sell(product, email: "eve@example.com", price_cents: 800, at: [2026, 3, 8, 10])
+      sell(product, email: "fay@example.com", price_cents: 700, at: [2026, 3, 9, 6])
+      sell(product, email: "gus@example.com", price_cents: 600, at: [2026, 3, 9, 7])
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-10", breakdown: "day" })
+    end
+
+    it "reports sales totals by week for one product, excluding refunds and bundle members", parity: true do
+      sell(product, email: "dee@example.com", price_cents: 300, at: [2026, 3, 16, 9], is_bundle_product_purchase: true)
+      sell(product, email: "eve@example.com", price_cents: 300, at: [2026, 3, 17, 9], chargeback_date: Time.utc(2026, 3, 20))
+      call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "week", product_id: product.external_id })
+    end
+
+    describe "list_products" do
+      def list_products(arguments = {}) = call_tool("list_products", arguments, scopes: "view_public")
+
+      before do
+        product.update_columns(created_at: Time.utc(2026, 3, 4, 10))
+        other_product.update_columns(created_at: Time.utc(2026, 3, 5, 10))
+      end
+
+      it "lists the products newest first with their price and storefront url", parity: true do
+        create(:product, user: seller, name: "Pay what you want", unique_permalink: "pwywpack", customizable_price: true, suggested_price_cents: 900, price_cents: 500, custom_permalink: "pwyw", created_at: Time.utc(2026, 3, 6, 10))
+        create(:product, user: seller, name: "Unreleased", unique_permalink: "draftone", draft: true, created_at: Time.utc(2026, 3, 3, 10))
+        list_products
+      end
+
+      it "lists a page of products and the cursor of the next", parity: true do
+        list_products({ limit: 1 })
+      end
+
+      it "lists the page after a cursor", parity: true do
+        list_products({ cursor: "#{Time.utc(2026, 3, 5, 10).to_i * 1_000_000}_#{other_product.id}" })
+      end
+
+      it "leaves out a deleted product and another seller's product", parity: true do
+        create(:product, user: seller, name: "Gone", unique_permalink: "gonepack", deleted_at: Time.utc(2026, 3, 8))
+        create(:product, user: create(:user), name: "Not mine", unique_permalink: "notmine")
+        list_products
+      end
+
+      it "reports the pay what you want state of a free product with no price row", parity: true do
+        create(:product, user: seller, name: "Free pack", unique_permalink: "freepack", price_cents: 0, created_at: Time.utc(2026, 3, 6, 10))
+        list_products({ limit: 1 })
+      end
+
+      it "refuses a products limit of 0", parity: true do
+        list_products({ limit: 0 })
+      end
+
+      it "hands back a listing that includes a tiered membership", parity: true do
+        create(:membership_product, user: seller, name: "Club", unique_permalink: "clubtier", created_at: Time.utc(2026, 3, 6, 10))
+        list_products
+      end
+
+      it "hands back a listing that includes a recurring product", parity: true do
+        create(:subscription_product, user: seller, name: "Monthly", created_at: Time.utc(2026, 3, 6, 10))
+        list_products
+      end
+    end
+
+    describe "list_sales" do
+      let(:deal) { create(:offer_code, user: seller, code: "half", amount_percentage: 50, universal: true) }
+
+      before do
+        # Seeds are hour-granular in the fixture, so a sale whose time is printed must fall on the hour.
+        Purchase.find_by!(email: "cy@example.com", price_cents: 700).update_columns(created_at: Time.utc(2026, 3, 2, 14))
+        sell(product, email: "dee@example.com", price_cents: 1500, at: [2026, 3, 6, 10], fee_cents: 150, affiliate_credit_cents: 75, offer_code: deal, country: "Germany", referrer: "https://news.example.com", ip_country: "Canada")
+        sell(other_product, email: "eve@example.com", price_cents: 2000, at: [2026, 3, 7, 10], country: nil, ip_country: "France", chargeback_date: Time.utc(2026, 3, 9))
+      end
+
+      it "lists the sales newest first", parity: true do
+        call_tool("list_sales")
+      end
+
+      it "lists a page of sales and the cursor of the next", parity: true do
+        call_tool("list_sales", { limit: 3 })
+      end
+
+      it "lists the page after a cursor", parity: true do
+        call_tool("list_sales", { limit: 3, cursor: "#{Time.utc(2026, 3, 3, 10).to_i * 1_000_000}_#{Purchase.find_by!(email: 'bob@example.com').id}" })
+      end
+
+      it "lists the sales of a buyer and a product in a time range", parity: true do
+        call_tool("list_sales", { email: " ada@example.com ", product_id: product.unique_permalink, after: "2026-03-02", before: "2026-03-05T10:00:00+02:00" })
+      end
+
+      it "lists only paid sales", parity: true do
+        call_tool("list_sales", { payment: "paid" })
+      end
+
+      it "lists only free sales", parity: true do
+        call_tool("list_sales", { payment: "free" })
+      end
+
+      it "lists membership charges apart from one-time sales", parity: true do
+        membership = create(:product, user: seller, name: "Club", unique_permalink: "clubpass", is_recurring_billing: true, subscription_duration: "monthly")
+        subscription = create(:subscription, link: membership, user: nil)
+        plan = create(:subscription, link: other_product, user: nil)
+        plan.update_columns(flags: plan.flags | Subscription.flag_mapping["flags"][:is_installment_plan])
+        sell(membership, email: "kim@example.com", price_cents: 500, at: [2026, 3, 20, 10]).update_columns(subscription_id: subscription.id)
+        sell(other_product, email: "lee@example.com", price_cents: 400, at: [2026, 3, 21, 10]).update_columns(subscription_id: plan.id)
+        call_tool("list_sales", { kind: "subscription" })
+      end
+
+      it "lists everything that is not a membership charge as one-time", parity: true do
+        membership = create(:product, user: seller, name: "Club", unique_permalink: "clubpass", is_recurring_billing: true, subscription_duration: "monthly")
+        sell(membership, email: "kim@example.com", price_cents: 500, at: [2026, 3, 20, 10]).update_columns(subscription_id: create(:subscription, link: membership, user: nil).id)
+        call_tool("list_sales", { kind: "one_time" })
+      end
+
+      it "lists the UTM fields of a sale driven by a UTM link", parity: true do
+        link = create(:utm_link, seller:, utm_source: "newsletter", utm_medium: "email", utm_campaign: "spring", utm_term: "sketch", utm_content: "hero")
+        visit = create(:utm_link_visit, utm_link: link)
+        create(:utm_link_driven_sale, utm_link: link, utm_link_visit: visit, purchase: Purchase.find_by!(email: "dee@example.com"))
+        call_tool("list_sales", { limit: 1 })
+      end
+
+      it "reports a sales product that does not exist as a tool error", parity: true do
+        call_tool("list_sales", { product_id: "nope" })
+      end
+
+      it "refuses a sales limit above 50", parity: true do
+        call_tool("list_sales", { limit: 51 })
+      end
+
+      it "refuses a sales cursor that is not valid", parity: true do
+        call_tool("list_sales", { cursor: "later" })
+      end
+
+      it "hands back a sales time that is not a date or a whole-second time", parity: true do
+        call_tool("list_sales", { after: "last tuesday" })
+      end
+
+      it "hands back a sale that has two UTM links", parity: true do
+        sale = Purchase.find_by!(email: "dee@example.com")
+        2.times do |index|
+          link = create(:utm_link, seller:, utm_source: "src#{index}", utm_campaign: "spring#{index}")
+          create(:utm_link_driven_sale, utm_link: link, utm_link_visit: create(:utm_link_visit, utm_link: link), purchase: sale)
+        end
+        call_tool("list_sales", { limit: 2 })
+      end
     end
   end
 

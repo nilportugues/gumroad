@@ -11,6 +11,10 @@ import {
   type CustomerReader,
   type PayoutReader,
   type PayoutRow,
+  type ProductListRow,
+  type ProductsReader,
+  type SaleRow,
+  type SalesReader,
   type SalesTotalsReader,
 } from "./tool-bodies.ts";
 
@@ -369,6 +373,8 @@ describe("get_customers", () => {
 
 const totalsReader = (overrides: Partial<SalesTotalsReader> = {}) => ({
   byProduct: vi.fn<SalesTotalsReader["byProduct"]>().mockResolvedValue([]),
+  byCountry: vi.fn<SalesTotalsReader["byCountry"]>().mockResolvedValue([]),
+  byPeriod: vi.fn<SalesTotalsReader["byPeriod"]>().mockResolvedValue([]),
   productNames: vi.fn<SalesTotalsReader["productNames"]>().mockResolvedValue(new Map()),
   findProductId: vi.fn<SalesTotalsReader["findProductId"]>().mockResolvedValue(null),
   ...overrides,
@@ -486,11 +492,99 @@ describe("get_sales_totals", () => {
     expect(salesTotals.byProduct).toHaveBeenCalledWith(expect.objectContaining({ productId: null }));
   });
 
-  it.each(["country", "day", "week", "month"])("hands back the %s breakdown", async (breakdown) => {
-    await expect(toolBody("get_sales_totals", { breakdown }, totalsContext(totalsReader()))).rejects.toBeInstanceOf(
+  it("names, merges and orders the countries of the country breakdown", async () => {
+    const salesTotals = totalsReader({
+      byCountry: vi.fn().mockResolvedValue([
+        { country: "USA", revenue_cents: 700, units: 1 },
+        { country: "United States", revenue_cents: 300, units: 2 },
+        { country: "Germany", revenue_cents: 2000, units: 3 },
+        { country: null, revenue_cents: 50, units: 1 },
+      ]),
+    });
+    const body = await toolBody(
+      "get_sales_totals",
+      { breakdown: "country", start_date: "2026-03-01", end_date: "2026-03-31" },
+      totalsContext(salesTotals),
+    );
+    expect(body).toMatchObject({
+      breakdown: "country",
+      totals: { revenue_cents: 3050, units: 7, average_order_value_cents: 436 },
+      rows: [
+        { country: "Germany", revenue_cents: 2000, units: 3 },
+        { country: "United States", revenue_cents: 1000, units: 3, average_order_value_cents: 333 },
+        { country: null, revenue_cents: 50, units: 1, average_order_value_cents: 50 },
+      ],
+    });
+  });
+
+  it("hands back a country breakdown with a spelling outside the country list, or with equal revenues", async () => {
+    const unknown = totalsReader({
+      byCountry: vi.fn().mockResolvedValue([{ country: "Atlantis", revenue_cents: 1, units: 1 }]),
+    });
+    await expect(toolBody("get_sales_totals", { breakdown: "country" }, totalsContext(unknown))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
+    const tied = totalsReader({
+      byCountry: vi.fn().mockResolvedValue([
+        { country: "Germany", revenue_cents: 5, units: 1 },
+        { country: "France", revenue_cents: 5, units: 1 },
+      ]),
+    });
+    await expect(toolBody("get_sales_totals", { breakdown: "country" }, totalsContext(tied))).rejects.toBeInstanceOf(
       HandBackToRails,
     );
   });
+
+  it("buckets by local date in constant-offset segments and orders the rows by date", async () => {
+    const byPeriod = vi.fn().mockResolvedValue([
+      { key: "2026-03-09", revenue_cents: 100, units: 1 },
+      { key: "2026-03-02", revenue_cents: 300, units: 2 },
+      { key: "2026-03-09", revenue_cents: 50, units: 1 },
+    ]);
+    const owner = { ...user(), timezone: "Pacific Time (US & Canada)" } as User;
+    const body = await toolBody(
+      "get_sales_totals",
+      { breakdown: "week", start_date: "2026-03-01", end_date: "2026-03-15" },
+      totalsContext(totalsReader({ byPeriod }), "view_sales", owner),
+    );
+    // US daylight saving began 2026-03-08 at 10:00 UTC, which splits the range in two.
+    expect(byPeriod).toHaveBeenCalledWith(
+      expect.objectContaining({
+        period: "week",
+        segments: [
+          { from: "2026-03-01 08:00:00", until: "2026-03-08 10:00:00", offsetSeconds: -28_800 },
+          { from: "2026-03-08 10:00:00", until: "2026-03-16 07:00:00", offsetSeconds: -25_200 },
+        ],
+      }),
+    );
+    expect(body).toMatchObject({
+      breakdown: "week",
+      totals: { revenue_cents: 450, units: 4 },
+      rows: [
+        { date: "2026-03-02", revenue_cents: 300, units: 2 },
+        { date: "2026-03-09", revenue_cents: 150, units: 2 },
+      ],
+    });
+  });
+
+  it.each(["day", "month"])(
+    "reads the %s breakdown from byPeriod in one segment for a zone without transitions",
+    async (breakdown) => {
+      const byPeriod = vi.fn().mockResolvedValue([]);
+      const body = await toolBody(
+        "get_sales_totals",
+        { breakdown, start_date: "2026-03-01", end_date: "2026-03-02" },
+        totalsContext(totalsReader({ byPeriod })),
+      );
+      expect(byPeriod).toHaveBeenCalledWith(
+        expect.objectContaining({
+          period: breakdown,
+          segments: [{ from: "2026-03-01 00:00:00", until: "2026-03-03 00:00:00", offsetSeconds: 0 }],
+        }),
+      );
+      expect(body).toMatchObject({ rows: [], totals: { revenue_cents: 0, units: 0, average_order_value_cents: null } });
+    },
+  );
 
   it("refuses a range spanning 367 days and accepts 366", async () => {
     await expect(
@@ -516,7 +610,7 @@ describe("get_sales_totals", () => {
 
 describe("toolBody", () => {
   it("leaves a tool that is not ported to Rails", async () => {
-    await expect(toolBody("list_sales", {}, context("account"))).resolves.toBeUndefined();
+    await expect(toolBody("get_analytics", {}, context("account"))).resolves.toBeUndefined();
   });
 });
 
@@ -565,6 +659,204 @@ describe("tools/call through the session", () => {
   });
 
   it("still hands back a tool that is not ported", async () => {
-    await expect(session("account").handle(call("list_sales", {}))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(session("account").handle(call("get_analytics", {}))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+const sale = (id: number, attributes: Partial<SaleRow> = {}): SaleRow => ({
+  id: BigInt(id),
+  email: "ada@example.com",
+  link_id: 5n,
+  product_name: "Sketch pack",
+  price_cents: 1000,
+  fee_cents: 100,
+  affiliate_credit_cents: 50,
+  created_at: new Date("2026-03-02T10:00:00Z"),
+  stripe_refunded: false,
+  chargeback_date: null,
+  subscription_id: null,
+  subscription_flags: null,
+  country: null,
+  ip_country: "United States",
+  offer_code: null,
+  referrer: "  ",
+  utm_driven_count: 0,
+  utm_source: null,
+  utm_medium: null,
+  utm_campaign: null,
+  utm_term: null,
+  utm_content: null,
+  ...attributes,
+});
+const salesReader = (rows: SaleRow[] = [], overrides: Partial<SalesReader> = {}) => ({
+  list: vi.fn<SalesReader["list"]>().mockResolvedValue(rows),
+  findProductId: vi.fn<SalesReader["findProductId"]>().mockResolvedValue(5n),
+  ...overrides,
+});
+const salesContext = (sales: SalesReader, scopes = "view_sales") => ({ user: user(), token: token(scopes), sales });
+
+describe("list_sales", () => {
+  it("renders a sale with its net, country fallback and blank referrer", async () => {
+    const body = await toolBody("list_sales", {}, salesContext(salesReader([sale(1)])));
+
+    expect(body).toEqual({
+      sales: [
+        expect.objectContaining({
+          price_cents: 1000,
+          fee_cents: 100,
+          affiliate_commission_cents: 50,
+          net_cents: 850,
+          currency: "usd",
+          created_at: "2026-03-02T10:00:00Z",
+          refunded: false,
+          chargedback: false,
+          subscription: false,
+          country: "United States",
+          referrer: null,
+        }),
+      ],
+    });
+  });
+
+  it("marks a membership charge as a subscription but not an installment plan", async () => {
+    const plan = BigInt(1 << 6);
+    const body = (await toolBody(
+      "list_sales",
+      {},
+      salesContext(
+        salesReader([
+          sale(2, { subscription_id: 1n, subscription_flags: 0n }),
+          sale(1, { subscription_id: 2n, subscription_flags: plan }),
+        ]),
+      ),
+    )) as { sales: { subscription: boolean }[] };
+    expect(body.sales.map((row) => row.subscription)).toEqual([true, false]);
+  });
+
+  it("fetches one extra row and returns a cursor in microseconds when another page exists", async () => {
+    const reader = salesReader([sale(3), sale(2, { created_at: new Date("2026-03-02T09:00:00Z") }), sale(1)]);
+    const body = (await toolBody("list_sales", { limit: 2 }, salesContext(reader))) as {
+      sales: unknown[];
+      next_cursor?: string;
+    };
+    expect(reader.list).toHaveBeenCalledWith(expect.objectContaining({ limit: 3 }));
+    expect(body.sales).toHaveLength(2);
+    expect(body.next_cursor).toBe("1772442000000000_2");
+  });
+
+  it("passes the filters as UTC datetimes and trims the email", async () => {
+    const reader = salesReader();
+    await toolBody(
+      "list_sales",
+      {
+        email: " ada@example.com ",
+        after: "2026-03-01",
+        before: "2026-03-05T10:00:00+02:00",
+        payment: "paid",
+        kind: "one_time",
+      },
+      salesContext(reader),
+    );
+    expect(reader.list).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "ada@example.com",
+        after: "2026-03-01 00:00:00",
+        before: "2026-03-05 08:00:00",
+        payment: "paid",
+        kind: "one_time",
+        productId: null,
+      }),
+    );
+  });
+
+  it("answers a product that does not resolve as a tool error, before checking the limit", async () => {
+    const reader = salesReader([], { findProductId: vi.fn().mockResolvedValue(null) });
+    await expect(
+      toolBody("list_sales", { product_id: "nope", limit: 99 }, salesContext(reader)),
+    ).rejects.toBeInstanceOf(ToolError);
+    await expect(toolBody("list_sales", { limit: 99 }, salesContext(salesReader()))).rejects.toMatchObject({
+      code: -32602,
+    });
+  });
+
+  it("hands back a time written in a form it does not read, and a sale with several UTM links", async () => {
+    await expect(toolBody("list_sales", { after: "last tuesday" }, salesContext(salesReader()))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
+    await expect(
+      toolBody("list_sales", {}, salesContext(salesReader([sale(1, { utm_driven_count: 2 })]))),
+    ).rejects.toBeInstanceOf(HandBackToRails);
+  });
+});
+
+const productRow = (id: number, attributes: Partial<ProductListRow> = {}): ProductListRow => ({
+  id: BigInt(id),
+  created_at: new Date("2026-03-02T10:00:00Z"),
+  name: "Sketch pack",
+  buy_price_count: 1,
+  buy_price_cents: 1000,
+  purchase_type: 0,
+  price_currency_type: "usd",
+  customizable_price: false,
+  suggested_price_cents: null,
+  purchase_disabled_at: null,
+  draft: false,
+  flags: 0n,
+  unique_permalink: "sketchpk",
+  custom_permalink: null,
+  ...attributes,
+});
+const productsContext = (rows: ProductListRow[], scopes = "view_public") => ({
+  user: user(),
+  token: token(scopes),
+  products: { list: vi.fn<ProductsReader["list"]>().mockResolvedValue(rows) },
+});
+
+describe("list_products", () => {
+  it("renders a product with its price, publication state and storefront url", async () => {
+    const context = productsContext([
+      productRow(1, { customizable_price: true, suggested_price_cents: 900, custom_permalink: "sketch" }),
+      productRow(2, { draft: true, flags: BigInt(1 << 25), buy_price_count: 0, buy_price_cents: null }),
+    ]);
+    const body = (await toolBody("list_products", {}, context)) as { products: Record<string, unknown>[] };
+
+    expect(body.products[0]).toMatchObject({
+      name: "Sketch pack",
+      price_cents: 1000,
+      currency: "usd",
+      pay_what_you_want: true,
+      suggested_price_cents: 900,
+      published: true,
+      is_bundle: false,
+      url: expect.stringMatching(/^https?:\/\/ada-seller\..*\/l\/sketch$/u),
+      permalink: "sketchpk",
+    });
+    expect(body.products[1]).toMatchObject({
+      price_cents: null,
+      published: false,
+      is_bundle: true,
+      suggested_price_cents: null,
+    });
+  });
+
+  it("returns a cursor in microseconds when another page exists", async () => {
+    const context = productsContext([productRow(3), productRow(2), productRow(1)]);
+    const body = (await toolBody("list_products", { limit: 2 }, context)) as {
+      products: unknown[];
+      next_cursor?: string;
+    };
+    expect(context.products.list).toHaveBeenCalledWith(7n, 3, null);
+    expect(body.products).toHaveLength(2);
+    expect(body.next_cursor).toBe("1772445600000000_2");
+  });
+
+  it("hands back a tiered membership, a rental or recurring product and competing buy prices", async () => {
+    for (const row of [
+      productRow(1, { flags: BigInt(1 << 18) }),
+      productRow(1, { flags: BigInt(1 << 1) }),
+      productRow(1, { purchase_type: 1 }),
+      productRow(1, { buy_price_count: 2 }),
+    ])
+      await expect(toolBody("list_products", {}, productsContext([row]))).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

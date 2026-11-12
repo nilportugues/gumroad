@@ -29,6 +29,13 @@ function offsetAt(identifier: string, instantMs: number): number {
   return Math.round((local - Math.floor(instantMs / SECOND_MS) * SECOND_MS) / SECOND_MS);
 }
 
+// `zone.at(instant).utc_offset`, in seconds.
+export function utcOffsetAt(zoneName: string, instantMs: number): number {
+  const identifier = (zones as Record<string, string>)[zoneName];
+  if (identifier === undefined) throw new InvalidTimeZoneError(zoneName);
+  return offsetAt(identifier, instantMs);
+}
+
 const pad = (value: number) => String(Math.abs(value)).padStart(2, "0");
 
 function isoOffset(seconds: number): string {
