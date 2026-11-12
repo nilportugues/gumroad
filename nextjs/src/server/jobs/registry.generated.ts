@@ -395,7 +395,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CancelSubscriptionsForProductWorker": {
     "file": "app/sidekiq/cancel_subscriptions_for_product_worker.rb",
@@ -443,7 +443,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CheckIndianCardMandateRegistrationJob": {
     "file": "app/sidekiq/check_indian_card_mandate_registration_job.rb",
@@ -820,7 +820,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteProductRichContentWorker": {
     "file": "app/sidekiq/delete_product_rich_content_worker.rb",
@@ -2539,7 +2539,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RenewCustomDomainSslCertificates": {
     "file": "app/sidekiq/renew_custom_domain_ssl_certificates.rb",

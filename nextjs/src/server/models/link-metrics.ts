@@ -35,7 +35,7 @@ type VariantRow = {
 const NON_GIFT_SUCCESS_STATES = ["preorder_authorization_successful", "successful", "not_charged"];
 
 // Purchase::ACTIVE_SALES_SEARCH_OPTIONS
-const ACTIVE_SALES_SEARCH_OPTIONS = {
+export const ACTIVE_SALES_SEARCH_OPTIONS = {
   state: NON_GIFT_SUCCESS_STATES,
   exclude_refunded_except_subscriptions: true,
   exclude_unreversed_chargedback: true,
@@ -72,7 +72,7 @@ export async function monthlyRecurringRevenue(product: Product): Promise<number>
     aggs: { mrr_total: { sum: { field: "monthly_recurring_revenue" } } },
     size: 0,
   });
-  return aggregationValue(aggregations(result.response)["mrr_total"]?.value, "mrr_total");
+  return aggregationValue(aggregations(result.response).mrr_total?.value, "mrr_total");
 }
 
 // Link#total_usd_cents (Product::Stats), with no extra search options. A Float in Ruby.
@@ -88,8 +88,8 @@ export async function totalUsdCents(product: Product): Promise<number> {
   });
   const sums = aggregations(result.response);
   return (
-    aggregationValue(sums["price_cents_total"]?.value, "price_cents_total") -
-    aggregationValue(sums["amount_refunded_cents_total"]?.value, "amount_refunded_cents_total")
+    aggregationValue(sums.price_cents_total?.value, "price_cents_total") -
+    aggregationValue(sums.amount_refunded_cents_total?.value, "amount_refunded_cents_total")
   );
 }
 
