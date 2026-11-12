@@ -297,7 +297,8 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   if (nativeType !== NATIVE_TYPE_DIGITAL) throw new HandBackToRails(`the creation of a ${nativeType} product`);
   if (UNSERVED_CREATE_KEYS.some((key) => has(params, key)))
     throw new HandBackToRails("a creation with attributes beyond name, description, price, taxonomy, tags and summary");
-  if (/^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? "")) throw new HandBackToRails("a command line tool");
+  if (/^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? ""))
+    throw new HandBackToRails("a command line tool");
   if (currency !== "usd") throw new HandBackToRails("a product priced in a currency other than USD");
   if (has(params, "name") && typeof params.name !== "string") throw new HandBackToRails("a name that is not text");
 
@@ -322,7 +323,10 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   if (has(params, "custom_summary") && present(params.custom_summary) && typeof params.custom_summary !== "string")
     throw new HandBackToRails("a custom_summary that is not text");
   const customSummary = present(params.custom_summary) ? (params.custom_summary as string) : null;
-  if (customSummary !== null && /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u.test(customSummary))
+  if (
+    customSummary !== null &&
+    /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u.test(customSummary)
+  )
     throw new HandBackToRails("a custom_summary JSON.dump would refuse");
 
   let taxonomyId: bigint | null = null;
@@ -452,7 +456,12 @@ const UNPORTED_UPDATE_KEYS = [
   "rich_content",
   "cover_ids",
 ];
-const UPDATE_FLAG_PARAMS = ["is_adult", "display_product_reviews", "should_show_sales_count", "quantity_enabled"] as const;
+const UPDATE_FLAG_PARAMS = [
+  "is_adult",
+  "display_product_reviews",
+  "should_show_sales_count",
+  "quantity_enabled",
+] as const;
 // The range of an integer column; ActiveModel raises RangeError beyond it.
 const INT_RANGE = 2_147_483_647;
 const MAX_CUSTOM_RECEIPT_LENGTH = 10_000;
@@ -505,11 +514,14 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
 
   const columns: Partial<Link> = {};
   if (has(params, "customizable_price")) {
-    if (typeof params.customizable_price !== "boolean") throw new HandBackToRails("a customizable_price that is not true or false");
+    if (typeof params.customizable_price !== "boolean")
+      throw new HandBackToRails("a customizable_price that is not true or false");
     columns.customizable_price = params.customizable_price;
   }
-  if (has(params, "suggested_price_cents")) columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents);
-  if (has(params, "max_purchase_count")) columns.max_purchase_count = integerParam("max_purchase_count", params.max_purchase_count);
+  if (has(params, "suggested_price_cents"))
+    columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents);
+  if (has(params, "max_purchase_count"))
+    columns.max_purchase_count = integerParam("max_purchase_count", params.max_purchase_count);
   if (has(params, "taxonomy_id")) {
     const value = params.taxonomy_id;
     // validate_taxonomy_id_param let a blank value through: it clears the taxonomy.
@@ -527,7 +539,11 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
   let customSummary: string | null | undefined;
   if (has(params, "custom_summary")) {
     const value = params.custom_summary;
-    if (value !== null && (typeof value !== "string" || /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u.test(value)))
+    if (
+      value !== null &&
+      (typeof value !== "string" ||
+        /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/u.test(value))
+    )
       throw new HandBackToRails("a custom_summary that is not text JSON.dump would write");
     customSummary = value;
   }

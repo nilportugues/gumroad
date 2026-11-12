@@ -550,7 +550,8 @@ const validations: Callback<Link>[] = [
       const [row] = await selectRows<{ sold: number | null }>(
         Prisma.sql`SELECT ${column("links", "sales_count_for_inventory_cache")} AS sold FROM ${table("links")} WHERE ${column("links", "id")} = ${link.get("id")} LIMIT 1`,
       );
-      if (!(max >= Number(row?.sold ?? 0))) link.errors.add("base", "Sorry, you cannot limit the number of purchases to that amount.");
+      if (!(max >= Number(row?.sold ?? 0)))
+        link.errors.add("base", "Sorry, you cannot limit the number of purchases to that amount.");
     },
   },
   // custom_permalink_of_licensed_product only runs when custom_permalink or is_licensed change.

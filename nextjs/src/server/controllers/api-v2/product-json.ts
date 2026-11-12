@@ -243,7 +243,8 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
       currency: link.price_currency_type,
       taxonomy_id: link.taxonomy_id === null ? null : Number(link.taxonomy_id),
       category: (link.taxonomy_id === null ? undefined : categories?.get(String(link.taxonomy_id)))?.path ?? null,
-      category_label: (link.taxonomy_id === null ? undefined : categories?.get(String(link.taxonomy_id)))?.label ?? null,
+      category_label:
+        (link.taxonomy_id === null ? undefined : categories?.get(String(link.taxonomy_id)))?.label ?? null,
       short_url: longUrl(row!, seller!),
       landing_url: longUrl(row!, seller!),
       thumbnail_url: thumbnailJson(link, data)?.url || null,

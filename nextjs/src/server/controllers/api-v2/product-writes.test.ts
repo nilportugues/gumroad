@@ -79,7 +79,14 @@ describe("PUT /v2/products/:id with simple attributes", () => {
   });
 
   it("assigns the columns of the other attributes with the product", async () => {
-    await run({ customizable_price: true, suggested_price_cents: "900", max_purchase_count: null, quantity_enabled: true, taxonomy_id: "", custom_receipt: "Thanks" });
+    await run({
+      customizable_price: true,
+      suggested_price_cents: "900",
+      max_purchase_count: null,
+      quantity_enabled: true,
+      taxonomy_id: "",
+      custom_receipt: "Thanks",
+    });
     expect(mocks.updateBang.mock.calls[0]![1]).toEqual({
       flags: 1n << 13n,
       customizable_price: true,
