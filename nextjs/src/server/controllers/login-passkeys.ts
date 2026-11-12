@@ -9,8 +9,8 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { db } from "../../lib/db.ts";
 import { findUser } from "../models/user.ts";
-import { domainConfig } from "../page-props/domain.ts";
 import { decodeBase64Url, verifyAssertion } from "../services/webauthn-assertion.ts";
+import { allowedOrigins, rpId } from "../services/webauthn-relying-party.ts";
 
 import { type ActionOptions, type ActionResult, type Chain, HandBackToRails } from "./application-controller.ts";
 import { loginPathFor, resetTwoFactorSession } from "./auth-mutations.ts";
@@ -27,15 +27,6 @@ const CHALLENGE_BYTES = 32;
 const OPTIONS_TIMEOUT_MS = 120_000;
 const PUBLIC_KEY_TYPE = "public-key";
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+={0,2}$/u;
-
-const config = () => domainConfig(process.env);
-
-// config/initializers/webauthn.rb: the relying party is the host of ROOT_DOMAIN, and every request host (with the domains) is an origin.
-const rpId = (): string => config().rootDomain.split(":")[0]!;
-const allowedOrigins = (): string[] => {
-  const { protocol, domain, rootDomain, validRequestHosts } = config();
-  return [...new Set([...validRequestHosts, domain, rootDomain])].map((host) => `${protocol}://${host}`);
-};
 
 // The controller skips check_suspended and invalidate_session_if_necessary, so a visitor the chain would sign out (or whose session it
 // would end) is one Rails answers differently.

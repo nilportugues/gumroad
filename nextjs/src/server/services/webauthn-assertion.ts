@@ -9,13 +9,13 @@ import { HandBackToRails } from "../controllers/application-controller.ts";
 
 const CLIENT_DATA_TYPE = "webauthn.get";
 const TOKEN_BINDING_STATUSES = ["present", "supported", "not-supported"];
-const RP_ID_HASH_LENGTH = 32;
-const AUTHENTICATOR_DATA_LENGTH = 37;
-const FLAGS_OFFSET = 32;
-const SIGN_COUNT_OFFSET = 33;
-const FLAG_USER_PRESENT = 0x01;
-const FLAG_USER_VERIFIED = 0x04;
-const FLAG_ATTESTED_CREDENTIAL_DATA = 0x40;
+export const RP_ID_HASH_LENGTH = 32;
+export const AUTHENTICATOR_DATA_LENGTH = 37;
+export const FLAGS_OFFSET = 32;
+export const SIGN_COUNT_OFFSET = 33;
+export const FLAG_USER_PRESENT = 0x01;
+export const FLAG_USER_VERIFIED = 0x04;
+export const FLAG_ATTESTED_CREDENTIAL_DATA = 0x40;
 const FLAG_EXTENSION_DATA = 0x80;
 const UNCOMPRESSED_POINT_LENGTH = 65;
 const UNCOMPRESSED_POINT_PREFIX = 0x04;
@@ -53,10 +53,10 @@ export function decodeBase64Url(data: string): Buffer | null {
 
 // ---- COSE public key
 
-type CborValue = number | bigint | Buffer | string | Map<CborValue, CborValue> | CborValue[] | boolean | null;
+export type CborValue = number | bigint | Buffer | string | Map<CborValue, CborValue> | CborValue[] | boolean | null;
 
 // The subset of CBOR a COSE key uses. Anything else is not read: the key is handed back to Rails.
-function readCbor(bytes: Buffer, offset: number): [CborValue, number] {
+export function readCbor(bytes: Buffer, offset: number): [CborValue, number] {
   const initial = bytes[offset];
   if (initial === undefined) throw new HandBackToRails("a truncated COSE key");
   const major = initial >> 5;
@@ -91,6 +91,12 @@ function readCbor(bytes: Buffer, offset: number): [CborValue, number] {
       }
       return [map, position];
     }
+    case 7:
+      // false, true and null: the only simple values extension data uses.
+      if (info === 20) return [false, cursor];
+      if (info === 21) return [true, cursor];
+      if (info === 22) return [null, cursor];
+      throw new HandBackToRails("a CBOR simple value it does not use");
     default:
       throw new HandBackToRails("a COSE key with a CBOR type it does not use");
   }
@@ -202,6 +208,9 @@ function encodeCbor(value: CborValue): Buffer {
     if (length < 0x100) return Buffer.from([(major << 5) | 24, length]);
     return Buffer.from([(major << 5) | 25, length >> 8, length & 0xff]);
   };
+  if (value === false) return Buffer.from([0xf4]);
+  if (value === true) return Buffer.from([0xf5]);
+  if (value === null) return Buffer.from([0xf6]);
   if (typeof value === "number") return value >= 0 ? head(0, value) : head(1, -1 - value);
   if (Buffer.isBuffer(value)) return Buffer.concat([head(2, value.length), value]);
   if (typeof value === "string") {
@@ -222,18 +231,26 @@ function firstCborItem(bytes: Buffer): [CborValue, number] {
   return [value, end];
 }
 
+export type AttestedCredential = { aaguid: Buffer; id: Buffer; key: Buffer };
+
 // WebAuthn::AuthenticatorData#valid? for the bytes after the 37 fixed ones: attested credential data (AAGUID, id, an ES256 COSE key) and
 // then extension data (one CBOR item that is not null or false, with nothing after it) when the flags say so, and no bytes left over.
-// A shape where the gem raises something Rails does not rescue, or one whose COSE key it would have to judge, is a hand-back.
-function authenticatorDataValid(authenticatorData: Buffer, flags: number): boolean {
+// A shape where the gem raises something Rails does not rescue, or one whose COSE key it would have to judge, is a hand-back. The
+// credential comes back for a registration, which stores its id and key.
+export function parseAuthenticatorData(
+  authenticatorData: Buffer,
+  flags: number,
+): { valid: boolean; credential: AttestedCredential | null } {
   const tail = authenticatorData.subarray(AUTHENTICATOR_DATA_LENGTH);
   const attested = (flags & FLAG_ATTESTED_CREDENTIAL_DATA) !== 0;
   const extensions = (flags & FLAG_EXTENSION_DATA) !== 0;
   let position = 0;
+  let credential: AttestedCredential | null = null;
   if (attested) {
     if (tail.length < AAGUID_LENGTH + CREDENTIAL_ID_LENGTH_LENGTH)
       throw new HandBackToRails("truncated attested credential data");
-    position = AAGUID_LENGTH + CREDENTIAL_ID_LENGTH_LENGTH + tail.readUInt16BE(AAGUID_LENGTH);
+    const idStart = AAGUID_LENGTH + CREDENTIAL_ID_LENGTH_LENGTH;
+    position = idStart + tail.readUInt16BE(AAGUID_LENGTH);
     if (tail.length < position) throw new HandBackToRails("truncated attested credential data");
     const [key, keyLength] = firstCborItem(tail.subarray(position));
     const x = key instanceof Map ? key.get(-2) : undefined;
@@ -250,21 +267,29 @@ function authenticatorDataValid(authenticatorData: Buffer, flags: number): boole
       y.length !== COORDINATE_LENGTH
     )
       throw new HandBackToRails("an attested credential key Node does not judge");
+    credential = {
+      aaguid: tail.subarray(0, AAGUID_LENGTH),
+      id: tail.subarray(idStart, position),
+      key: tail.subarray(position, position + keyLength),
+    };
     position += keyLength;
   }
-  if (!extensions) return position === tail.length;
+  if (!extensions) return { valid: position === tail.length, credential };
   // CBOR.decode of nothing raises EOFError; of an item followed by more bytes raises MalformedFormatError, which Rails maps to a refusal.
   const raw = tail.subarray(position);
   if (raw.length === 0) throw new HandBackToRails("empty extension data");
-  if (raw.length === 1 && (raw[0] === CBOR_NULL || raw[0] === CBOR_FALSE)) return false;
-  if (raw.length === 1 && raw[0] === CBOR_TRUE) return true;
+  if (raw.length === 1 && (raw[0] === CBOR_NULL || raw[0] === CBOR_FALSE)) return { valid: false, credential };
+  if (raw.length === 1 && raw[0] === CBOR_TRUE) return { valid: true, credential };
   const [, end] = firstCborItem(raw);
-  return end === raw.length;
+  return { valid: end === raw.length, credential };
 }
 
-type ClientData = { type: unknown; challenge: unknown; origin: unknown; tokenBinding: unknown };
+const authenticatorDataValid = (authenticatorData: Buffer, flags: number): boolean =>
+  parseAuthenticatorData(authenticatorData, flags).valid;
 
-function parseClientData(clientDataJson: Buffer): ClientData {
+export type ClientData = { type: unknown; challenge: unknown; origin: unknown; tokenBinding: unknown };
+
+export function parseClientData(clientDataJson: Buffer): ClientData {
   let data: unknown;
   try {
     data = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(clientDataJson));
@@ -278,13 +303,13 @@ function parseClientData(clientDataJson: Buffer): ClientData {
 }
 
 // ClientData#valid_token_binding_format?: a falsy token binding is fine, any other must be a hash with a known status.
-function validTokenBinding(tokenBinding: unknown): boolean {
+export function validTokenBinding(tokenBinding: unknown): boolean {
   if (tokenBinding === undefined || tokenBinding === null || tokenBinding === false) return true;
   if (typeof tokenBinding !== "object" || Array.isArray(tokenBinding)) return false;
   return TOKEN_BINDING_STATUSES.includes((tokenBinding as Record<string, unknown>).status as string);
 }
 
-const sha256 = (value: Buffer | string) => createHash("sha256").update(value).digest();
+export const sha256 = (value: Buffer | string) => createHash("sha256").update(value).digest();
 
 export type AssertionInput = {
   // The challenge as stored in the session (base64url).

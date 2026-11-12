@@ -149,6 +149,8 @@ const COMPARE = {
     "response.json.recovery_codes",
     "response.json.secret",
     "response.json.provisioning_uri",
+    // The creation options' challenge is 32 random bytes, kept in the session: assertRegistrationOptions reads both back.
+    "response.json.options.challenge",
     "response.json.qr_svg",
     "db.totp_credentials.inserted.*.otp_secret",
     "db.totp_credentials.updated.*.changes.recovery_codes",
@@ -415,6 +417,67 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     }
   }
 
+  // The session cookie the response set (the compare ignores its encrypted value).
+  function sessionOf(fixture: Fixture, cookies: CapturedExchange["response"]["cookies"]) {
+    const raw = (cookies?.[fixture.sessionCookie!] as { value?: string } | undefined)?.value;
+    if (raw === undefined) return null;
+    return readEncryptedCookie(
+      deriveRailsCookieSecrets(SECRET_KEY_BASE),
+      fixture.sessionCookie!,
+      decodeURIComponent(raw),
+      new Date(0),
+    ) as Record<string, unknown> | null;
+  }
+
+  // The creation options' challenge is the one kept in the session under the registration key, and nothing else was added to it.
+  // WRITE_NODE_PASSKEY_REGISTRATION hands the session cookie and challenge of the first example to spec/requests/node_output_parity_spec.rb,
+  // where Rails registers a passkey against them.
+  async function assertRegistrationOptions(
+    name: string,
+    fixture: Fixture,
+    actual: CapturedExchange,
+    expected: CapturedExchange,
+  ) {
+    if (!name.startsWith("settings_passkeys_signed_in_spec")) return;
+    const body = actual.response.json as { options?: { challenge?: string } } | undefined;
+    const session = sessionOf(fixture, actual.response.cookies);
+    const recorded = sessionOf(fixture, expected.response.cookies);
+    if (body?.options?.challenge !== undefined) {
+      expect(body.options.challenge).toMatch(/^[A-Za-z0-9_-]{43}$/u);
+      expect(session?.webauthn_registration_challenge).toBe(body.options.challenge);
+      const { webauthn_registration_challenge: _kept, ...rest } = session ?? {};
+      const { webauthn_registration_challenge: _recorded, ...recordedRest } = recorded ?? {};
+      expect(rest).toEqual(recordedRest);
+      if (process.env.WRITE_NODE_PASSKEY_REGISTRATION && name.includes("issues-creation-options")) {
+        const user = await client.user.findFirstOrThrow();
+        const cookie = (actual.response.cookies as Record<string, { value: string }>)[fixture.sessionCookie!]!;
+        writeFileSync(
+          process.env.WRITE_NODE_PASSKEY_REGISTRATION,
+          `${JSON.stringify(
+            {
+              session_cookie: { name: fixture.sessionCookie, value: cookie.value },
+              challenge: body.options.challenge,
+              user: {
+                id: Number(user.id),
+                email: user.email,
+                encrypted_password: user.encrypted_password,
+                remember_created_at: user.remember_created_at?.toISOString(),
+              },
+            },
+            null,
+            2,
+          )}\n`,
+        );
+      }
+      return;
+    }
+    if (name.includes("adding-a-passkey")) {
+      // The challenge is spent whether or not the attestation verified, and the prompt flag follows the passkeys left to add.
+      expect(session).not.toHaveProperty("webauthn_registration_challenge");
+      expect(session).toEqual(recorded);
+    }
+  }
+
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
@@ -466,6 +529,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         await assertJoin(_name, result.exchanges[0]!.actual);
         await assertTotp(_name, result.exchanges[0]!.actual);
         await assertSetup(_name, result.exchanges[0]!.actual);
+        await assertRegistrationOptions(_name, fixture, result.exchanges[0]!.actual, result.exchanges[0]!.expected);
       } catch (error) {
         const logs = server
           .output()

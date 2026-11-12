@@ -79,6 +79,27 @@ describe "Output of the Node port, read by Rails", type: :request do
     end
   end
 
+  describe "the passkey registration options" do
+    include Parity::AudienceSignedIn
+
+    # WRITE_NODE_PASSKEY_REGISTRATION in settings-mutations.replay.test.ts: the session cookie Node set when it drew the challenge.
+    it "reads the session cookie Node wrote and accepts an attestation for the challenge in it", parity: false do
+      require "webauthn/fake_client"
+      output = node_output("NODE_PASSKEY_REGISTRATION")
+      user = create_user_like(output["user"])
+      set_node_cookie(output, "session_cookie")
+      origin = "#{PROTOCOL}://#{DOMAIN}"
+      token = csrf_token
+      credential = WebAuthn::FakeClient.new(origin).create(challenge: output["challenge"], rp_id: WebAuthn.configuration.rp_id, user_verified: true)
+
+      post "/settings/passkeys", params: { credential:, nickname: "Registered against Node's challenge" }.to_json,
+                                 headers: { "Accept" => "application/json", "Content-Type" => "application/json", "X-CSRF-Token" => token }
+
+      expect(response).to have_http_status(:created)
+      expect(user.webauthn_credentials.pluck(:nickname)).to eq(["Registered against Node's challenge"])
+    end
+  end
+
   describe "the authenticator app confirmation" do
     # WRITE_NODE_TOTP in settings-mutations.replay.test.ts: the row Node left after a confirmation and the codes it showed.
     it "stores recovery codes that Rails redeems and a secret that Rails accepts", parity: false do
