@@ -90,7 +90,6 @@ import "@/server/controllers/checkout-upsell-products";
 import "@/server/controllers/offer-codes-selection";
 import "@/server/controllers/purchases-export";
 import "@/server/controllers/purchases-search";
-import "@/server/controllers/purchases-product";
 import "@/server/controllers/marketing-actions";
 import "@/server/controllers/waitlist-emails";
 import "@/server/controllers/url-redirects/mutations";

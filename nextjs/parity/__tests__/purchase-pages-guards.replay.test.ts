@@ -14,7 +14,7 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays spec/requests/purchase_invoice_form_parity_spec.rb and purchases_product_parity_spec.rb (the GET pages whose guards run in Node): the last exchange of each fixture is sent to `next dev` with
+// Replays spec/requests/purchase_invoice_form_parity_spec.rb and purchases_product_parity_spec.rb (the GET pages whose guards run in Node; the purchase product page renders in Node): the last exchange of each fixture is sent to `next dev` with
 // the flags on; a stand-in Rails receives whatever Node hands back.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
@@ -37,6 +37,11 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
     "http",
+    // Next.js owns the per-response random values of an Inertia page.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
   ],
 };
 
@@ -95,6 +100,7 @@ describe.skipIf(!url)("Purchase pages guards", () => {
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",

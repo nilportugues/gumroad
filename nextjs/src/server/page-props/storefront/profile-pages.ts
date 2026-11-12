@@ -381,6 +381,11 @@ async function profileProps(seller: User, request: PresenterRequest, visitor: Pa
   };
 }
 
+// SellerProfile#custom_styles
+export async function sellerCustomStyles(seller: User): Promise<string> {
+  return customStyles(withDefaults(profileStyle(await loadSellerProfile(Users.load(seller)))));
+}
+
 const COFFEE_NATIVE_TYPE = "coffee";
 const COFFEE_STATE_KEY = "coffeePageProps";
 const COFFEE_ARCHIVED_FLAG = "archived";
