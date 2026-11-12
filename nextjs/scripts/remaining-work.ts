@@ -305,11 +305,22 @@ export function parseRoutes(): Parsed {
 
 const normalizeParams = (path: string) =>
   path
-    .replace(/\.(json|txt|xml)$/u, "")
+    .replace(/\.(json|txt|xml|smil)$/u, "")
     .replace(/\(\.:format\)$/u, "")
     .replace(/\.:format$/u, "")
     .replace(/:\w+(\([^)]*\))?/gu, ":p")
     .replace(/\/\*\w+/gu, "/*p");
+
+// Routes Rails never had: the probe of the Node process (src/app/api/health), which is not a port of anything.
+const NODE_ONLY_PATHS = new Set(["/api/health"]);
+
+// The forms a Rails path can be registered under in routes.json: an optional trailing group (`/play/:grant(/*path)`) is two entries, and a
+// param constrained to `/.*/` (`:url`) is a trailing glob (`*url`) there, because Next.js needs the glob to capture slashes.
+export function pathForms(path: string): string[] {
+  const optional = /^(.*)\((\/[^()]*)\)$/u.exec(path);
+  const bases = optional ? [optional[1]!, optional[1]! + optional[2]!] : [path];
+  return bases.flatMap((base) => (base.endsWith("/:p") ? [base, base.replace(/:p$/u, "*p")] : [base]));
+}
 
 // Path strings that interpolate a name (`${PAGES_PATH}/:slug`, `/${client}/v1/oauth2/authorize`): a constant of the same file with a plain
 // string value is substituted, any other interpolation matches one path segment.
@@ -543,10 +554,10 @@ export function rows(parsed: Parsed): Row[] {
   const literals = sourceLiterals();
   const serverText = readAllServerText(SERVER_DIR);
   return parsed.routes.map((route) => {
-    const path = normalizeParams(route.path);
+    const forms = pathForms(normalizeParams(route.path));
     const hit = registered.find(
       (candidate) =>
-        candidate.path === path &&
+        forms.includes(candidate.path) &&
         (candidate.methods.includes(route.method) || (route.method === "PATCH" && candidate.methods.includes("PUT"))),
     );
     // Served natively when routes.json lists it and Node has code for it: a redirect entry, a literal pattern in src/server or an App Router
@@ -555,8 +566,8 @@ export function rows(parsed: Parsed): Row[] {
     const served =
       hit !== undefined &&
       ((hit.entry.redirect ?? hit.entry.redirectReplace) !== undefined ||
-        literals.has(path) ||
-        templatePatterns.some((pattern) => pattern.test(path)) ||
+        literals.has(hit.path) ||
+        templatePatterns.some((pattern) => pattern.test(hit.path)) ||
         (hit.entry.handler !== undefined &&
           !GENERIC_HANDLERS.has(hit.entry.handler) &&
           new RegExp(`\\b${hit.entry.handler}\\s*:`, "u").test(serverText)));
@@ -802,9 +813,13 @@ function build(): string {
   for (const row of handBacks)
     out.push(`- \`${row.method} ${row.path}\` (\`${classOf(row.controller)}#${row.action}\`)`);
 
-  const railsKeys = new Set(parsed.routes.map((route) => `${route.method} ${normalizeParams(route.path)}`));
+  const railsKeys = new Set(
+    parsed.routes.flatMap((route) => pathForms(normalizeParams(route.path)).map((path) => `${route.method} ${path}`)),
+  );
   const orphans = registeredRoutes().filter(
-    (entry) => !entry.methods.some((method) => railsKeys.has(`${method === "PUT" ? "PATCH" : method} ${entry.path}`)),
+    (entry) =>
+      !NODE_ONLY_PATHS.has(entry.path) &&
+      !entry.methods.some((method) => railsKeys.has(`${method === "PUT" ? "PATCH" : method} ${entry.path}`)),
   );
   out.push(
     "",
