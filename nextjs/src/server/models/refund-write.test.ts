@@ -24,7 +24,10 @@ const dateColumns = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(\.\d+)?$/u;
 function seededRefund(c: WriteCase) {
   const row = c.seed.map(parseInsert).find((parsed) => parsed.table === "refunds")!.row;
   const typed = Object.fromEntries(
-    Object.entries(row).map(([k, v]) => [k, typeof v === "string" && dateColumns.test(v) ? `${v.replace(" ", "T")}Z` : v]),
+    Object.entries(row).map(([k, v]) => [
+      k,
+      typeof v === "string" && dateColumns.test(v) ? `${v.replace(" ", "T")}Z` : v,
+    ]),
   );
   return Refunds.load(castRow<Refund>("Refund", typed));
 }

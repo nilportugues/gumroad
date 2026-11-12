@@ -7,8 +7,13 @@ import { Prisma, type Purchase, type Refund } from "@prisma/client";
 
 import { defineFlags } from "../../lib/flags.ts";
 import { encrypt } from "../../lib/obfuscate-ids.ts";
+
 import { assignBelongsTo } from "./concerns/belongs-to-record.ts";
-import { jsonDataForAttr as storedJsonAttr, mergeJsonDataWithCurrentRow, setJsonDataForAttr } from "./concerns/json-data.ts";
+import {
+  jsonDataForAttr as storedJsonAttr,
+  mergeJsonDataWithCurrentRow,
+  setJsonDataForAttr,
+} from "./concerns/json-data.ts";
 import type { YamlValue } from "./concerns/psych.ts";
 import { belongsToRequired, loadBelongsTo, validatesUniqueness, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
@@ -25,7 +30,12 @@ export const FRAUD = "fraud";
 // Refund::MAX_FEE_RETENTION_ATTEMPTS: one week of hourly runs.
 export const MAX_FEE_RETENTION_ATTEMPTS = 168;
 
-const PURCHASE: BelongsTo = { name: "purchase", foreignKey: "purchase_id", targetTable: "purchases", targetModel: "Purchase" };
+const PURCHASE: BelongsTo = {
+  name: "purchase",
+  foreignKey: "purchase_id",
+  targetTable: "purchases",
+  targetModel: "Purchase",
+};
 const PRODUCT: BelongsTo = { name: "product", foreignKey: "link_id", targetTable: "links", targetModel: "Link" };
 const SELLER: BelongsTo = { name: "seller", foreignKey: "seller_id", targetTable: "users", targetModel: "User" };
 
@@ -82,7 +92,9 @@ async function assignFromPurchase(refund: RefundRecord, target: "link_id" | "sel
   refund.set(target, purchase[target] as never);
 }
 
-const uniqueProcessorRefundId = validatesUniqueness<Refund>("Refund", "refunds", "processor_refund_id", { scope: ["link_id"] });
+const uniqueProcessorRefundId = validatesUniqueness<Refund>("Refund", "refunds", "processor_refund_id", {
+  scope: ["link_id"],
+});
 
 export const Refunds = defineModel<Refund>({
   rubyClass: "Refund",
@@ -160,12 +172,17 @@ export function rubyToI(value: unknown): number {
     const match = /^\s*([+-]?\d+(?:_\d+)*)/u.exec(value);
     return match ? Number(match[1]!.replaceAll("_", "")) : 0;
   }
-  const described = Array.isArray(value) ? "an instance of Array" : typeof value === "object" ? "an instance of Hash" : String(value);
+  const described = Array.isArray(value)
+    ? "an instance of Array"
+    : typeof value === "object"
+      ? "an instance of Hash"
+      : String(value);
   throw new TypeError(`undefined method 'to_i' for ${described}`);
 }
 
 // Refund#retained_fee_cents.to_i
-export const retainedFeeCents = (record: RefundRecord): number => rubyToI(jsonDataForAttr(record, "retained_fee_cents"));
+export const retainedFeeCents = (record: RefundRecord): number =>
+  rubyToI(jsonDataForAttr(record, "retained_fee_cents"));
 
 // scope :pending_fee_retention, as the `where` of a `findInBatches(REFUNDS, ...)`.
 export const pendingFeeRetention = () => Prisma.sql`${column(REFUNDS, "fee_retention_recoverable")} = ${true}`;
