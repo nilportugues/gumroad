@@ -548,7 +548,7 @@ function integerParam(key: string, value: unknown): number | null {
 }
 
 // Link#published?
-const isPublishedProduct = (product: Link) =>
+export const isPublishedProduct = (product: Link) =>
   product.deleted_at === null && product.purchase_disabled_at === null && !product.draft;
 
 // #update with none of UNPORTED_UPDATE_KEYS: assign_attributes, save!, then the product JSON. A flag value other than true or false
@@ -643,7 +643,7 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
 
 // SaveContentUpsellsService#from_html over the new and the old description: the new one comes back as Nokogiri serializes it, and the
 // upsell cards of the old one are the upsells it retires. The moderation a published product's description change needs is Ruby's.
-function plannedDescription(product: Link, value: unknown): string {
+export function plannedDescription(product: Link, value: unknown): string {
   if (typeof value !== "string") throw new HandBackToRails("a description that is not text");
   if (product.description === null || /upsell-card/iu.test(product.description))
     throw new HandBackToRails("a description replacing one with upsell cards");
