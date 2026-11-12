@@ -39,8 +39,13 @@ export const scheduleMembershipPriceUpdatesJobWith = modelJob({ min: 1 }, async 
   if (product === null) throw new TypeError("undefined method 'is_tiered_membership?' for nil");
   if (!LinkFlags.isSet(product.flags, "is_tiered_membership")) return;
 
-  await findInBatches("subscriptions", Prisma.sql`${column("subscriptions", "link_id")} = ${product.id}`, FIND_EACH_BATCH_SIZE, () => {
-    throw new HandBackToRuby("a membership with subscriptions to move to the new price");
-  });
+  await findInBatches(
+    "subscriptions",
+    Prisma.sql`${column("subscriptions", "link_id")} = ${product.id}`,
+    FIND_EACH_BATCH_SIZE,
+    () => {
+      throw new HandBackToRuby("a membership with subscriptions to move to the new price");
+    },
+  );
 });
 export const scheduleMembershipPriceUpdatesJob = scheduleMembershipPriceUpdatesJobWith();

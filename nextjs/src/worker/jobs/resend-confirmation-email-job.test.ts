@@ -8,6 +8,7 @@ const golden = loadGolden(new URL("./__fixtures__/resend-confirmation-email-job.
 
 // Rails casts a Float, a word to NULL and nil to IS NULL; Node hands those arguments back instead.
 const castByRails = (value: unknown) =>
-  !(typeof value === "number" && Number.isInteger(value)) && !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
+  !(typeof value === "number" && Number.isInteger(value)) &&
+  !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
 
 replayJobGolden("ResendConfirmationEmailJob", golden, resendConfirmationEmailJobWith(), (c) => castByRails(c.args[0]));

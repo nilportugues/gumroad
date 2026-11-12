@@ -8,6 +8,7 @@ const golden = loadGolden(new URL("./__fixtures__/pdf-unstampable-notifier-job.g
 
 // Rails finds nothing for nil and casts a word to NULL; Node hands those arguments back instead.
 const castByRails = (value: unknown) =>
-  !(typeof value === "number" && Number.isInteger(value)) && !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
+  !(typeof value === "number" && Number.isInteger(value)) &&
+  !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
 
 replayJobGolden("PdfUnstampableNotifierJob", golden, pdfUnstampableNotifierJobWith(), (c) => castByRails(c.args[0]));

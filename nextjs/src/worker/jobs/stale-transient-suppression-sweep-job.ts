@@ -4,8 +4,8 @@
 // sign-in and the DELETE, and a failed request, a non-array body or a body that is not JSON means Rails notifies and moves on; all of
 // these hand back to Rails (nothing has been written by then: the sweep's only write is the DELETE).
 // Golden: __fixtures__/stale-transient-suppression-sweep-job.golden.json (scripts/golden/stale-transient-suppression-sweep-job.rb).
-import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import { getConfig } from "../../server/infra/config.ts";
+import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 
 import { checkArity } from "./arity.ts";
@@ -80,7 +80,10 @@ async function usableEntriesOfPage(
   if (!Array.isArray(page)) throw new HandBackToRuby(`a SendGrid ${list} response that is not a list`);
   const usable = page.filter(
     (entry: unknown) =>
-      typeof entry === "object" && entry !== null && !Array.isArray(entry) && present((entry as { email?: unknown }).email),
+      typeof entry === "object" &&
+      entry !== null &&
+      !Array.isArray(entry) &&
+      present((entry as { email?: unknown }).email),
   );
   return { size: page.length, usable: usable.length };
 }

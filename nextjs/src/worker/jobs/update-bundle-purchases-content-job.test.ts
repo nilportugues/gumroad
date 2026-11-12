@@ -7,4 +7,9 @@ import { updateBundlePurchasesContentJobWith } from "./update-bundle-purchases-c
 const golden = loadGolden(new URL("./__fixtures__/update-bundle-purchases-content-job.golden.json", import.meta.url));
 
 // Rails finds nothing for nil; Node hands the argument back instead of reproducing the error.
-replayJobGolden("UpdateBundlePurchasesContentJob", golden, updateBundlePurchasesContentJobWith(), (c) => c.args[0] === null);
+replayJobGolden(
+  "UpdateBundlePurchasesContentJob",
+  golden,
+  updateBundlePurchasesContentJobWith(),
+  (c) => c.args[0] === null,
+);

@@ -186,4 +186,9 @@ export const PORTED_JOBS: readonly string[] = [
   "UtmLinkSaleAttributionJob",
   "AlertOnBlockedEstablishedBuyersJob",
   "StripePayoutsPausedEmailJob",
+  "ScheduleMembershipPriceUpdatesJob",
+  "UpdateBundlePurchasesContentJob",
+  "StaleTransientSuppressionSweepJob",
+  "ResendConfirmationEmailJob",
+  "PdfUnstampableNotifierJob",
 ];

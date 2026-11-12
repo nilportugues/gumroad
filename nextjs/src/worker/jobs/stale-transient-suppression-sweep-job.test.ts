@@ -2,6 +2,8 @@
 // StaleTransientSuppressionSweepJob run by the real app as a Sidekiq job with every outbound request answered by WebMock. Node makes
 // the SendGrid requests Rails made (URL, window, paging, Authorization) and finishes when no list holds an entry with an email; it hands
 // back, after the same requests, a list with a usable entry and a request or body Rails notifies on.
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
@@ -14,9 +16,10 @@ import {
   rubyRuntimeRegistry,
   sequentialJids,
 } from "./__fixtures__/golden.ts";
-import { staleTransientSuppressionSweepJobWith, type SuppressionFetch } from "./stale-transient-suppression-sweep-job.ts";
-
-import { readFileSync } from "node:fs";
+import {
+  staleTransientSuppressionSweepJobWith,
+  type SuppressionFetch,
+} from "./stale-transient-suppression-sweep-job.ts";
 
 type Http = { method: string; url: string; headers: Record<string, string> };
 type Case = {
@@ -43,7 +46,8 @@ const SUBUSERS = ["gumroad", "followers", "creators", "customers_level_1", "cust
 // Answers each request from what WebMock was told to answer the same request with: the golden records the requests, and the bodies
 // are the ones the generator queued (an empty list unless the case says otherwise).
 function answersFor(c: Case): Response[] {
-  const body = (value: unknown, status = 200) => new Response(typeof value === "string" ? value : JSON.stringify(value), { status });
+  const body = (value: unknown, status = 200) =>
+    new Response(typeof value === "string" ? value : JSON.stringify(value), { status });
   const usable = [{ created: 1, email: "bounced0@example.com", reason: "mailbox full" }];
   switch (c.name) {
     case "a bounce list with a usable entry":
@@ -51,7 +55,13 @@ function answersFor(c: Case): Response[] {
     case "a block list with a usable entry after an empty bounce list":
       return [body([]), body(usable)];
     case "a bounce list with entries that have no email":
-      return [body([{ created: 1, email: "", reason: "x" }, { created: 1, reason: "y" }]), body([])];
+      return [
+        body([
+          { created: 1, email: "", reason: "x" },
+          { created: 1, reason: "y" },
+        ]),
+        body([]),
+      ];
     case "a bounce list with entries that are not hashes":
       return [body(["a@example.com", 5, null]), body([])];
     case "a full first page of entries without an email":
