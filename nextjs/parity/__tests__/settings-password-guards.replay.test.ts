@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
@@ -34,6 +34,8 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    // A bcrypt digest carries a random salt; spec/requests/node_output_parity_spec.rb feeds Node's digest back to Rails.
+    "db.users.updated.*.changes.encrypted_password",
     "http",
   ],
 };
@@ -162,7 +164,24 @@ describe.skipIf(!url)("Settings::PasswordController#update", () => {
           expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
           return;
         }
-        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        const result = await replayFixtureExchange(fixture, index, replayOptions(file));
+        assertParity(result);
+        if (process.env.WRITE_NODE_PASSWORD_CHANGE && name.includes("-changes-the-password-and-keeps-")) {
+          const cookies = result.exchanges[0]!.actual.response.cookies as Record<string, { value: string }>;
+          const user = await client.user.findFirstOrThrow();
+          writeFileSync(
+            process.env.WRITE_NODE_PASSWORD_CHANGE,
+            `${JSON.stringify(
+              {
+                new_password: "a-new-strong-password-1",
+                session_cookie: { name: fixture.sessionCookie, value: cookies[fixture.sessionCookie!]!.value },
+                user: { id: Number(user.id), email: user.email, encrypted_password: user.encrypted_password },
+              },
+              null,
+              2,
+            )}\n`,
+          );
+        }
       } catch (error) {
         const logs = server
           .output()

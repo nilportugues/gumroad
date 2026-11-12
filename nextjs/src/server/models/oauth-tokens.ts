@@ -166,4 +166,28 @@ export async function lockAccessToken(id: number): Promise<AccessTokenRow | null
   return row ?? null;
 }
 
+// MobileAccountToken.valid?: a brand token (one with a team membership) stays usable while the website would still let its member switch
+// in: an admin membership of the token's owner that is not deleted, a live owner and member, and no session invalidation after the token.
+export async function brandTokenValid(token: AccessTokenRow): Promise<boolean> {
+  if (token.team_membership_id === null) return true;
+  const [membership] = await selectRows<{ user_id: bigint | null }>(
+    Prisma.sql`SELECT ${Prisma.raw("`team_memberships`.`user_id`")} FROM ${table("team_memberships")} INNER JOIN ${table("users")} ON ${column("users", "id")} = ${column("team_memberships", "seller_id")} WHERE ${column("team_memberships", "role")} = 'admin' AND ${column("team_memberships", "deleted_at")} IS NULL AND ${column("users", "deleted_at")} IS NULL AND ${column("team_memberships", "id")} = ${token.team_membership_id} AND ${column("team_memberships", "seller_id")} = ${token.resource_owner_id} LIMIT 1`,
+  );
+  if (membership === undefined || membership.user_id === null) return false;
+  const [member] = await selectRows<{ deleted_at: Date | null; last_active_sessions_invalidated_at: Date | null }>(
+    Prisma.sql`SELECT ${column("users", "deleted_at")}, ${column("users", "last_active_sessions_invalidated_at")} FROM ${table("users")} WHERE ${column("users", "id")} = ${membership.user_id} LIMIT 1`,
+  );
+  if (member === undefined || member.deleted_at !== null) return false;
+  const invalidatedAt = member.last_active_sessions_invalidated_at;
+  return invalidatedAt === null || token.created_at.getTime() > invalidatedAt.getTime();
+}
+
+// Doorkeeper's before_successful_strategy_response: a refreshed brand token keeps the team membership of the one it replaces
+// (`update_column`, so no `updated_at`).
+export async function copyTeamMembership(token: string, teamMembershipId: number | bigint): Promise<void> {
+  await execute(
+    Prisma.sql`UPDATE ${table(TOKENS)} SET ${column(TOKENS, "team_membership_id")} = ${teamMembershipId} WHERE ${column(TOKENS, "token")} = ${token}`,
+  );
+}
+
 export { transaction };

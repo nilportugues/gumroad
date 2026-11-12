@@ -495,13 +495,93 @@ describe "OAuth token issuance", type: :request do
       expect(response.parsed_body).to eq("error" => "invalid_target", "error_description" => "resource does not match the refresh token")
     end
 
-    it "hands a brand token back to Rails", parity: true do
-      membership = create(:team_membership, seller: resource_owner, user: owner, role: TeamMembership::ROLE_ADMIN)
-      old = token_for(public_app, team_membership_id: membership.id)
+    describe "with a brand token" do
+      let(:membership) { create(:team_membership, seller: resource_owner, user: owner, role: TeamMembership::ROLE_ADMIN) }
+      let(:old) { token_for(public_app, team_membership_id: membership.id) }
+      let(:inactive) { { "error" => "invalid_grant", "error_description" => "The team membership behind this token is no longer active" } }
 
-      post "/oauth/token", params: { grant_type: "refresh_token", refresh_token: old.refresh_token, client_id: public_app.uid }
+      def refresh
+        post "/oauth/token", params: { grant_type: "refresh_token", refresh_token: old.refresh_token, client_id: public_app.uid }
+      end
 
-      expect(response).to have_http_status(:ok).or have_http_status(:bad_request)
+      it "refreshes it and keeps the team membership on the new token", parity: true do
+        refresh
+
+        expect(response).to have_http_status(:ok)
+        fresh = Doorkeeper::AccessToken.find_by!(token: response.parsed_body["access_token"])
+        expect(fresh.team_membership_id).to eq(membership.id)
+        expect(old.reload).to be_revoked
+      end
+
+      it "refreshes it when the member's sessions were invalidated before the token was issued", parity: true do
+        owner.update_columns(last_active_sessions_invalidated_at: 1.day.ago)
+
+        refresh
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "refuses it once the membership is deleted", parity: true do
+        membership.update_columns(deleted_at: Time.current)
+
+        refresh
+
+        expect(response).to have_http_status(:bad_request)
+        expect(response.parsed_body).to eq(inactive)
+        expect(old.reload).not_to be_revoked
+      end
+
+      it "refuses it for a membership that is not an admin one", parity: true do
+        membership.update_columns(role: TeamMembership::ROLE_MARKETING)
+
+        refresh
+
+        expect(response.parsed_body).to eq(inactive)
+      end
+
+      it "refuses it for a membership of another account", parity: true do
+        membership.update_columns(seller_id: create(:user).id)
+
+        refresh
+
+        expect(response.parsed_body).to eq(inactive)
+      end
+
+      it "refuses it once the account is deleted", parity: true do
+        membership
+        resource_owner.update_columns(deleted_at: Time.current)
+
+        refresh
+
+        expect(response.parsed_body).to eq(inactive)
+      end
+
+      it "refuses it once the member is deleted", parity: true do
+        membership
+        owner.update_columns(deleted_at: Time.current)
+
+        refresh
+
+        expect(response.parsed_body).to eq(inactive)
+      end
+
+      it "refuses it once the member's sessions were invalidated after the token was issued", parity: true do
+        membership
+        old
+        owner.update_columns(last_active_sessions_invalidated_at: 1.hour.from_now)
+
+        refresh
+
+        expect(response.parsed_body).to eq(inactive)
+      end
+
+      it "refuses a brand token whose membership no longer exists", parity: true do
+        old.update_columns(team_membership_id: 999_999)
+
+        refresh
+
+        expect(response.parsed_body).to eq(inactive)
+      end
     end
   end
 end

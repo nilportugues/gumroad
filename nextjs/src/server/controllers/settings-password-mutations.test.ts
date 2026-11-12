@@ -10,6 +10,11 @@ const mocks = vi.hoisted(() => ({
   validPassword: vi.fn(),
   confirmed: vi.fn(),
   attributes: {} as Record<string, unknown>,
+  setPassword: vi.fn(),
+  save: vi.fn(),
+  invalidate: vi.fn(),
+  errors: [] as string[],
+  calls: [] as string[],
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -18,11 +23,17 @@ vi.mock("./mutation.ts", () => ({
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../page-props/settings/guard.ts", () => ({ settingsGuard: () => async () => mocks.guardResult() }));
 vi.mock("../policies/settings/password-user.ts", () => ({ settingsPasswordUserPolicy: { update: () => true } }));
-vi.mock("../auth/devise-password.ts", () => ({ validPassword: mocks.validPassword }));
+vi.mock("../auth/devise-password.ts", () => ({
+  validPassword: mocks.validPassword,
+  authenticatableSalt: (hash: string) => hash.slice(0, 7),
+}));
 vi.mock("../models/user.ts", () => ({
   findUserBang: mocks.findUserBang,
   isConfirmed: () => mocks.confirmed(),
+  setPassword: mocks.setPassword,
+  Users: { save: mocks.save },
 }));
+vi.mock("../models/user-risk.ts", () => ({ invalidateActiveSessions: mocks.invalidate }));
 
 await import("./settings-password-mutations.ts");
 
@@ -33,15 +44,34 @@ const CONFIRM = {
   flash: { alert: "You have to confirm your email address before you can do that." },
 };
 
+const NOW = new Date("2026-01-01T00:00:00Z");
+let session: { data: Record<string, unknown> };
+let loggedInUser: { id: bigint } | null;
+let impersonatedUser: unknown;
+
 const call = (method: string, user: unknown) =>
-  mocks.specs
-    .find((spec) => spec.method === method)!
-    .run({ params: user === undefined ? {} : { user }, context: { currentSeller: { id: 3n } } } as MutationInput);
+  mocks.specs.find((spec) => spec.method === method)!.run({
+    params: user === undefined ? {} : { user },
+    context: { currentSeller: { id: 3n }, loggedInUser, impersonatedUser },
+    chain: { now: NOW, session },
+  } as unknown as MutationInput);
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.attributes = { provider: null, encrypted_password: "$2a$04$hash" };
-  mocks.findUserBang.mockResolvedValue({ get: (name: string) => mocks.attributes[name] });
+  mocks.attributes = { id: 3n, provider: null, encrypted_password: "$2a$04$hash" };
+  mocks.calls = [];
+  mocks.errors = [];
+  session = { data: { "warden.user.user.session": { last_sign_in_at: 1 }, other: true } };
+  loggedInUser = { id: 3n };
+  impersonatedUser = null;
+  mocks.findUserBang.mockResolvedValue({
+    get: (name: string) => mocks.attributes[name],
+    set: (name: string, value: unknown) => void (mocks.attributes[name] = value),
+    errors: { on: () => mocks.errors },
+  });
+  mocks.setPassword.mockImplementation(async () => void mocks.calls.push("setPassword"));
+  mocks.save.mockImplementation(async () => (mocks.calls.push("save"), mocks.errors.length === 0));
+  mocks.invalidate.mockImplementation(async () => void mocks.calls.push("invalidate"));
   mocks.guardResult.mockReturnValue(null);
   mocks.confirmed.mockReturnValue(true);
   mocks.validPassword.mockResolvedValue(true);
@@ -79,8 +109,34 @@ describe.each([["PUT"], ["PATCH"]])("%s /settings/password", (method) => {
     expect(mocks.validPassword).toHaveBeenCalledWith("$2a$04$hash", "wrong");
   });
 
-  it("hands a matching current password to Rails", async () => {
+  it("changes the password, signs the other sessions out and keeps this browser signed in", async () => {
+    expect(await call(method, { password: "right", new_password: "b" })).toEqual({
+      status: 303,
+      location: "/settings/password",
+      flash: { notice: "You have successfully changed your password." },
+    });
+    expect(mocks.calls).toEqual(["setPassword", "save", "invalidate"]);
+    expect(session.data["warden.user.user.session"]).toEqual({ last_sign_in_at: Math.floor(NOW.getTime() / 1000) });
+    expect(session.data["warden.user.user.key"]).toEqual([[3], "$2a$04$"]);
+    expect(session.data.other).toBe(true);
+  });
+
+  it("answers the first error of a password that does not save and leaves the sessions alone", async () => {
+    mocks.errors = ["is too short (minimum is 6 characters)"];
+    expect(await call(method, { password: "right", new_password: "b" })).toEqual({
+      status: 302,
+      location: "/settings/password",
+      flash: { alert: "New password is too short (minimum is 6 characters)" },
+    });
+    expect(mocks.calls).toEqual(["setPassword", "save"]);
+    expect(session.data["warden.user.user.key"]).toBeUndefined();
+  });
+
+  it("hands a new password that is not text, and a change by someone other than the owner, to Rails", async () => {
+    await expect(call(method, { password: "right", new_password: ["b"] })).rejects.toBeInstanceOf(HandBackToRails);
+    impersonatedUser = { id: 9n };
     await expect(call(method, { password: "right", new_password: "b" })).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.calls).toEqual([]);
   });
 
   it("hands a current password that is not text to Rails", async () => {
@@ -97,9 +153,16 @@ describe.each([["PUT"], ["PATCH"]])("%s /settings/password", (method) => {
     expect(await call(method, { new_password: "b" })).toEqual(CONFIRM);
   });
 
-  it("hands the first password of a confirmed OAuth account to Rails", async () => {
+  it("sets the first password of a confirmed OAuth account and drops its provider", async () => {
     mocks.attributes.provider = "google_oauth2";
-    await expect(call(method, { new_password: "b" })).rejects.toBeInstanceOf(HandBackToRails);
+    expect(await call(method, { new_password: "b" })).toMatchObject({ status: 303 });
+    expect(mocks.attributes.provider).toBeNull();
+    expect(mocks.calls).toEqual(["setPassword", "save", "invalidate"]);
+  });
+
+  it("hands an OAuth account's request with no user hash to Rails", async () => {
+    mocks.attributes.provider = "google_oauth2";
+    await expect(call(method, undefined)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("treats a blank provider as no provider", async () => {
