@@ -431,7 +431,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ChargeSuccessfulPreordersWorker": {
     "file": "app/sidekiq/charge_successful_preorders_worker.rb",
