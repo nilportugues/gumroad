@@ -492,7 +492,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ContentModerationAdminCommentJob": {
     "file": "app/sidekiq/content_moderation_admin_comment_job.rb",
@@ -3690,7 +3690,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateTaxonomyStatsJob": {
     "file": "app/sidekiq/update_taxonomy_stats_job.rb",

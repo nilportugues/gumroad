@@ -14,6 +14,8 @@ import {
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
 import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
+import { updateTaxRatesJob } from "./update-tax-rates-job.ts";
+import { compileGumroadDailyAnalyticsJob } from "./compile-gumroad-daily-analytics-job.ts";
 import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
 import {
   contentModerationAdminCommentJob,
@@ -199,6 +201,8 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  UpdateTaxRatesJob: updateTaxRatesJob,
+  CompileGumroadDailyAnalyticsJob: compileGumroadDailyAnalyticsJob,
   CancelSubscriptionsForProductWorker: cancelSubscriptionsForProductWorker,
   CancelPreorderWorker: cancelPreorderWorker,
   DeleteProductFilesWorker: deleteProductFilesWorker,

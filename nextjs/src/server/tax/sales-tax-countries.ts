@@ -25,7 +25,10 @@ export const TAXABLE_US_STATE_CODES: readonly string[] = [
   "AR", "AZ", "CO", "CT", "DC", "GA", "HI", "IA", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "MI", "MN", "NC", "ND", "NE", "NJ",
   "NV", "NY", "OH", "OK", "PA", "RI", "SD", "TN", "TX", "UT", "VT", "WA", "WI", "WV", "WY",
 ];
-export const isTaxableState = (stateCode: string | null | undefined): boolean => stateCode != null && TAXABLE_US_STATE_CODES.includes(stateCode);
+// Compliance::Countries.subdivisions_for_select("CA").map(&:first): the ISO 3166-2 provinces and territories, pinned by the
+// update-tax-rates-job golden ("every province").
+export const CANADA_SUBDIVISION_CODES: readonly string[] = ["AB", "BC", "MB", "NB", "NL", "NT", "NS", "NU", "ON", "PE", "QC", "SK", "YT"];
+export const isTaxableState =(stateCode: string | null | undefined): boolean => stateCode != null && TAXABLE_US_STATE_CODES.includes(stateCode);
 
 const TAX_NAME_BY_COUNTRY_CODE: Readonly<Record<string, string>> = { IN: "GST", NZ: "GST", AU: "GST", SG: "GST", MY: "Service tax", JP: "CT" };
 export const taxNameFor = (countryCode: string): string => (Object.hasOwn(TAX_NAME_BY_COUNTRY_CODE, countryCode) ? TAX_NAME_BY_COUNTRY_CODE[countryCode]! : "VAT");

@@ -39,9 +39,9 @@ export function deletable<R extends DeletableRow>(service: ModelService<R>) {
       mark(record, current(options));
       return service.save(record, options);
     },
-    markUndeletedBang(record: ModelRecord<R>) {
+    markUndeletedBang(record: ModelRecord<R>, options: SaveOptions = {}) {
       mark(record, null);
-      return service.saveBang(record);
+      return service.saveBang(record, options);
     },
     markUndeleted(record: ModelRecord<R>) {
       mark(record, null);
