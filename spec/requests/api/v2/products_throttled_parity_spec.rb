@@ -354,10 +354,95 @@ describe "API v2 throttled routes", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "hands a name change with PUT back to Rails", parity: true do
+    it "hands a name change of a published product with PUT back to Rails", parity: true do
       call(:put, path, params: { name: "Pen" })
 
       expect(response.parsed_body.dig("product", "name")).to eq("Pen")
+    end
+
+    describe "the attributes Node writes" do
+      let(:draft) { create(:product, user: seller, name: "Pencil", unique_permalink: "draft", draft: true) }
+      let(:draft_path) { "/products/#{draft.external_id}" }
+
+      it "renames a draft with PUT", parity: true do
+        call(:put, draft_path, params: { name: "Pen" })
+
+        expect(response.parsed_body.dig("product", "name")).to eq("Pen")
+        expect(draft.reload.name).to eq("Pen")
+      end
+
+      it "renames an unpublished product with PATCH", parity: true do
+        draft.update!(draft: false, purchase_disabled_at: Time.current)
+
+        call(:patch, draft_path, params: { name: "Quill" })
+
+        expect(response.parsed_body.dig("product", "name")).to eq("Quill")
+      end
+
+      it "renames a draft in a JSON body with the flags", parity: true do
+        call(:put, draft_path, params: { name: "Pen", is_adult: true, display_product_reviews: false, should_show_sales_count: true })
+
+        expect(response.parsed_body["success"]).to be true
+        expect(draft.reload.is_adult).to be true
+      end
+
+      it "turns the flags of a published product on and off", parity: true do
+        call(:put, path, params: { is_adult: true, should_show_sales_count: true, display_product_reviews: false })
+
+        expect(response.parsed_body["success"]).to be true
+        expect(product.reload.display_product_reviews).to be false
+      end
+
+      it "saves nothing new when the name is the one it has", parity: true do
+        call(:put, path, params: { name: "Pencil" })
+
+        expect(response.parsed_body.dig("product", "name")).to eq("Pencil")
+      end
+
+      it "saves a request with no attributes", parity: true do
+        call(:put, path, params: {})
+
+        expect(response.parsed_body["success"]).to be true
+      end
+
+      it "refuses a blank name", parity: true do
+        call(:put, draft_path, params: { name: "" })
+
+        expect(message).to eq("Name can't be blank")
+        expect(draft.reload.name).to eq("Pencil")
+      end
+
+      it "refuses a name with an adult keyword", parity: true do
+        call(:put, draft_path, params: { name: "Nude drawing" })
+
+        expect(message).to eq("Adult keywords are not allowed")
+      end
+
+      it "refuses a name past 255 characters", parity: true do
+        call(:put, draft_path, params: { name: "a" * 256 })
+
+        expect(message).to eq("Name is too long (maximum is 255 characters)")
+      end
+
+      it "hands a rename of a draft whose seller has an offer code back to Rails", parity: true do
+        create(:offer_code, user: seller, products: [draft], code: "tenoff")
+
+        call(:put, draft_path, params: { name: "Pen" })
+
+        expect(response.parsed_body.dig("product", "name")).to eq("Pen")
+      end
+
+      it "hands a flag given as text back to Rails", parity: true do
+        call(:put, draft_path, params: { is_adult: "true" })
+
+        expect(response.parsed_body["success"]).to be true
+      end
+
+      it "hands a name with a price back to Rails", parity: true do
+        call(:put, draft_path, params: { name: "Pen", price: 300 })
+
+        expect(response.parsed_body["success"]).to be true
+      end
     end
 
     it "hands a price change with PATCH back to Rails", parity: true do
