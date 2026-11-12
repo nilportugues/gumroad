@@ -14,6 +14,12 @@ describe "API v2 products", type: :request do
 
   def auth(scopes = "edit_products") = { "Authorization" => "Bearer #{create("doorkeeper/access_token", application:, resource_owner_id: seller.id, scopes:).token}" }
 
+  def upload(name)
+    key = "attachments/#{seller.external_id}/#{SecureRandom.hex}/original/#{name}"
+    Aws::S3::Resource.new.bucket(S3_BUCKET).object(key).put(body: "uploaded bytes")
+    "#{S3_BASE_URL}#{key}"
+  end
+
   def json_headers(scopes = "edit_products") = auth(scopes).merge("Content-Type" => "application/json")
 
   def section(type = :seller_profile_rich_text_section, **attributes)
@@ -97,9 +103,20 @@ describe "API v2 products", type: :request do
       expect(response.parsed_body.dig("product", "category")).to be_present
     end
 
-    it "hands back a product with files to Rails", parity: true do
-      create(:product_file, link: product)
+    it "shows the uploaded files of a product in position order", parity: true do
+      create(:product_file, link: product, url: upload("second.pdf"), display_name: "Second", position: 2, size: 2048)
+      create(:product_file, link: product, url: upload("first.mp4"), display_name: "First", position: 1, flags: 8)
       get "/v2/products/#{product.external_id}", headers: auth
+
+      expect(response.parsed_body.dig("product", "files").map { _1["name"] }).to eq(%w[First Second])
+    end
+
+    it "shows a file whose object is missing from storage without a url", parity: true do
+      create(:product_file, link: product, url: upload("here.pdf"), display_name: "Here", position: 1)
+      create(:product_file, link: product, url: "#{S3_BASE_URL}attachments/#{seller.external_id}/#{SecureRandom.hex}/original/missing.pdf", display_name: "Gone", position: 2)
+      get "/v2/products/#{product.external_id}", headers: auth
+
+      expect(response.parsed_body.dig("product", "files").map { _1["url"].present? }).to eq([true, false])
     end
 
     it "hands back a token that can see sales to Rails", parity: true do
@@ -172,11 +189,6 @@ describe "API v2 products", type: :request do
 
     it "refuses a token without the edit_products scope", parity: true do
       put "/v2/products/#{product.external_id}/disable", headers: auth("view_public")
-    end
-
-    it "hands back the product with files to Rails", parity: true do
-      create(:product_file, link: product)
-      put "/v2/products/#{product.external_id}/disable", headers: auth
     end
   end
 

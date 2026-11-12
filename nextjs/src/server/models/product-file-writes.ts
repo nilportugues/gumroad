@@ -43,6 +43,7 @@ const FILE_REGEX: [string, RegExp][] = [
 ];
 // Page size the link cache and ES updates use are the link's; the delay of check_pdf_stampability is ours.
 const PDF_STAMPABILITY_DELAY_SECONDS = 5;
+const ANALYZE_FILE_DELAY_SECONDS = 5;
 
 const LINK: BelongsTo = { name: "link", foreignKey: "link_id", targetTable: "links", targetModel: "Link" };
 const INSTALLMENT: BelongsTo = {
@@ -190,7 +191,14 @@ export const ProductFiles = defineModel<ProductFile>({
     {
       name: "valid_url?",
       on: "create",
-      run: () => notPorted("Creating a ProductFile"),
+      run(record) {
+        if (isLink(record)) {
+          // has_valid_external_link? matches URI::DEFAULT_PARSER.make_regexp, which only a type named "link" by its extension reaches.
+          notPorted("Creating an external link ProductFile");
+        } else if (!isS3(record)) {
+          record.errors.add("base", "invalid", { message: "Please provide a valid file URL." });
+        }
+      },
     },
     {
       name: "belongs_to_product_or_installment",
@@ -238,6 +246,7 @@ export const ProductFiles = defineModel<ProductFile>({
       },
     },
   ],
+  afterCreate: [...paperTrail.afterCreate],
   afterUpdate: [
     ...paperTrail.afterUpdate,
     {
@@ -289,7 +298,16 @@ export const ProductFiles = defineModel<ProductFile>({
   ],
   afterCommit: [
     // Declaration order; the runtime runs them in reverse.
-    { name: "schedule_file_analyze", on: "create", run: () => notPorted("Creating a ProductFile") },
+    {
+      name: "schedule_file_analyze",
+      on: "create",
+      async run(record) {
+        if (isLink(record)) return;
+        await performAsync("AnalyzeFileWorker", [Number(record.get("id")), "ProductFile"], {
+          delaySeconds: ANALYZE_FILE_DELAY_SECONDS,
+        });
+      },
+    },
     {
       name: "stamp_existing_pdfs_if_needed",
       on: "update",

@@ -9,8 +9,8 @@
 import { Prisma, type Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
-import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
+import { existingS3KeyVariant, s3ObjectExists } from "../../infra/signed-urls.ts";
 import { storageConfig } from "../../infra/storage.ts";
 import { setJsonDataForAttr } from "../../models/concerns/json-data.ts";
 import { nokogiriRoundtrip } from "../../models/html-fragment.ts";
@@ -20,6 +20,7 @@ import { assertPlainPublish, publishBang } from "../../models/link-publish.ts";
 import { createApiLink, type CreateSeller } from "../../models/link-create.ts";
 import { UserFlags } from "../../models/user.ts";
 import { MAX_PRICE_CENTS, planBuyPriceWrite, PRICE_TOO_LARGE, writeBuyPrice } from "../../models/price-writes.ts";
+import { saveFilesForNewProduct, type NewFileParams } from "../../models/product-file-save.ts";
 import { planTagChanges, saveTags } from "../../models/product-tags.ts";
 import { RecordInvalid } from "../../models/runtime/errors.ts";
 import { transaction } from "../../models/runtime/transaction.ts";
@@ -31,6 +32,7 @@ import {
   type ApiV2Input,
   EDIT_PRODUCTS_SCOPES,
   errorWithCreatingObject,
+  json,
   loadProduct,
   present,
   registerApiV2,
@@ -198,10 +200,10 @@ async function refundPolicyError(input: ApiV2Input, productRefundPolicyEnabled: 
 }
 
 // validate_file_urls. A url must be text, and under the seller's own upload prefix with no path trick.
-function fileUrlError(files: Params[], ownerId: bigint): string | null {
+function fileUrlError(files: Params[], ownerExternalId: string | null): string | null {
   if (files.some((file) => typeof file.url !== "string" || blankParam(file.url)))
     return "Each file must include a url string.";
-  const prefix = `${storageConfig().s3BaseUrl}attachments/${encrypt(ownerId)}/`;
+  const prefix = `${storageConfig().s3BaseUrl}attachments/${ownerExternalId ?? ""}/`;
   if (
     files.some((file) => {
       const url = file.url as string;
@@ -209,6 +211,32 @@ function fileUrlError(files: Params[], ownerId: bigint): string | null {
     })
   )
     return "File URLs must reference your own uploaded files. Use the presigned upload endpoint to upload files first.";
+  return null;
+}
+
+// uploaded_file_storage_status and render_uploaded_file_error: every url must name an object in the bucket (or a Unicode variant of its key).
+async function uploadedFileStorageError(files: Params[]): Promise<Rendered | null> {
+  const base = storageConfig().s3BaseUrl;
+  const exists = (key: string) => s3ObjectExists(key);
+  try {
+    for (const file of files) {
+      const key = (file.url as string).slice(base.length);
+      if ((await exists(key)) || (await existingS3KeyVariant(key, exists)) !== null) continue;
+      return json(
+        {
+          success: false,
+          message:
+            "One or more file URLs do not point to an uploaded file. Finish each upload with POST /v2/files/complete and attach the file_url it returns.",
+        },
+        400,
+      );
+    }
+  } catch {
+    return json(
+      { success: false, message: "File storage is temporarily unavailable. Retry attaching your uploaded files." },
+      503,
+    );
+  }
   return null;
 }
 
@@ -260,10 +288,10 @@ async function create(input: ApiV2Input) {
     const files = params.files;
     if (!Array.isArray(files) || files.some((file) => !isHash(file)))
       return refuse("files must be an array of file objects.");
-    const error = fileUrlError(files as Params[], owner.id);
+    const error = fileUrlError(files as Params[], owner.external_id);
     if (error !== null) return refuse(error);
-    // uploaded_file_storage_status asks S3 whether each object exists.
-    throw new HandBackToRails("files whose objects are checked in S3");
+    const missing = await uploadedFileStorageError(files as Params[]);
+    if (missing !== null) return missing;
   }
 
   return createDigitalProduct(input, nativeType, currency!);
@@ -284,6 +312,44 @@ const UNSERVED_CREATE_KEYS = [
 function castBoolean(value: unknown): boolean | null {
   if (value === null || value === undefined || value === "") return null;
   return ![false, 0, "0", "f", "F", "false", "FALSE", "off", "OFF"].includes(value as never);
+}
+
+const MAX_POSITION = 2_147_483_647;
+
+// `ActionController::Parameters#permit(files: [:id, :url, :display_name, :extension, :position, :stream_only, :description])`, then what SaveFilesService
+// removes: the ids and the extension are never written. What the cast of a column would read differently from the JSON goes to Rails whole.
+function permittedNewFiles(files: Params[]): NewFileParams[] {
+  if (files.length === 0) throw new HandBackToRails("an empty files list");
+  const urls = new Set<string>();
+  return files.map((file) => {
+    const url = file.url as string;
+    // A repeated url reuses the file the first entry built.
+    if (urls.has(url)) throw new HandBackToRails("the same file url twice");
+    urls.add(url);
+    if (present(file.id)) throw new HandBackToRails("a file entry with an id");
+    if (present(file.extension) && file.extension === "URL") throw new HandBackToRails("a link file");
+    const params: NewFileParams = { url };
+    for (const key of ["url", "display_name", "extension", "id", "description", "position", "stream_only"]) {
+      if (!has(file, key)) continue;
+      const value = file[key];
+      if (key === "url" || key === "extension" || key === "id") continue;
+      if (key === "display_name" || key === "description") {
+        if (value !== null && typeof value !== "string") throw new HandBackToRails(`a ${key} that is not text`);
+        params[key] = value;
+      } else if (key === "position") {
+        if (
+          value !== null &&
+          !(typeof value === "number" && Number.isInteger(value) && Math.abs(value) <= MAX_POSITION)
+        )
+          throw new HandBackToRails("a position that is not an integer");
+        params.position = value;
+      } else {
+        if (typeof value !== "boolean") throw new HandBackToRails("a stream_only that is not a boolean");
+        params.stream_only = value;
+      }
+    }
+    return params;
+  });
 }
 
 // create_as_draft?
@@ -335,6 +401,7 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     taxonomyId = typeof value === "string" ? rubyToI(value) : BigInt(value as number);
   }
   const tagWork = has(params, "tags") ? await planTagChanges(0n, params.tags as string[]) : undefined;
+  const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
 
   const draft = createAsDraft(params);
   if (!draft) {
@@ -373,6 +440,8 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
       await Links.updateBang(await findLinkBang(id), { description: nokogiriRoundtrip(description) });
     }
     if (tagWork !== undefined) await saveTags(id, tagWork);
+    // SaveFilesService.perform, then `@product.save!`; the product has no rich content, variant or archive to rebuild.
+    if (files !== undefined) await saveFilesForNewProduct(await findLinkBang(id), files);
   });
   if (!outcome!.created) return errorWithCreatingObject("product", { errors: outcome!.errors.fullMessages() });
 

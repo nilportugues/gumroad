@@ -204,6 +204,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
         console.warn(`[api-v2] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);
         throw new HandBackToRails(error.message);
       }
+      if (error instanceof HandBackToRails) console.warn(`[api-v2] ${request.method} ${url.pathname} handed back to Rails: ${error.message}`);
       throw error;
     }
   });
