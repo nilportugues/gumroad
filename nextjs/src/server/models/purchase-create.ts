@@ -9,7 +9,9 @@
 import { Prisma, type Link, type Purchase, type PurchaseRefundPolicy, type User } from "@prisma/client";
 
 import { PurchaseFlags } from "../search/flags.ts";
+import { PurchaseSearchService } from "../search/purchase-search.ts";
 
+import { defaultCheckoutEffects, type CheckoutEffects } from "./checkout-effects.ts";
 import { alpha2ByName } from "./compliance-countries.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
@@ -19,8 +21,14 @@ import { LinkFlags } from "./link.ts";
 import { PurchaseRefundPolicies } from "./purchase-refund-policy.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
-import { column, execute, selectRows, table } from "./sql.ts";
-import { isValidEmailFormat, mailAddressDomain, MAX_PRICE_USD_CENTS_UNLESS_VERIFIED, NotPortedError } from "./user.ts";
+import { castRow, column, execute, selectRows, table } from "./sql.ts";
+import {
+  isValidEmailFormat,
+  mailAddressDomain,
+  MAX_PRICE_USD_CENTS_UNLESS_VERIFIED,
+  NotPortedError,
+  strippedFieldWith,
+} from "./user.ts";
 
 export type PurchaseRecord = ModelRecord<Purchase>;
 
@@ -76,11 +84,24 @@ export type PurchaseContext = {
   link: Link;
   seller: User;
   purchaserEmail?: string | null;
-  // `User.find_by(email: purchase.email)`, which the service ran when it picked the purchaser (the query cache answers the later one)
+  // `User.find_by(email: params[:email])`, which the service ran when it picked the purchaser, with the email it ran it for.
+  // The email is stripped and downcased when the purchase validates, so the fraud check asks again unless it came out the same
+  // (the query cache answers it then).
   buyerByEmail: User | null;
-  geoInfo?: { countryCode: string | null; regionName: string | null } | null;
+  buyerLookupEmail?: string | null;
+  geoInfo?: { countryCode: string | null; regionName: string | null; postalCode?: string | null } | null;
   refundPolicy?: Pick<PurchaseRefundPolicy, "max_refund_period_in_days" | "title" | "fine_print"> | null;
+  // `purchase.order_purchase&.order_id`, which `order.purchases << purchase` leaves loaded
+  orderId?: bigint | null;
+  // `uses_charge_receipt?`: the purchase belongs to a charge that belongs to an order (one SendChargeReceiptJob, no purchase receipt)
+  chargeReceipt?: boolean;
+  // `purchase.url_parameters`, the parsed PurchaseUrlParameter row the sale ping carries
+  urlParameters?: Record<string, unknown> | null;
+  // The Redis, Flipper and random reads of the success transition and of the commit hooks
+  effects?: CheckoutEffects;
 };
+
+const effectsOf = (record: PurchaseRecord): CheckoutEffects => contextOf(record).effects ?? defaultCheckoutEffects;
 
 const contextOf = (record: PurchaseRecord): PurchaseContext => {
   const context = record.ivars.context as PurchaseContext | undefined;
@@ -185,6 +206,23 @@ const notGiftSender = Prisma.sql`((${column(PURCHASES, "flags")} & 64 = 0))`;
 
 const star = Prisma.raw("`purchases`.*");
 
+// stripped_fields :email, remove_duplicate_spaces: false, nilify_blanks: false, transform: downcase,
+//   if: -> { email.present? && email_changed? }
+const strippedEmail: Callback<Purchase> = {
+  name: "stripped_fields :email",
+  if: (record) => record.get("email") != null && record.get("email")!.trim() !== "" && record.attributeChanged("email"),
+  run(record) {
+    record.set(
+      "email",
+      strippedFieldWith(record.get("email"), {
+        removeDuplicateSpaces: false,
+        nilifyBlanks: false,
+        transform: (value) => value.toLowerCase(),
+      }) as never,
+    );
+  },
+};
+
 const mustHaveValidEmail: Callback<Purchase> = {
   name: "must_have_valid_email",
   run(record) {
@@ -195,6 +233,7 @@ const mustHaveValidEmail: Callback<Purchase> = {
 
 const notDoubleCharged: Callback<Purchase> = {
   name: "not_double_charged",
+  on: "create",
   async run(record, ctx) {
     const { link } = contextOf(record);
     if (flag(record, "is_bundle_product_purchase") || flag(record, "is_gift_receiver_purchase")) return;
@@ -268,6 +307,46 @@ const presence = (
       if (record.get(attribute) == null) record.errors.add(attribute === "seller_id" ? "seller" : attribute, "blank");
   },
 });
+
+// validates :custom_fee_per_thousand, allow_nil: true, numericality: { only_integer: true, >= 0, <= 1000 }
+const CUSTOM_FEE_PER_THOUSAND_MAX = 1000;
+const customFeePerThousand: Callback<Purchase> = {
+  name: "validates custom_fee_per_thousand, numericality",
+  run(record) {
+    const value = jsonDataOf(record).custom_fee_per_thousand;
+    if (value == null) return;
+    const attribute = "custom_fee_per_thousand";
+    const number =
+      typeof value === "number"
+        ? value
+        : typeof value === "string" && /^[+-]?\d+(\.\d+)?$/u.test(value.trim())
+          ? Number(value)
+          : NaN;
+    if (Number.isNaN(number)) return void record.errors.add(attribute, "not_a_number");
+    if (!Number.isInteger(number)) return void record.errors.add(attribute, "not_an_integer");
+    if (number < 0) return void record.errors.add(attribute, "greater_than_or_equal_to", { count: 0 });
+    if (number > CUSTOM_FEE_PER_THOUSAND_MAX)
+      record.errors.add(attribute, "less_than_or_equal_to", { count: CUSTOM_FEE_PER_THOUSAND_MAX });
+  },
+};
+
+// state :successful { validate { financial_transaction_validation } }: a free purchase carries no processor trace
+const financialTransactionValidation: Callback<Purchase> = {
+  name: "financial_transaction_validation",
+  if: (record) => record.get("purchase_state") === "successful",
+  run(record) {
+    const price = record.get("price_cents");
+    if (price !== null && price > 0) throw notPorted("a priced purchase's transaction check");
+    if (
+      !record.get("stripe_transaction_id") &&
+      !record.get("stripe_fingerprint") &&
+      record.get("charge_processor_id") == null &&
+      record.get("merchant_account_id") == null
+    )
+      return;
+    record.errors.add("base", "We couldn't charge your card. Try again or use a different card.");
+  },
+};
 
 // ---- before_create guards ----------------------------------------------------------------------------------------
 
@@ -490,8 +569,15 @@ const checkForFraud: Callback<Purchase> = {
     );
     if (chargedBack.length + chargedBackByGuid.length > 0) throw notPorted("a buyer with a chargeback");
 
-    // check_for_past_fraudulent_buyers: the User.find_by(email:) the service already ran
-    if (context.buyerByEmail?.user_risk_state === "suspended_for_fraud") {
+    // check_for_past_fraudulent_buyers: User.find_by(email:), which the service already ran when the email is unchanged
+    let buyer = context.buyerByEmail;
+    if (context.buyerLookupEmail !== undefined && context.buyerLookupEmail !== record.get("email")) {
+      const [row] = await selectRows<User>(
+        Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "email")} = ${record.get("email")} LIMIT 1`,
+      );
+      buyer = row ? castRow<User>("User", row as never) : null;
+    }
+    if (buyer?.user_risk_state === "suspended_for_fraud") {
       fail("suspended_buyer", "Your card was not charged.");
       return;
     }
@@ -555,6 +641,253 @@ const syncInventoryCountersOnCreate: Callback<Purchase> = {
   },
 };
 
+// ---- update-side hooks: audience projection, search index, inventory counters, order outcome ----------------------------
+
+const ORDER_OUTCOME_STATES = [
+  "preorder_authorization_successful",
+  "successful",
+  "not_charged",
+  "gift_receiver_purchase_successful",
+  "test_successful",
+  "failed",
+  "preorder_authorization_failed",
+  "gift_receiver_purchase_failed",
+];
+const SUCCESSFUL_STATES_FOR_RELATED_DOCUMENTS = [
+  "successful",
+  "gift_receiver_purchase_successful",
+  "preorder_authorization_successful",
+];
+// Purchase::AudienceMember::AUDIENCE_MEMBER_WATCHED_ATTRIBUTES
+const AUDIENCE_MEMBER_WATCHED_ATTRIBUTES = [
+  "can_contact",
+  "purchase_state",
+  "stripe_refunded",
+  "flags",
+  "chargeback_date",
+  "email",
+];
+// Purchase::Searchable::ATTRIBUTE_TO_SEARCH_FIELDS
+const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
+  id: ["id"],
+  can_contact: ["can_contact"],
+  chargeback_date: ["chargeback_date", "not_chargedback_or_chargedback_reversed"],
+  country: ["country_or_ip_country"],
+  created_at: ["created_at"],
+  email: ["email", "email_domain", "subscription_current_email", "subscription_current_email_domain"],
+  fee_cents: ["fee_cents"],
+  flags: [
+    "selected_flags",
+    "not_chargedback_or_chargedback_reversed",
+    "not_subscription_or_original_subscription_purchase",
+    "referrer_domain",
+  ],
+  full_name: ["full_name"],
+  ip_country: ["country_or_ip_country", "ip_country"],
+  ip_state: ["ip_state"],
+  referrer: ["referrer_domain"],
+  price_cents: ["price_cents"],
+  purchase_state: ["purchase_state", "latest_charge_date", "successful_authorization_or_without_preorder"],
+  stripe_refunded: ["stripe_refunded", "not_refunded_except_subscriptions"],
+  tax_cents: ["tax_cents"],
+  card_visual: ["paypal_email"],
+  subscription_id: ["subscription_id"],
+  license_serial: ["license_serial"],
+  license_uses: ["license_uses"],
+  purchaser_id: ["purchaser_id"],
+};
+// ElasticsearchModelAsyncCallbacks: `4.seconds` for an update
+const ELASTICSEARCH_UPDATE_DELAY_SECONDS_ON_UPDATE = 4;
+// ElasticsearchIndexerWorker.perform_in(rand(72.hours)) spreads the related-purchase documents over three days
+const RELATED_DOCUMENTS_SPREAD_SECONDS = 72 * 60 * 60;
+const SYNC_INVENTORY_ATTRIBUTES = ["purchase_state", "flags", "subscription_id", "quantity"];
+
+const CHANGED_IN_TRANSACTION = "attributesChangedInTransaction";
+const COMMITTED = "attributesCommitted";
+const committedAttributes = (record: PurchaseRecord) => (record.ivars[COMMITTED] as string[] | undefined) ?? [];
+const stateJustChanged = (record: PurchaseRecord) => record.savedChanges.purchase_state !== undefined;
+
+const trackChangedAttributes: Callback<Purchase> = {
+  name: "TransactionalAttributeChangeTracker after_save",
+  run(record) {
+    record.ivars[COMMITTED] = null;
+    const changed = (record.ivars[CHANGED_IN_TRANSACTION] ??= new Set<string>()) as Set<string>;
+    for (const name of Object.keys(record.savedChanges)) changed.add(name);
+  },
+};
+
+type AudienceMemo = { audienceRefreshNeeded?: boolean; audienceOldEmail?: string | null; createdThisSave?: boolean };
+
+const recordAudienceMemberRefreshTrigger: Callback<Purchase> = {
+  name: "record_audience_member_refresh_trigger",
+  run(record) {
+    const memo = record.ivars as AudienceMemo;
+    const createdThisSave = memo.createdThisSave === true;
+    memo.createdThisSave = false;
+    if (!Object.keys(record.savedChanges).some((name) => AUDIENCE_MEMBER_WATCHED_ATTRIBUTES.includes(name))) return;
+    memo.audienceRefreshNeeded = true;
+    if (record.savedChanges.email !== undefined && !createdThisSave)
+      memo.audienceOldEmail ??= record.savedChanges.email[0] as string | null;
+  },
+};
+
+const scheduleAudienceMemberRefresh: Callback<Purchase> = {
+  // Purchase::AudienceMember#schedule_audience_member_refresh_if_changed
+  name: "schedule_audience_member_refresh_if_changed",
+  on: ["create", "update"],
+  async run(record) {
+    const memo = record.ivars as AudienceMemo;
+    if (!memo.audienceRefreshNeeded) return;
+    const oldEmail = memo.audienceOldEmail ?? null;
+    memo.audienceRefreshNeeded = false;
+    memo.audienceOldEmail = null;
+    const sellerId = record.get("seller_id");
+    if (oldEmail)
+      await afterCommitEverywhere(async () => {
+        await performAsync("RefreshAudienceMemberJob", [oldEmail, sellerId] as never);
+      });
+    await afterCommitEverywhere(async () => {
+      await performAsync("RefreshAudienceMemberJob", [record.get("email"), sellerId] as never);
+    });
+  },
+};
+
+type InventorySnapshot = { purchase_state: string | null; flags: bigint | number; quantity: number };
+
+const snapshotInventoryPreSaveState: Callback<Purchase> = {
+  name: "snapshot_inventory_pre_save_state",
+  run(record) {
+    if (record.newRecord) return;
+    const memo = record.ivars as { inventorySnapshot?: InventorySnapshot | null };
+    if (memo.inventorySnapshot) return;
+    if (record.attributeInDatabase("subscription_id") != null)
+      throw notPorted("a purchase that belongs to a subscription");
+    memo.inventorySnapshot = {
+      purchase_state: record.attributeInDatabase("purchase_state"),
+      flags: record.attributeInDatabase("flags"),
+      quantity: record.attributeInDatabase("quantity"),
+    };
+  },
+};
+
+// Purchase.counts_towards_inventory_for? for a purchase without a subscription
+const countsTowardsInventory = (state: string | null, flags: bigint | number) =>
+  COUNTS_TOWARDS_INVENTORY_STATES.includes(state ?? "") &&
+  !PurchaseFlags.isSet(flags, "is_additional_contribution") &&
+  !PurchaseFlags.isSet(flags, "is_archived_original_subscription_purchase");
+
+const syncInventoryCounterCacheForStateChange: Callback<Purchase> = {
+  name: "sync_inventory_counter_cache_for_state_change",
+  on: "update",
+  async run(record) {
+    const memo = record.ivars as { inventorySnapshot?: InventorySnapshot | null };
+    const snapshot = memo.inventorySnapshot;
+    if (!snapshot) return;
+    if (!Object.keys(record.savedChanges).some((name) => SYNC_INVENTORY_ATTRIBUTES.includes(name))) return;
+    if (record.get("subscription_id") != null) throw notPorted("a purchase that belongs to a subscription");
+    const before = countsTowardsInventory(snapshot.purchase_state, snapshot.flags) ? snapshot.quantity : 0;
+    const after = countsTowardsInventory(record.get("purchase_state"), record.get("flags"))
+      ? record.get("quantity")
+      : 0;
+    const delta = after - before;
+    memo.inventorySnapshot = null;
+    if (delta === 0) return;
+    if (record.get("link_id") != null)
+      await execute(
+        Prisma.sql`UPDATE ${table("links")} SET sales_count_for_inventory_cache = sales_count_for_inventory_cache + ${Prisma.raw(String(delta))} WHERE ${column("links", "id")} = ${record.get("link_id")}`,
+      );
+  },
+};
+
+const recordOrderChargeOutcome: Callback<Purchase> = {
+  name: "enqueue_record_order_charge_outcome",
+  async run(record) {
+    if (!stateJustChanged(record) || !ORDER_OUTCOME_STATES.includes(record.get("purchase_state") ?? "")) return;
+    const orderId = contextOf(record).orderId;
+    if (orderId != null) await performAsync("RecordOrderChargeOutcomeJob", [orderId] as never);
+  },
+};
+
+const refreshHighVolumeFeeEligibility: Callback<Purchase> = {
+  name: "enqueue_high_volume_fee_eligibility_refresh",
+  async run(record) {
+    if (!stateJustChanged(record) || record.get("purchase_state") !== "successful") return;
+    const sellerId = record.get("seller_id");
+    if (sellerId == null) return;
+    if (!(await effectsOf(record).featureActive("high_volume_seller_fee", `User;${sellerId}`))) return;
+    throw notPorted("a seller on the high-volume fee");
+  },
+};
+
+const enqueueUpdateSalesRelatedProductsInfos: Callback<Purchase> = {
+  name: "enqueue_update_sales_related_products_infos_job",
+  async run(record) {
+    if (!stateJustChanged(record) || record.get("purchase_state") !== "successful") return;
+    await performAsync("UpdateSalesRelatedProductsInfosJob", [record.get("id"), true] as never);
+  },
+};
+
+const updateRelatedPurchaseDocuments: Callback<Purchase> = {
+  // Purchase::Searchable::RelatedPurchaseCallbacks#update_related_purchase_documents
+  name: "update_related_purchase_documents",
+  on: ["create", "update"],
+  async run(record) {
+    if (!SUCCESSFUL_STATES_FOR_RELATED_DOCUMENTS.includes(record.get("purchase_state") ?? "")) return;
+    // Ruby's `successful_states.include?(previous_changes[:purchase_state])` compares Strings with an Array, so it never returns here
+    if (!stateJustChanged(record)) return;
+    const query = new PurchaseSearchService({
+      seller: record.get("seller_id"),
+      email: record.get("email"),
+      exclude_purchase: record.get("id"),
+    }).body.query;
+    await performAsync(
+      "ElasticsearchIndexerWorker",
+      [
+        "update_by_query",
+        {
+          source_record_id: record.get("id"),
+          query,
+          class_name: "Purchase",
+          fields: [
+            "product_ids_from_same_seller_purchased_by_purchaser",
+            "variant_ids_from_same_seller_purchased_by_purchaser",
+          ],
+        },
+      ] as never,
+      { queue: "low", delaySeconds: effectsOf(record).randomDelaySeconds(RELATED_DOCUMENTS_SPREAD_SECONDS) },
+    );
+  },
+};
+
+const updateSamePurchaserSubscriptionPurchaseDocuments: Callback<Purchase> = {
+  name: "update_same_purchaser_subscription_purchase_documents",
+  on: ["create", "update"],
+  run(record) {
+    if (record.get("subscription_id") != null) throw notPorted("a purchase that belongs to a subscription");
+  },
+};
+
+const sendToElasticsearchOnUpdate: Callback<Purchase> = {
+  name: "send_to_elasticsearch(update)",
+  on: "update",
+  async run(record) {
+    const fields = [...new Set(committedAttributes(record).flatMap((name) => ATTRIBUTE_TO_SEARCH_FIELDS[name] ?? []))];
+    if (fields.length === 0) return;
+    await performAsync(
+      "ElasticsearchIndexerWorker",
+      ["update", { record_id: record.get("id"), class_name: "Purchase", fields } as never],
+      { delaySeconds: ELASTICSEARCH_UPDATE_DELAY_SECONDS_ON_UPDATE },
+    );
+  },
+};
+
+const markCreatedThisSave: Callback<Purchase> = {
+  name: "previously_new_record?",
+  run(record) {
+    record.ivars.createdThisSave = true;
+  },
+};
+
 const paperTrail = hasPaperTrail<Purchase>("Purchase", { itemType: "Purchase" });
 
 export const Purchases = defineModel<Purchase>({
@@ -563,6 +896,7 @@ export const Purchases = defineModel<Purchase>({
   delegate: (tx) => tx.purchase as never,
   afterCreate: [
     ...paperTrail.afterCreate,
+    markCreatedThisSave,
     {
       // after_create :mark_inventory_new_in_txn
       name: "mark_inventory_new_in_txn",
@@ -587,7 +921,11 @@ export const Purchases = defineModel<Purchase>({
       },
     },
   ],
+  afterUpdate: [...paperTrail.afterUpdate],
+  beforeValidation: [strippedEmail],
   validations: [
+    // declared with the state machine, ahead of the `validate` lines
+    financialTransactionValidation,
     mustHaveValidEmail,
     notDoubleCharged,
     sellerIsLinkUser,
@@ -595,6 +933,7 @@ export const Purchases = defineModel<Purchase>({
     presence(["price_cents"]),
     presence(["total_transaction_cents"]),
     presence(["fee_cents"]),
+    customFeePerThousand,
   ],
   beforeSave: [
     {
@@ -603,6 +942,7 @@ export const Purchases = defineModel<Purchase>({
       run() {},
     },
     truncateReferrer,
+    snapshotInventoryPreSaveState,
   ],
   beforeCreate: [
     productIsSellable,
@@ -644,12 +984,29 @@ export const Purchases = defineModel<Purchase>({
     checkForFraud,
     toggleOffCanContactIfBuyerHasUnsubscribed,
   ],
+  beforeCommit: [
+    {
+      name: "TransactionalAttributeChangeTracker before_commit",
+      run(record) {
+        const changed = record.ivars[CHANGED_IN_TRANSACTION] as Set<string> | undefined;
+        if (changed === undefined) return;
+        record.ivars[COMMITTED] = [...changed];
+        changed.clear();
+      },
+    },
+  ],
   afterSave: [
+    recordAudienceMemberRefreshTrigger,
+    trackChangedAttributes,
     {
       // Purchase::Reviews#update_product_review_stat: reads the purchase's review (none for a new purchase)
       name: "update_product_review_stat",
       async run(record) {
         if (Object.keys(record.savedChanges).length === 0) return;
+        // `product_review` is a has_one: the first read loads it and the later saves of the same instance reuse it
+        const memo = record.ivars as { productReviewLoaded?: boolean };
+        if (memo.productReviewLoaded) return;
+        memo.productReviewLoaded = true;
         const rows = await selectRows(
           Prisma.sql`SELECT ${Prisma.raw("`product_reviews`.*")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${record.get("id")} LIMIT 1`,
         );
@@ -659,16 +1016,7 @@ export const Purchases = defineModel<Purchase>({
   ],
   // Declared in Ruby's order; the runtime runs them reversed.
   afterCommit: [
-    {
-      // Purchase::AudienceMember#schedule_audience_member_refresh_if_changed
-      name: "schedule_audience_member_refresh_if_changed",
-      on: ["create", "update"],
-      async run(record) {
-        await afterCommitEverywhere(async () => {
-          await performAsync("RefreshAudienceMemberJob", [record.get("email"), record.get("seller_id")] as never);
-        });
-      },
-    },
+    scheduleAudienceMemberRefresh,
     {
       // ElasticsearchModelAsyncCallbacks: after_commit send_to_elasticsearch("index"), on: :create
       name: "send_to_elasticsearch(index)",
@@ -683,6 +1031,13 @@ export const Purchases = defineModel<Purchase>({
         );
       },
     },
+    sendToElasticsearchOnUpdate,
+    updateRelatedPurchaseDocuments,
+    updateSamePurchaserSubscriptionPurchaseDocuments,
+    enqueueUpdateSalesRelatedProductsInfos,
+    refreshHighVolumeFeeEligibility,
+    recordOrderChargeOutcome,
     syncInventoryCountersOnCreate,
+    syncInventoryCounterCacheForStateChange,
   ],
 });
