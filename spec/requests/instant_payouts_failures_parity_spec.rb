@@ -33,6 +33,15 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
     MerchantAccount.find_or_create_by!(user_id: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id) { _1.charge_processor_alive_at = Time.current }
   end
 
+  # Mail deliveries are ActiveJobs, which the test adapter swallows; the recorder sees them on the Sidekiq adapter.
+  around do |example|
+    previous = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :sidekiq
+    example.run
+  ensure
+    ActiveJob::Base.queue_adapter = previous
+  end
+
   def stub_stripe_from_cassette(path)
     interactions = YAML.safe_load_file(path, permitted_classes: [Symbol])["http_interactions"]
     interactions.group_by { |interaction| [interaction["request"]["method"].to_sym, interaction["request"]["uri"]] }.each do |(method, uri), group|
@@ -56,9 +65,9 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
     merchant_account.update!(created_at: 90.days.ago)
     stripe_account = Stripe::Account.retrieve(merchant_account.charge_processor_merchant_id)
     stripe_account.refresh until stripe_account.payouts_enabled?
-    allow(Stripe::Balance).to receive(:retrieve).and_call_original
-    allow(Stripe::Balance).to receive(:retrieve).with({}, anything).and_return(
-      Stripe::Balance.construct_from(object: "balance", available: [{ amount: 1_000_000_00, currency: "usd" }], pending: [{ amount: 0, currency: "usd" }])
+    stub_request(:get, "#{STRIPE_API}/balance").to_return(
+      status: 200, headers: JSON_HEADERS,
+      body: { object: "balance", available: [{ amount: 1_000_000_00, currency: "usd" }], pending: [{ amount: 0, currency: "usd" }] }.to_json
     )
     Stripe::Transfer.create(destination: stripe_account.id, currency: "usd", amount: 1000_00)
     holder = held_by == :gumroad ? MerchantAccount.gumroad(StripeChargeProcessor.charge_processor_id) : merchant_account
@@ -144,7 +153,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       "a bank account Stripe cannot find" => [400, ->(t) { t.stripe_error("No such external account: 'ba_parity'") }, Payment::FailureReason::BANK_ACCOUNT_NOT_FOUND_AT_STRIPE],
       "a rate limit" => [429, ->(t) { t.stripe_error("Too many requests", type: "rate_limit_error") }, Payment::FailureReason::PROCESSOR_RATE_LIMITED],
     }.each do |label, (status, body, reason)|
-      it "hands an instant payout to Rails when Stripe answers #{label}" do
+      it "serves an instant payout when Stripe answers #{label}" do
         prepare_seller(held_by: :stripe)
         stub_payout_failure(status, body.call(self))
 
@@ -156,7 +165,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       end
     end
 
-    it "hands an instant payout to Rails when Stripe answers an error no reason covers" do
+    it "serves an instant payout when Stripe answers an error no reason covers" do
       prepare_seller(held_by: :stripe)
       stub_payout_failure(400, stripe_error("Something nobody wrote a reason for."))
 
@@ -165,7 +174,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect_failed_payout(nil)
     end
 
-    it "hands an instant payout to Rails when Stripe fails with a server error" do
+    it "serves an instant payout when Stripe fails with a server error" do
       prepare_seller(held_by: :stripe)
       stub_payout_failure(500, stripe_error("An error occurred on our side.", type: "api_error"))
 
@@ -174,7 +183,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect_failed_payout(nil)
     end
 
-    it "hands an instant payout to Rails when the connection drops after the payout was sent" do
+    it "serves an instant payout when the connection drops after the payout was sent" do
       prepare_seller(held_by: :stripe)
       stub_dropped_connection(:post, "#{STRIPE_API}/payouts")
 
@@ -186,7 +195,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
   end
 
   describe "when the funds are held by Gumroad", parity: true do
-    it "hands an instant payout to Rails when the bank payout fails and the internal transfer is reversed" do
+    it "serves an instant payout when the bank payout fails and the internal transfer is reversed" do
       prepare_seller(held_by: :gumroad)
       stub_internal_transfer
       stub_internal_transfer_reversal
@@ -198,7 +207,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect(payment.stripe_internal_transfer_id).to eq(INTERNAL_TRANSFER_ID)
     end
 
-    it "hands an instant payout to Rails when the reversal leaves a currency difference to credit" do
+    it "serves an instant payout when the reversal leaves a currency difference to credit" do
       prepare_seller(held_by: :gumroad)
       stub_internal_transfer
       stub_internal_transfer_reversal(refund_net: -999_00)
@@ -210,7 +219,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect(payment.credit).to be_present
     end
 
-    it "hands an instant payout to Rails when the connection drops after the payout and the transfer is reversed and held" do
+    it "serves an instant payout when the connection drops after the payout and the transfer is reversed and held" do
       prepare_seller(held_by: :gumroad)
       stub_internal_transfer
       stub_internal_transfer_reversal
@@ -222,7 +231,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect(seller.reload.payouts_paused_internally?).to be(true)
     end
 
-    it "hands an instant payout to Rails when the reversal itself fails and the seller is held" do
+    it "serves an instant payout when the reversal itself fails and the seller is held" do
       prepare_seller(held_by: :gumroad)
       stub_internal_transfer
       stub_request(:get, "#{STRIPE_API}/transfers/#{INTERNAL_TRANSFER_ID}").to_return(status: 500, body: stripe_error("An error occurred on our side.", type: "api_error"), headers: JSON_HEADERS)
@@ -234,7 +243,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect(seller.reload.payouts_paused_internally?).to be(true)
     end
 
-    it "hands an instant payout to Rails when the internal transfer is refused" do
+    it "serves an instant payout when the internal transfer is refused" do
       prepare_seller(held_by: :gumroad)
       stub_request(:post, "#{STRIPE_API}/transfers").to_return(status: 400, body: stripe_error("You have insufficient funds in your Stripe account for this transfer.", code: "balance_insufficient"), headers: JSON_HEADERS)
 
@@ -244,7 +253,7 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
       expect(payment).to have_attributes(state: "failed", failure_reason: Payment::FailureReason::INSUFFICIENT_FUNDS)
     end
 
-    it "hands an instant payout to Rails when the connection drops on the internal transfer" do
+    it "serves an instant payout when the connection drops on the internal transfer" do
       prepare_seller(held_by: :gumroad)
       stub_dropped_connection(:post, "#{STRIPE_API}/transfers")
 

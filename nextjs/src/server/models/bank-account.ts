@@ -5,7 +5,7 @@ import { Prisma, type BankAccount } from "@prisma/client";
 
 import { notifyError } from "../infra/error-reporting.ts";
 
-import { readBelongsTo } from "./concerns/belongs-to-record.ts";
+import { assignBelongsTo, readBelongsTo } from "./concerns/belongs-to-record.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
 import { belongsToRequired, type BelongsTo } from "./concerns/rails-validations.ts";
@@ -41,6 +41,10 @@ async function userHasAnotherPayoutMethod(
   );
   return paypal.length > 0;
 }
+
+// `user.active_bank_account` sets the inverse association, so the bank account validates against that user without reading it.
+export const assignBankAccountUser = (bank: ModelRecord<BankAccount>, user: Parameters<typeof assignBelongsTo>[2]) =>
+  assignBelongsTo(bank, BANK_USER, user);
 
 export const BankAccounts = defineModel<BankAccount>({
   rubyClass: "BankAccount",

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "spec": "spec/requests/instant_payouts_failures_parity_spec.rb",
-  "example": "Instant payout failures when the funds are held by Gumroad hands an instant payout to Rails when the bank payout fails and the internal transfer is reversed",
+  "example": "Instant payout failures when the funds are held by Gumroad serves an instant payout when the connection drops after the payout and the transfer is reversed and held",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
   "recordedOn": "2026-11-12",
@@ -103,7 +103,7 @@
                 "user_id": 1,
                 "bank_number": "110000000",
                 "account_number": {
-                  "$base64": "mvN3+k2tzPUqBHbJz3B8uh+bi+GqACK8wRzwEsgGHVBzHUql/3hCoxQDlutS5+fZgOcBBJtAA5DugVlvyYG68EkgMAmZYd69AtFr1Tr2XbqEuoxSyY6PwH2PcRr/stOEuDK8AqtAzEH8+n5NiNRpWlsMt5V0zeJZul9atk39Vgnk9CuSrqbFtwg5soeal6l89qeP5ngzC4268RPi4GsAoOkQ0fWfGy5/o7twHUkVUvn/UvA5OCSNUYdEzOeLB5tAtFCxG+uwbFUvkqV2pqq9O0QrRmIkTugTxu5C6Uit2wLvWjQ38d9evhzQW2NvyTQxESRnqMRk5Bvg8R/PPJallw=="
+                  "$base64": "Mb2RkSFylHJKD+z2EpVifIbu1sqZpEttm37fhZeueTum8uMMqwJICWP3VOjU/rAaKkLuvEVxIqjzl36zU1xln7+4CdioDVqt1VbilR8zspeqfYinlriDPrjzGGnY/77qKFcuTITrCN6vizOJGCXg/ON6di9lWOgUVIvAOooqWA4qRg1WV5/EQFPxJl/PlBvJ09r5dnMdVoJh1KVHXq8DDWR+MWJQBxJ4ZwSjljsyI7rlo2gZog+VFHYQanZvRh1y2G9v/9H398WFR/s/P74sN2eTlKSxwMOh/FOf3l8WfjyqYM6uDnloLtkVqWjN2qHUuEy7o9lB0bwLRHcZ+Da0Rg=="
                 },
                 "state": "unverified",
                 "created_at": "<now>",
@@ -152,7 +152,7 @@
                 "author_name": null,
                 "content": "Stripe payout setup failed without a verdict: awaiting Stripe account creation",
                 "comment_type": "payout_note",
-                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"ffd02f5f-4ce6-4a01-8357-cfe70de41c30\",\"stripe_account_create_attempted_at\":\"2026-11-12T10:40:07Z\",\"seller_visible\":false}",
+                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"f17645de-d652-442f-8655-7289a4221932\",\"stripe_account_create_attempted_at\":\"2026-11-12T19:09:16Z\",\"seller_visible\":false}",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "deleted_at": "<now>",
@@ -448,7 +448,7 @@
                 "is_business": 0,
                 "has_sold_before": 0,
                 "individual_tax_id": {
-                  "$base64": "FXjCvM8ftz/Xjt9Q0Cs32aJnRLC0x00qKp128V5sI7kSwEFaxG15uQrrxsgK7TfstSNKy+bT+LKL4BWcmAA6pVjD/mlLKv0oYsgy1Tz0/5C7shGHVAC4xe6GQHvo570SCusWwa9kR0uaAMmZEPexe5qCmKKubfcntltv/1FRSI6NlNCLoCzkfi/BvQofc+LKLr0xy5yisKT14m8Hq31u4TzDF3pCdkx0VaovXUSsWCmypPIGV+lGJ8GsYZ66ZU/jIwb5Gh/Di1HM9oSAxgVRi1Ttfd89iMGhFqp02HuA5GKMYFPw69aIZCMjzPiondfAMGnodJWzxYGgL0ok73RjSw=="
+                  "$base64": "TkuF9RnpxoHTbeCB2qt6qXZUk/PuAT/SUIRsxYQT88f2pt39B1QbvLwoZsAR5iPnBBForBFQCryYkV3RDjCIm7e+4AbOoTiXZjps3pCbWgO9//edKFqUfLO4wyKj7bk99nXYMZZFyvIGejqCfXWlxoItsB+qJFehhDVSJX9mz++aq7f34tzeF09oy1bHa1mfotHKVITxk3bKnYnJbGZ3Ylq+Whd9KXVTrsUheBeVZzHTwD9Of7WuovpicNUbWf8e+ZSa4fA+Bh0Q6bQFIw/0EUA/rIebha3qD2g/wx+jOOGF72ClQWmvTIMMW5Fb987hNAoLt8JSA1n5BSxkOdPlXQ=="
                 },
                 "json_data": "{\"phone\":\"0000000000\"}",
                 "flags": 0,
@@ -548,20 +548,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar19360e47_23@gumroad.com",
-                "encrypted_password": "$2a$04$2f7xFGMnHEAwcN/cdWBMi.vZ/T9y1XBZ3BXguHFRn0KJfb6DZZX3a",
+                "email": "edgar705a1445_27@gumroad.com",
+                "encrypted_password": "$2a$04$N8Y1P4EC08XVWTcb5twrPefFV9V39cp2PBQ11f.sVDdY98WsXBaNa",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "116.101.117.102",
-                "last_sign_in_ip": "130.8.176.69",
+                "current_sign_in_ip": "223.104.77.77",
+                "last_sign_in_ip": "185.213.251.92",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Instant Seller",
-                "payment_address": "edgar84c25846_24@gumroad.com",
+                "payment_address": "edgarb403fbfd_28@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -586,8 +586,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5483993264779",
-                "account_created_ip": "185.89.225.178",
+                "external_id": "1836985552666",
+                "account_created_ip": "159.99.178.135",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -605,7 +605,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "ZHEIEFAJF5BWFRAOM5HUM3S4PU3APCWX",
+                "otp_secret_key": "WSWC22L5AGHTP25QEMSOTLV2JLVKJ4XP",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -692,13 +692,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "D9R-D_YVaFflmRpIkXJVOvmHkShH2N8HH1E1A8FG0GetueDsDxwsv_RVGCxTU633rP7ADuto3fyMseZN6istnA",
+            "value": "uUr6nsG47hREkPNHWGnkWrjieNabcc8VTiMQhA6tAuWmr5pTPwiPyVbLC02grnbRGakvkL6gxBiHTGwTRUloag",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "wIwcX3WHQgtQLeY+mI+OSDiTHJBk0PtzIXAryW0/b8XEciOZVC9q3rSZGnhCifkqExXKgnCOSo55+DVPKgGOIIRoaA8O6YUC75C/K0tV8i8K3znqGK1xCku1t2mXY54KLstAuEFUekWypjIwsWw3MWVOn7Y+agDlXfnDiLR94Tf1Hl7jMIj0uJn1a28zfqANibBU2ZTPabm43RhQhm5YXjTkdtLVaW4AVxBqCQ6hsQYVOQu4l7DIbOKjT8NKqEy+bWtNpFYRZb0446ozRqp+j0XPnW8ERslzz51l/Q4h+BYpsVuvIzHOFeXW49Nd0P+HcTYDbFNfvELrADni4hbjuadDAFixnpLz5rKseBgLLuWNkjytsxUFlkU2EbbAaFF6E9fg--sqBb7kEwXLL1hQJy--Xsi9bfQXJ99DKsGK5B1j/g==",
+            "value": "pzLghYrCcnbh1+FKwo0hh0dwpK2UKBZcE3ccSiGspxsJNXnUm89qZYOO9ImWRv00isnFFr83I4jZjcX+ioO+oubyeHFNYBGNu4CrIlvTddV+K0VsdwyRbv40FKGx4DihVGaEIXR4rIr+hQdGY5ji8A31wHS4oXEQixB9yKy9UWg+Lr4I3rDmENZ92UiASDTpntuHVHK/0p7MHmGvLf7bWC5CmzEaaQ8+6dykKBuOYNkQRWd3DORqQBb+NbFMMOfcV/jOLduwKJg8JjOw+HWyRP6DJPl6SqwAKrtZkF4N/GjevMtNr+iMbMVpKQyuwZELUlteYnaGD8Y0Ny2xsEAB0yn4/XDvHGnNzYpCWXiT/r6m+AYqeG4JItUVYzzQjR/6lPyb--LiSdn6KnMcpbsrAn--O9Qdc1buEE5NJtnV9nYQcQ==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -738,12 +738,12 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "IcGIyDnVE8AK72+OJI8fY/iuKRqrv0WXTqK0okoT6C8=",
+            "csp_nonce": "yYfJdEOWKh3Tqs9whuEB1VngeH36hzXSzxkim01xsZo=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "CEnEqCOVmcGNonGxgd5FZqA46iwDS-uF6N5xchJ-N3KqJFpL2pzdKZxuc9VD_72r9UG7Cq_76X57PqI8ORPKiQ",
+            "authenticity_token": "HQt2aASmZyfLQGJp3Nrlh6ufe8qAg3yTkY98SZ7Jp0kC7hal-hYG-tkbmmMkHXcMCtQsjKVSd55Y4ADe1S3Nxg",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "category": {
@@ -826,7 +826,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "dyAzEfAgx8ZtLHEwpC-ZvuiQ63LQTWJGOPS15PVxzt_VTa3yCSmDLnzgc1RmDmFzvem6VHz9YL2rFGaq3hwzJA"
+                "content": "ajO9qUppA01IROAt1s_JUwIYAnHUjdTWDeNfocUOkvd11t1ktNlikFofGCcuCFvYo1NVN_Fc39vEjCM2jur4eA"
               },
               {
                 "tagName": "meta",
@@ -1075,7 +1075,7 @@
                 "user_id": 1,
                 "bank_number": "110000000",
                 "account_number": {
-                  "$base64": "mvN3+k2tzPUqBHbJz3B8uh+bi+GqACK8wRzwEsgGHVBzHUql/3hCoxQDlutS5+fZgOcBBJtAA5DugVlvyYG68EkgMAmZYd69AtFr1Tr2XbqEuoxSyY6PwH2PcRr/stOEuDK8AqtAzEH8+n5NiNRpWlsMt5V0zeJZul9atk39Vgnk9CuSrqbFtwg5soeal6l89qeP5ngzC4268RPi4GsAoOkQ0fWfGy5/o7twHUkVUvn/UvA5OCSNUYdEzOeLB5tAtFCxG+uwbFUvkqV2pqq9O0QrRmIkTugTxu5C6Uit2wLvWjQ38d9evhzQW2NvyTQxESRnqMRk5Bvg8R/PPJallw=="
+                  "$base64": "Mb2RkSFylHJKD+z2EpVifIbu1sqZpEttm37fhZeueTum8uMMqwJICWP3VOjU/rAaKkLuvEVxIqjzl36zU1xln7+4CdioDVqt1VbilR8zspeqfYinlriDPrjzGGnY/77qKFcuTITrCN6vizOJGCXg/ON6di9lWOgUVIvAOooqWA4qRg1WV5/EQFPxJl/PlBvJ09r5dnMdVoJh1KVHXq8DDWR+MWJQBxJ4ZwSjljsyI7rlo2gZog+VFHYQanZvRh1y2G9v/9H398WFR/s/P74sN2eTlKSxwMOh/FOf3l8WfjyqYM6uDnloLtkVqWjN2qHUuEy7o9lB0bwLRHcZ+Da0Rg=="
                 },
                 "state": "unverified",
                 "created_at": "<now>",
@@ -1124,7 +1124,7 @@
                 "author_name": null,
                 "content": "Stripe payout setup failed without a verdict: awaiting Stripe account creation",
                 "comment_type": "payout_note",
-                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"ffd02f5f-4ce6-4a01-8357-cfe70de41c30\",\"stripe_account_create_attempted_at\":\"2026-11-12T10:40:07Z\",\"seller_visible\":false}",
+                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"f17645de-d652-442f-8655-7289a4221932\",\"stripe_account_create_attempted_at\":\"2026-11-12T19:09:16Z\",\"seller_visible\":false}",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "deleted_at": "<now>",
@@ -1420,7 +1420,7 @@
                 "is_business": 0,
                 "has_sold_before": 0,
                 "individual_tax_id": {
-                  "$base64": "FXjCvM8ftz/Xjt9Q0Cs32aJnRLC0x00qKp128V5sI7kSwEFaxG15uQrrxsgK7TfstSNKy+bT+LKL4BWcmAA6pVjD/mlLKv0oYsgy1Tz0/5C7shGHVAC4xe6GQHvo570SCusWwa9kR0uaAMmZEPexe5qCmKKubfcntltv/1FRSI6NlNCLoCzkfi/BvQofc+LKLr0xy5yisKT14m8Hq31u4TzDF3pCdkx0VaovXUSsWCmypPIGV+lGJ8GsYZ66ZU/jIwb5Gh/Di1HM9oSAxgVRi1Ttfd89iMGhFqp02HuA5GKMYFPw69aIZCMjzPiondfAMGnodJWzxYGgL0ok73RjSw=="
+                  "$base64": "TkuF9RnpxoHTbeCB2qt6qXZUk/PuAT/SUIRsxYQT88f2pt39B1QbvLwoZsAR5iPnBBForBFQCryYkV3RDjCIm7e+4AbOoTiXZjps3pCbWgO9//edKFqUfLO4wyKj7bk99nXYMZZFyvIGejqCfXWlxoItsB+qJFehhDVSJX9mz++aq7f34tzeF09oy1bHa1mfotHKVITxk3bKnYnJbGZ3Ylq+Whd9KXVTrsUheBeVZzHTwD9Of7WuovpicNUbWf8e+ZSa4fA+Bh0Q6bQFIw/0EUA/rIebha3qD2g/wx+jOOGF72ClQWmvTIMMW5Fb987hNAoLt8JSA1n5BSxkOdPlXQ=="
                 },
                 "json_data": "{\"phone\":\"0000000000\"}",
                 "flags": 0,
@@ -1520,20 +1520,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar19360e47_23@gumroad.com",
-                "encrypted_password": "$2a$04$2f7xFGMnHEAwcN/cdWBMi.vZ/T9y1XBZ3BXguHFRn0KJfb6DZZX3a",
+                "email": "edgar705a1445_27@gumroad.com",
+                "encrypted_password": "$2a$04$N8Y1P4EC08XVWTcb5twrPefFV9V39cp2PBQ11f.sVDdY98WsXBaNa",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "116.101.117.102",
-                "last_sign_in_ip": "130.8.176.69",
+                "current_sign_in_ip": "223.104.77.77",
+                "last_sign_in_ip": "185.213.251.92",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Instant Seller",
-                "payment_address": "edgar84c25846_24@gumroad.com",
+                "payment_address": "edgarb403fbfd_28@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -1558,8 +1558,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5483993264779",
-                "account_created_ip": "185.89.225.178",
+                "external_id": "1836985552666",
+                "account_created_ip": "159.99.178.135",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1577,7 +1577,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "ZHEIEFAJF5BWFRAOM5HUM3S4PU3APCWX",
+                "otp_secret_key": "WSWC22L5AGHTP25QEMSOTLV2JLVKJ4XP",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1647,12 +1647,12 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "D9R-D_YVaFflmRpIkXJVOvmHkShH2N8HH1E1A8FG0GetueDsDxwsv_RVGCxTU633rP7ADuto3fyMseZN6istnA",
-          "_gumroad_app_session_test": "wIwcX3WHQgtQLeY+mI+OSDiTHJBk0PtzIXAryW0/b8XEciOZVC9q3rSZGnhCifkqExXKgnCOSo55+DVPKgGOIIRoaA8O6YUC75C/K0tV8i8K3znqGK1xCku1t2mXY54KLstAuEFUekWypjIwsWw3MWVOn7Y+agDlXfnDiLR94Tf1Hl7jMIj0uJn1a28zfqANibBU2ZTPabm43RhQhm5YXjTkdtLVaW4AVxBqCQ6hsQYVOQu4l7DIbOKjT8NKqEy+bWtNpFYRZb0446ozRqp+j0XPnW8ERslzz51l/Q4h+BYpsVuvIzHOFeXW49Nd0P+HcTYDbFNfvELrADni4hbjuadDAFixnpLz5rKseBgLLuWNkjytsxUFlkU2EbbAaFF6E9fg--sqBb7kEwXLL1hQJy--Xsi9bfQXJ99DKsGK5B1j/g==",
-          "_gumroad_guid": "5b97674a-6a09-4ae9-be75-6cc1826cec96"
+          "XSRF-TOKEN": "uUr6nsG47hREkPNHWGnkWrjieNabcc8VTiMQhA6tAuWmr5pTPwiPyVbLC02grnbRGakvkL6gxBiHTGwTRUloag",
+          "_gumroad_app_session_test": "pzLghYrCcnbh1+FKwo0hh0dwpK2UKBZcE3ccSiGspxsJNXnUm89qZYOO9ImWRv00isnFFr83I4jZjcX+ioO+oubyeHFNYBGNu4CrIlvTddV+K0VsdwyRbv40FKGx4DihVGaEIXR4rIr+hQdGY5ji8A31wHS4oXEQixB9yKy9UWg+Lr4I3rDmENZ92UiASDTpntuHVHK/0p7MHmGvLf7bWC5CmzEaaQ8+6dykKBuOYNkQRWd3DORqQBb+NbFMMOfcV/jOLduwKJg8JjOw+HWyRP6DJPl6SqwAKrtZkF4N/GjevMtNr+iMbMVpKQyuwZELUlteYnaGD8Y0Ny2xsEAB0yn4/XDvHGnNzYpCWXiT/r6m+AYqeG4JItUVYzzQjR/6lPyb--LiSdn6KnMcpbsrAn--O9Qdc1buEE5NJtnV9nYQcQ==",
+          "_gumroad_guid": "bd4cecfc-4114-4114-915e-af0260b7981e"
         },
         "remoteIp": "127.0.0.1",
-        "body": "authenticity_token=CEnEqCOVmcGNonGxgd5FZqA46iwDS-uF6N5xchJ-N3KqJFpL2pzdKZxuc9VD_72r9UG7Cq_76X57PqI8ORPKiQ&user[login_identifier]=edgar19360e47_23%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+        "body": "authenticity_token=HQt2aASmZyfLQGJp3Nrlh6ufe8qAg3yTkY98SZ7Jp0kC7hal-hYG-tkbmmMkHXcMCtQsjKVSd55Y4ADe1S3Nxg&user[login_identifier]=edgar705a1445_27%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
       },
       "response": {
         "status": 302,
@@ -1671,13 +1671,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "k4cIfEZiJv5SiyO0tukxZH-N2gQQ5XLROlnaZC5_b5gx6pafv2tiFkNHIdB0yMmpKvSLIrxVcCqpuQkqBRKSYw",
+            "value": "NvTg0fjdwGQYpKmHnc0DBbpKfc-VpvevcYodIYXj5y0pEYAcBm2huQr_UY1lCpGOGwEqibB3_KK45WG2zgeNog",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "pm2DC/AatRrkBFYtpB8VOgVroy+46T2qyMPeAbC0xSt+KIKZjZyaHIjGJQm+yl3IudfpdNmUFO9mME0YNrjFDh1LiR7LoQz2frN83/Tt10V5VeJUqkDTCdRWnTv055Qd0dWCvDxFFLFwETt9kiKXBSm7aG5G2yxT1I7WnJkes5xBABx0LLfgFoqjYjXokf1J5ewRm+gO0pWOOJcKK/D+XZLwrXTjh/Rrlrfnfi5F/XecjsC6Th+H9mK/YZoN5GWQQ87XHD9Jo4dddUo1Medb49cqHlR1+wskvUoVjifvvziOpflh3czyVDpy0RgY3LrDm0uoiNRzzRwakrCUo9Vygo+LZOzAcMREaIDqUIe7m15tQza6l01Lfu0nJVFtFg/x+Fuzo7AOgNNPR+nMsYX/iDART3caq2181S1a0nHmgK+gc8WI1H6Jwim9DLBXJFm7SYq0TMdrqmpmO6sxHB0Jyx7T3L1nt5B5wvAvtKGrMsKPg/Toza1LqafRAtVaBPpHNNS0/E8dW3Yn4kH9FB6UM2uhoC2Wj7snFweu5dMs5+tESs/Q4pMKFf+tL4+bWwcy0HpRLSfwvTv/LXhKqxktwt1Clp/EMhv2Ix8KmwgEZJJ7VVE78IZCLSbvJxnui7nmUN3N--UzWUalqSj7EQ1Dn/--+R3eaOx65MzEO5+UR3h1qg==",
+            "value": "4wKl3Dw65g8uNOa1WJPjr/qX7wU3l6lfnke1dYUD2QUxtYFqZ8y6zDTPqJL8zK8xNsFQUUrPeDHI4K2ReEoVEEqVd8SDiYk2EDOv50sxEe2mnkpFMellDsDH2zM2uBNla3y+LXc4HsAkFEgwjJDvCUQNDZ/1xawns65IcXbEngw5l65HgRYx2wYrbE5cTI1rArn1Ed/vMNxx9tHRRG6HSHEHVlc8bVtiEA7HyKpLKim579ZnDl/8WzTzeKsObjSBszQ4vdAdwbT1OGCEQqOvVuM1CcppL9p/3pshtN2//fMrUKRYq9Imht05rugUg/ACGti3ofZZFyvy9d66H9d5M8ZaNPyQzNdPQvnfqr+z1rLHRrnPTCpa1m90CgPP66ALRydSfwjY9BP5tonElComrSh3+EXqtJLjgOBQ4psX5QQ/7PXjNpLcrZvrde9/kfEfAJ6tzmrXLDD/NWSoq/g6qJq5irXH5VzlzCKUIJ/ng4DmVe+heiAsvnFzLUm6LAM77+oMS2ZkJO90vSvKPLXBmY2jzvY5R0DPPkmlo22amAKmoA9tVIKdj2/T2qblXSx+2fzqxzDfol3kaOoeuB3bqdJb+VacGGjM+B8DRELEr9y5IkEUpZmBqG1PiD95MVw166jn--b3nJ4SEPP/eElUBp--hwi3MrPdVKPFGbPQlHdT/g==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -1685,7 +1685,7 @@
             "samesite": "lax"
           },
           "remember_user_token": {
-            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKREptTjNoR1IwMXVTRVZCZDJOT0wyTmtWMEpOYVM0aUxDSXhOemswTkRnd01ERXdMak15TURVMU55SmQiLCJleHAiOiIyMDI2LTEyLTEyVDEwOjQwOjEwLjMyMFoiLCJwdXIiOiJjb29raWUucmVtZW1iZXJfdXNlcl90b2tlbiJ9fQ==--d1660eb3f7bdbc42e2a4555c7c5b0337e329cbab",
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRTQ0V1RGUU5FVkRNRGhZVmxkVVkySTFkSGR5VUdVaUxDSXhOemswTlRFd05UVTNMams0TWpFME5EUWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMlQxOTowOToxNy45ODJaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--ebaebcf74391218611afcf0df775cb554f46b38f",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+720h>",
@@ -1737,12 +1737,12 @@
                   "<now>"
                 ],
                 "current_sign_in_ip": [
-                  "116.101.117.102",
+                  "223.104.77.77",
                   "127.0.0.1"
                 ],
                 "last_sign_in_ip": [
-                  "130.8.176.69",
-                  "116.101.117.102"
+                  "185.213.251.92",
+                  "223.104.77.77"
                 ],
                 "updated_at": [
                   "<now>",
@@ -1884,7 +1884,7 @@
                 "user_id": 1,
                 "bank_number": "110000000",
                 "account_number": {
-                  "$base64": "mvN3+k2tzPUqBHbJz3B8uh+bi+GqACK8wRzwEsgGHVBzHUql/3hCoxQDlutS5+fZgOcBBJtAA5DugVlvyYG68EkgMAmZYd69AtFr1Tr2XbqEuoxSyY6PwH2PcRr/stOEuDK8AqtAzEH8+n5NiNRpWlsMt5V0zeJZul9atk39Vgnk9CuSrqbFtwg5soeal6l89qeP5ngzC4268RPi4GsAoOkQ0fWfGy5/o7twHUkVUvn/UvA5OCSNUYdEzOeLB5tAtFCxG+uwbFUvkqV2pqq9O0QrRmIkTugTxu5C6Uit2wLvWjQ38d9evhzQW2NvyTQxESRnqMRk5Bvg8R/PPJallw=="
+                  "$base64": "Mb2RkSFylHJKD+z2EpVifIbu1sqZpEttm37fhZeueTum8uMMqwJICWP3VOjU/rAaKkLuvEVxIqjzl36zU1xln7+4CdioDVqt1VbilR8zspeqfYinlriDPrjzGGnY/77qKFcuTITrCN6vizOJGCXg/ON6di9lWOgUVIvAOooqWA4qRg1WV5/EQFPxJl/PlBvJ09r5dnMdVoJh1KVHXq8DDWR+MWJQBxJ4ZwSjljsyI7rlo2gZog+VFHYQanZvRh1y2G9v/9H398WFR/s/P74sN2eTlKSxwMOh/FOf3l8WfjyqYM6uDnloLtkVqWjN2qHUuEy7o9lB0bwLRHcZ+Da0Rg=="
                 },
                 "state": "unverified",
                 "created_at": "<now>",
@@ -1933,7 +1933,7 @@
                 "author_name": null,
                 "content": "Stripe payout setup failed without a verdict: awaiting Stripe account creation",
                 "comment_type": "payout_note",
-                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"ffd02f5f-4ce6-4a01-8357-cfe70de41c30\",\"stripe_account_create_attempted_at\":\"2026-11-12T10:40:07Z\",\"seller_visible\":false}",
+                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"f17645de-d652-442f-8655-7289a4221932\",\"stripe_account_create_attempted_at\":\"2026-11-12T19:09:16Z\",\"seller_visible\":false}",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "deleted_at": "<now>",
@@ -2264,7 +2264,7 @@
                 "is_business": 0,
                 "has_sold_before": 0,
                 "individual_tax_id": {
-                  "$base64": "FXjCvM8ftz/Xjt9Q0Cs32aJnRLC0x00qKp128V5sI7kSwEFaxG15uQrrxsgK7TfstSNKy+bT+LKL4BWcmAA6pVjD/mlLKv0oYsgy1Tz0/5C7shGHVAC4xe6GQHvo570SCusWwa9kR0uaAMmZEPexe5qCmKKubfcntltv/1FRSI6NlNCLoCzkfi/BvQofc+LKLr0xy5yisKT14m8Hq31u4TzDF3pCdkx0VaovXUSsWCmypPIGV+lGJ8GsYZ66ZU/jIwb5Gh/Di1HM9oSAxgVRi1Ttfd89iMGhFqp02HuA5GKMYFPw69aIZCMjzPiondfAMGnodJWzxYGgL0ok73RjSw=="
+                  "$base64": "TkuF9RnpxoHTbeCB2qt6qXZUk/PuAT/SUIRsxYQT88f2pt39B1QbvLwoZsAR5iPnBBForBFQCryYkV3RDjCIm7e+4AbOoTiXZjps3pCbWgO9//edKFqUfLO4wyKj7bk99nXYMZZFyvIGejqCfXWlxoItsB+qJFehhDVSJX9mz++aq7f34tzeF09oy1bHa1mfotHKVITxk3bKnYnJbGZ3Ylq+Whd9KXVTrsUheBeVZzHTwD9Of7WuovpicNUbWf8e+ZSa4fA+Bh0Q6bQFIw/0EUA/rIebha3qD2g/wx+jOOGF72ClQWmvTIMMW5Fb987hNAoLt8JSA1n5BSxkOdPlXQ=="
                 },
                 "json_data": "{\"phone\":\"0000000000\"}",
                 "flags": 0,
@@ -2364,8 +2364,8 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar19360e47_23@gumroad.com",
-                "encrypted_password": "$2a$04$2f7xFGMnHEAwcN/cdWBMi.vZ/T9y1XBZ3BXguHFRn0KJfb6DZZX3a",
+                "email": "edgar705a1445_27@gumroad.com",
+                "encrypted_password": "$2a$04$N8Y1P4EC08XVWTcb5twrPefFV9V39cp2PBQ11f.sVDdY98WsXBaNa",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -2373,11 +2373,11 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "116.101.117.102",
+                "last_sign_in_ip": "223.104.77.77",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Instant Seller",
-                "payment_address": "edgar84c25846_24@gumroad.com",
+                "payment_address": "edgarb403fbfd_28@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -2402,8 +2402,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5483993264779",
-                "account_created_ip": "185.89.225.178",
+                "external_id": "1836985552666",
+                "account_created_ip": "159.99.178.135",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -2421,7 +2421,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "ZHEIEFAJF5BWFRAOM5HUM3S4PU3APCWX",
+                "otp_secret_key": "WSWC22L5AGHTP25QEMSOTLV2JLVKJ4XP",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -2491,10 +2491,10 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "k4cIfEZiJv5SiyO0tukxZH-N2gQQ5XLROlnaZC5_b5gx6pafv2tiFkNHIdB0yMmpKvSLIrxVcCqpuQkqBRKSYw",
-          "_gumroad_app_session_test": "pm2DC/AatRrkBFYtpB8VOgVroy+46T2qyMPeAbC0xSt+KIKZjZyaHIjGJQm+yl3IudfpdNmUFO9mME0YNrjFDh1LiR7LoQz2frN83/Tt10V5VeJUqkDTCdRWnTv055Qd0dWCvDxFFLFwETt9kiKXBSm7aG5G2yxT1I7WnJkes5xBABx0LLfgFoqjYjXokf1J5ewRm+gO0pWOOJcKK/D+XZLwrXTjh/Rrlrfnfi5F/XecjsC6Th+H9mK/YZoN5GWQQ87XHD9Jo4dddUo1Medb49cqHlR1+wskvUoVjifvvziOpflh3czyVDpy0RgY3LrDm0uoiNRzzRwakrCUo9Vygo+LZOzAcMREaIDqUIe7m15tQza6l01Lfu0nJVFtFg/x+Fuzo7AOgNNPR+nMsYX/iDART3caq2181S1a0nHmgK+gc8WI1H6Jwim9DLBXJFm7SYq0TMdrqmpmO6sxHB0Jyx7T3L1nt5B5wvAvtKGrMsKPg/Toza1LqafRAtVaBPpHNNS0/E8dW3Yn4kH9FB6UM2uhoC2Wj7snFweu5dMs5+tESs/Q4pMKFf+tL4+bWwcy0HpRLSfwvTv/LXhKqxktwt1Clp/EMhv2Ix8KmwgEZJJ7VVE78IZCLSbvJxnui7nmUN3N--UzWUalqSj7EQ1Dn/--+R3eaOx65MzEO5+UR3h1qg==",
-          "_gumroad_guid": "5b97674a-6a09-4ae9-be75-6cc1826cec96",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKREptTjNoR1IwMXVTRVZCZDJOT0wyTmtWMEpOYVM0aUxDSXhOemswTkRnd01ERXdMak15TURVMU55SmQiLCJleHAiOiIyMDI2LTEyLTEyVDEwOjQwOjEwLjMyMFoiLCJwdXIiOiJjb29raWUucmVtZW1iZXJfdXNlcl90b2tlbiJ9fQ==--d1660eb3f7bdbc42e2a4555c7c5b0337e329cbab"
+          "XSRF-TOKEN": "NvTg0fjdwGQYpKmHnc0DBbpKfc-VpvevcYodIYXj5y0pEYAcBm2huQr_UY1lCpGOGwEqibB3_KK45WG2zgeNog",
+          "_gumroad_app_session_test": "4wKl3Dw65g8uNOa1WJPjr/qX7wU3l6lfnke1dYUD2QUxtYFqZ8y6zDTPqJL8zK8xNsFQUUrPeDHI4K2ReEoVEEqVd8SDiYk2EDOv50sxEe2mnkpFMellDsDH2zM2uBNla3y+LXc4HsAkFEgwjJDvCUQNDZ/1xawns65IcXbEngw5l65HgRYx2wYrbE5cTI1rArn1Ed/vMNxx9tHRRG6HSHEHVlc8bVtiEA7HyKpLKim579ZnDl/8WzTzeKsObjSBszQ4vdAdwbT1OGCEQqOvVuM1CcppL9p/3pshtN2//fMrUKRYq9Imht05rugUg/ACGti3ofZZFyvy9d66H9d5M8ZaNPyQzNdPQvnfqr+z1rLHRrnPTCpa1m90CgPP66ALRydSfwjY9BP5tonElComrSh3+EXqtJLjgOBQ4psX5QQ/7PXjNpLcrZvrde9/kfEfAJ6tzmrXLDD/NWSoq/g6qJq5irXH5VzlzCKUIJ/ng4DmVe+heiAsvnFzLUm6LAM77+oMS2ZkJO90vSvKPLXBmY2jzvY5R0DPPkmlo22amAKmoA9tVIKdj2/T2qblXSx+2fzqxzDfol3kaOoeuB3bqdJb+VacGGjM+B8DRELEr9y5IkEUpZmBqG1PiD95MVw166jn--b3nJ4SEPP/eElUBp--hwi3MrPdVKPFGbPQlHdT/g==",
+          "_gumroad_guid": "bd4cecfc-4114-4114-915e-af0260b7981e",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRTQ0V1RGUU5FVkRNRGhZVmxkVVkySTFkSGR5VUdVaUxDSXhOemswTlRFd05UVTNMams0TWpFME5EUWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMlQxOTowOToxNy45ODJaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--ebaebcf74391218611afcf0df775cb554f46b38f"
         },
         "remoteIp": "127.0.0.1"
       },
@@ -2515,13 +2515,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "rtVMKP5vS9aI3-o72ezHkSTlouxDogUbbAvqOkXFTIAMuNLLB2YPPpkT6F8bzT9ccZzzyu8SB-D_6zl0bqixew",
+            "value": "TTZWJEhrQWPX4qf6cREf0BhuUPU1rQtDVSozZ-yDRCRS0zbpttsgvsW5X_CJ1o1buSUHsxB8AE6cRU_wp2cuqw",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "gV0Q6hEQkW0s8jYpts5d+9+WfURnvfY6vWGu9bjmKcROg8G+0wz7NquhqeR2EumZphegY14dXzcSIPklIv/tc/6Pvt9kzRWsir4hJXpcAS8Z84Aj4X7FVbyHaM0wOzrmrw5bSeCr+TJ9dY9GbliQrjP4CC7+bWJveMODYJtzzoAuDx6AOUM5iWdFrlnTKlVwOApeCibyIXH4B95dmmeF5SCklvmXh84YNmsvPeZ513UJiXpUdpEfbp0hNw0x0a8NOmdweF0Zs0oQYx2G+M+6oCfuO6R1u6puLzdcXZUH2CF+aPRjXl8qeuOb/vRAHSUb6d6xO16oJMGxvIDxBVBMoNYNC70tLHIqi657y30xssfZrCnzJwtorf4V5E8E2QORLSGrJPv9FUr5d476lKM1q+nl+SqevD9S6ghoWDGVTYaQ/phpYQwoB9Br9qvfNKkHOVDXYCh9sV4X+/bS5Vjyn3YeyGaYJqKhA2nutQ18qsSYbCaXaCf0vYLTPgrP1UQkLmYQ1nv/F+I0ASyFBxnwFYtya9TCTqa/fmDt/YiCixoHQsR40xztkrnDLlUMxgrFCss4oHJEj2Y24WMOHJRMmAoDQRjHSjQVZO12Lf10e2u40LaL2STzmHkRbch/6UbthQdG--7t/J61fQ4VYvpzcD--zmwiqeXluAKWTmhU7I7i1Q==",
+            "value": "hOWwcBoJZZDAX2fDLkvKGghGZIHk8ezcxig9C2sBUQQd1qTnJamhJUil+lq+DJegZc1N9o1M6hXGcwKNcnYdbbjBHIjfqaV6P00NomuW1jEKyiWsB3d5+wHmsW6lUnBUlhiVqcU+vs0kpqeeEayZyMfO+Tzpu75VmFEMu/uSovkcX5j/OApekQsV4yCpiXGmsdDkwNgKMYG3BWg+QfInxSOrr/LlYBfGkT3hzz6nSwf5M45ApL+LYZO050PAZMrC80itSVgS4ZYhTe/NFR3atbY8Ycnmf7lT1xQOmi6IWxxNtc20PbQ2FUWfTCVpnefejoFcd9msy4CCWDo4Ym+cAMSF330CdkfXWqCY/3EkPT5blkj+elLmxvXN2MitrOzHzNXsElKP+ZCIssQbdNwT4HFKdaqayGILVL5XVLDmwEayBrXwbmabP/BgiueIpbBvQLyGU3GagPDLd2M2xlkf+jwpfQk68eiA7YyzxYGhPt2axEzoyiRf9RF1RF5Bvb3SA1eU/n+qNq/7jrnnvaOXdugv8dRtXoKDBHQjOdK+ZCSGd650G6+9NvMllXoI9VHn7BNSpeC/ezzAqJ0nN+VIZvRvjnhg69sjtmKkYN/aqKlionkQGCymHe00OTz9SDiJFz7B--g2aYqG6XeB+pbEjH--xFms2gTMGGfXSAx4xCm6Kg==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -2552,8 +2552,8 @@
               "is_mobile": false
             },
             "logged_in_user": {
-              "id": "5483993264779",
-              "email": "edgar19360e47_23@gumroad.com",
+              "id": "1836985552666",
+              "email": "edgar705a1445_27@gumroad.com",
               "name": "Instant Seller",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
               "confirmed": true,
@@ -2634,8 +2634,8 @@
               "lazy_load_offscreen_discover_images": false
             },
             "current_seller": {
-              "id": "5483993264779",
-              "email": "edgar19360e47_23@gumroad.com",
+              "id": "1836985552666",
+              "email": "edgar705a1445_27@gumroad.com",
               "name": "Instant Seller",
               "subdomain": "instantseller.test.gumroad.com:31337",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
@@ -2655,12 +2655,12 @@
               "profile_highlight_color": "#ff90e8",
               "profile_font": "ABC Favorit"
             },
-            "csp_nonce": "4owZC/DteZsDwyo0U4j3NrzQmhZhP+IY6ZBLyJEQlbA=",
+            "csp_nonce": "+J3Dg8rHCaKSimfMhL/Pzfd8/KLO9m81Tpy1/BwpNxo=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "uninuV_AUd4mcyvFIiLIj421xh95GRGaWHPdvfY5zKEYFTlapskVNje_KaHgAzBC2MyXOdWpE2HLkw7z3VQxWg",
+            "authenticity_token": "D0oQgYCI54ahsD-j4vXVQdxIy_i4vpFj15hOpTjb54wQr3BMfjiGW7Prx6kaMkfKfQOcvp1vmm4e9zIycz-NAw",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "current_user": {
@@ -2749,7 +2749,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "0_tUn5x15XexvA0Be3yXRqwlv6z8oLyQjznIZ6D7GC1xlsp8ZXyhn6BwD2W5XW-L-VzuilAQvmsc2Rspi5bl1g"
+                "content": "KMAMIjPU4F_S1qwXG77KHUrhf4vjrUmCDGH61iY6q0M3JWzvzWSBgsCNVB3jeViW66oozcZ8Qo_FDoZBbd7BzA"
               },
               {
                 "tagName": "meta",
@@ -2863,7 +2863,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-gr-logged_in_user-id",
                 "property": "gr:logged_in_user:id",
-                "content": "5483993264779"
+                "content": "1836985552666"
               },
               {
                 "tagName": "meta",
@@ -2914,7 +2914,7 @@
       "http": [
         {
           "method": "POST",
-          "url": "http://elasticsearch:9200/c23j-purchase-test/_search",
+          "url": "http://elasticsearch:9200/c23q-purchase-test/_search",
           "contentType": "application/json",
           "body": "{\"query\":{\"bool\":{\"filter\":[{\"terms\":{\"seller_id\":[1]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"price_cents_total\":{\"sum\":{\"field\":\"price_cents\"}},\"fee_cents_total\":{\"sum\":{\"field\":\"fee_cents\"}},\"amount_refunded_cents_total\":{\"sum\":{\"field\":\"amount_refunded_cents\"}},\"fee_refunded_cents_total\":{\"sum\":{\"field\":\"fee_refunded_cents\"}},\"affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}},\"affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}},\"direct_affiliate_credit_amount_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}},\"direct_affiliate_credit_amount_partially_refunded_cents_total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}}",
           "response": {
@@ -2925,7 +2925,7 @@
         },
         {
           "method": "POST",
-          "url": "http://elasticsearch:9200/c23j-purchase-test/_search",
+          "url": "http://elasticsearch:9200/c23q-purchase-test/_search",
           "contentType": "application/json",
           "body": "{\"query\":{\"bool\":{\"filter\":[{\"bool\":{\"minimum_should_match\":1,\"should\":[{\"terms\":{\"affiliate_credit_affiliate_user_id\":[1]}},{\"terms\":{\"direct_affiliate_credit_affiliate_user_id\":[1]}}]}},{\"term\":{\"stripe_refunded\":false}},{\"term\":{\"not_chargedback_or_chargedback_reversed\":true}},{\"terms\":{\"purchase_state\":[\"successful\"]}}],\"must_not\":[{\"term\":{\"selected_flags\":\"is_bundle_product_purchase\"}}],\"must\":[{\"range\":{\"price_cents\":{\"gt\":0}}}]}},\"from\":0,\"size\":0,\"_source\":false,\"aggs\":{\"affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_cents\"}}}},\"affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_cents\"}}}},\"affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_amount_partially_refunded_cents\"}}}},\"affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"affiliate_credit_fee_partially_refunded_cents\"}}}},\"direct_affiliate_credit_amount_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_cents\"}}}},\"direct_affiliate_credit_fee_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_cents\"}}}},\"direct_affiliate_credit_amount_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_amount_partially_refunded_cents\"}}}},\"direct_affiliate_credit_fee_partially_refunded_cents_own\":{\"filter\":{\"term\":{\"direct_affiliate_credit_affiliate_user_id\":1}},\"aggs\":{\"total\":{\"sum\":{\"field\":\"direct_affiliate_credit_fee_partially_refunded_cents\"}}}}}}",
           "response": {
@@ -2976,8 +2976,8 @@
                 "seller_id": null,
                 "affiliate_user_id": 1,
                 "affiliate_basis_points": 1000,
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "deleted_at": null,
                 "flags": 0,
                 "destination_url": null,
@@ -3009,8 +3009,8 @@
                 "date": "<today-1d>",
                 "amount_cents": 100000,
                 "state": "unpaid",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "merchant_account_id": 1,
                 "currency": "usd",
                 "holding_currency": "usd",
@@ -3048,11 +3048,11 @@
                 "user_id": 1,
                 "bank_number": "110000000",
                 "account_number": {
-                  "$base64": "mvN3+k2tzPUqBHbJz3B8uh+bi+GqACK8wRzwEsgGHVBzHUql/3hCoxQDlutS5+fZgOcBBJtAA5DugVlvyYG68EkgMAmZYd69AtFr1Tr2XbqEuoxSyY6PwH2PcRr/stOEuDK8AqtAzEH8+n5NiNRpWlsMt5V0zeJZul9atk39Vgnk9CuSrqbFtwg5soeal6l89qeP5ngzC4268RPi4GsAoOkQ0fWfGy5/o7twHUkVUvn/UvA5OCSNUYdEzOeLB5tAtFCxG+uwbFUvkqV2pqq9O0QrRmIkTugTxu5C6Uit2wLvWjQ38d9evhzQW2NvyTQxESRnqMRk5Bvg8R/PPJallw=="
+                  "$base64": "Mb2RkSFylHJKD+z2EpVifIbu1sqZpEttm37fhZeueTum8uMMqwJICWP3VOjU/rAaKkLuvEVxIqjzl36zU1xln7+4CdioDVqt1VbilR8zspeqfYinlriDPrjzGGnY/77qKFcuTITrCN6vizOJGCXg/ON6di9lWOgUVIvAOooqWA4qRg1WV5/EQFPxJl/PlBvJ09r5dnMdVoJh1KVHXq8DDWR+MWJQBxJ4ZwSjljsyI7rlo2gZog+VFHYQanZvRh1y2G9v/9H398WFR/s/P74sN2eTlKSxwMOh/FOf3l8WfjyqYM6uDnloLtkVqWjN2qHUuEy7o9lB0bwLRHcZ+Da0Rg=="
                 },
                 "state": "unverified",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "account_number_last_four": "6789",
                 "account_holder_full_name": "Stripe Test Account",
                 "deleted_at": null,
@@ -3097,10 +3097,10 @@
                 "author_name": null,
                 "content": "Stripe payout setup failed without a verdict: awaiting Stripe account creation",
                 "comment_type": "payout_note",
-                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"ffd02f5f-4ce6-4a01-8357-cfe70de41c30\",\"stripe_account_create_attempted_at\":\"2026-11-12T10:40:07Z\",\"seller_visible\":false}",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
-                "deleted_at": "<now-5s>",
+                "json_data": "{\"no_verdict\":true,\"pending_create\":true,\"stripe_account_idempotency_key\":\"f17645de-d652-442f-8655-7289a4221932\",\"stripe_account_create_attempted_at\":\"2026-11-12T19:09:16Z\",\"seller_visible\":false}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": "<now>",
                 "purchase_id": null,
                 "ancestry": null,
                 "ancestry_depth": 0,
@@ -3159,14 +3159,14 @@
                 "charge_processor_id": "stripe",
                 "charge_processor_merchant_id": null,
                 "json_data": "{}",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "deleted_at": null,
                 "charge_processor_verified_at": null,
                 "country": "US",
                 "currency": "usd",
                 "charge_processor_deleted_at": null,
-                "charge_processor_alive_at": "<now-5s>"
+                "charge_processor_alive_at": "<now>"
               },
               {
                 "id": 2,
@@ -3177,13 +3177,13 @@
                 "charge_processor_merchant_id": "acct_1Qplf7S17V0i16U7",
                 "json_data": "{}",
                 "created_at": "<now-2160h>",
-                "updated_at": "<now-5s>",
+                "updated_at": "<now>",
                 "deleted_at": null,
                 "charge_processor_verified_at": null,
                 "country": "US",
                 "currency": "usd",
                 "charge_processor_deleted_at": null,
-                "charge_processor_alive_at": "<now-5s>"
+                "charge_processor_alive_at": "<now>"
               }
             ]
           },
@@ -3220,8 +3220,8 @@
                 "id": 1,
                 "user_id": 1,
                 "state": "completed",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "txn_id": "txn-id",
                 "processor_fee_cents": 10,
                 "correlation_id": "12345",
@@ -3244,8 +3244,8 @@
                 "id": 2,
                 "user_id": 1,
                 "state": "completed",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "txn_id": "txn-id",
                 "processor_fee_cents": 10,
                 "correlation_id": "12345",
@@ -3268,8 +3268,8 @@
                 "id": 3,
                 "user_id": 1,
                 "state": "completed",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "txn_id": "txn-id",
                 "processor_fee_cents": 10,
                 "correlation_id": "12345",
@@ -3292,8 +3292,8 @@
                 "id": 4,
                 "user_id": 1,
                 "state": "completed",
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "txn_id": "txn-id",
                 "processor_fee_cents": 10,
                 "correlation_id": "12345",
@@ -3335,8 +3335,8 @@
                 "product_id": null,
                 "title": null,
                 "fine_print": null,
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "max_refund_period_in_days": 30
               }
             ]
@@ -3391,7 +3391,7 @@
                 "id": 1,
                 "user_id": 1,
                 "ip": "54.234.242.13",
-                "created_at": "<now-5s>"
+                "created_at": "<now>"
               }
             ]
           },
@@ -3449,12 +3449,12 @@
                 "is_business": 0,
                 "has_sold_before": 0,
                 "individual_tax_id": {
-                  "$base64": "FXjCvM8ftz/Xjt9Q0Cs32aJnRLC0x00qKp128V5sI7kSwEFaxG15uQrrxsgK7TfstSNKy+bT+LKL4BWcmAA6pVjD/mlLKv0oYsgy1Tz0/5C7shGHVAC4xe6GQHvo570SCusWwa9kR0uaAMmZEPexe5qCmKKubfcntltv/1FRSI6NlNCLoCzkfi/BvQofc+LKLr0xy5yisKT14m8Hq31u4TzDF3pCdkx0VaovXUSsWCmypPIGV+lGJ8GsYZ66ZU/jIwb5Gh/Di1HM9oSAxgVRi1Ttfd89iMGhFqp02HuA5GKMYFPw69aIZCMjzPiondfAMGnodJWzxYGgL0ok73RjSw=="
+                  "$base64": "TkuF9RnpxoHTbeCB2qt6qXZUk/PuAT/SUIRsxYQT88f2pt39B1QbvLwoZsAR5iPnBBForBFQCryYkV3RDjCIm7e+4AbOoTiXZjps3pCbWgO9//edKFqUfLO4wyKj7bk99nXYMZZFyvIGejqCfXWlxoItsB+qJFehhDVSJX9mz++aq7f34tzeF09oy1bHa1mfotHKVITxk3bKnYnJbGZ3Ylq+Whd9KXVTrsUheBeVZzHTwD9Of7WuovpicNUbWf8e+ZSa4fA+Bh0Q6bQFIw/0EUA/rIebha3qD2g/wx+jOOGF72ClQWmvTIMMW5Fb987hNAoLt8JSA1n5BSxkOdPlXQ=="
                 },
                 "json_data": "{\"phone\":\"0000000000\"}",
                 "flags": 0,
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "business_name": null,
                 "business_street_address": null,
                 "business_city": null,
@@ -3549,8 +3549,8 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar19360e47_23@gumroad.com",
-                "encrypted_password": "$2a$04$2f7xFGMnHEAwcN/cdWBMi.vZ/T9y1XBZ3BXguHFRn0KJfb6DZZX3a",
+                "email": "edgar705a1445_27@gumroad.com",
+                "encrypted_password": "$2a$04$N8Y1P4EC08XVWTcb5twrPefFV9V39cp2PBQ11f.sVDdY98WsXBaNa",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -3558,12 +3558,12 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "116.101.117.102",
-                "created_at": "<now-5s>",
+                "last_sign_in_ip": "223.104.77.77",
+                "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Instant Seller",
-                "payment_address": "edgar84c25846_24@gumroad.com",
-                "confirmed_at": "<now-5s>",
+                "payment_address": "edgarb403fbfd_28@gumroad.com",
+                "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
                 "unconfirmed_email": null,
@@ -3587,8 +3587,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5483993264779",
-                "account_created_ip": "185.89.225.178",
+                "external_id": "1836985552666",
+                "account_created_ip": "159.99.178.135",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -3606,7 +3606,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "ZHEIEFAJF5BWFRAOM5HUM3S4PU3APCWX",
+                "otp_secret_key": "WSWC22L5AGHTP25QEMSOTLV2JLVKJ4XP",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -3676,14 +3676,14 @@
           "accept": "application/json, text/html",
           "content-type": "application/json",
           "host": "app.test.gumroad.com:31337",
-          "x-csrf-token": "uninuV_AUd4mcyvFIiLIj421xh95GRGaWHPdvfY5zKEYFTlapskVNje_KaHgAzBC2MyXOdWpE2HLkw7z3VQxWg",
+          "x-csrf-token": "D0oQgYCI54ahsD-j4vXVQdxIy_i4vpFj15hOpTjb54wQr3BMfjiGW7Prx6kaMkfKfQOcvp1vmm4e9zIycz-NAw",
           "x-inertia": "true"
         },
         "cookies": {
-          "XSRF-TOKEN": "rtVMKP5vS9aI3-o72ezHkSTlouxDogUbbAvqOkXFTIAMuNLLB2YPPpkT6F8bzT9ccZzzyu8SB-D_6zl0bqixew",
-          "_gumroad_app_session_test": "gV0Q6hEQkW0s8jYpts5d+9+WfURnvfY6vWGu9bjmKcROg8G+0wz7NquhqeR2EumZphegY14dXzcSIPklIv/tc/6Pvt9kzRWsir4hJXpcAS8Z84Aj4X7FVbyHaM0wOzrmrw5bSeCr+TJ9dY9GbliQrjP4CC7+bWJveMODYJtzzoAuDx6AOUM5iWdFrlnTKlVwOApeCibyIXH4B95dmmeF5SCklvmXh84YNmsvPeZ513UJiXpUdpEfbp0hNw0x0a8NOmdweF0Zs0oQYx2G+M+6oCfuO6R1u6puLzdcXZUH2CF+aPRjXl8qeuOb/vRAHSUb6d6xO16oJMGxvIDxBVBMoNYNC70tLHIqi657y30xssfZrCnzJwtorf4V5E8E2QORLSGrJPv9FUr5d476lKM1q+nl+SqevD9S6ghoWDGVTYaQ/phpYQwoB9Br9qvfNKkHOVDXYCh9sV4X+/bS5Vjyn3YeyGaYJqKhA2nutQ18qsSYbCaXaCf0vYLTPgrP1UQkLmYQ1nv/F+I0ASyFBxnwFYtya9TCTqa/fmDt/YiCixoHQsR40xztkrnDLlUMxgrFCss4oHJEj2Y24WMOHJRMmAoDQRjHSjQVZO12Lf10e2u40LaL2STzmHkRbch/6UbthQdG--7t/J61fQ4VYvpzcD--zmwiqeXluAKWTmhU7I7i1Q==",
-          "_gumroad_guid": "5b97674a-6a09-4ae9-be75-6cc1826cec96",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKREptTjNoR1IwMXVTRVZCZDJOT0wyTmtWMEpOYVM0aUxDSXhOemswTkRnd01ERXdMak15TURVMU55SmQiLCJleHAiOiIyMDI2LTEyLTEyVDEwOjQwOjEwLjMyMFoiLCJwdXIiOiJjb29raWUucmVtZW1iZXJfdXNlcl90b2tlbiJ9fQ==--d1660eb3f7bdbc42e2a4555c7c5b0337e329cbab"
+          "XSRF-TOKEN": "TTZWJEhrQWPX4qf6cREf0BhuUPU1rQtDVSozZ-yDRCRS0zbpttsgvsW5X_CJ1o1buSUHsxB8AE6cRU_wp2cuqw",
+          "_gumroad_app_session_test": "hOWwcBoJZZDAX2fDLkvKGghGZIHk8ezcxig9C2sBUQQd1qTnJamhJUil+lq+DJegZc1N9o1M6hXGcwKNcnYdbbjBHIjfqaV6P00NomuW1jEKyiWsB3d5+wHmsW6lUnBUlhiVqcU+vs0kpqeeEayZyMfO+Tzpu75VmFEMu/uSovkcX5j/OApekQsV4yCpiXGmsdDkwNgKMYG3BWg+QfInxSOrr/LlYBfGkT3hzz6nSwf5M45ApL+LYZO050PAZMrC80itSVgS4ZYhTe/NFR3atbY8Ycnmf7lT1xQOmi6IWxxNtc20PbQ2FUWfTCVpnefejoFcd9msy4CCWDo4Ym+cAMSF330CdkfXWqCY/3EkPT5blkj+elLmxvXN2MitrOzHzNXsElKP+ZCIssQbdNwT4HFKdaqayGILVL5XVLDmwEayBrXwbmabP/BgiueIpbBvQLyGU3GagPDLd2M2xlkf+jwpfQk68eiA7YyzxYGhPt2axEzoyiRf9RF1RF5Bvb3SA1eU/n+qNq/7jrnnvaOXdugv8dRtXoKDBHQjOdK+ZCSGd650G6+9NvMllXoI9VHn7BNSpeC/ezzAqJ0nN+VIZvRvjnhg69sjtmKkYN/aqKlionkQGCymHe00OTz9SDiJFz7B--g2aYqG6XeB+pbEjH--xFms2gTMGGfXSAx4xCm6Kg==",
+          "_gumroad_guid": "bd4cecfc-4114-4114-915e-af0260b7981e",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRTQ0V1RGUU5FVkRNRGhZVmxkVVkySTFkSGR5VUdVaUxDSXhOemswTlRFd05UVTNMams0TWpFME5EUWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMlQxOTowOToxNy45ODJaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--ebaebcf74391218611afcf0df775cb554f46b38f"
         },
         "remoteIp": "127.0.0.1",
         "body": "{\"date\":\"2026-11-12\"}"
@@ -3705,13 +3705,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "A0d7INY3uPVT3jTG8vdUftlRu-KDXAamy3-1gT49-mShKuXDLz78HUISNqIw1qyzjCjqxC_sBF1Yn2bPFVAHnw",
+            "value": "AIodwjUsLyFVygZ_qqT85766YBHPyVDeIt1HTwwiBUUfb30Py5xO_EeR_nVSY25sH_E3V-oYW9PrsjvYR8Zvyg",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "te3sKIqB+enpygMJvMSueZAjdlV9eIwRLvArBuaU5qI00oRzmSK8hI16FMHS/kJPJkGlh+AfHTgM36ST0XFJRekXfp1ZMHzevjOxNajZTWtCcuVPk7ZPyDvCKRwGSx7jmBHv+4YlyUIJNmk3QmQ8+QuCGhuOY4g2YSNHD9A/Xt7eJL0cksQSxui0fdR92P2F+xRL46zoQW4NWiT2lw7NSBZGTxrb80xXcLXBdKttx80/bQbS5mF4IeH9YikUd/XEBuJ2XeSnbaylpv6aeCVG7/2lrisi/vdX1YMv+qmbKONbKA/1nquaO3c3cUGfrbHWZOUk/EIUUrc2JoBCiE37/vo+RCbVwTl7ZMQkzMlL46KK/oQvDjUIcMX26FKE1eZfLj9vJDVDJWCcf8I3pvSuytUSUDRtAp61dXvTlMtIc6qhHv0iBBUGUcRC58dFjlfEDLlpIRBgkMozeUi2F+VlLNtZTHkeO/PVpjDrhMXv/EVz2Fag6msfk7Dm1oa0c6cSu2U1+HQs4XA13xAJXMDpKzxlF3rbXsWElq/z5IxmvLanOq99BuuzO1CNb+l6AGu57PGqdKnRlv8E4qPBx+qOzly2XUa3QZ7cvhyqYmtsd9PXJJyWxsEVmsUaOXrPs5cMHUHbdgloph7bu9TlE6+aIPba00ujpdyEQ4HgKVBVVivTEATTQuFGpW0KDcbPWJjI5cVRDVqd2VMJcP89zZP1YCcWGIuthdFyzlQROOAJTYRmDIwfMwD4VyfnNuQRVFmGUsi/lw0NLrIXZGg=--Dj8PgdogVsBr66hU--EQZi5OkcYABwjDzFB5Oy7g==",
+            "value": "9g2lmWPKWMOgQsEi/Ve6qbgaWgBS74+2nQiVYZW6d55t5bJ+ejukCmMCNzUyIHiJjC4MBYQLF5V5AhB1iHo7PfDk5xaXWSppHEEJbUSqTShwmYN07OtXXQHlrYh1Rf7F9jBZrWJ5l6yC7cvBf10sWQvc+4huxWuI+C45lOHRlaH00UGh9ZltBDAdBJXzWwyq7WiWj/ZCsoS4X+3vgnB8VukNgde95NLB0/QI6GYiJX7nngGi3atQH28JFq/AUH5InSKVX300qqCnHYWHYLZogh2dMuBLvzUrgaVX7wcz6pNZBMbV7ThmPMvzZHiunoWaqjT4LBu06xWUQwujYBPhpiNFSaDqHk6mqOYBdQQZOJ3Vd8jmsPvB68Am+lXmL/+v2BSCvcT/zqRvcPWVhA1eXvBftjqfDc1yHtWZ/TiN1A2NGU8jvCQYFIY5I8XyNSkcCLte034nEAOzvS9mTW2oAPWHSWlJpk0MQ4KJaK7ZlzTMlYdYR2iJz2mJnzQ1dgdNDyPEcK5aQemWIDvjXgqaPRiPkUi7AuzGjnnZ8WQDH1m06QLE8AUSwM2HleF24S0XBgSFwxhB5mVQdBHbqgv3ev4IpAR5tY/t+bcbcqKFC3wYLwzUbvpGvTzIfKqOyuLRTnmIkgBBPDEYnUGHci/PzPlmHtLe3qr4jV/IZ/N1OoSOdulduq/K4/UH8iLzsRkvT60bCn3Ui4BgEryFkYUKzyS+0Qq70weEOy0CtImyYX+CSJaO9Umcd6L8UkiLt43i62AdzvWZICb3pZI=--NDEjXX3cNZgoz7ty--td8vxgEH8K+68JYLRzM3Bw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -3729,7 +3729,7 @@
               },
               "changes": {
                 "updated_at": [
-                  "<now-5s>",
+                  "<now>",
                   "<now>"
                 ]
               }
@@ -3742,11 +3742,11 @@
               "id": 2,
               "commentable_id": 1,
               "commentable_type": "User",
-              "author_id": 767082,
-              "author_name": null,
-              "content": "Payout via Stripe on 2026-11-12 10:40:12 UTC failed because Stripe is unable to create payouts to this account. Solution: Complete any outstanding requirements in payout settings. If the issue persists, contact Gumroad Support.",
-              "comment_type": "payout_note",
-              "json_data": "{\"seller_visible\":true}",
+              "author_id": null,
+              "author_name": "pause_payouts_after_repeated_failures",
+              "content": "Payouts paused automatically: payout qP2s9UXyL7CqmGpuynmLZg== could not be accounted for — it failed as payout_outcome_unknown (original reason \"payout_outcome_unknown\"), so Gumroad cannot tell from its own records whether the money reached the seller. Reconcile transfer \"tr_parityinternal01\" and any bank payout at Stripe before resuming.",
+              "comment_type": "on",
+              "json_data": null,
               "created_at": "<now>",
               "updated_at": "<now>",
               "deleted_at": null,
@@ -3779,8 +3779,8 @@
               "stripe_internal_transfer_id": "tr_parityinternal01",
               "currency": "usd",
               "flags": 0,
-              "json_data": "{\"payout_type\":\"instant\",\"error_message\":\"Cannot create payouts; your account has outstanding requirements.\"}",
-              "failure_reason": "cannot_pay",
+              "json_data": "{\"payout_type\":\"instant\",\"error_message\":\"Stripe::APIConnectionError: Unexpected error communicating when trying to connect to Stripe (https://api.stripe.com). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\\n\\n(Network error: Connection reset by peer)\"}",
+              "failure_reason": "payout_outcome_unknown",
               "processor_reversing_payout_id": null
             }
           ]
@@ -3807,9 +3807,13 @@
                   "<now>",
                   "<now>"
                 ],
+                "flags": [
+                  35274566697025,
+                  35274567221313
+                ],
                 "json_data": [
                   "{}",
-                  "{\"payout_date_of_last_payment_failure_email\":\"2026-11-11\"}"
+                  "{\"payouts_paused_by\":\"system\"}"
                 ]
               }
             }
@@ -3886,9 +3890,53 @@
           },
           "body": "amount=97087&currency=usd&statement_descriptor=Gumroad&description=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[payment]=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[bank_account]=1UokxkyxJ__gd-gssE0g7w%3D%3D&metadata[balances%7B0%7D]=1UokxkyxJ__gd-gssE0g7w%3D%3D&destination=ba_1Qplf7S17V0i16U7S5L4chWo&method=instant",
           "response": {
-            "status": 400,
-            "contentType": "application/json",
-            "body": "{\"error\":{\"message\":\"Cannot create payouts; your account has outstanding requirements.\",\"type\":\"invalid_request_error\"}}"
+            "dropped": true,
+            "body": ""
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/payouts",
+          "contentType": "application/x-www-form-urlencoded",
+          "headers": {
+            "idempotency-key": "<uuid>",
+            "stripe-account": "acct_1Qplf7S17V0i16U7",
+            "authorization": "sha256:1981616d4ba4ca37"
+          },
+          "body": "amount=97087&currency=usd&statement_descriptor=Gumroad&description=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[payment]=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[bank_account]=1UokxkyxJ__gd-gssE0g7w%3D%3D&metadata[balances%7B0%7D]=1UokxkyxJ__gd-gssE0g7w%3D%3D&destination=ba_1Qplf7S17V0i16U7S5L4chWo&method=instant",
+          "response": {
+            "dropped": true,
+            "body": ""
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/payouts",
+          "contentType": "application/x-www-form-urlencoded",
+          "headers": {
+            "idempotency-key": "<uuid>",
+            "stripe-account": "acct_1Qplf7S17V0i16U7",
+            "authorization": "sha256:1981616d4ba4ca37"
+          },
+          "body": "amount=97087&currency=usd&statement_descriptor=Gumroad&description=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[payment]=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[bank_account]=1UokxkyxJ__gd-gssE0g7w%3D%3D&metadata[balances%7B0%7D]=1UokxkyxJ__gd-gssE0g7w%3D%3D&destination=ba_1Qplf7S17V0i16U7S5L4chWo&method=instant",
+          "response": {
+            "dropped": true,
+            "body": ""
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/payouts",
+          "contentType": "application/x-www-form-urlencoded",
+          "headers": {
+            "idempotency-key": "<uuid>",
+            "stripe-account": "acct_1Qplf7S17V0i16U7",
+            "authorization": "sha256:1981616d4ba4ca37"
+          },
+          "body": "amount=97087&currency=usd&statement_descriptor=Gumroad&description=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[payment]=qP2s9UXyL7CqmGpuynmLZg%3D%3D&metadata[bank_account]=1UokxkyxJ__gd-gssE0g7w%3D%3D&metadata[balances%7B0%7D]=1UokxkyxJ__gd-gssE0g7w%3D%3D&destination=ba_1Qplf7S17V0i16U7S5L4chWo&method=instant",
+          "response": {
+            "dropped": true,
+            "body": ""
           }
         },
         {
@@ -3989,26 +4037,6 @@
           "index": 4
         },
         {
-          "type": "db",
-          "op": "update",
-          "table": "payments"
-        },
-        {
-          "type": "db",
-          "op": "update",
-          "table": "balances"
-        },
-        {
-          "type": "db",
-          "op": "update",
-          "table": "users"
-        },
-        {
-          "type": "db",
-          "op": "insert",
-          "table": "comments"
-        },
-        {
           "type": "http",
           "index": 5
         },
@@ -4021,8 +4049,40 @@
           "index": 7
         },
         {
+          "type": "db",
+          "op": "update",
+          "table": "payments"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "balances"
+        },
+        {
           "type": "http",
           "index": 8
+        },
+        {
+          "type": "http",
+          "index": 9
+        },
+        {
+          "type": "http",
+          "index": 10
+        },
+        {
+          "type": "http",
+          "index": 11
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "comments"
         }
       ]
     }

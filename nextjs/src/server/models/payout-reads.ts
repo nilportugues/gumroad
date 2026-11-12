@@ -89,7 +89,13 @@ export function isBalancePayable({ balance, account, holder }: HeldBalance): boo
 // `user.has_stripe_account_connected?`, for a seller it is false for.
 export async function assertNoStripeConnect(user: UserRecord): Promise<void> {
   // Rails reads the user's json_data on the way to the feature check, which counts a NULL column as changed.
-  if (!isFlagSet(user, "check_merchant_account_is_linked")) jsonData(user);
+  if (!isFlagSet(user, "check_merchant_account_is_linked")) {
+    const stored = user.get("json_data");
+    jsonData(user);
+    // The feature check also leaves every attribute materialized in column order unless the read above changed one (a NULL column
+    // becomes {}); PaperTrail's `object` of a later save lists them in that order.
+    if (stored != null) user.materializeAll();
+  }
   if (
     isFlagSet(user, "check_merchant_account_is_linked") ||
     (await collaborators.isFeatureEnabled(MERCHANT_MIGRATION_FEATURE, userActor(user.get("id"))))
@@ -180,7 +186,7 @@ async function stripeRejectedPayoutFloorApplies(user: UserRecord): Promise<boole
   return false;
 }
 
-function sharedJsonDataForAccount(account: MerchantAccountRow, key: string): unknown {
+export function sharedJsonDataForAccount(account: MerchantAccountRow, key: string): unknown {
   const raw = (account as { json_data: unknown }).json_data;
   if (raw == null || (typeof raw === "string" && raw.trim() === "")) return undefined;
   const data: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -188,7 +194,7 @@ function sharedJsonDataForAccount(account: MerchantAccountRow, key: string): unk
 }
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
-async function aliveUserComplianceInfo(user: UserRecord): Promise<UserComplianceInfo | null> {
+export async function aliveUserComplianceInfo(user: UserRecord): Promise<UserComplianceInfo | null> {
   const [row] = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`user_compliance_info`.*")} FROM ${table("user_compliance_info")} WHERE ${column("user_compliance_info", "user_id")} = ${user.get("id")} AND ${column("user_compliance_info", "deleted_at")} IS NULL ORDER BY ${column("user_compliance_info", "id")} DESC LIMIT 1`,
   );

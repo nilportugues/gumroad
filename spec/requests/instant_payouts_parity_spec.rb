@@ -6,9 +6,10 @@ require "spec_helper"
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/money-hand-backs.replay.test.ts. Stripe's answers are read back out of the
 # cassette InstantPayoutsService's own spec recorded, served by WebMock in the order they were recorded, so nothing leaves the machine.
 #
-# The fixture's timeline is the order a port has to reproduce: the external-account read, the balance read, the Payment row, the
-# Stripe payout (with its idempotency key) and the writes that follow it. Node does not port the request, so the example is a
-# hand-back: the replay asserts the request reaches Rails whole with no Stripe call and no write from Node.
+# The fixture's timeline is the order Node reproduces: the external-account read, the instant-available balance read, the claim of the
+# balances and the Payment row, the destination account's balance read, the Stripe payout (with its idempotency key) and the writes that
+# follow it. The balance read that checks the destination account is answered by WebMock like every other call (not stubbed on the gem),
+# so the timeline holds it.
 describe "Instant payouts", type: :request do
   include Parity::AudienceSignedIn
 
@@ -24,6 +25,15 @@ describe "Instant payouts", type: :request do
     MerchantAccount.find_or_create_by!(user_id: nil, charge_processor_id: StripeChargeProcessor.charge_processor_id) { _1.charge_processor_alive_at = Time.current }
   end
 
+  # Mail deliveries are ActiveJobs, which the test adapter swallows; the recorder sees them on the Sidekiq adapter.
+  around do |example|
+    previous = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :sidekiq
+    example.run
+  ensure
+    ActiveJob::Base.queue_adapter = previous
+  end
+
   # The cassette's interactions grouped by request, each group answered in the order it was recorded (the last answer repeats).
   def stub_stripe_from_cassette(path)
     interactions = YAML.safe_load_file(path, permitted_classes: [Symbol])["http_interactions"]
@@ -37,7 +47,7 @@ describe "Instant payouts", type: :request do
     end
   end
 
-  it "hands a seasoned Stripe account's instant payout to Rails", parity: true do
+  it "serves a seasoned Stripe account's instant payout", parity: true do
     stub_stripe_from_cassette(INSTANT_PAYOUT_CASSETTE)
     create(:tos_agreement, user: seller)
     create(:user_compliance_info, user: seller)
@@ -47,9 +57,9 @@ describe "Instant payouts", type: :request do
     merchant_account.update!(created_at: 90.days.ago)
     stripe_account = Stripe::Account.retrieve(merchant_account.charge_processor_merchant_id)
     stripe_account.refresh until stripe_account.payouts_enabled?
-    allow(Stripe::Balance).to receive(:retrieve).and_call_original
-    allow(Stripe::Balance).to receive(:retrieve).with({}, anything).and_return(
-      Stripe::Balance.construct_from(object: "balance", available: [{ amount: 1_000_000_00, currency: "usd" }], pending: [{ amount: 0, currency: "usd" }])
+    stub_request(:get, "https://api.stripe.com/v1/balance").to_return(
+      status: 200, headers: { "Content-Type" => "application/json" },
+      body: { object: "balance", available: [{ amount: 1_000_000_00, currency: "usd" }], pending: [{ amount: 0, currency: "usd" }] }.to_json
     )
     Stripe::Transfer.create(destination: stripe_account.id, currency: "usd", amount: 1000_00)
     create(:balance, amount_cents: 1000_00, holding_amount_cents: 1000_00, user: seller, date: Date.yesterday, merchant_account:)
