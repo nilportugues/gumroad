@@ -1478,7 +1478,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GoogleCalendarInviteJob": {
     "file": "app/sidekiq/google_calendar_invite_job.rb",
@@ -2615,7 +2615,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryFailedPaypalPayoutsWorker": {
     "file": "app/sidekiq/retry_failed_paypal_payouts_worker.rb",
