@@ -66,7 +66,26 @@ async function cachedGithubStars(): Promise<number | null> {
   return stars;
 }
 
-export type PageMeta = { title: string; description: string; url: string };
+// `params[:as_embed]` is truthy: Rack gives `as_embed=` an empty string (truthy in Ruby) and a bare `as_embed` nil, and the last pair
+// of a name wins. A nested name (`as_embed[]`, `as_embed[a]`) is a list or hash, which also conflicts with a plain pair.
+function asEmbedParam(queryString: string): boolean {
+  let present = false;
+  for (const pair of queryString.replace(/^\?/u, "").split("&")) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    let name: string;
+    try {
+      name = decodeURIComponent((index === -1 ? pair : pair.slice(0, index)).replaceAll("+", " "));
+    } catch {
+      throw new HandBackToRails("a query string with an invalid percent escape");
+    }
+    if (name.startsWith("as_embed[")) throw new HandBackToRails("a nested as_embed parameter");
+    if (name === "as_embed") present = index !== -1;
+  }
+  return present;
+}
+
+export type PageMeta ={ title: string; description: string; url: string };
 
 // The controller's `set_meta_data`, which runs after ApplicationController's before_actions have set the defaults.
 function pageMetaTags(meta: MetaTagBuilder, { title, description, url }: PageMeta) {
@@ -95,8 +114,6 @@ export async function renderHomePage(
   const origin = `${config.protocol}://${request.hostWithPort}`;
   const githubStars = await cachedGithubStars();
   const state = action.takeRenderState();
-  // layouts/shared/_flash.html.erb renders a toast for it, which no example records.
-  if (Object.keys(state.flash).length > 0) throw new HandBackToRails("a home page with a flash message");
   const meta = new MetaTagBuilder();
   await applicationMetaTags(meta, {
     context: action.context,
@@ -111,7 +128,8 @@ export async function renderHomePage(
     path: request.path,
     method: request.method,
     userAgent: request.headers.get("user-agent"),
-    asEmbed: new URLSearchParams(request.queryString).has("as_embed"),
+    asEmbed: asEmbedParam(request.queryString),
+    flash: state.flash,
     nonce,
     meta,
     githubStars,

@@ -91,6 +91,33 @@ describe "Home static pages", type: :request do
       expect(response.headers["Cache-Control"]).not_to include("public")
     end
 
+    it "makes the body transparent for as_embed", parity: true do
+      get "/terms", params: { as_embed: "true" }
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
+    it "makes the body transparent for an empty as_embed", parity: true do
+      get "/terms?as_embed="
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
+    it "leaves the body alone for an as_embed without a value", parity: true do
+      get "/terms?as_embed"
+
+      expect(response.body).to include('style=""')
+    end
+
+    it "renders the toast of a flash the previous request left", parity: true do
+      post login_path, params: { authenticity_token: csrf_token, user: { login_identifier: "nobody@example.com", password: "wrong" } }
+      expect(response).to have_http_status(:see_other)
+
+      get "/terms"
+
+      expect(response.body).to include('id="flash-toast"')
+    end
+
     it "marks the body of a Mac visitor", parity: true do
       get "/terms", headers: { "User-Agent" => "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15" }
 

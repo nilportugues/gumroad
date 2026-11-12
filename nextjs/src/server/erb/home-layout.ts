@@ -29,7 +29,10 @@ export type LayoutContext = {
   path: string;
   method: string;
   userAgent: string | null;
+  // params[:as_embed] is truthy
   asEmbed: boolean;
+  // session["flash"] of the request: alert, warning, info and notice are read.
+  flash: Record<string, string>;
   nonce: string;
   meta: MetaTagBuilder;
   // GithubStarsController.cached_count
@@ -536,8 +539,39 @@ function githubStarsLink(stars: number | null): string {
   );
 }
 
-// layouts/shared/_flash.html.erb without a flash.
-const NO_FLASH = "";
+const FLASH_STATUS_CLASSES: Record<string, string> = {
+  danger: "border-danger bg-danger/20 text-danger",
+  warning: "border-warning bg-warning/20 text-warning",
+  info: "border-info bg-info/20 text-info",
+  success: "border-success bg-success/20 text-success",
+};
+
+// layouts/shared/_flash.html.erb: the first of alert, warning, info and notice (an empty string is truthy in Ruby) as a toast that
+// removes itself. What Erubi trims is the `<% %>` lines; the markup keeps the partial's own indentation.
+function flashPartial(ctx: LayoutContext): string {
+  const { flash } = ctx;
+  const key = ["alert", "warning", "info", "notice"].find((name) => flash[name] !== undefined);
+  if (key === undefined) return "";
+  const status = key === "alert" ? "danger" : key === "warning" ? "warning" : key === "info" ? "info" : "success";
+  return `    <div id="flash-toast"
+         class="fixed top-4 left-1/2 z-100 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded bg-background md:max-w-sm"
+         style="transition: all 0.3s ease-out 0.5s;">
+      <div role="status" class="flex items-center gap-2 rounded border p-4 text-sm
+        ${FLASH_STATUS_CLASSES[status]}">
+        ${escapeHtml(flash[key]!)}
+      </div>
+    </div>
+    <script nonce="${ctx.nonce}">
+      setTimeout(function() {
+        var el = document.getElementById("flash-toast");
+        if (el) {
+          el.style.transform = "translateX(-50%) translateY(calc(-100% - var(--spacer-4)))";
+          setTimeout(function() { el.remove(); }, 900);
+        }
+      }, 5000);
+    </script>
+`;
+}
 
 // The line Erubi leaves where `<%= yield :style %>` or an empty vite tag was: its indentation and a newline.
 const BLANK = "  \n";
@@ -567,7 +601,6 @@ export function designSettings(config: DomainConfig, requestOrigin: string): str
 // layouts/home.html.erb wrapped in layouts/application.html.erb. `view` is the page template's output.
 export function renderHomeLayout(ctx: LayoutContext, view: string, requestOrigin: string): string {
   if (!ctx.hideLayouts) throw new NotPortedError("a home page that keeps the base entrypoint");
-  if (ctx.asEmbed) throw new NotPortedError("as_embed");
   const bodyClass = [
     "group/body",
     ...(ctx.userAgent?.includes("Macintosh") ? ["mac"] : []),
@@ -584,9 +617,9 @@ export function renderHomeLayout(ctx: LayoutContext, view: string, requestOrigin
   return `\n\n<!DOCTYPE html>
 <html lang="en">
   ${head(ctx)}
-  <body id="" class="${bodyClass.join(" ")}" style="">
+  <body id="" class="${bodyClass.join(" ")}" style="${ctx.asEmbed ? "background: transparent" : ""}">
     <div id="design-settings" data-settings="${escapeHtml(designSettings(ctx.config, requestOrigin))}" style="display: none;"></div>
-    ${NO_FLASH}
+    ${flashPartial(ctx)}
     <div class="flex flex-col lg:flex-row h-screen">
       <main class="flex-1 flex flex-col lg:h-screen overflow-y-auto">
         <div class="flex-1 flex flex-col">
