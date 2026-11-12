@@ -202,6 +202,18 @@ cases << run("Credit.create_for_returned_payment_difference! adds to the day's e
   Credit.create_for_returned_payment_difference!(user: payment.user, merchant_account: MerchantAccount.find(3), returned_payment: payment, difference_amount_cents: 250)
 end
 
+# BankAccount#mark_deleted!(validate: false), as the Stripe payout recovery calls it before reversing or holding.
+cases << run("BankAccount#mark_deleted! enqueues the recommendability refresh when it was the last payout method", seed: base_seed(payments: [])) do
+  BankAccount.find(11).mark_deleted!(validate: false)
+end
+
+cases << run("BankAccount#mark_deleted! leaves recommendability alone while the seller has a PayPal address", seed: base_seed(
+  payments: [],
+  extra: { users: [user_row(5, payment_address: "paypal5@example.com"), user_row(767_082, email: "admin@example.com", username: "admin")] }
+)) do
+  BankAccount.find(11).mark_deleted!(validate: false)
+end
+
 # The reason tables the Node port reads (Payment::FailureReason), written beside the golden so they cannot drift from Ruby.
 reasons = Payment::FailureReason
 File.write(Rails.root.join("nextjs/src/server/models/payment-failure-reasons.generated.json"), JSON.pretty_generate(

@@ -12,6 +12,7 @@ import { createJobsRuntime } from "../jobs/runtime.ts";
 import { parseRubyJson, type JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 import { esRecorder } from "../search/__fixtures__/job-harness.ts";
 
+import { BankAccountDeletable, BankAccounts } from "./bank-account.ts";
 import { Balances, fireBalanceEventBang, type BalanceEvent } from "./balance.ts";
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { createForReturnedPaymentDifferenceBang } from "./credit-creation.ts";
@@ -59,6 +60,13 @@ const returnedDifference = (differenceAmountCents: number) => async () => {
   );
 };
 
+const deleteBankAccount = async () => {
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`bank_accounts`.*")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "id")} = 11 LIMIT 1`,
+  );
+  await BankAccountDeletable.markDeletedBang(BankAccounts.load(castRow("BankAccount", row!)), { validate: false, now });
+};
+
 const ACTIONS: Record<string, () => Promise<unknown>> = {
   "mark_processing! moves a creating payment to processing": async () =>
     markProcessingBang(await findPaymentBang(7), { now }),
@@ -95,6 +103,8 @@ const ACTIONS: Record<string, () => Promise<unknown>> = {
     await fireBalanceEventBang(balance, "mark_paid", { now });
   },
   "balance mark_paid! from unpaid is not a transition": balanceEvent("mark_paid"),
+  "BankAccount#mark_deleted! enqueues the recommendability refresh when it was the last payout method": deleteBankAccount,
+  "BankAccount#mark_deleted! leaves recommendability alone while the seller has a PayPal address": deleteBankAccount,
   "Credit.create_for_returned_payment_difference! writes the credit, its balance transaction and the balance":
     returnedDifference(-137),
   "Credit.create_for_returned_payment_difference! adds to the day's existing balance": returnedDifference(250),
