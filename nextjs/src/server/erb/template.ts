@@ -31,6 +31,8 @@ export type ErbTable = {
   loops?: Record<string, (scope: Scope) => Scope[]>;
   // `<% source %>`, an assignment to the scope
   statements?: Record<string, (scope: Scope) => void>;
+  // `<%= source do %> body <% end %>` whose helper is not a call with literal arguments; `body` is the captured output
+  blocks?: Record<string, (scope: Scope, body: SafeString) => Html>;
   // `<%= helper arg, key: value %>` calls with literal arguments
   helpers?: Helpers;
 };
@@ -272,7 +274,8 @@ function run(nodes: Node[], scope: Scope, table: ErbTable): string {
       }
       case "capture": {
         const body = new SafeString(run(node.body, scope, table));
-        output += html(evaluateCall(node.source, table.helpers ?? {}, body));
+        const closure = table.blocks?.[node.source];
+        output += html(closure ? closure(scope, body) : evaluateCall(node.source, table.helpers ?? {}, body));
         break;
       }
       case "each": {

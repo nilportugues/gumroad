@@ -215,8 +215,37 @@ function reviewCard(locals: Record<string, unknown>, block: SafeString): string 
   return renderErb("home/shared/_review_card.html.erb", { values: { yield: () => block, name: () => name } });
 }
 
-// The helpers the home views call with literal arguments.
-export function homeHelpers(config: DomainConfig): Helpers {
+// `<%= javascript_tag nonce: SecureHeaders.content_security_policy_script_nonce(request), data: { cfasync: "false" } do %>`:
+// JavaScriptHelper#javascript_tag wraps the block in a CDATA section.
+const JAVASCRIPT_TAG =
+  'javascript_tag nonce: SecureHeaders.content_security_policy_script_nonce(request), data: { cfasync: "false" }';
+function scriptPartial(file: string, nonce: string | undefined): string {
+  if (nonce === undefined) throw new NotPortedError(`${file} without a CSP nonce`);
+  return renderErb(file, {
+    blocks: {
+      [JAVASCRIPT_TAG]: (_scope, body) =>
+        new SafeString(`<script nonce="${nonce}" data-cfasync="false">\n//<![CDATA[\n${body.value}\n//]]>\n</script>`),
+    },
+  });
+}
+
+function testimonialSlide(config: DomainConfig, keywords: Record<string, unknown>): string {
+  const local = (key: string) => required(keywords, key);
+  return renderErb("home/shared/_testimonial_slide.html.erb", {
+    values: {
+      image_url: () => local("image_url"),
+      name: () => local("name"),
+      profile_url: () => local("profile_url"),
+      username: () => local("username"),
+      quote: () => local("quote"),
+      product_type: () => local("product_type"),
+    },
+    helpers: homeHelpers(config),
+  });
+}
+
+// The helpers the home views call with literal arguments. `nonce` is the page's CSP script nonce.
+export function homeHelpers(config: DomainConfig, nonce?: string): Helpers {
   return {
     render: ({ positional, keywords, block }) => {
       const partial = positional[0] ?? keywords.partial ?? keywords.layout;
@@ -244,6 +273,12 @@ export function homeHelpers(config: DomainConfig): Helpers {
           return new SafeString(sectionHeader(config, keywords));
         case "home/shared/section_cta":
           return new SafeString(sectionCta(config, keywords));
+        case "home/shared/testimonial_slide":
+          return new SafeString(testimonialSlide(config, keywords));
+        case "home/shared/carousel":
+          return new SafeString(scriptPartial("home/shared/_carousel.html.erb", nonce));
+        case "home/shared/hero_parallax":
+          return new SafeString(scriptPartial("home/shared/_hero_parallax.html.erb", nonce));
         case "home/shared/accordion_item":
           return new SafeString(accordionItem(locals));
         case "home/shared/review_card":
@@ -266,6 +301,7 @@ export function homeHelpers(config: DomainConfig): Helpers {
     image_tag: ({ positional, keywords }) =>
       imageTag(imagePath(config, String(positional[0])), keywords as Attributes),
     link_to: ({ positional, keywords }) => linkTo(String(positional[0]), String(positional[1]), keywords as Attributes),
+    image_path: ({ positional }) => imagePath(config, String(positional[0])),
     help_center_article_path: ({ positional }) => `/help/article/${String(positional[0])}`,
     ...Object.fromEntries(Object.entries(PATHS).map(([name, value]) => [name, () => value])),
   };

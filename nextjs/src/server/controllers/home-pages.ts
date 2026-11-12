@@ -53,6 +53,12 @@ const HOME_PAGES: Record<string, HomePage> = {
     description:
       "Build a niche marketplace using Gumroad OSS. $100K in prizes for the best marketplace ideas and implementations.",
   },
+  features: {
+    view: "home/features.html.erb",
+    title: "Gumroad features: Sell digital products, memberships & courses",
+    description:
+      "Instant digital delivery, memberships and courses, pay-what-you-want pricing, affiliates, email marketing, and worldwide tax handling. No monthly fees.",
+  },
   "small-bets": {
     view: "home/small_bets.html.erb",
     title: "Small Bets by Gumroad",
@@ -94,7 +100,7 @@ export function homePage(request: RailsRequest, action: ActionContext, name: str
     request,
     action,
     (origin) => ({ title: page.title, description: page.description, url: `${origin}/${name}` }) satisfies PageMeta,
-    (ctx) => renderErb(page.view, { helpers: homeHelpers(ctx.config), ...page.table?.(ctx) }),
+    (ctx) => renderErb(page.view, { helpers: homeHelpers(ctx.config, ctx.nonce), ...page.table?.(ctx) }),
     // The params are read only by edge_cacheable_request?, which runs its last test for a cookie-less GET.
     { paramsRead: request.cookies.size === 0, ...(cacheable ? { headers: { "cache-control": EDGE_CACHE_CONTROL } } : {}) },
   );
