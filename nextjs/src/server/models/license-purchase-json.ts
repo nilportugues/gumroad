@@ -1,8 +1,7 @@
 // The `purchase` of a license response in Api::V2::LicensesController#success_with_license:
 // `purchase.payload_for_ping_notification.merge(purchase_as_json(purchase))`, where the second hash is the WHITELIST_PURCHASE_ATTRIBUTES
-// slice of `Purchase#as_json_for_license`. Only the plain purchase is ported: a gift, preorder, affiliate, offer code, variant, SKU,
-// custom field, shipped product or recurring charge raises NotPortedError before anything is written, and the dispatcher hands the
-// request to Rails.
+// slice of `Purchase#as_json_for_license`. A gift, preorder, affiliate, SKU, several variants, a file custom field, a shipped product or
+// a recurring charge raises NotPortedError before anything is written, and the dispatcher hands the request to Rails.
 import { Prisma } from "@prisma/client";
 
 import { encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
@@ -10,11 +9,12 @@ import { findLink, findUserById, type LinkRow, type UserRow } from "../presenter
 import { longUrl } from "../presenters/product.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
+import { moneyFormatWithGemSymbol } from "./concerns/money-formatter.ts";
 import { LinkFlags } from "./link.ts";
+import { castBoolean, timeJson } from "./purchase-json.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { SubscriptionFlags } from "./subscription.ts";
 import { NotPortedError } from "./user.ts";
-import { timeJson } from "./purchase-json.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -61,6 +61,79 @@ async function subscriptionRecurrence(subscription: Row): Promise<string> {
   return price.recurrence;
 }
 
+const BASE_VARIANT_IS_DEFAULT_SKU = 1;
+
+// `purchase.variant_attributes` as one tier of a Variant row. A SKU, several variants (the join has no order) and a default SKU
+// stay with Rails.
+async function singleVariant(purchase: Row): Promise<{ title: string; name: string } | null> {
+  const joins = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`base_variants_purchases`.*")} FROM ${table("base_variants_purchases")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id}`,
+  );
+  if (joins.length === 0) return null;
+  if (joins.length > 1) throw notPorted("several variants");
+  const [variant] = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${joins[0]!.base_variant_id} LIMIT 1`,
+  );
+  if (variant === undefined || variant.type === "Sku") throw notPorted("a SKU");
+  if ((Number(variant.flags ?? 0) & BASE_VARIANT_IS_DEFAULT_SKU) !== 0) throw notPorted("a default SKU");
+  const [category] = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`variant_categories`.*")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} = ${variant.variant_category_id} LIMIT 1`,
+  );
+  if (category === undefined) throw notPorted("a variant with no category");
+  return { title: category.title, name: variant.name };
+}
+
+// ProductsHelper#variants_displayable
+const variantsDisplayable = (name: string): string => (name === "Untitled" ? "" : `(${name})`);
+
+// `Purchase#custom_fields`, each value cast as PurchaseCustomField#value does.
+async function customFieldsOf(purchase: Row): Promise<{ name: string; value: string | boolean | null }[]> {
+  const rows = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`purchase_custom_fields`.*")} FROM ${table("purchase_custom_fields")} WHERE ${column("purchase_custom_fields", "purchase_id")} = ${purchase.id} ORDER BY ${column("purchase_custom_fields", "id")} ASC`,
+  );
+  return rows.map((field) => {
+    if (field.field_type === "fileUpload" || field.field_type === "file") throw notPorted("a file custom field");
+    // The payload sets each name as a key: a numeric key sorts first in a JS object, and `__proto__` is not a key.
+    if (/^\d+$/u.test(String(field.name)) || field.name === "__proto__")
+      throw notPorted("a custom field whose name is not an ordinary key");
+    const boolean = field.field_type === "checkbox" || field.field_type === "terms";
+    return { name: field.name, value: boolean ? castBoolean(field.value) : String(field.value ?? "") };
+  });
+}
+
+type OfferCodeJson = { code: string; displayed_amount_off: string; name: string };
+
+// The `offer_code` of `Purchase#as_json`: the discount as the buyer got it (the cached PurchaseOfferCodeDiscount), else the offer
+// code row. The amount is formatted by the money gem itself, which `moneyFormatWithGemSymbol` ports.
+async function offerCodeJson(purchase: Row, link: LinkRow): Promise<OfferCodeJson | null> {
+  const [offerCode] = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`offer_codes`.*")} FROM ${table("offer_codes")} WHERE ${column("offer_codes", "id")} = ${purchase.offer_code_id} LIMIT 1`,
+  );
+  if (offerCode === undefined) return null;
+  const [cached] = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`purchase_offer_code_discounts`.*")} FROM ${table("purchase_offer_code_discounts")} WHERE ${column("purchase_offer_code_discounts", "purchase_id")} = ${purchase.id} LIMIT 1`,
+  );
+  let cents: number | null;
+  let percentage: number | null;
+  if (cached === undefined) {
+    cents = offerCode.amount_cents == null ? null : Number(offerCode.amount_cents);
+    percentage = offerCode.amount_percentage == null ? null : Number(offerCode.amount_percentage);
+  } else {
+    const [original] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`offer_codes`.*")} FROM ${table("offer_codes")} WHERE ${column("offer_codes", "id")} = ${cached.offer_code_id} LIMIT 1`,
+    );
+    if (original === undefined) throw notPorted("a discount whose offer code is gone");
+    const isPercent = truthy(cached.offer_code_is_percent);
+    cents = isPercent ? null : Number(cached.offer_code_amount);
+    percentage = isPercent ? Number(cached.offer_code_amount) : null;
+  }
+  const displayed =
+    cents === null
+      ? `${percentage ?? ""}%`
+      : moneyFormatWithGemSymbol(cents, String(link.price_currency_type), { noCentsIfWhole: true });
+  return { code: offerCode.code, displayed_amount_off: displayed, name: offerCode.code };
+}
+
 export async function licensePurchaseJson(purchase: Row, license: Row): Promise<Record<string, unknown>> {
   const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
   const link: LinkRow | null = purchase.link_id == null ? null : await findLink(purchase.link_id);
@@ -76,12 +149,11 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
     truthy(link.require_shipping)
   )
     throw notPorted("a shipped or SKU product");
-  if (purchase.offer_code_id != null) throw notPorted("an offer code purchase");
   if (purchase.affiliate_id != null || (await exists("affiliate_credits", "purchase_id", purchase.id)))
     throw notPorted("an affiliate purchase");
-  if (await exists("base_variants_purchases", "purchase_id", purchase.id)) throw notPorted("a purchase with variants");
-  if (await exists("purchase_custom_fields", "purchase_id", purchase.id))
-    throw notPorted("a purchase with custom fields");
+  const variant = await singleVariant(purchase);
+  const customFields = await customFieldsOf(purchase);
+  const offerCode = purchase.offer_code_id == null ? null : await offerCodeJson(purchase, link);
 
   const recurringBilling = LinkFlags.isSet(link.flags, "is_recurring_billing");
   let subscription: Row | null = null;
@@ -92,8 +164,7 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
     if (subscription === null) throw notPorted("a purchase whose subscription is gone");
     if (!flags("is_original_subscription_purchase")) throw notPorted("a recurring charge");
     // `subscription.custom_fields` delegates to the original purchase, and the ping reads them when the purchase has none.
-    if (await exists("purchase_custom_fields", "purchase_id", purchase.id))
-      throw notPorted("a subscription with custom fields");
+    if (customFields.length > 0) throw notPorted("a subscription with custom fields");
     const [others] = await selectRows<{ total: bigint }>(
       Prisma.sql`SELECT COUNT(*) AS total FROM ${table("purchase_custom_fields")} INNER JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("purchase_custom_fields", "purchase_id")} WHERE ${column("purchases", "subscription_id")} = ${subscription.id}`,
     );
@@ -137,7 +208,12 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   if (present(purchase.full_name)) payload.full_name = purchase.full_name;
   if (purchaser !== null) payload.purchaser_id = purchaser.external_id;
   if (subscription !== null) payload.subscription_id = encrypt(subscription.id);
+  if (variant !== null) payload.variants = { [variant.title]: variant.name };
+  if (offerCode !== null) payload.offer_code = offerCode.code;
   if (purchaser !== null && String(purchaser.id) === String(seller.id)) payload.test = true;
+  for (const field of customFields) payload[field.name] = field.value;
+  if (customFields.length > 0)
+    payload.custom_fields = Object.fromEntries(customFields.map((field) => [field.name, field.value]));
   if (licenseKey !== null) {
     payload.license_key = licenseKey;
     payload.is_multiseat_license = flags("is_multiseat_license");
@@ -153,9 +229,10 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   const asJson: Record<string, unknown> = {
     id: encrypt(purchase.id),
     created_at: timeJson(purchase.created_at),
-    variants: "",
-    custom_fields: [],
+    variants: variant === null ? "" : variantsDisplayable(variant.name),
+    custom_fields: customFields.map((field) => `${field.name}: ${field.value ?? ""}`),
   };
+  if (offerCode !== null) asJson.offer_code = offerCode;
   if (recurringBilling) {
     // `refunded` is the raw column here, which `delete_if nil` drops.
     if (stripeRefunded !== null) asJson.refunded = stripeRefunded;

@@ -88,16 +88,108 @@ describe("licensePurchaseJson", () => {
     );
   });
 
-  it("hands back a purchase with an offer code", async () => {
-    database({ links: [link], users: [seller] });
+  it("serializes the offer code as the buyer got it, over the row's current amount", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      offer_codes: [{ id: 4n, code: "SAVE10", amount_cents: 100, amount_percentage: null }],
+      purchase_offer_code_discounts: [
+        { purchase_id: 3n, offer_code_id: 4n, offer_code_amount: 25, offer_code_is_percent: true },
+      ],
+    });
 
-    await expect(licensePurchaseJson({ ...purchase, offer_code_id: 4n }, license)).rejects.toThrow(/offer code/u);
+    const json = await licensePurchaseJson({ ...purchase, offer_code_id: 4n }, license);
+
+    expect(json).toMatchObject({
+      offer_code: { code: "SAVE10", displayed_amount_off: "25%", name: "SAVE10" },
+    });
   });
 
-  it("hands back a purchase with variants", async () => {
-    database({ links: [link], users: [seller], base_variants_purchases: [{ purchase_id: 3n }] });
+  it("formats a fixed offer code with the currency symbol", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      offer_codes: [{ id: 4n, code: "SAVE", amount_cents: 1050, amount_percentage: null }],
+    });
 
-    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/variants/u);
+    const json = await licensePurchaseJson({ ...purchase, offer_code_id: 4n }, license);
+
+    expect(json.offer_code).toEqual({ code: "SAVE", displayed_amount_off: "$10.50", name: "SAVE" });
+  });
+
+  it("serializes one variant as the tier name and a map of its category", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      base_variants_purchases: [{ purchase_id: 3n, base_variant_id: 8n }],
+      base_variants: [{ id: 8n, type: "Variant", variant_category_id: 2n, name: "Gold", flags: 0 }],
+      variant_categories: [{ id: 2n, title: "Edition" }],
+    });
+
+    expect(await licensePurchaseJson(purchase, license)).toMatchObject({ variants: "(Gold)" });
+  });
+
+  it("hands back a purchase with several variants", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      base_variants_purchases: [
+        { purchase_id: 3n, base_variant_id: 8n },
+        { purchase_id: 3n, base_variant_id: 9n },
+      ],
+    });
+
+    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/several variants/u);
+  });
+
+  it("hands back a purchase with a SKU", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      base_variants_purchases: [{ purchase_id: 3n, base_variant_id: 8n }],
+      base_variants: [{ id: 8n, type: "Sku", variant_category_id: null, name: "Large", flags: 0 }],
+    });
+
+    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/SKU/u);
+  });
+
+  it("lists the custom fields as ping keys and as name and value strings", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      purchase_custom_fields: [
+        { id: 1n, purchase_id: 3n, field_type: "text", name: "Company", value: "Example Inc" },
+        { id: 2n, purchase_id: 3n, field_type: "checkbox", name: "Newsletter", value: "1" },
+      ],
+    });
+
+    const json = await licensePurchaseJson(purchase, license);
+
+    expect(json).toMatchObject({
+      Company: "Example Inc",
+      Newsletter: true,
+      custom_fields: ["Company: Example Inc", "Newsletter: true"],
+    });
+  });
+
+  it("hands back a custom field whose name is a number", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      purchase_custom_fields: [{ id: 1n, purchase_id: 3n, field_type: "text", name: "42", value: "answer" }],
+    });
+
+    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/ordinary key/u);
+  });
+
+  it("hands back a file custom field", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      purchase_custom_fields: [{ id: 1n, purchase_id: 3n, field_type: "file", name: "Upload", value: null }],
+    });
+
+    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/file custom field/u);
   });
 
   it("hands back a purchase of a subscription that is a recurring charge", async () => {
