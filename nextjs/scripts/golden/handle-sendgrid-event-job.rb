@@ -2,23 +2,25 @@
 
 # Produces nextjs/src/worker/jobs/__fixtures__/handle-sendgrid-event-job.golden.json: HandleSendgridEventJob run by the real app
 # against a scratch database as a Sidekiq job (support/sidekiq_executor.rb). The receipt path of HandleEmailEventInfo runs for real
-# (CustomerEmailInfo rows and their state machine); the installment, abandoned cart and piracy handlers, a receipt of a charge, a
+# (CustomerEmailInfo rows and their state machine, for a purchase or a charge); the installment, abandoned cart and piracy handlers, a
 # spam report on a receipt and a purchase id that is not a plain integer are what Node hands back to Rails, so those are recorded up
 # to the call a marker exception stands in for. Run it like publish-scheduled-post.rb:
 #
 #   bundle exec rails runner nextjs/scripts/golden/handle-sendgrid-event-job.rb   (env as in publish-scheduled-post.rb)
 require_relative "support/rails_cases"
 include RailsCases
+require_relative "support/piracy_notice_rows"
+include PiracyNoticeRows
 
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/handle-sendgrid-event-job.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
-TABLES = %w[preorders purchases email_infos].freeze
+TABLES = %w[preorders purchases email_infos email_info_charges charges users links piracy_reports].freeze
 
 Rails.logger = ActiveSupport::Logger.new(nil)
 
 class HandBackMarker < Exception; end # rubocop:disable Lint/InheritException
 
-[HandleEmailEventInfo::ForInstallmentEmail, HandleEmailEventInfo::ForAbandonedCartEmail, HandleEmailEventInfo::ForPiracyNotice].each do |handler|
+[HandleEmailEventInfo::ForInstallmentEmail, HandleEmailEventInfo::ForAbandonedCartEmail].each do |handler|
   handler.singleton_class.prepend(Module.new do
     def perform(*) = raise(HandBackMarker)
   end)
@@ -27,7 +29,9 @@ HandleEmailEventInfo::ForReceiptEmail.prepend(Module.new do
   def perform = email_event_info.type == :complained ? raise(HandBackMarker) : super
 end)
 CustomerEmailInfo.singleton_class.prepend(Module.new do
-  def find_or_initialize_for_charge(**) = raise(HandBackMarker)
+  def find_or_initialize_for_charge(charge_id:, **)
+    charge_id.to_s.match?(/\A\d{1,15}\z/) ? super : raise(HandBackMarker)
+  end
 
   def find_or_initialize_for_purchase(purchase_id:, **)
     purchase_id.to_s.match?(/\A\d{1,15}\z/) ? super : raise(HandBackMarker)
@@ -85,6 +89,52 @@ cases << run("no events", { "_json" => [] })
 cases << run("a list of untracked events", { "_json" => [record_level("processed"), record_level("processed", mailer_args: nil)] })
 cases << run("an untracked event before a tracked one", { "_json" => [record_level("processed"), record_level] })
 cases << run("a tracked event before an untracked one", { "_json" => [record_level, record_level("processed")] })
+CHARGE = { id: 9, order_id: 1, seller_id: 1, created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00" }.freeze
+
+def charge_cases(cases)
+  charged = ->(id, state, **o) { info_row(id, state, purchase_id: nil, **o) }
+  link = ->(id, email_info_id, charge_id = 9) { { id:, email_info_id:, charge_id: } }
+  %w[delivered open bounce click spamreport].each do |type|
+    %w[sent delivered opened bounced].each do |state|
+      cases << run("a #{type} charge receipt event for a #{state} row", { "_json" => [record_level(type, purchase_id: nil, charge_id: 9)] }, seed: { charges: [CHARGE], email_infos: [charged.(1, state, delivered_at: ("2026-01-02 00:00:00" if %w[delivered opened].include?(state)), opened_at: ("2026-01-03 00:00:00" if state == "opened"))], email_info_charges: [link.(1, 1)] })
+    end
+    cases << run("a #{type} charge receipt event with no row", { "_json" => [record_level(type, purchase_id: nil, charge_id: 9)] }, seed: { charges: [CHARGE] })
+  end
+  cases << run("a delivered charge receipt event for a charge that does not exist", { "_json" => [record_level(purchase_id: nil, charge_id: 9)] })
+  cases << run("a delivered charge receipt event with a zero charge id", { "_json" => [record_level(purchase_id: nil, charge_id: 0)] })
+  cases << run("a delivered charge receipt event with a charge id as a string", { "_json" => [record_level(purchase_id: nil, charge_id: "9")] }, seed: { charges: [CHARGE], email_infos: [charged.(1, "sent")], email_info_charges: [link.(1, 1)] })
+  cases << run("a delivered charge receipt event with a purchase id too", { "_json" => [record_level(charge_id: 9)] }, seed: { charges: [CHARGE], email_infos: [info_row(2, "sent"), charged.(1, "sent")], email_info_charges: [link.(1, 1)] })
+  cases << run("a delivered charge receipt event before the second send", { "_json" => [record_level(purchase_id: nil, charge_id: 9, timestamp: 1_768_000_000)] }, seed: { charges: [CHARGE], email_infos: [charged.(1, "sent", sent_at: "2026-01-01 00:00:00"), charged.(2, "sent", sent_at: "2026-02-01 00:00:00")], email_info_charges: [link.(1, 1), link.(2, 2)] })
+  cases << run("a delivered preorder charge receipt event", { "_json" => [record_level(mailer_method: "preorder_receipt", mailer_args: "[8]", purchase_id: nil, charge_id: 9)] }, seed: { charges: [CHARGE] })
+  cases << run("an opened charge receipt event followed by a delivered one", { "_json" => [record_level("open", purchase_id: nil, charge_id: 9), record_level(purchase_id: nil, charge_id: 9)] }, seed: { charges: [CHARGE] })
+end
+
+def piracy_cases(cases)
+  notice = ->(type = "delivered", **o) { { "_json" => [record_level(type, mailer_class: "PiracyReportMailer", mailer_method: "notice", mailer_args: "[4]", purchase_id: nil, **o)] } }
+  report = ->(**o) { piracy_report_row(4, **o) }
+  %w[delivered bounce open click spamreport].each do |type|
+    cases << run("a #{type} piracy notice event for a sent report", notice.(type), seed: piracy_seed(report.()))
+  end
+  cases << run("a delivered piracy notice event for a report that was delivered", notice.(), seed: piracy_seed(report.(delivered_at: "2026-01-03 00:00:00")))
+  cases << run("a bounce piracy notice event for a report with a delivery failure", notice.("bounce"), seed: piracy_seed(report.(delivery_failed_at: "2026-01-03 00:00:00")))
+  cases << run("a delivered piracy notice event without a timestamp", { "_json" => [record_level(mailer_class: "PiracyReportMailer", mailer_method: "notice", mailer_args: "[4]").except("timestamp")] }, seed: piracy_seed(report.()))
+  cases << run("a delivered piracy notice event with a float timestamp", notice.(timestamp: 1_762_000_000.75), seed: piracy_seed(report.()))
+  cases << run("a bounce piracy notice event with a float timestamp", notice.("bounce", timestamp: 1_762_000_000.5), seed: piracy_seed(report.()))
+  cases << run("an opened piracy notice event with a float timestamp", notice.("open", timestamp: 1_762_000_000.75), seed: piracy_seed(report.()))
+  cases << run("a delivered piracy notice event for another address", notice.(email: "other@example.com"), seed: piracy_seed(report.()))
+  cases << run("a delivered piracy notice event for the address in another case", notice.(email: "Buyer@EXAMPLE.com"), seed: piracy_seed(report.()))
+  cases << run("a delivered piracy notice event with no address", notice.(email: nil), seed: piracy_seed(report.(sent_to_email: nil)))
+  cases << run("a delivered piracy notice event with an address that is not text", notice.(email: 5), seed: piracy_seed(report.(sent_to_email: "5")))
+  cases << run("a delivered piracy notice event for a report that is gone", notice.())
+  cases << run("a delivered piracy notice event with args holding no number", notice.(mailer_args: "[x]"), seed: piracy_seed(report.()))
+  cases << run("a delivered piracy notice event of the old shape", { "_json" => [typed("delivered", type: "PiracyReportMailer.notice", identifier: "[4]")] }, seed: piracy_seed(report.()))
+  cases << run("a delivered piracy notice event for a report without a seller", notice.(), seed: piracy_seed(report.(), users: []))
+  cases << run("a delivered piracy notice event for a report without a product", notice.(), seed: piracy_seed(report.(), links: []))
+  cases << run("a delivered piracy notice event for a report with an invalid url", notice.(), seed: piracy_seed(report.(url: "ftp://example.org/a")))
+  cases << run("a piracy notice event followed by a receipt event", { "_json" => [notice.()["_json"].first, record_level] }, seed: piracy_seed(report.()).merge(email_infos: [info_row(1, "sent")]))
+  cases << run("a receipt event followed by a piracy notice event for a report without a product", { "_json" => [record_level, notice.()["_json"].first] }, seed: piracy_seed(report.(), links: []).merge(email_infos: [info_row(1, "sent")]))
+end
+
 def receipt_cases(cases)
   %w[delivered open bounce click spamreport].each do |type|
     cases << run("a #{type} receipt event with no row", { "_json" => [record_level(type)] })
@@ -102,8 +152,9 @@ def receipt_cases(cases)
   cases << run("a delivered receipt event with a purchase id that is not an integer", { "_json" => [record_level(purchase_id: "x")] })
   cases << run("a delivered receipt event with a float purchase id", { "_json" => [record_level(purchase_id: 3.5)] })
   cases << run("a delivered receipt event with a negative purchase id", { "_json" => [record_level(purchase_id: -3)] })
-  cases << run("a delivered receipt event with a charge id", { "_json" => [record_level(charge_id: 9)] }, seed: { email_infos: [info_row(1, "sent")] })
-  cases << run("a delivered receipt event with a zero charge id", { "_json" => [record_level(charge_id: 0)] })
+  cases << run("a delivered receipt event with a charge id that is not an integer", { "_json" => [record_level(charge_id: "x")] }, seed: { email_infos: [info_row(1, "sent")] })
+  cases << run("a delivered receipt event with a float charge id", { "_json" => [record_level(charge_id: 9.5)] })
+  cases << run("a delivered receipt event with a negative charge id", { "_json" => [record_level(charge_id: -9)] })
   cases << run("a delivered receipt event with a blank charge id", { "_json" => [record_level(charge_id: "")] }, seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a delivered preorder receipt event", { "_json" => [record_level(mailer_method: "preorder_receipt", mailer_args: "[8]")] }, seed: { email_infos: [info_row(1, "sent", email_name: "preorder_receipt")] })
   cases << run("a delivered preorder receipt event of the old shape", { "_json" => [typed(type: "CustomerMailer.preorder_receipt", identifier: "[8]")] })
@@ -128,12 +179,15 @@ def receipt_cases(cases)
   cases << run("two receipt events for one purchase", { "_json" => [record_level, record_level("open")] }, seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a delivered and an opened event, opened first", { "_json" => [record_level("open"), record_level] }, seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a receipt event followed by an installment event", { "_json" => [record_level, record_level(installment_id: 12)] }, seed: { email_infos: [info_row(1, "sent")] })
-  cases << run("a receipt event followed by a charge receipt", { "_json" => [record_level, record_level(charge_id: 9)] }, seed: { email_infos: [info_row(1, "sent")] })
+  cases << run("a receipt event followed by a charge receipt", { "_json" => [record_level, record_level(charge_id: 9)] }, seed: { email_infos: [info_row(1, "sent")], charges: [CHARGE] })
+  cases << run("a charge receipt followed by a charge receipt that is not an integer", { "_json" => [record_level(charge_id: 9), record_level(charge_id: "x")] }, seed: { email_infos: [info_row(1, "sent")], charges: [CHARGE] })
   cases << run("a receipt event followed by a string timestamp", { "_json" => [record_level, record_level(timestamp: "x")] }, seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a receipt event followed by an untracked one", { "_json" => [record_level, record_level("processed")] }, seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a receipt event as one event", { "_json" => record_level("open") }, seed: { email_infos: [info_row(1, "sent")] })
 end
 receipt_cases(cases)
+charge_cases(cases)
+piracy_cases(cases)
 
 cases << run("no _json key", {})
 cases << run("a null _json", { "_json" => nil })

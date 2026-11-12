@@ -58,6 +58,16 @@ LIVE = "auto_resume_stalled_post_blasts"
 
 def entry(klass, id, jid: "jid#{id}") = { class: klass, args: [id], jid:, queue: "default", retry: 10, created_at: 1.0, enqueued_at: 1.0 }.to_json
 def dead(klass, id, **) = ->(r) { r.zadd("dead", 1_700_000_000, entry(klass, id, **)) }
+# The keys unique-jobs holds for a job's digest (a lock that was never released), as Job.add_digest derives it from the entry.
+def locked(klass, id, jid: "jid#{id}") = lambda do |r|
+  digest = SidekiqUniqueJobs::LockDigest.call({ "class" => klass, "queue" => "default", "lock_prefix" => "uniquejobs", "lock_args" => [id] })
+  r.set(digest, jid)
+  r.rpush("#{digest}:QUEUED", jid)
+  r.rpush("#{digest}:PRIMED", jid)
+  r.hset("#{digest}:LOCKED", jid, "1700000000.5")
+  r.set("#{digest}:INFO", "{}")
+  r.zadd("uniquejobs:digests", 1_700_000_000, digest)
+end
 def retrying(klass, id, **) = ->(r) { r.zadd("retry", 1_700_000_000, entry(klass, id, **)) }
 def queued(klass, id, **) = ->(r) { r.lpush("queue:default", entry(klass, id, **)) }
 def busy(klass, id, payload: nil, process: "host:1:abc") = lambda do |r|
@@ -89,6 +99,8 @@ def run(name, blasts: [], sent: [], race: nil, live: false, redis_setup: [], aft
     AlertOnStalledPostEmailBlastsJob.new.perform
   end
   result.delete("seed")
+  # The changelog entries sidekiq-unique-jobs wrote (the snapshot keeps only their number).
+  result["changelog"] = redis.zrange("uniquejobs:changelog", 0, -1, with_scores: true).map { |member, score| [member, score] }
   result
 end
 
@@ -127,6 +139,16 @@ cases << run("an unaccounted blast, auto-resume off", blasts: [STALLED.()])
 cases << run("an unaccounted blast, auto-resume on", blasts: [STALLED.()], live: true)
 cases << run("a dead blast, auto-resume off", blasts: [STALLED.()], redis_setup: [dead(SENDER, 1)])
 cases << run("a dead blast, auto-resume on", blasts: [STALLED.()], live: true, redis_setup: [dead(SENDER, 1)])
+cases << run("a dead blast with its lock held, auto-resume on", blasts: [STALLED.()], live: true, redis_setup: [dead(SENDER, 1), locked(SENDER, 1)])
+cases << run("a dead blast with a lock held under another jid, auto-resume on", blasts: [STALLED.()], live: true, redis_setup: [dead(SENDER, 1), locked(SENDER, 1, jid: "other")])
+cases << run("a dead blast with another blast's lock held, auto-resume on", blasts: [STALLED.()], live: true, redis_setup: [dead(SENDER, 1), locked(SENDER, 2)])
+cases << run("a dead slice with its lock held, auto-resume on", blasts: [STALLED.()], live: true, redis_setup: [dead(SLICE, 1), locked(SLICE, 1)])
+cases << run("two dead blasts with a lock held, auto-resume on", blasts: [blast(1, hours_ago(6)), blast(2, hours_ago(7))], live: true, redis_setup: [dead(SENDER, 1), dead(SENDER, 2), locked(SENDER, 2)])
+cases << run("a dead blast with its lock held, auto-resume off", blasts: [STALLED.()], redis_setup: [dead(SENDER, 1), locked(SENDER, 1)])
+cases << run("a dead blast with a queue named in the entry", blasts: [STALLED.()], live: true, redis_setup: [->(r) { r.zadd("dead", 1_700_000_000, { class: SENDER, args: [1], jid: "jid1", queue: "low", retry: 10 }.to_json) }])
+cases << run("a dead blast with a string argument", blasts: [STALLED.()], live: true, redis_setup: [->(r) { r.zadd("dead", 1_700_000_000, { class: SENDER, args: ["1"], jid: "jid1", queue: "default" }.to_json) }])
+cases << run("a dead blast with unique_across_queues in the entry", blasts: [STALLED.()], live: true, redis_setup: [->(r) { r.zadd("dead", 1_700_000_000, { class: SENDER, args: [1], jid: "jid1", queue: "default", unique_across_queues: true }.to_json) }])
+cases << run("a dead blast with no queue in the entry", blasts: [STALLED.()], live: true, redis_setup: [->(r) { r.zadd("dead", 1_700_000_000, { class: SENDER, args: [1], jid: "jid1" }.to_json) }])
 cases << run("a dead slice, auto-resume on", blasts: [STALLED.()], live: true, redis_setup: [dead(SLICE, 1)])
 cases << run("a dead sender and a dead slice of one blast", blasts: [STALLED.()], live: true, redis_setup: [dead(SENDER, 1), dead(SLICE, 1, jid: "slice")])
 cases << run("a dead job of another class", blasts: [STALLED.()], live: true, redis_setup: [dead("OtherJob", 1)])

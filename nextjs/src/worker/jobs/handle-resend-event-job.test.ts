@@ -1,5 +1,5 @@
 // Replays handle-resend-event-job.golden.json (scripts/golden/handle-resend-event-job.rb): HandleResendEventJob run by the real app
-// as a Sidekiq job. Node drops the events Rails drops, runs the receipt events (the CustomerEmailInfo statements Rails sent) and the
+// as a Sidekiq job. Node drops the events Rails drops, runs the receipt events of a purchase or a charge (the CustomerEmailInfo statements Rails sent) and the
 // events no handler claims, and hands back the ones another handler acts on or Rails fails on, before any statement. A payload whose
 // date or workflow ids Node cannot judge exactly is handed back even where Rails drops it (CONSERVATIVE).
 import { readFileSync } from "node:fs";
@@ -36,6 +36,13 @@ const CONSERVATIVE = new Set([
   "a delivered event with a created_at that does not parse",
 ]);
 
+// Piracy notices Node hands back before any statement though Rails runs them: a recipient that is not text or not ASCII (casecmp?
+// folds Unicode), and a report id too long for a plain integer (Rails answers without a query).
+CONSERVATIVE.add("a delivered piracy notice with a non-ASCII recipient");
+CONSERVATIVE.add("a delivered piracy notice with a recipient that is not text");
+CONSERVATIVE.add("a delivered piracy notice with a report id too long for a plain integer");
+const READ_THEN_HAND_BACK = new Set<string>();
+
 beforeEach(() => vi.stubEnv("MAILER_HEADERS_ENCRYPTION_KEY_V1", "test_encryption_key"));
 afterEach(() => vi.unstubAllEnvs());
 
@@ -63,6 +70,29 @@ describe("HandleResendEventJob", () => {
         error = e;
       }
 
+      // A charge receipt for a charge that is gone fails the state machine after its reads, with the transaction rolled back; a piracy
+      // report whose seller or product is gone fails its validations the same way.
+      if (
+        c.error?.class === "StateMachines::InvalidTransition" ||
+        (c.error?.class === "ActiveRecord::RecordInvalid" &&
+          /^Validation failed: (Seller|Product) must exist/u.test(c.error.message))
+      ) {
+        expect((error as Error | null)?.message).toBe(c.error.message);
+        expect(sql.log).toEqual(sql.expected);
+        return;
+      }
+      // A piracy report Node cannot judge once it has read it (its validations fail on text Node does not build the message of)
+      // is handed back after that one read, before BEGIN.
+      if (c.error?.class === "ActiveRecord::RecordInvalid") {
+        expect((error as Error | null)?.name).toBe("HandBackToRuby");
+        expect(sql.log).toEqual(sql.expected.slice(0, 1));
+        return;
+      }
+      if (READ_THEN_HAND_BACK.has(c.name)) {
+        expect((error as Error | null)?.name).toBe("HandBackToRuby");
+        expect(sql.log).toEqual(sql.expected.slice(0, 1));
+        return;
+      }
       const handedBack = c.hands_back || c.error !== null || CONSERVATIVE.has(c.name);
       expect((error as Error | null)?.name ?? null).toBe(handedBack ? "HandBackToRuby" : null);
       expect(sql.log).toEqual(handedBack ? [] : sql.expected);

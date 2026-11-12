@@ -1,7 +1,8 @@
 // Replays alert-on-stalled-post-email-blasts-job.golden.json (scripts/golden/alert-on-stalled-post-email-blasts-job.rb): the job run by
 // the real app as a Sidekiq job. Node sends the statements Rails sent for the abandoned-blast expiry and the candidate read, scans the
-// dead, retry, queued and busy sets the case started from (`redis_before`), claims the same markers, pushes the same
-// SendPostBlastEmailsJob and InternalNotificationWorker jobs and removes the same dead entries.
+// dead, retry, queued and busy sets the case started from (`redis_before`), claims the same markers and pushes the same
+// SendPostBlastEmailsJob and InternalNotificationWorker jobs. The cases that remove a dead entry run sidekiq-unique-jobs' Lua, so
+// they replay against a real Redis in alert-on-stalled-post-email-blasts-job.redis.test.ts.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -29,6 +30,7 @@ type Case = {
   statements: Statement[];
   redis: RedisSnapshot;
   redis_before?: RedisSnapshot;
+  changelog?: [string, number][];
 };
 const golden = parseRubyJson(
   readFileSync(new URL("./__fixtures__/alert-on-stalled-post-email-blasts-job.golden.json", import.meta.url), "utf8"),
@@ -46,6 +48,11 @@ const removesDeadEntry = (c: Case) => {
 };
 
 const FLAG = "auto_resume_stalled_post_blasts";
+// Dead entries Rails derives a digest from where Node does not: another digest option, or no queue to put in it.
+const HANDS_BACK = new Set([
+  "a dead blast with unique_across_queues in the entry",
+  "a dead blast with no queue in the entry",
+]);
 
 type Stored = RedisSnapshot[string];
 
@@ -70,6 +77,7 @@ function scratchRedis(before: RedisSnapshot, afterScan?: (store: Map<string, Sto
       if (key === "queue:default" && (queueReads += 1) === 1) afterScan?.(store);
       return Promise.resolve(result);
     },
+    removeDeadEntry: () => Promise.reject(new Error("removing a dead entry needs a real Redis")),
     zscanMembers: (key, text) =>
       Promise.resolve(
         (members(key) as [string, number][]).map(([member]) => member).filter((member) => member.includes(text)),
@@ -161,13 +169,15 @@ describe("AlertOnStalledPostEmailBlastsJob", () => {
       const { error, sql, recording, scratch } = await run(c, undefined, { afterScan: after });
 
       expect(sql.log).toEqual(sql.expected);
-      if (removesDeadEntry(c)) {
-        // Rails drops the dead entry through sidekiq-unique-jobs; Node hands the run back before its first resume write.
+      if (HANDS_BACK.has(c.name)) {
+        // A dead entry whose unique-jobs digest Node does not derive: handed back before the first resume write.
         expect(error?.name).toBe("HandBackToRuby");
         expect(recording.snapshot()).toEqual({});
-        if (!after) expect(Object.fromEntries(scratch.store)).toEqual(c.redis_before ?? {});
+        expect(Object.fromEntries(scratch.store)).toEqual(c.redis_before ?? {});
         return;
       }
+      // Rails drops the dead entry through sidekiq-unique-jobs: replayed in the real Redis test.
+      if (removesDeadEntry(c)) return;
       expect(error).toBeNull();
       expect(merged(scratch.store, recording.snapshot())).toEqual(c.redis);
     });

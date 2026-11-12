@@ -1,23 +1,29 @@
 // Port of app/sidekiq/alert_on_stalled_post_email_blasts_job.rb: the abandoned-blast expiry (PostEmailBlast.expire, a double-checked
 // update_all), the candidate read, the dead, retry, queued and busy Sidekiq set scans, each blast's resume decision (the NX
 // markers, SendPostBlastEmailsJob pushes, the dead entry removed after the push) and the InternalNotificationWorker alert.
+// Removing a dead entry is Sidekiq::SortedEntry#delete: a ZREM, and when it removed the entry sidekiq-unique-jobs' delete.lua over the
+// digest Job.add_digest derives from the entry (class, queue and args; the blast senders declare no lock, so a clean run holds no key
+// and the script only leaves a changelog entry). The gem unlocks twice when the first run removed keys (JobSet#delete_by_value, then
+// SortedEntry#delete). Node runs the gem's own script, so a held lock is deleted and counted the same way.
 // Read-only checks that Rails would act on differently than Node can reproduce hand back before the first resume write: a flag
-// on a percentage of time or an expression gate, an unreadable quota deferral time, a Sidekiq entry that is not JSON. A failed
+// on a percentage of time or an expression gate, an unreadable quota deferral time, a Sidekiq entry that is not JSON or that carries
+// uniqueness options Node does not derive a digest from. A failed
 // expiry hands back too, since Rails reports that error and carries on to the scan. The expiry has already been written by
 // then, which Rails' own re-run cannot tell apart: it finds the same rows expired.
 // Golden: __fixtures__/alert-on-stalled-post-email-blasts-job.golden.json (scripts/golden/alert-on-stalled-post-email-blasts-job.rb).
 import { Prisma } from "@prisma/client";
-
 import type { Redis } from "ioredis";
 
 import { parseGateValues, readFeatureDoc } from "../../server/infra/flipper.ts";
 import { getRedis } from "../../server/infra/redis.ts";
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
+import { lockDigest } from "../../server/jobs/sidekiq/item.ts";
+import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
+import { deleteLockBang } from "../../server/jobs/sidekiq/unique-lock.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { ago } from "../../server/models/concerns/ruby-time.ts";
-import { columnIn, execute, column, selectRows, table } from "../../server/models/sql.ts";
-
 import { RECIPIENT_FILTER_UNOPENED } from "../../server/models/post-email-blast.ts";
+import { columnIn, execute, column, selectRows, table } from "../../server/models/sql.ts";
 
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 
@@ -61,13 +67,19 @@ export type StalledBlastRedis = {
   lrange(key: string, start: number, stop: number): Promise<string[]>;
   // The members of a sorted set matching `*text*`, as ZSCAN MATCH returns them.
   zscanMembers(key: string, text: string): Promise<string[]>;
+  // `SortedEntry#delete` of a dead set entry: ZREM, then the unique-jobs lock delete when it removed the entry. `now` is the Ruby clock in seconds.
+  removeDeadEntry(member: string, now: number): Promise<void>;
 };
 export type StalledBlastDeps = { redis: (sidekiq: Redis) => StalledBlastRedis };
 
 const ZSCAN_COUNT = 100;
 
 function defaultRedis(sidekiq: Redis): StalledBlastRedis {
-  const main = getRedis("main");
+  return stalledBlastRedisOver(getRedis("main"), sidekiq);
+}
+
+// The commands over a main database (flags, blast keys) and Sidekiq's; one connection serves both where Ruby had one database.
+export function stalledBlastRedisOver(main: Redis, sidekiq: Redis): StalledBlastRedis {
   return {
     get: (key) => main.get(key),
     exists: (key) => main.exists(key),
@@ -85,6 +97,30 @@ function defaultRedis(sidekiq: Redis): StalledBlastRedis {
       } while (cursor !== "0");
       return members;
     },
+    async removeDeadEntry(member, now) {
+      if ((await sidekiq.zrem("dead", member)) === 0) return;
+      const item = deadItem(member);
+      // JobSet#delete_by_value unlocks and answers whether that removed any key; SortedEntry#delete unlocks again only if it did.
+      if (await deleteLockBang(sidekiq, item, now)) await deleteLockBang(sidekiq, item, now);
+    },
+  };
+}
+
+// Options that change how Job.add_digest derives the digest; the blast senders set none, and a payload that has one is left to Rails.
+const FLOAT_IN_ARGS = /"args":\[[^\]]*[.eE]/u;
+const DIGEST_OPTIONS = ["unique_across_queues", "unique_across_workers", "apartment", "lock_args_method"];
+
+// The dead entry as Locksmith sees it after Job.add_digest: the digest of class, queue and args, and the jid the changelog names.
+function deadItem(member: string) {
+  const item = parseJsonObject(member, "dead set entry");
+  if (typeof item.class !== "string" || typeof item.queue !== "string" || typeof item.jid !== "string")
+    throw new HandBackToRuby("a dead set entry without a class, queue and jid");
+  // A float argument (`1.0`) does not survive JSON.parse as the Float the digest is made of.
+  if (!Array.isArray(item.args) || DIGEST_OPTIONS.some((option) => option in item) || FLOAT_IN_ARGS.test(member))
+    throw new HandBackToRuby("a dead set entry whose unique-jobs digest Node does not derive");
+  return {
+    ...item,
+    lock_digest: lockDigest({ class: item.class, queue: item.queue, lock_args: item.args as JsonValue[] }, false),
   };
 }
 
@@ -281,9 +317,9 @@ export const alertOnStalledPostEmailBlastsJobWith = (
       throw new HandBackToRuby(`the abandoned-blast expiry failed: ${(error as Error).message}`);
     }
 
-    const rows = (await selectRows(
+    const rows = await selectRows(
       Prisma.sql`SELECT ${Prisma.raw("`post_email_blasts`.*")} FROM ${table(POST_EMAIL_BLASTS)} WHERE ${EXPIRABLE_PENDING} AND ${blasts("requested_at")} BETWEEN ${ago(LOOKBACK, now)} AND ${ago(STALL_THRESHOLD, now)} ORDER BY ${blasts("requested_at")} DESC LIMIT ${Prisma.raw(String(MAX_CANDIDATES_SCANNED + 1))}`,
-    )) as Blast[];
+    );
     if (rows.length === 0) return;
     const truncated = rows.length > MAX_CANDIDATES_SCANNED;
     const candidates = rows.slice(0, MAX_CANDIDATES_SCANNED);
@@ -305,7 +341,7 @@ export const alertOnStalledPostEmailBlastsJobWith = (
     const retrying = new Set(await scans.retrying());
     const queued = new Set(await scans.queued());
 
-    const entries: Entry[] = candidates.map((blast) => {
+    const entries: Entry[] = candidates.map((blast): Entry => {
       const id = String(blast.id);
       const emailedAt = blast.last_email_delivered_at as Date | null;
       const recent = emailedAt !== null && emailedAt.getTime() > ago(EMAIL_ACTIVITY_THRESHOLD, now).getTime();
@@ -317,17 +353,15 @@ export const alertOnStalledPostEmailBlastsJobWith = (
       else if (deferredUntil !== null && deferredUntil.getTime() > now.getTime()) disposition = "deferred";
       else if (dead.has(id)) disposition = "dead";
       else disposition = "unaccounted";
-      return { blast, disposition };
+      return { blast: blast as Blast, disposition };
     });
 
+    // The runtime clock in seconds, as Ruby's Time.now.to_f: the date `now` is rounded to milliseconds.
+    const nowSeconds = context.runtime.now();
     const live = await autoResumeActive(redis);
-    // Taking a dead entry out of the set goes through sidekiq-unique-jobs, which logs the unlock in its changelog (a `delete.lua`
-    // run Node does not have). Handed back before any resume write, since a blast resumed earlier in the loop cannot be undone.
-    if (live && entries.some((entry) => entry.disposition === "dead")) {
-      throw new HandBackToRuby(
-        "a dead blast to resume: removing its dead-set entry unlocks through sidekiq-unique-jobs",
-      );
-    }
+    // Judged before any resume write, since a blast resumed earlier in the loop cannot be undone.
+    if (live)
+      for (const entry of entries) if (entry.disposition === "dead") deadItem(dead.get(String(entry.blast.id))!);
 
     const recipientsOwed = async (blast: Blast) => {
       const pending = await redis.get(key.pending(blast.id));
@@ -345,6 +379,8 @@ export const alertOnStalledPostEmailBlastsJobWith = (
       );
       if (!claimed) return false;
       await performAsync("SendPostBlastEmailsJob", [entry.blast.id]);
+      // `@dead_entries.fetch(blast.id).delete if entry[:disposition] == :dead`, after the enqueue.
+      if (entry.disposition === "dead") await redis.removeDeadEntry(dead.get(String(entry.blast.id))!, nowSeconds);
       return true;
     };
 
