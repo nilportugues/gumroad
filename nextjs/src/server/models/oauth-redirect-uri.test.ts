@@ -23,7 +23,12 @@ describe("redirectUriAllowed", () => {
   });
 
   it("hands a registered ftp, file, ldap or mailto URI back before judging", () => {
-    for (const registered of ["ftp://app.example.com/cb", "file:///cb", "ldap://app.example.com", "mailto:a@example.com"])
+    for (const registered of [
+      "ftp://app.example.com/cb",
+      "file:///cb",
+      "ldap://app.example.com",
+      "mailto:a@example.com",
+    ])
       expect(() => redirectUriAllowed("https://app.example.com/cb", registered)).toThrow(/not ported/u);
   });
 });

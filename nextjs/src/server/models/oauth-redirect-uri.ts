@@ -57,7 +57,10 @@ function ipv4Groups(text: string): number[] | null {
   const octets = text.split(".");
   if (octets.length !== IPV4_OCTETS || !octets.every((octet) => DEC_OCTET.test(octet) && Number(octet) <= OCTET_MAX))
     return null;
-  return [(Number(octets[0]) << BITS_PER_OCTET) | Number(octets[1]), (Number(octets[2]) << BITS_PER_OCTET) | Number(octets[3])];
+  return [
+    (Number(octets[0]) << BITS_PER_OCTET) | Number(octets[1]),
+    (Number(octets[2]) << BITS_PER_OCTET) | Number(octets[3]),
+  ];
 }
 
 // RFC 3986 IPv6address to its eight groups, or null where the grammar refuses it (Ruby raises URI::InvalidURIError).
