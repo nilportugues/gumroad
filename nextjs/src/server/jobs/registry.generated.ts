@@ -173,7 +173,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AnnualPayoutExportWorker": {
     "file": "app/sidekiq/annual_payout_export_worker.rb",
@@ -208,7 +208,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AutoTopUpNegativeDestinationBalancesJob": {
     "file": "app/sidekiq/auto_top_up_negative_destination_balances_job.rb",
@@ -431,7 +431,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ChargeSuccessfulPreordersWorker": {
     "file": "app/sidekiq/charge_successful_preorders_worker.rb",
@@ -612,7 +612,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateUsStateMonthlySalesReportsJob": {
     "file": "app/sidekiq/create_us_state_monthly_sales_reports_job.rb",
@@ -1220,7 +1220,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FindExpiredSubscriptionsToSetAsDeactivatedWorker": {
     "file": "app/sidekiq/find_expired_subscriptions_to_set_as_deactivated_worker.rb",
@@ -1478,7 +1478,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GoogleCalendarInviteJob": {
     "file": "app/sidekiq/google_calendar_invite_job.rb",
@@ -1718,7 +1718,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "MillionDollarMilestoneCheckWorker": {
     "file": "app/sidekiq/million_dollar_milestone_check_worker.rb",
@@ -1894,7 +1894,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ProcessPaymentWorker": {
     "file": "app/sidekiq/process_payment_worker.rb",
@@ -1966,7 +1966,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Radar::AddValueListItemJob": {
     "file": "app/sidekiq/radar/add_value_list_item_job.rb",
@@ -2615,7 +2615,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryFailedPaypalPayoutsWorker": {
     "file": "app/sidekiq/retry_failed_paypal_payouts_worker.rb",
@@ -3281,7 +3281,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SubmitPaypalDisputeEvidenceJob": {
     "file": "app/sidekiq/submit_paypal_dispute_evidence_job.rb",
@@ -3462,7 +3462,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "TriggerCommunityChatRecapRunJob": {
     "file": "app/sidekiq/trigger_community_chat_recap_run_job.rb",

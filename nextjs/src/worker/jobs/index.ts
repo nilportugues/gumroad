@@ -224,6 +224,18 @@ import { generateProductFilesArchivesJob } from "./generate-product-files-archiv
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { utmLinkSaleAttributionJob } from "./utm-link-sale-attribution-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
+import { processEarlyFraudWarningJob } from "./process-early-fraud-warning-job.ts";
+import { createStripeMerchantAccountWorker } from "./create-stripe-merchant-account-worker.ts";
+import { analyzeFileWorker } from "./analyze-file-worker.ts";
+import { transferDropboxFileToS3Worker } from "./transfer-dropbox-file-to-s3-worker.ts";
+import { generateVideoPosterWorker } from "./generate-video-poster-worker.ts";
+import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
+import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
+import { chargePreorderWorker } from "./charge-preorder-worker.ts";
+import { pushNotificationWorker } from "./push-notification-worker.ts";
+import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
+import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
+import { stripeRestraintNoticeEmailJob } from "./stripe-restraint-notice-email-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -430,6 +442,18 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
   RetryStripeJpAddressResyncForSellerJob: retryStripeJpAddressResyncForSellerJob,
   GenerateUsernameJob: generateUsernameJob,
+  ProcessEarlyFraudWarningJob: processEarlyFraudWarningJob,
+  CreateStripeMerchantAccountWorker: createStripeMerchantAccountWorker,
+  AnalyzeFileWorker: analyzeFileWorker,
+  TransferDropboxFileToS3Worker: transferDropboxFileToS3Worker,
+  GenerateVideoPosterWorker: generateVideoPosterWorker,
+  ResizeOversizedAssetPreviewWorker: resizeOversizedAssetPreviewWorker,
+  MassRefundForFraudJob: massRefundForFraudJob,
+  ChargePreorderWorker: chargePreorderWorker,
+  PushNotificationWorker: pushNotificationWorker,
+  FinalizeBuyerPresentmentPurchaseJob: finalizeBuyerPresentmentPurchaseJob,
+  AttachPastPurchasesToUserWorker: attachPastPurchasesToUserWorker,
+  StripeRestraintNoticeEmailJob: stripeRestraintNoticeEmailJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
