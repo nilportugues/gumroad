@@ -369,11 +369,11 @@ const errorClassName = (error: unknown) => {
 };
 
 // `user.active_bank_account`: bank_accounts.alive.first
-async function activeBankAccountId(user: UserRecord): Promise<unknown> {
-  const [row] = await selectRows<{ id: unknown }>(
+async function activeBankAccountRow(user: UserRecord): Promise<Record<string, unknown> | null> {
+  const [row] = await selectRows<Record<string, unknown>>(
     Prisma.sql`SELECT ${Prisma.raw("`bank_accounts`.*")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${user.get("id")} AND ${column("bank_accounts", "deleted_at")} IS NULL ORDER BY ${column("bank_accounts", "id")} ASC LIMIT 1`,
   );
-  return row?.id ?? null;
+  return row ?? null;
 }
 
 // `Payouts.create_payments(date, STRIPE, user, ...)`. `prepare` is `StripePayoutProcessor.prepare_payment_and_set_amount`, which is
@@ -392,12 +392,12 @@ export async function createPaymentsBang(
     const groups = await claimPayoutGroups(user, date, input);
     const payments: { payment: PaymentRecord; group: PayoutGroup }[] = [];
     for (const group of groups) {
-      let bankAccountId = await activeBankAccountId(user);
+      let bankAccount = await activeBankAccountRow(user);
       const accountCurrency =
         group.merchantAccount === null
           ? null
           : String((group.merchantAccount as unknown as { currency: unknown }).currency ?? "");
-      if (group.merchantAccount === null || group.currency !== accountCurrency) bankAccountId = null;
+      if (group.merchantAccount === null || group.currency !== accountCurrency) bankAccount = null;
       const payment = await createPaymentBang(
         {
           user,
@@ -413,7 +413,8 @@ export async function createPaymentsBang(
                   (group.merchantAccount as unknown as { charge_processor_merchant_id: unknown })
                     .charge_processor_merchant_id ?? "",
                 ),
-          bankAccountId,
+          bankAccountId: bankAccount?.id ?? null,
+          bankAccountRow: bankAccount,
           balances: group.balances.map((entry) => entry.balance),
         },
         options,

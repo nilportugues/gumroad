@@ -16,7 +16,10 @@ import { resetPayoutReadCollaborators, setPayoutReadCollaborators } from "./payo
 import { findUserBang, NotPortedError } from "./user.ts";
 
 type BalancesCase = GoldenCase & { balance_ids: number[] | null; cents_on_stripe: number | null };
-const golden = loadGolden(new URL("./__fixtures__/payouts-instant-balances.golden.json", import.meta.url)) as Golden & {
+const golden = loadGolden(new URL("./__fixtures__/payouts-instant-balances.golden.json", import.meta.url)) as Omit<
+  Golden,
+  "cases"
+> & {
   cases: BalancesCase[];
 };
 const now = () => new Date(Math.round(golden.now * 1000));

@@ -19,17 +19,24 @@ import {
 } from "../stripe/errors.ts";
 import { Payout } from "../stripe/resources.ts";
 
-import { BankAccountDeletable, BankAccounts } from "./bank-account.ts";
+import { assignBankAccountUser, BankAccountDeletable, BankAccounts } from "./bank-account.ts";
 import { jsonDataForAttr, setJsonDataForAttr } from "./concerns/json-data.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "./merchant-account.ts";
 import { reverseInternalTransferOrHoldPayoutsBang } from "./payment-hold.ts";
-import { markFailedBang, Payments, paymentBalances, paymentUser, type PaymentRecord } from "./payment.ts";
+import {
+  loadedBankAccountRow,
+  markFailedBang,
+  Payments,
+  paymentBalances,
+  paymentUser,
+  type PaymentRecord,
+} from "./payment.ts";
 import { FailureReason, stripeInvalidRequestErrorFailureReason } from "./payout-failure-reason.ts";
 import { buildMetadataLargeList, STRIPE_METADATA_MAX_KEYS_LENGTH } from "./payout-prepare.ts";
 import { PAYOUT_TYPE_INSTANT } from "./payouts.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
-import { NotPortedError } from "./user.ts";
+import { NotPortedError, type UserRecord } from "./user.ts";
 
 const PROCESSOR_REF = "app/business/payments/payouts/processor/stripe/stripe_payout_processor.rb perform_payment";
 const TRUNCATED_LENGTH = 1000;
@@ -53,9 +60,15 @@ export async function processPaymentsBang(payments: PaymentRecord[], options: Sa
   if (firstError !== null) throw firstError as Error;
 }
 
-async function bankAccountOf(payment: PaymentRecord) {
+async function bankAccountOf(payment: PaymentRecord, user: UserRecord) {
   const id = payment.get("bank_account_id");
   if (id == null) return null;
+  const loaded = loadedBankAccountRow(payment);
+  if (loaded !== null) {
+    const bank = BankAccounts.load(castRow<BankAccount>("BankAccount", loaded));
+    assignBankAccountUser(bank, user);
+    return bank;
+  }
   const [row] = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`bank_accounts`.*")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "id")} = ${id} LIMIT 1`,
   );
@@ -94,7 +107,7 @@ export async function performPaymentBang(payment: PaymentRecord, options: SaveOp
       payment.get("currency") === KRW
         ? Math.trunc(Number(payment.get("amount_cents")) / KRW_SUBUNITS)
         : Number(payment.get("amount_cents"));
-    bankAccount = await bankAccountOf(payment);
+    bankAccount = await bankAccountOf(payment, user);
     if (bankAccount === null) throw new NotPortedError("a payout that names no bank account", PROCESSOR_REF);
 
     const paymentExternalId = encrypt(payment.get("id"));

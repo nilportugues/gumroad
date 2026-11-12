@@ -89,7 +89,13 @@ export function isBalancePayable({ balance, account, holder }: HeldBalance): boo
 // `user.has_stripe_account_connected?`, for a seller it is false for.
 export async function assertNoStripeConnect(user: UserRecord): Promise<void> {
   // Rails reads the user's json_data on the way to the feature check, which counts a NULL column as changed.
-  if (!isFlagSet(user, "check_merchant_account_is_linked")) jsonData(user);
+  if (!isFlagSet(user, "check_merchant_account_is_linked")) {
+    const stored = user.get("json_data");
+    jsonData(user);
+    // The feature check also leaves every attribute materialized in column order unless the read above changed one (a NULL column
+    // becomes {}); PaperTrail's `object` of a later save lists them in that order.
+    if (stored != null) user.materializeAll();
+  }
   if (
     isFlagSet(user, "check_merchant_account_is_linked") ||
     (await collaborators.isFeatureEnabled(MERCHANT_MIGRATION_FEATURE, userActor(user.get("id"))))

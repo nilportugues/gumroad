@@ -147,8 +147,17 @@ export type NewPayment = {
   currency: string;
   stripeConnectAccountId: string | null;
   bankAccountId: unknown;
+  // The row `bank_account:` was assigned from, which stays loaded on the payment as the association target.
+  bankAccountRow?: Record<string, unknown> | null;
   balances: BalanceRecord[];
 };
+
+const loadedBankAccounts = new WeakMap<object, Record<string, unknown>>();
+// `payment.bank_account` when the payment was built with one in this process: no read, as the association is loaded.
+export function loadedBankAccountRow(payment: PaymentRecord): Record<string, unknown> | null {
+  const row = loadedBankAccounts.get(payment);
+  return row !== undefined && String(row.id) === String(payment.get("bank_account_id")) ? row : null;
+}
 
 // Payment.create!(user:, balances:, processor:, processor_fee_cents: 0, payout_period_end_date:, payout_type:, created_at:,
 // currency:, stripe_connect_account_id:, bank_account:) for a Stripe payout: the payment, then one payments_balances row per balance.
@@ -173,6 +182,7 @@ export function createPaymentBang(attributes: NewPayment, options: SaveOptions =
         options,
       );
     setPaymentBalances(payment, attributes.balances);
+    if (attributes.bankAccountRow) loadedBankAccounts.set(payment, attributes.bankAccountRow);
     return payment;
   });
 }
