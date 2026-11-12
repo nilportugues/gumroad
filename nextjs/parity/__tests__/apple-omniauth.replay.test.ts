@@ -11,7 +11,7 @@ import { readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { railsCookieSecrets } from "@/server/auth/rails-session-config";
 import { closeAllRedis } from "@/server/infra/redis";
 
-import { resolveTimeToken } from "../src/canonical";
+import { NOW_TOLERANCE_SECONDS, resolveTimeToken } from "../src/canonical";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { type CapturedHttp, loadFixture } from "../src/fixture";
@@ -112,7 +112,13 @@ const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 // A delayed job (the Elasticsearch update of an attached purchase, `perform_in(4.seconds)`, a reindex 10 seconds out) carries `at`. The fixture holds it
-// as "<now+4s>" or "<now+10s>", so it is reported as that delay from the drain, snapped to the even second the request's latency took it off.
+// as "<now+4s>" or "<now+10s>", so it is reported as that delay from the drain (measured on the server's clock, since the fake Date lags under load), snapped to the even second the request's latency took it off.
+// A delay within the tolerance of "<now>" is reported as none: the request's own latency between the fixture's clock reading and this drain would
+// otherwise push a 4 second delay past it.
+function snappedDelayMs(at: number): number {
+  const remaining = Math.max(0, at * 1000 - (realNow() + clockOffset));
+  return remaining <= NOW_TOLERANCE_SECONDS * 1000 ? 0 : Math.round(remaining / 2000) * 2000;
+}
 function redisJobs(redis: Redis): JobsChannel {
   return {
     async reset() {},
@@ -134,9 +140,7 @@ function redisJobs(redis: Redis): JobsChannel {
           class: item.class,
           args: item.args,
           queue: item.queue,
-          ...(item.at === undefined
-            ? {}
-            : { at: new Date(Date.now() + Math.round(Math.max(0, item.at * 1000 - Date.now()) / 2000) * 2000) }),
+          ...(item.at === undefined ? {} : { at: new Date(Date.now() + snappedDelayMs(item.at)) }),
         });
       }
       // Jobs still in Ruby are pushed in Sidekiq's own format.

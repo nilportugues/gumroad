@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { railsCookieSecrets } from "@/server/auth/rails-session-config";
@@ -39,6 +39,11 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 const TIME_TOKEN = /<now(?:[+-]\d+[smh])?>/gu;
+// The recording read "<now-4677h>" for the status date of the profile (2026-05-01T08:30:00Z), an hour count that moves with the wall clock. Both clocks
+// (this process's fake Date and the server's preload) are held at that instant, so the replay no longer depends on when it runs.
+const PARITY_NOW = Date.parse("2026-05-01T08:30:00Z") + 4677 * 3_600_000;
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item. The product reindexes a user save triggers ask Elasticsearch for documents the
 // replay does not hold, and Node then queues the fallback job Rails never needed.
@@ -276,8 +281,11 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
       });
     });
     await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
+    clockOffset = Math.round(PARITY_NOW - realNow());
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
@@ -296,9 +304,15 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
+  beforeEach(() => {
+    vi.setSystemTime(realNow() + clockOffset);
+  });
+
   afterAll(async () => {
+    vi.useRealTimers();
     await server.stop();
     rails.close();
     await new Promise((resolve) => standIn.close(resolve));
