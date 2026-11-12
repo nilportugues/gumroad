@@ -21,7 +21,7 @@ import {
   linkTo,
   SafeString,
 } from "./html.ts";
-import { type Helpers, readView, renderErb } from "./template.ts";
+import { type ErbTable, type Helpers, readView, renderErb } from "./template.ts";
 
 export type LayoutContext = {
   config: DomainConfig;
@@ -219,14 +219,44 @@ function reviewCard(locals: Record<string, unknown>, block: SafeString): string 
 // JavaScriptHelper#javascript_tag wraps the block in a CDATA section.
 const JAVASCRIPT_TAG =
   'javascript_tag nonce: SecureHeaders.content_security_policy_script_nonce(request), data: { cfasync: "false" }';
+export const scriptBlocks = (nonce: string): NonNullable<ErbTable["blocks"]> => ({
+  [JAVASCRIPT_TAG]: (_scope, body) =>
+    new SafeString(`<script nonce="${nonce}" data-cfasync="false">\n//<![CDATA[\n${body.value}\n//]]>\n</script>`),
+});
 function scriptPartial(file: string, nonce: string | undefined): string {
   if (nonce === undefined) throw new NotPortedError(`${file} without a CSP nonce`);
-  return renderErb(file, {
-    blocks: {
-      [JAVASCRIPT_TAG]: (_scope, body) =>
-        new SafeString(`<script nonce="${nonce}" data-cfasync="false">\n//<![CDATA[\n${body.value}\n//]]>\n</script>`),
+  return renderErb(file, { blocks: scriptBlocks(nonce) });
+}
+
+// ActionView's `number_with_delimiter` for an Integer.
+const withDelimiter = (value: number) => String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, ",");
+
+// home/shared/_testimonial.html.erb: the locals are the scope, so the file's own expressions evaluate.
+function testimonial(config: DomainConfig, locals: Record<string, unknown>): string {
+  return renderErb("home/shared/_testimonial.html.erb", { helpers: homeHelpers(config) }, locals);
+}
+
+// home/shared/_discovery_category.html.erb: the rows are literals in the file; only `row[:tags] * 2` is written out.
+function discoveryCategory(config: DomainConfig): string {
+  return renderErb("home/shared/_discovery_category.html.erb", {
+    helpers: homeHelpers(config),
+    loops: {
+      "(row[:tags] * 2).each do |tag|": (scope) => {
+        const tags = hashOf(scope.row).tags;
+        if (!Array.isArray(tags)) throw new NotPortedError("the discovery rows");
+        return [...tags, ...tags].map((tag) => ({ tag }));
+      },
     },
   });
+}
+
+// url_for with a `host` and query keys: Hash#to_query sorts the keys and CGI.escape writes a space as `+`.
+function taxonomyUrl(config: DomainConfig, taxonomy: string, options: Record<string, unknown>): string {
+  const { host, ...query } = options;
+  const pairs = Object.keys(query)
+    .sort()
+    .map((key) => `${key}=${encodeURIComponent(String(query[key])).replaceAll("%20", "+")}`);
+  return `${config.protocol}://${String(host)}/${taxonomy}${pairs.length > 0 ? `?${pairs.join("&")}` : ""}`;
 }
 
 function testimonialSlide(config: DomainConfig, keywords: Record<string, unknown>): string {
@@ -279,6 +309,10 @@ export function homeHelpers(config: DomainConfig, nonce?: string): Helpers {
           return new SafeString(scriptPartial("home/shared/_carousel.html.erb", nonce));
         case "home/shared/hero_parallax":
           return new SafeString(scriptPartial("home/shared/_hero_parallax.html.erb", nonce));
+        case "home/shared/testimonial":
+          return new SafeString(testimonial(config, keywords));
+        case "home/shared/discovery_category":
+          return new SafeString(discoveryCategory(config));
         case "home/shared/accordion_item":
           return new SafeString(accordionItem(locals));
         case "home/shared/review_card":
@@ -301,6 +335,13 @@ export function homeHelpers(config: DomainConfig, nonce?: string): Helpers {
     image_tag: ({ positional, keywords }) =>
       imageTag(imagePath(config, String(positional[0])), keywords as Attributes),
     link_to: ({ positional, keywords }) => linkTo(String(positional[0]), String(positional[1]), keywords as Attributes),
+    DISCOVER_DOMAIN: () => config.discoverDomain,
+    discover_taxonomy_url: ({ positional, keywords }) => taxonomyUrl(config, String(positional[0]), keywords),
+    number_with_delimiter: ({ positional }) => {
+      const [value] = positional;
+      if (typeof value !== "number") throw new NotPortedError("number_with_delimiter of a non-integer");
+      return withDelimiter(value);
+    },
     image_path: ({ positional }) => imagePath(config, String(positional[0])),
     help_center_article_path: ({ positional }) => `/help/article/${String(positional[0])}`,
     ...Object.fromEntries(Object.entries(PATHS).map(([name, value]) => [name, () => value])),

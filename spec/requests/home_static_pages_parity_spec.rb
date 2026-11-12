@@ -16,7 +16,7 @@ describe "Home static pages", type: :request do
     Rails.cache.write(stars_key, 12_345)
   end
 
-  %w[terms privacy prohibited dpa pricing features hackathon small-bets].each do |page|
+  %w[terms privacy prohibited dpa about pricing features saas hackathon small-bets].each do |page|
     describe "GET /#{page}" do
       it "renders the page edge cacheable for a visitor with no cookies", parity: true do
         get "/#{page}"
@@ -25,6 +25,35 @@ describe "Home static pages", type: :request do
         expect(set_cookies).to be_empty
         expect(response.headers["Cache-Control"]).to include("s-maxage=300")
       end
+    end
+  end
+
+  describe "GET /about" do
+    it "prints the payout figure Redis holds", parity: true do
+      $redis.set(RedisKey.prev_week_payout_usd, "1234567890")
+
+      get "/about"
+
+      expect(response).to be_successful
+      expect(response.body).to include("$1,234,567,890")
+    end
+
+    it "prints the default figure for a blank payout", parity: true do
+      $redis.set(RedisKey.prev_week_payout_usd, "  ")
+
+      get "/about"
+
+      expect(response).to be_successful
+      expect(response.body).to include("$3,129,297")
+    end
+
+    it "prints the payout figure to a visitor with a guid", parity: true do
+      $redis.set(RedisKey.prev_week_payout_usd, "987654")
+
+      get "/about", headers: { "Cookie" => "_gumroad_guid=abc123" }
+
+      expect(response.body).to include("$987,654")
+      expect(response.headers["Cache-Control"]).not_to include("public")
     end
   end
 
