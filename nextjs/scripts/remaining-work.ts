@@ -326,7 +326,7 @@ function sourceLiterals(): Set<string> {
         const text = readFileSync(full, "utf8");
         // A route key may carry the host scope Rails' constraints give it: `seller:/subscribe`.
         for (const match of text.matchAll(
-          /["'`](?:(?:seller|product|api|discover):)?(\/[A-Za-z0-9_:*./()[\]+=-]*)["'`]/gu,
+          /["'`](?:(?:seller|product|api|discover|analytics):)?(\/[A-Za-z0-9_:*./()[\]+=-]*)["'`]/gu,
         ))
           found.add(normalizeParams(match[1]!));
         // Dispatch tables keyed by a regex (`/^\/media_urls\/([^/.]+)(?:\.json)?$/u`) are routes too: read the capture groups as parameters.
@@ -409,7 +409,7 @@ function registeredRoutes(): Registered[] {
     const method = /^(GET|POST|PUT|PATCH|DELETE)\s+/u.exec(key);
     const rest = key
       .replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/u, "")
-      .replace(/^(seller|product|api|discover):/u, (_m, scope: string) => (scope === "api" ? "" : ""));
+      .replace(/^(seller|product|api|discover|analytics):/u, (_m, scope: string) => (scope === "api" ? "" : ""));
     return {
       methods: entry.methods ?? (method ? [method[1]!] : ["GET"]),
       path: normalizeParams(
@@ -668,6 +668,9 @@ const PARTIAL_HAND_BACKS = [
   "WS-19 MCP: all tool bodies except `get_account`, `list_payouts`, `get_customers` and `get_sales_totals` (country, day, week and month breakdowns excluded) hand back, as do OAuth client registration and `ProductFileIngest`; the moderation logic exists but is wired to no route.",
   "WS-10 settings writes: floats, custom domains and some string-typed pixel ids hand back; password, team invitations (the Gumroad account's team and mailboxes only Mail can parse), passkey registration, login/signup POSTs and OAuth callbacks are only partly ported (see the not registered rows). The authenticator app endpoints run whole in Node. Sign in with Apple creates and links accounts in Node except for guest purchases to attach and adopting an unconfirmed account; the Google, Twitter and Stripe Connect callbacks that create or link accounts still hand back.",
   "WS-13 receipt mailer: gift receiver, free-trial and subscription receipts and preorders hand back; posts and workflow emails with files that have thumbnails throw `NotPortedError`.",
+  "WS-15 purchases export (`nextjs_purchases_export`, `GET|POST /purchases/export`): signed-out requests, the mobile `access_token` form, `in_seller_time_zone`, `variant_ids`, dates that are not `YYYY-MM-DD` and any result holding a sale with several variants, a variant of a tiered membership or of a licensed product, a gift, pre-order, subscription charge, cart, buyer-currency or PayPal charge, a seller's own Stripe Connect account, a GeoIP-derived state or country, a non-ASCII address or a product with several custom fields hand back whole. Plain sales and sales with one variant or SKU, tax, an affiliate, a tip, a review, a license key, a UTM link or an upsell run in Node.",
+  "WS-12 `GET /bundles/create_from_email` (`nextjs_bundles_create_from_email`): the policy refusal, a bundle type the marketing email never sends and a price under the currency minimum answer in Node; creating the bundle (Link, Price and bundle product rows) and a link with no whole-number price hand back.",
+  "WS-11 third-party analytics host: `GET /profile/:username` (`nextjs_third_party_analytics_profile`) runs in Node; `GET /:link_id` (`ThirdPartyAnalyticsController#index`) is not registered. `GET /users/confirmation/new` (Devise's view inside the application layout) and `GET /_/test/outgoing_traffic` (a probe that reads one S3 object to prove the Rails process has outbound traffic) stay in Rails.",
   "WS-30 jobs: most Node jobs hand individual runs back to Ruby, so the job count above is an upper bound on finished jobs.",
 ];
 

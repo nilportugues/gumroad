@@ -190,17 +190,128 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a sale with a variant to Rails", parity: true do
-    variant_product = create(:product_with_digital_versions, user: seller, name: "Versioned")
-    sell(of: variant_product).tap { |row| row.variant_attributes << variant_product.alive_variants.first }
+  it "writes the variant, its extra cost and the item price without it", parity: true do
+    category = create(:variant_category, link: product, title: "Size")
+    large = create(:variant, variant_category: category, name: "Large", price_difference_cents: 150)
+    small = create(:variant, variant_category: category, name: "Small", price_difference_cents: 0)
+    untitled = create(:variant, variant_category: category, name: "Untitled", price_difference_cents: nil)
+    sell(price_cents: 650).variant_attributes << large
+    sell(price_cents: 500).variant_attributes << small
+    sell(price_cents: 500).variant_attributes << untitled
+    sell(price_cents: 500)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Variants")] }).to include("(Large)", "(Small)")
+  end
+
+  it "writes a SKU's custom name or its external id in the SKU column", parity: true do
+    product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:skus_enabled])
+    custom = create(:sku, link: product, name: "Red - Large", custom_sku: "RED-L", price_difference_cents: 200)
+    plain = create(:sku, link: product, name: "Blue - Small", price_difference_cents: 0)
+    default = create(:sku, link: product, name: "Default", price_difference_cents: 0)
+    default.update_columns(flags: default.flags | BaseVariant.flag_mapping["flags"][:is_default_sku])
+    sell(price_cents: 700).variant_attributes << custom
+    sell(price_cents: 500).variant_attributes << plain
+    sell(price_cents: 500).variant_attributes << default
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("SKU ID")] }).to include("RED-L")
+  end
+
+  it "hands a sale with several variants to Rails", parity: true do
+    category = create(:variant_category, link: product, title: "Size")
+    first = create(:variant, variant_category: category, name: "Large", price_difference_cents: 100)
+    second = create(:variant, variant_category: create(:variant_category, link: product, title: "Color"), name: "Red", price_difference_cents: 50)
+    sell.variant_attributes.push(first, second)
 
     export
 
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a taxed sale to Rails", parity: true do
-    sell(price_cents: 1000, tax_cents: 100, was_purchase_taxable: true)
+  it "writes the tax amount, its label and whether the price includes it", parity: true do
+    us_rate = create(:zip_tax_rate, country: "US", state: "NY", zip_code: "10087")
+    de_rate = create(:zip_tax_rate, country: "DE", state: nil, zip_code: nil, combined_rate: "0.1900000")
+    jp_rate = create(:zip_tax_rate, country: "JP", state: nil, zip_code: nil, combined_rate: "0.1000000")
+    taxable = Purchase.flag_mapping["flags"][:was_purchase_taxable]
+    excluded = Purchase.flag_mapping["flags"][:was_tax_excluded_from_price]
+    sell(price_cents: 1100, tax_cents: 100, zip_tax_rate: us_rate).update_columns(flags: taxable | excluded)
+    sell(price_cents: 1190, tax_cents: 0, gumroad_tax_cents: 190, zip_tax_rate: de_rate, country: "Germany").update_columns(flags: taxable)
+    sell(price_cents: 1100, tax_cents: 0, gumroad_tax_cents: 100, zip_tax_rate: jp_rate, country: "Japan").update_columns(flags: taxable)
+    sell(price_cents: 500).update_columns(flags: taxable | excluded)
+    sell(price_cents: 800, tax_cents: 50, zip_tax_rate: nil)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Tax Type")] }).to include("Sales tax", "VAT")
+  end
+
+  it "writes the affiliate's email and the commission", parity: true do
+    affiliate_user = create(:user, email: "partner@example.com")
+    affiliate = create(:direct_affiliate, seller:, affiliate_user:, affiliate_basis_points: 2500)
+    commissioned = sell(price_cents: 1000, fee_cents: 100, affiliate:, affiliate_credit_cents: 250)
+    commissioned.update_columns(affiliate_credit_cents: 250)
+    pending_email = create(:user, email: "pending@example.com")
+    pending_email.update_columns(unconfirmed_email: "new-address@example.com")
+    other = create(:direct_affiliate, seller:, affiliate_user: pending_email)
+    sell(price_cents: 600, affiliate: other)
+    sell(price_cents: 500)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Affiliate")] }).to include("partner@example.com", "new-address@example.com")
+  end
+
+  it "writes the tip, the review and the license key with its activations", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed", is_licensed: true)
+    tipped = sell(price_cents: 1150)
+    Tip.create!(purchase: tipped, value_cents: 150, value_usd_cents: 150)
+    reviewed = sell(price_cents: 500)
+    ProductReview.new(purchase: reviewed, link: product, rating: 4, message: "Worth it, \"quoted\"").save!(validate: false)
+    unmessaged = sell(price_cents: 500)
+    ProductReview.new(purchase: unmessaged, link: product, rating: 5).save!(validate: false)
+    keyed = sell(of: licensed, price_cents: 900)
+    License.create!(purchase: keyed, link: licensed, serial: "AAAA-BBBB-CCCC-DDDD", uses: 3)
+    disabled = sell(of: licensed, price_cents: 900)
+    License.create!(purchase: disabled, link: licensed, serial: "EEEE-FFFF-GGGG-HHHH", uses: 0, disabled_at: 2.days.ago)
+    sell(of: licensed, price_cents: 900)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("License Key")] }).to include("AAAA-BBBB-CCCC-DDDD", "EEEE-FFFF-GGGG-HHHH")
+  end
+
+  it "writes the UTM link columns and flags an upsold sale", parity: true do
+    utm_link = create(:utm_link, seller:, utm_source: "newsletter", utm_medium: "email", utm_campaign: "launch", utm_term: "term one", utm_content: "banner")
+    visit = create(:utm_link_visit, utm_link:)
+    driven = sell(price_cents: 500)
+    create(:utm_link_driven_sale, utm_link:, utm_link_visit: visit, purchase: driven)
+    upsold = sell(price_cents: 600)
+    upsell = create(:upsell, seller:, product:, name: "Bonus")
+    build(:upsell_purchase, upsell:, purchase: upsold, selected_product: product).save!(validate: false)
+    sell(price_cents: 500)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("UTM Source")] }).to include("newsletter")
+    expect(csv.map { |row| row[csv.first.index("Upsold?")] }).to include("1")
+  end
+
+  it "hands a sale of a licensed product with a variant to Rails", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed versions", is_licensed: true)
+    category = create(:variant_category, link: licensed, title: "Edition")
+    edition = create(:variant, variant_category: category, name: "Pro", price_difference_cents: 100)
+    keyed = sell(of: licensed, price_cents: 600)
+    keyed.variant_attributes << edition
+    License.create!(purchase: keyed, link: licensed, serial: "IIII-JJJJ-KKKK-LLLL", uses: 1)
 
     export
 

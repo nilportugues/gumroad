@@ -53,7 +53,7 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 
 | Workstream | Route | Controller | Reason |
 | --- | --- | --- | --- |
-| WS-11 | `GET /healthcheck` | `healthcheck#index` | the blue/green deploy gate (comment in the controller): must answer with nothing else running, so it stays on Rails |
+| WS-11 | `GET /healthcheck` | `healthcheck#index` | the blue/green deploy gate (comment in the controller): must answer with nothing else running; served by Node behind its own flag `nextjs_healthcheck_index` (ws-rest-sweep-4), so the gate can stay on Rails |
 
 ### Throttled (35)
 
@@ -99,7 +99,7 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 
 | Workstream | Route | Controller | Reason |
 | --- | --- | --- | --- |
-| WS-11 | `GET /profile/:username` | `third_party_analytics#profile` | `third_party_analytics#profile` renders the analytics snippets inside a bare layout with CSP off |
+| WS-11 | `GET /profile/:username` | `third_party_analytics#profile` | `third_party_analytics#profile` renders the analytics snippets inside a bare layout with CSP off; served by Node (`nextjs_third_party_analytics_profile`, ws-rest-sweep-4) |
 | WS-11 | `GET /(*path)` | `application#e404_page` | `e404` renders the 404 layout |
 | WS-11 | `GET /js/gumroad` | `embedded_javascripts#overlay` | `render :index` with Vite stylesheet lookup (`resolve_entries`) and the bundle path |
 | WS-11 | `GET /js/gumroad-overlay` | `embedded_javascripts#overlay` | `render :index` with Vite stylesheet lookup (`resolve_entries`) and the bundle path |

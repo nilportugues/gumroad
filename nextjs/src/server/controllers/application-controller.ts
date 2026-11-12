@@ -130,6 +130,8 @@ export type ActionOptions = {
   // `request.session_options[:skip] = true` plus `skip_before_action :set_gumroad_guid` (RobotsController): the visitor is
   // anonymous, and the response carries no session, guid or XSRF-TOKEN cookie.
   bare?: boolean;
+  // `request.session_options[:skip] = true` alone: no session cookie, while the guid and XSRF-TOKEN cookies are still written.
+  skipSession?: boolean;
   // With `bare`: an ActionController::API controller. No ApplicationController filter runs and the session carries nothing but its
   // session_id, but the session middleware still answers with the session cookie.
   metal?: boolean;
@@ -328,6 +330,7 @@ export type Chain = {
   pageState: Record<string, unknown>;
   afterCookies: string[];
   bare?: boolean;
+  skipSession?: boolean;
   metal?: boolean;
   xsrfCookieBytes?: (globalToken: Buffer) => Buffer;
 };
@@ -413,6 +416,7 @@ export async function beforeActions(
     pageState: {},
     afterCookies: options.afterCookies ?? [],
     bare: options.bare ?? false,
+    skipSession: options.skipSession ?? false,
     metal: options.metal ?? false,
     xsrfCookieBytes: options.xsrfCookieBytes,
   };
@@ -577,8 +581,8 @@ const xsrfCookie = (chain: Chain) => {
   });
 };
 
-function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare, metal }: Chain): void {
-  if (bare && !metal) return;
+function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare, metal, skipSession }: Chain): void {
+  if ((bare && !metal) || skipSession) return;
   if (!sessionCleared && !bare) session.data._csrf_token = csrfToken;
   headers.append("set-cookie", sessionCookie(request, session, now));
 }
