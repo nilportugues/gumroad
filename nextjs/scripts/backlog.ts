@@ -185,9 +185,9 @@ const EPICS: Epic[] = [
     title: "Settings, team and admin (WS-10/18)",
     files: /settings|admin|team|brand-account|user-|account/u,
     fallback: /users?-controller|models\/user\.ts|seller-|json-seller|json-actions|custom-domain|help-center|feature-announcement|connections-mutations|piracy/u,
-    state: "mostly done; verified custom domains, brand account creation and admin web UIs (Flipper, Sidekiq web) left",
-    blocker: "Devise views have no HTML shell in Node.",
-    scope: "Brand account creation, custom domains, Flipper UI and Sidekiq web, Devise confirmation pages.",
+    state: "mostly done; brand accounts that copy a payout setup and the admin web UIs (Flipper, Sidekiq web) left",
+    blocker: "Vendor Rack apps (Flipper UI, Sidekiq web) have no Rails recording; the payout copy needs the Stripe account job.",
+    scope: "Brand account payout copy, Flipper UI and Sidekiq web.",
   },
   {
     id: "E15",

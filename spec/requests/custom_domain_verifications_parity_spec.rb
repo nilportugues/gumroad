@@ -5,7 +5,8 @@ require "spec_helper"
 # POST /custom_domain/verify (CustomDomain::VerificationsController#create), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/ws10-rest.replay.test.ts, which sends the last request of each example. DNS is stubbed on Resolv::DNS here; Node asks
 # the resolver itself, so the examples recorded for replay are the ones whose answer no DNS record can change (a domain PublicSuffix refuses,
-# a name nobody has configured). An example named "hands a ..." is one Node leaves to Rails: a `product_id` runs the CustomDomain validations.
+# a name nobody has configured). An example named "hands a ..." is one Node leaves to Rails: a `product_id` that is not text. The product_id
+# examples whose domain DNS accepts are in custom_domain_verifications_product_parity_spec.rb, which stubs a zone Node reproduces.
 describe "Custom domain verification", type: :request do
   include Parity::AudienceSignedIn
 
@@ -81,11 +82,10 @@ describe "Custom domain verification", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
-  it "hands a domain that carries a product_id to Rails", parity: true do
+  it "hands a product_id that is not text to Rails", parity: true do
     log_in(seller)
-    product = create(:product, user: seller)
 
-    verify({ domain: "unconfigured-shop.example.com", product_id: product.external_id })
+    verify({ domain: "unconfigured-shop.example.com", product_id: 123 })
 
     expect(response).to have_http_status(:ok)
   end

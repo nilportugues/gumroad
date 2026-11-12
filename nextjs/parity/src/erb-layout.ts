@@ -68,7 +68,7 @@ const maskingTransport =
 
 export function describeErbLayoutReplay(
   title: string,
-  options: { routeFlags: string; seed: Record<string, number | null>; github?: number; select: (name: string) => boolean; spec?: string },
+  options: { routeFlags: string; seed: Record<string, number | null>; github?: number; select: (name: string) => boolean; spec?: string; env?: Record<string, string> },
 ) {
   const FIXTURES = path.join("parity/fixtures/requests", options.spec ?? DEFAULT_SPEC);
   const url = process.env.PARITY_DATABASE_URL;
@@ -129,6 +129,7 @@ export function describeErbLayoutReplay(
         SIDEKIQ_REDIS_HOST: redisHost,
         JOBS_REDIS_URL: `redis://${redisHost}`,
         RAILS_CACHE_TEST_SEED: JSON.stringify(options.seed),
+        ...options.env,
         ...(github ? { GITHUB_API_ORIGIN: `http://127.0.0.1:${(github.address() as { port: number }).port}` } : {}),
       });
     }, FIRST_COMPILE_TIMEOUT_MS);
