@@ -65,21 +65,26 @@ export function affiliateRow(row: AffiliateRow): CsvCell[] {
 }
 
 // The sales column is summed in cents, not from the rendered cell: "1,234.56" would parse as 1.0.
-export function affiliateTotalsRow(totalsCents: number): CsvCell[] {
+// Rails fills a totals cell only for a column some affiliate added to, so an export without affiliates leaves it blank.
+export function affiliateTotalsRow(totalsCents: number, hasAffiliates = true): CsvCell[] {
   const row: CsvCell[] = AFFILIATE_FIELDS.map(() => null);
   row[0] = TOTALS_COLUMN_NAME;
-  row[AFFILIATE_FIELDS.indexOf(SALES_COLUMN)] = moneyFormatterFormat(totalsCents, "usd", { symbol: false });
+  if (hasAffiliates)
+    row[AFFILIATE_FIELDS.indexOf(SALES_COLUMN)] = moneyFormatterFormat(totalsCents, "usd", { symbol: false });
   return row;
 }
 
 export function affiliateExportCsv(affiliates: readonly AffiliateRow[]): string {
   const rows = affiliates.map(affiliateRow);
   const totalCents = affiliates.reduce((sum, affiliate) => sum + affiliate.salesCents, 0);
-  return csvSafeGenerate([[...AFFILIATE_FIELDS], ...rows, affiliateTotalsRow(totalCents)]);
+  return csvSafeGenerate([[...AFFILIATE_FIELDS], ...rows, affiliateTotalsRow(totalCents, affiliates.length > 0)]);
 }
 
 // Exports::AffiliateExportService.export: true when the seller's live affiliate count is small enough to
 // build inline, false when the export is handed to the job.
-export function runsSynchronously(liveAffiliateCount: number, threshold: number = SYNCHRONOUS_EXPORT_THRESHOLD): boolean {
+export function runsSynchronously(
+  liveAffiliateCount: number,
+  threshold: number = SYNCHRONOUS_EXPORT_THRESHOLD,
+): boolean {
   return liveAffiliateCount <= threshold;
 }
