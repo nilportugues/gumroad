@@ -17,6 +17,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { creatorAppPurchasesJson, thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
 import { purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
+import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { linkOptions } from "../presenters/product-props.ts";
 import { findLink } from "../presenters/product-reads.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
@@ -143,8 +144,6 @@ async function fetchPurchase(input: MobileInput, auth: MobileAuth | null): Promi
 async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
   if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
   if (purchase.preorder_id !== null) throw new HandBackToRails("Preorder#mobile_json_data");
-  if (await hasRows("url_redirects", "purchase_id", purchase.id))
-    throw new HandBackToRails("UrlRedirect#product_json_data");
   if (await hasRows("refunds", "purchase_id", purchase.id)) throw new NotPortedError("Purchase#amount_refunded_cents");
   if (await hasRows("product_reviews", "purchase_id", purchase.id))
     throw new NotPortedError("Purchase#original_product_review");
@@ -155,6 +154,20 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
   if (!link || !creator || !seller) throw new NotPortedError("a purchase whose product or seller row is missing");
   if (creator.username === null || creator.username.trim() === "")
     throw new NotPortedError("User#profile_url for a creator without a username");
+  const redirects = await db.urlRedirect.findMany({ where: { purchase_id: purchase.id }, take: 2 });
+  // has_one :url_redirect reads an arbitrary row when there are several
+  if (redirects.length > 1) throw new HandBackToRails("a purchase with several url redirects");
+  const urlRedirect =
+    redirects[0] === undefined
+      ? undefined
+      : await urlRedirectMobileData({
+          redirect: redirects[0],
+          purchase,
+          purchaser: libraryOwner(auth),
+          subscription: null,
+          product: link,
+          seller,
+        });
   const productUpdates = (await preloadProductUpdatesData([purchase])).get(purchase.id)!;
 
   const [previews] = await selectRows(
@@ -180,6 +193,7 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
         productRating: null,
         amountRefundedCents: 0,
         productUpdatesData: productUpdates,
+        urlRedirect,
       }),
   };
 }

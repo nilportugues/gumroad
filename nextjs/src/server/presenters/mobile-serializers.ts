@@ -156,6 +156,8 @@ export type MobilePurchaseInput = {
   amountRefundedCents: number;
   // Purchase#update_json_data_for_mobile (see models/purchase-product-updates.ts); null leaves the key out, as include_product_updates: false does
   productUpdatesData: Record<string, unknown>[] | null;
+  // UrlRedirect#product_json_data's own keys; present when the purchase has a url redirect
+  urlRedirect?: { urlRedirectExternalId: string; urlRedirectToken: string; fileData: unknown[] };
 };
 
 // Port of app/models/purchase.rb (Purchase#json_data_for_mobile) for a purchase with no url_redirect, preorder or subscription,
@@ -168,10 +170,21 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   if (purchase.created_at == null) throw new NotPortedError("a purchase without created_at");
 
   const json: Record<string, unknown> = linkAsJsonMobile(input.link);
+  if (input.urlRedirect) {
+    json.url_redirect_external_id = input.urlRedirect.urlRedirectExternalId;
+    json.url_redirect_token = input.urlRedirect.urlRedirectToken;
+    json.file_data = input.urlRedirect.fileData;
+  }
   json.purchase_id = encrypt(purchase.id);
   json.purchased_at = jsonTime(purchase.created_at);
-  if (input.productUpdatesData !== null) json.product_updates_data = input.productUpdatesData;
-  if (purchaser) json.user_id = purchaser.external_id;
+  // UrlRedirect#product_json_data sets user_id before product_updates_data; the plain branch the other way round.
+  if (input.urlRedirect) {
+    if (purchaser) json.user_id = purchaser.external_id;
+    if (input.productUpdatesData !== null) json.product_updates_data = input.productUpdatesData;
+  } else {
+    if (input.productUpdatesData !== null) json.product_updates_data = input.productUpdatesData;
+    if (purchaser) json.user_id = purchaser.external_id;
+  }
   json.is_archived = isFlag(purchase, "is_archived");
   json.custom_delivery_url = null;
   json.purchase_email = presence(purchase.email) ?? presence(purchaser?.email);

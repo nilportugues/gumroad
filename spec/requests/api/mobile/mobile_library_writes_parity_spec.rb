@@ -73,6 +73,42 @@ describe "Mobile API library writes", type: :request, parity_timeline: true do
     expect(refunded.reload.is_archived).to eq(false)
   end
 
+  describe "with a url redirect" do
+    let!(:pdf) { create(:readable_document, link: product, position: 1) }
+    let!(:video) { create(:streamable_video, link: product, position: 0) }
+    let!(:link_file) { create(:product_file, link: product, url: "https://example.com/page", filetype: "link", filegroup: "url", position: 2) }
+    let!(:redirect) { create(:url_redirect, purchase:, link: product) }
+
+    it "reads the purchase with its files", parity: true do
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response.parsed_body["product"]).to include("url_redirect_token" => redirect.token)
+      expect(response.parsed_body["product"]["file_data"].size).to eq(3)
+    end
+
+    it "archives the purchase and answers with its files", parity: true do
+      post "/mobile/purchases/#{purchase.external_id}/archive", params: auth(buyer)
+
+      expect(response.parsed_body["product"]).to include("is_archived" => true, "url_redirect_external_id" => redirect.external_id)
+    end
+
+    it "leaves out the download url of a stream-only file", parity: true do
+      video.update_columns(flags: video.flags | ProductFile.flag_mapping["flags"][:stream_only])
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a read of a purchase that has a media location to Rails", parity: true do
+      create(:media_location, purchase_id: purchase.id, product_id: product.id, url_redirect_id: redirect.id, product_file_id: pdf.id, location: 2, platform: "web")
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response.parsed_body["product"]["file_data"].find { _1["id"] == pdf.external_id }["latest_media_location"]).to be_present
+    end
+  end
+
   it "hands an archive of a purchase whose seller has a post to Rails", parity: true do
     create(:installment, link: product, published_at: Time.current, shown_on_profile: true, send_emails: false)
 

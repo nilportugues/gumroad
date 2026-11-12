@@ -102,8 +102,10 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["product"]["product_updates_data"].size).to eq(1)
     end
 
-    it "hands an archive of the buyer's own purchase to Rails", parity: true do
+    it "hands an archive of a purchase of a product with rich content to Rails", parity: true do
       purchase = create(:free_purchase, link: create(:product, user: seller, price_cents: 0), purchaser: buyer, email: buyer.email)
+      create(:url_redirect, purchase:, link: purchase.link)
+      create(:rich_content, entity: purchase.link, description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Hello" }] }])
 
       post "/mobile/purchases/#{purchase.external_id}/archive", params: auth(buyer)
 
