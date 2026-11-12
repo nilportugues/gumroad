@@ -87,6 +87,27 @@ const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").e
 const LOCKED_JOBS = new Set(["GenerateSubscribePreviewJob"]);
 // A post attached to a product reindexes the product: the replay holds no document for it, so Node queues the fallback job Rails never needed.
 const FALLBACK_JOBS = new Set(["SendToElasticsearchWorker"]);
+// `lock: :until_executing`: Rails' test queue pushes every call, while Node (like production Sidekiq) drops a push whose lock is held, so
+// the identical pushes Rails recorded collapse to one.
+const UNIQUE_JOBS = new Set(["ReindexSellerOfferCodesJob"]);
+const dedupeUnique = <T extends { class: string; args: unknown; queue?: string }>(jobs: T[]): T[] =>
+  jobs.filter((job, i) => !UNIQUE_JOBS.has(job.class) || jobs.findIndex((other) => jobKey(other) === jobKey(job)) === i);
+
+// An instant in 2099 is masked as whole hours from now, which moves by one with the minute of the hour. The requests below name the
+// instants literally, so the replay compares the hours with a tolerance of one instead.
+const VALIDITY_INSTANTS: [fragment: string, valid_at: string, expires_at: string][] = [
+  ["-creates-a-code-with-a-validity-period", "2099-01-01T10:00:00Z", "2099-02-01T08:00:00Z"],
+  ["-sets-a-validity-period-with-a-put", "2099-01-01T10:00:00Z", "2099-03-01T10:00:00Z"],
+];
+const VALIDITY_FIELDS = [
+  "response.json.offer_code.valid_at",
+  "response.json.offer_code.expires_at",
+  "db.offer_codes.inserted.*.valid_at",
+  "db.offer_codes.inserted.*.expires_at",
+  "db.offer_codes.updated.*.changes.valid_at",
+  "db.offer_codes.updated.*.changes.expires_at",
+];
+const hoursFromNow = (token: unknown) => Number(/^<now([+-]\d+)h>$/u.exec(String(token))?.[1] ?? Number.NaN);
 
 // The sending limit of an email counts the seller's audience in Elasticsearch: an empty audience_members index under the replay's own name.
 async function resetAudienceIndex() {
@@ -160,9 +181,11 @@ function redisJobs(redis: Redis): JobsChannel {
           ...(item.at === undefined ? {} : { at: item.at }),
         });
       }
-      return jobs
-        .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
-        .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      return dedupeUnique(
+        jobs
+          .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
+          .sort((a, b) => jobKey(a).localeCompare(jobKey(b))),
+      );
     },
   };
 }
@@ -183,6 +206,7 @@ const COMPARE = {
     "db.users.updated.*.changes.updated_at",
     "db.installments.updated.*.changes.updated_at",
     "db.installment_rules.updated.*.changes.updated_at",
+    "db.offer_codes.updated.*.changes.updated_at",
     "db.licenses.updated.*.changes.updated_at",
     // The first request to a route compiles it, and a delete stamps the replay's clock plus that compile.
     "db.installments.updated.*.changes.deleted_at",
@@ -315,6 +339,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         expected.jobs = [...(expected.jobs ?? [])]
           .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
           .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        expected.jobs = dedupeUnique(expected.jobs);
         if (name.includes("hands-back") || /-hands-an?-/u.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
@@ -329,6 +354,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const tripsThrottle = name.includes("-past-the-per-ip-limit");
         if (tripsThrottle) handedBack.length = 0;
         if (tripsThrottle) afterRedisReset = async () => void (await fillFirstThrottle(redis, expected.request));
+        const validity = VALIDITY_INSTANTS.find(([fragment]) => name.includes(fragment));
         const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
         driftDates = !pinned && !name.includes("answers-a-tools-list-call");
         seedClock = pinned ? new Date(pinned[1]) : undefined;
@@ -346,7 +372,9 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           fixture,
           index,
           replayOptions(
-            rotates
+            validity
+              ? VALIDITY_FIELDS
+              : rotates
               ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
               : createsUtmLink
               ? [
@@ -364,6 +392,16 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           ),
         );
         assertParity(result);
+        if (validity) {
+          const offerCode = (result.exchanges[0]!.actual.response.json as { offer_code: Record<string, unknown> }).offer_code;
+          for (const [key, iso] of [
+            ["valid_at", validity[1]],
+            ["expires_at", validity[2]],
+          ] as const) {
+            const hours = (Date.parse(iso) - Date.now()) / 3_600_000;
+            expect(Math.abs(hoursFromNow(offerCode[key]) - hours)).toBeLessThanOrEqual(1);
+          }
+        }
         if (tripsThrottle) {
           const retryAfter = Number(result.exchanges[0]!.actual.response.headers["retry-after"]);
           expect(retryAfter).toBeGreaterThan(0);

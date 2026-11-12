@@ -151,6 +151,7 @@ currencies = CURRENCY_CHOICES.to_h do |code, config|
     "min_price_formatted" => MoneyFormatter.format(min, code.to_sym, no_cents_if_whole: true, symbol: true),
     "double_min_price_in_currency" => formatted_amount_in_currency(min * 2, code, no_cents_if_whole: true),
     "min_price_in_currency" => formatted_amount_in_currency(min, code, no_cents_if_whole: true),
+    "symbol" => config["symbol"],
   }]
 end
 DATA_OUT = Rails.root.join("nextjs/src/server/models/link-data.generated.json")
