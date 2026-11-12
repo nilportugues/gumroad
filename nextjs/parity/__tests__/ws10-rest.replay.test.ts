@@ -42,6 +42,7 @@ const ROUTE_FLAGS = [
   "nextjs_communities_writes",
   "nextjs_links_search",
   "nextjs_integrations_zoom",
+  "nextjs_oauth_tokens",
 ].join(",");
 const RACK_SEQUENCE = "rack-attack-throttles-";
 const BULK_REPEAT_MINIMUM = 100;
@@ -272,6 +273,11 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
           await replayFixtureExchange(fixture, warmUp, replayOptions()).catch(() => undefined);
           await alignToWindow(path.basename(name).includes("product-search"));
           await rackRedis.flushdb();
+          // The counter the recording brought to the limit through Rack::Attack.cache.count, under the key its example asserts.
+          if (path.basename(name).includes("3001st-token-request")) {
+            const windowKey = `rack::attack:${Math.floor(Date.now() / 1000 / 60)}:oauth_token/ip:203.0.113.50`;
+            await rackRedis.set(windowKey, 3000, "EX", 65);
+          }
           const sequenceIgnore = [
             ...COMPARE.ignore,
             "response.headers.retry-after",

@@ -166,6 +166,19 @@ describe "Rack::Attack throttles", type: :request do
     end
   end
 
+  # 3000 recorded requests would be a fixture of megabytes, so the counter is brought to the limit through Rack::Attack's own cache and only
+  # the request over it is recorded. The replay writes the same key (asserted below) into Node's counter database before sending it.
+  it "answers the 3001st token request of an address with 429 on a connector alias", parity: true do
+    freeze_time do
+      3000.times { Rack::Attack.cache.count("oauth_token/ip:203.0.113.50", 60) }
+      expect(Rack::Attack.cache.store.keys("rack::attack:*")).to eq(["rack::attack:#{Time.now.to_i / 60}:oauth_token/ip:203.0.113.50"])
+
+      post "/claude/v1/oauth2/token", params: { grant_type: "client_credentials", client_id: "unknown" }, headers: ip_headers
+
+      expect_throttled
+    end
+  end
+
   # 300 recorded requests take longer than the 60-second window, so the clock stays put.
   it "answers the three-hundred-and-first product search of an address with 429", parity: true do
     freeze_time do
