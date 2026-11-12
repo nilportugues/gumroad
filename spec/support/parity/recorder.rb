@@ -39,6 +39,9 @@ module Parity
     # key still differs, and the fixture does not hold the key.
     HTTP_HEADERS_KEPT = %w[idempotency-key stripe-account paypal-request-id authorization].freeze
     HTTP_HEADERS_HASHED = %w[authorization].freeze
+    # What an upload to the bucket carries beyond the common set: the checksum Active Storage sends so S3 verifies the bytes, and the
+    # headers that decide how a browser serves the object. Recorded only for calls to the storage endpoint.
+    HTTP_STORAGE_HEADERS_KEPT = %w[content-md5 content-disposition x-amz-acl cache-control].freeze
     UUID_PATTERN = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
     CREDENTIAL_DIGEST_LENGTH = 16
 
@@ -441,8 +444,21 @@ module Parity
         message.decoded if !message.multipart? && message.mime_type == mime_type
       end
 
-      def http_headers_json(request_headers)
-        HTTP_HEADERS_KEPT.filter_map do |name|
+      def storage_call?(uri)
+        endpoint = GlobalConfig.get("AWS_S3_ENDPOINT").presence
+        endpoint.present? && uri.host == URI(endpoint).host && uri.port == URI(endpoint).port
+      end
+
+      # A body that is not text (an image, an upload) is kept as base64 beside the empty `body` key, which a JSON fixture cannot hold.
+      def body_json(body, keep_empty: false)
+        text = body.to_s
+        return { "body" => keep_empty ? text : text.presence } if text.dup.force_encoding(Encoding::UTF_8).valid_encoding?
+
+        { "bodyBase64" => Base64.strict_encode64(text) }
+      end
+
+      def http_headers_json(request_headers, names = HTTP_HEADERS_KEPT)
+        names.filter_map do |name|
           value = Array(request_headers[name]).join(", ").presence
           next unless value
 
@@ -465,14 +481,14 @@ module Parity
           "method" => signature.method.to_s.upcase,
           "url" => uri.to_s,
           "contentType" => request_headers["content-type"],
-          "headers" => http_headers_json(request_headers),
-          "body" => signature.body.presence,
+          "headers" => http_headers_json(request_headers, storage_call?(signature.uri) ? HTTP_HEADERS_KEPT + HTTP_STORAGE_HEADERS_KEPT : HTTP_HEADERS_KEPT),
+          **body_json(signature.body),
           # Only an OAuth 1.0a header: its signature is what a replay has to reproduce. Basic and Bearer credentials stay out of the fixtures.
           "authorization" => (request_headers["authorization"] if request_headers["authorization"].to_s.start_with?("OAuth ")),
           "response" => {
             "status" => Array(response&.status).first,
             "contentType" => response_headers["content-type"],
-            "body" => response&.body.to_s,
+            **body_json(response&.body, keep_empty: true),
           }.compact,
         }
         Canonical.json(call.compact, now)

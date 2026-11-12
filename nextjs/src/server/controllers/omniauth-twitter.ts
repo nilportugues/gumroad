@@ -1,18 +1,25 @@
 // The Twitter (X) strategy of OmniAuth (omniauth-twitter over omniauth-oauth, OAuth 1.0a): the request phase (a signed request token call, then
 // the redirect to Twitter), and the callback that trades the verifier for an access token, verifies the credentials and links the account of a
-// signed-in seller (User::OmniauthCallbacksController#twitter, link state).
+// signed-in seller, or signs a visitor in or up (User::OmniauthCallbacksController#twitter).
 //
-// The verifier is spent by the access token call, so what Node cannot finish afterwards is handed back to Rails before it: a login or signup
-// (it finds or creates an account from the payload), the async link (an ERB page that closes the window) and a seller with no avatar (the
-// profile picture is downloaded and attached). See parity-debt.md.
+// The verifier is spent by the access token call, so what Node cannot finish afterwards is handed back to Rails before it: the async link (an
+// ERB page that closes the window), and a login of a visitor who is already signed in or that merges a guest cart. See parity-debt.md.
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { isBlank } from "../html/text-helper.ts";
 import { getConfig } from "../infra/config.ts";
 import { OAuth1Timeout, parseTokenAnswer, signedRequest } from "../infra/oauth1.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import { recordSocialConnectEvent } from "../models/social-connect-funnel.ts";
-import { avatarAttached, linkTwitterAccount, TwitterPayloadError } from "../models/social-twitter.ts";
+import { findOrCreateForTwitterOauth, linkTwitterAccount, TwitterPayloadError } from "../models/social-twitter.ts";
+import { isDeleted, isFlagSet, Users } from "../models/user.ts";
+import { createUserEvent } from "../page-props/audience/events.ts";
+import { domainConfig } from "../page-props/domain.ts";
 
 import { type ActionResult, HandBackToRails } from "./application-controller.ts";
-import { type MutationInput, registerMutations } from "./mutation.ts";
+import { prepareTwoFactorAuthentication, resetTwoFactorSession } from "./auth-mutations.ts";
+import { signedInUserHome } from "./auth-pages.ts";
+import { assertNoGuestCart, refreshPasskeySetupPrompt, rememberedTwoFactor, signIn } from "./auth-session.ts";
+import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
 import {
   assertHtml,
   BARE,
@@ -25,6 +32,7 @@ import {
   sessionHash,
   stringParam,
 } from "./omniauth-phases.ts";
+import { cgiEscape, safeRedirectPath } from "./rails-params.ts";
 import { isPresent } from "./rails-request.ts";
 import { resolveRequestAuth } from "./signed-in-filters.ts";
 
@@ -46,6 +54,11 @@ const HTTP_CLIENT_ERROR_LIMIT = 500;
 const HTTP_SERVER_ERROR_LIMIT = 600;
 const CREDENTIALS_URL = `${TWITTER}/1.1/account/verify_credentials.json?include_entities=false&skip_status=true&include_email=true`;
 const LOGIN_HINTS = ["force_login", "lang", "screen_name"];
+const SETTINGS_PATH = "/settings";
+const TWO_FACTOR_PATH = "/two-factor";
+const ADMIN_LOGIN_ERROR = "You're an admin, you can't login with Twitter.";
+const DELETED_ACCOUNT_LOGIN_ERROR =
+  "You cannot log in because your account was deleted. Email support@gumroad.com if you'd like to use this email address for a new account.";
 
 // OmniAuth's `fail!` ends in the failure action; this is User::OmniauthCallbacksController#failure for the Twitter strategy.
 type Failure = { type: string };
@@ -192,6 +205,7 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
   const saved = structuredClone(chain.session.data);
   try {
     const omniauthParams = sessionHash(chain, "omniauth.params");
+    const origin = chain.session.data["omniauth.origin"];
     delete chain.session.data["omniauth.origin"];
     delete chain.session.data["omniauth.params"];
     const oauth = chain.session.data.oauth;
@@ -200,12 +214,17 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
       return await failureAction(input, { type: "session_expired" }, omniauthParams);
     if (!isHash(oauth) || !isHash(oauth.twitter) || oauth.twitter.callback_confirmed !== true)
       throw new HandBackToRails("a session whose request token is not the one this port writes");
-    if (omniauthParams.state !== LINK_STATE) throw new HandBackToRails("a login or signup, or an async link");
+    if (omniauthParams.state === ASYNC_LINK_STATE)
+      throw new HandBackToRails("the async Twitter link page, an ERB view");
+    const linking = omniauthParams.state === LINK_STATE;
     if (input.params.callback_url !== undefined || omniauthParams.callback_url !== undefined)
       throw new HandBackToRails("a callback_url of its own");
     const user = railsLoggedInUser(chain.auth.context);
-    if (user && !(await avatarAttached(user.id)))
-      throw new HandBackToRails("a seller whose profile picture would be downloaded");
+    if (!linking) {
+      if (user) throw new HandBackToRails("a login callback of a visitor who is signed in");
+      // sign_in_or_prepare_for_two_factor_auth merges the cart of this browser into the user's.
+      await assertNoGuestCart(chain);
+    }
     if (chain.auth.effects.signOut || chain.auth.authenticatedVia === "remember_cookie")
       throw new HandBackToRails("a visitor Devise signs in or out on the way");
     const { key, secret } = secrets();
@@ -258,6 +277,8 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
       throw error;
     }
 
+    if (!linking) return await loginOrSignup(input, data, access, omniauthParams, origin);
+
     // set_social_connect_destination
     const destination = await consumeSocialConnectReturn(chain, omniauthParams);
     if (!user)
@@ -277,6 +298,91 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
     if (error instanceof HandBackToRails) chain.session.data = saved;
     throw error;
   }
+}
+
+// User::OmniauthCallbacksController#twitter, the part that is not a link: `find_or_create_for_twitter_oauth!`, the credentials saved on the
+// user, then a sign-in (through two-factor authentication when the account has it) or a redirect that says why not.
+async function loginOrSignup(
+  input: MutationInput,
+  info: Record<string, unknown>,
+  credentials: { token: string; secret: string },
+  omniauthParams: Record<string, unknown>,
+  origin: unknown,
+): Promise<ActionResult> {
+  const { chain } = input;
+  const now = () => chain.now;
+  // set_social_connect_destination for an action that connects nothing: the pending return entry is dropped.
+  delete chain.session.data.social_connect_return;
+  let user;
+  try {
+    user = await findOrCreateForTwitterOauth(info, now);
+  } catch (error) {
+    // `save!` raises RecordInvalid and the payload's `errors` loop raises NoMethodError: Rails answers a 500, after the verifier was spent.
+    if (error instanceof RecordInvalid || error instanceof TwitterPayloadError)
+      throw new NotPorted((error as Error).message);
+    throw error;
+  }
+  // update_twitter_oauth_credentials_for
+  user.assign({ twitter_oauth_token: credentials.token, twitter_oauth_secret: credentials.secret });
+  await Users.saveBang(user, { now });
+
+  if (isFlagSet(user, "is_team_member"))
+    return { status: FOUND, location: LOGIN_PATH, flash: { alert: ADMIN_LOGIN_ERROR } };
+  if (isDeleted(user)) return { status: FOUND, location: LOGIN_PATH, flash: { alert: DELETED_ACCOUNT_LOGIN_ERROR } };
+
+  const ip = remoteIp(input.request);
+  if (ip === null) throw new NotPorted("a request with no client address");
+  const cookies: string[] = [];
+  if (!isBlank(user.get("email"))) {
+    // sign_in_or_prepare_for_two_factor_auth
+    const remembered = isFlagSet(user, "two_factor_authentication_enabled")
+      ? await rememberedTwoFactor(chain, user, ip)
+      : { skip: true, cookies: [] };
+    if (remembered.skip) {
+      cookies.push(...remembered.cookies, ...(await signIn(chain, user, { remember: false, remoteIp: ip })));
+      resetTwoFactorSession(chain);
+      await refreshPasskeySetupPrompt(chain, user);
+    } else await prepareTwoFactorAuthentication(chain, user, input.params);
+    const next = await postAuthRedirect(input, user.get("id"), omniauthParams, origin);
+    // safe_redirect_to two_factor_authentication_path(next: ...)
+    const { rootDomain } = domainConfig(process.env);
+    const location = safeRedirectPath(`${TWO_FACTOR_PATH}?next=${cgiEscape(next)}`, chain.request, { rootDomain });
+    return { status: FOUND, location, cookies };
+  }
+
+  cookies.push(...(await signIn(chain, user, { remember: false, remoteIp: ip })));
+  if (!isBlank(user.get("unconfirmed_email")))
+    return {
+      status: FOUND,
+      location: SETTINGS_PATH,
+      cookies,
+      flash: { warning: "Please confirm your email address" },
+    };
+  await createUserEvent("signup", {
+    context: chain.auth.context,
+    headers: input.request.headers,
+    url: input.url,
+    state: input.peekState(),
+    signup: { userId: user.get("id") },
+  });
+  return { status: FOUND, location: SETTINGS_PATH, cookies, flash: { warning: "Please enter an email address!" } };
+}
+
+// post_auth_redirect: the page the flow started from, else the user's home.
+async function postAuthRedirect(
+  input: MutationInput,
+  userId: bigint,
+  omniauthParams: Record<string, unknown>,
+  origin: unknown,
+): Promise<string> {
+  const { chain } = input;
+  const requested = stringParam(input, "referer");
+  const stored = omniauthParams.referer;
+  const referer = requested !== undefined && isPresent(requested) ? requested : (stored ?? origin);
+  const { rootDomain } = domainConfig(process.env);
+  const target =
+    typeof referer === "string" && isPresent(referer) && referer !== "/" ? referer : await signedInUserHome(userId);
+  return safeRedirectPath(target, chain.request, { rootDomain });
 }
 
 // An exception Ruby raises after the verifier was spent, which Rails answers with a 500.

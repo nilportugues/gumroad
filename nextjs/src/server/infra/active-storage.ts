@@ -87,7 +87,9 @@ export function publicStorageUrl(key: string): string {
 // The services config/storage.yml names per environment; a blob stored under another is Rails'.
 const SERVICE_NAMES = { production: "amazon", staging: "amazon", development: "development", test: "test" } as const;
 
-export const isConfiguredService = (serviceName: string) => serviceName === SERVICE_NAMES[storageConfig().env];
+export const configuredServiceName = () => SERVICE_NAMES[storageConfig().env];
+
+export const isConfiguredService = (serviceName: string) => serviceName === configuredServiceName();
 
 // S3Service#exist?: Aws::S3::Object#exists? answers false for a missing key and raises otherwise.
 export async function publicStorageExists(key: string): Promise<boolean> {

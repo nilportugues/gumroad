@@ -10,6 +10,8 @@ require "spec_helper"
 # An example named "hands ..." is one Node leaves to Rails: the verifier is spent by the token call, so what Node cannot finish after it
 # (a login or signup, a profile picture to download, the async window page) is handed back before anything is asked of Twitter.
 describe "Twitter OAuth", type: :request do
+  PNG_7X5 = "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAFAQMAAACzVGSbAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEX/AAD///9BHTQRAAAAAWJLR0QB/wIt3gAAAAd0SU1FB+oLDAUCF/EjOUMAAAALSURBVAjXY2CAAQAACgAB5/ja+gAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyNi0xMS0xMlQwNTowMjoyMyswMDowMKb5F4IAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjYtMTEtMTJUMDU6MDI6MjMrMDA6MDDXpK8+AAAAAElFTkSuQmCC"
+  JPEG_9X4 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAAEAAkDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAYJ/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8Anu1TQ4D/2Q=="
   include Parity::AudienceSignedIn
 
   let(:nonce) { "c25dfixednonce" }
@@ -43,6 +45,7 @@ describe "Twitter OAuth", type: :request do
     allow_any_instance_of(ActionView::Base).to receive(:vite_typescript_tag).and_return("")
     allow_any_instance_of(OAuth::Client::Helper).to receive(:generate_key).and_return(nonce)
     allow_any_instance_of(OAuth::Client::Helper).to receive(:generate_timestamp).and_return(timestamp)
+    $twitter.bearer_token = nil
     # The profile picture download of a login or a seller with no avatar (User#twitter_picture_url), which fails quietly.
     stub_request(:post, %r{api\.twitter\.com/oauth2/token}).to_return(status: 200, headers: json, body: { token_type: "bearer", access_token: "app-only" }.to_json)
     stub_request(:get, %r{api\.twitter\.com/1\.1/users/show}).to_return(status: 404, headers: json, body: "{}")
@@ -289,7 +292,7 @@ describe "Twitter OAuth", type: :request do
       expect(SocialConnectVerification.where(user:)).to be_empty
     end
 
-    it "hands a login callback to Rails when Twitter refuses the request token", parity: true do
+    it "sends a login callback to the sign-in page when Twitter refuses the request token", parity: true do
       begin_flow
       stub_access_token(status: 401, body: "Invalid / expired Token")
 
@@ -306,7 +309,7 @@ describe "Twitter OAuth", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from Twitter because \"Session expired\".")
     end
 
-    it "hands a login callback to Rails when the access token call fails", parity: true do
+    it "sends a login callback to the sign-in page when the access token call fails", parity: true do
       begin_flow
       stub_access_token(status: 502, body: "Bad gateway")
 
@@ -316,14 +319,86 @@ describe "Twitter OAuth", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from Twitter because \"Service unavailable\".")
     end
 
-    it "hands a login callback to Rails", parity: true do
-      begin_flow
-      stub_access_token
-      stub_credentials
+    describe "a login or signup" do
+      let(:twitter_user) { create(:user, name: "Returning Twitter", email: "returning.twitter@example.com", twitter_user_id: "4242424242", provider: "twitter") }
 
-      callback
+      def login_callback
+        # The seed row is written a moment before the request: a save in the same second would not show as a change.
+        User.where(twitter_user_id: "4242424242").update_all(updated_at: 1.hour.ago)
+        begin_flow
+        stub_access_token
+        stub_credentials
+        callback
+      end
 
-      expect(response).to have_http_status(:found)
+      it "signs a new Twitter visitor up and asks for an email address", parity: true do
+        login_callback
+
+        expect(response).to redirect_to("/settings")
+        expect(flash[:warning]).to eq("Please enter an email address!")
+        created = User.find_by!(twitter_user_id: "4242424242")
+        expect(created).to have_attributes(provider: "twitter", twitter_handle: "twitterconnector", username: "twitterconnector", name: "Twitter Connector",
+                                           twitter_oauth_token: "access-token-1", twitter_oauth_secret: "access-secret-1", email: nil)
+        expect(created.confirmed_at).to be_present
+        expect(SignupEvent.where(user_id: created.id).count).to eq(1)
+        expect(SocialConnectVerification.find_by!(user: created, platform: "twitter").uid).to eq("4242424242")
+        expect(Event.where(user_id: created.id, event_name: "social_connect_connected")).to be_empty
+        expect(a_request(:get, "#{twitter}/1.1/users/show.json").with(query: { user_id: 4_242_424_242 })).to have_been_made
+      end
+
+      it "signs in a returning Twitter user who has an email address", parity: true do
+        twitter_user
+
+        login_callback
+
+        expect(response).to redirect_to("/two-factor?next=/dashboard")
+        expect(twitter_user.reload).to have_attributes(twitter_oauth_token: "access-token-1", twitter_oauth_secret: "access-secret-1", twitter_handle: "twitterconnector")
+        expect(SignupEvent.count).to eq(0)
+      end
+
+      it "asks a returning Twitter user with two-factor authentication for the code", parity: true do
+        twitter_user.update!(two_factor_authentication_enabled: true)
+
+        login_callback
+
+        expect(response).to redirect_to("/two-factor?next=/dashboard")
+        expect(session[:verify_two_factor_auth_for]).to eq(twitter_user.id)
+      end
+
+      it "refuses to sign a team member in with Twitter", parity: true do
+        twitter_user.update!(is_team_member: true)
+
+        login_callback
+
+        expect(response).to redirect_to("/login")
+        expect(flash[:alert]).to eq("You're an admin, you can't login with Twitter.")
+      end
+
+      it "refuses a deleted account", parity: true do
+        twitter_user.update_columns(deleted_at: Time.current)
+
+        login_callback
+
+        expect(response).to redirect_to("/login")
+        expect(flash[:alert]).to eq(User::DELETED_ACCOUNT_LOGIN_ERROR)
+      end
+
+      it "signs a user in who has only an address to confirm", parity: true do
+        twitter_user.update_columns(email: nil, unconfirmed_email: "pending.twitter@example.com")
+
+        login_callback
+
+        expect(response).to redirect_to("/settings")
+        expect(flash[:warning]).to eq("Please confirm your email address")
+        expect(SignupEvent.count).to eq(0)
+      end
+
+      it "hands a login callback of a visitor who is signed in to Rails", parity: true do
+        log_in(user)
+        login_callback
+
+        expect(response).to have_http_status(:found)
+      end
     end
 
     it "hands a callback of the async link to Rails", parity: true do
@@ -337,13 +412,69 @@ describe "Twitter OAuth", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a callback of a seller with no avatar to Rails", parity: true do
-      ActiveStorage::Attachment.where(record_type: "User", record_id: user.id, name: "avatar").delete_all
-      link!
+    describe "a seller with no avatar" do
+      let(:photo_url) { "http://pbs.twimg.com/profile_images/4242424242/photo" }
+      let(:png) { Base64.decode64(PNG_7X5) }
 
-      callback
+      before do
+        ActiveStorage::Attachment.where(record_type: "User", record_id: user.id, name: "avatar").delete_all
+        # `avatar_url` renders the 400x400 variant, whose bytes are ImageMagick's re-encoding of the picture: the port leaves it to the first render
+        # that needs it, so the recording does not hold the variant rows and files either.
+        allow_any_instance_of(User).to receive(:avatar_url).and_return("avatar-url")
+        link!
+      end
 
-      expect(response).to redirect_to("/settings/social_connections")
+      def stub_profile(url: "#{photo_url}_normal.png")
+        stub_request(:get, %r{api\.twitter\.com/1\.1/users/show}).to_return(status: 200, headers: json, body: { id: 4_242_424_242, profile_image_url_https: url.sub("http:", "https:") }.to_json)
+      end
+
+      def stub_photo(path: "#{photo_url}_400x400.png", status: 200, type: "image/png", body: png)
+        stub_request(:get, path).to_return(status:, headers: { "Content-Type" => type }, body:)
+      end
+
+      it "downloads the profile picture at its larger size and attaches it", parity: true do
+        stub_profile
+        stub_photo
+
+        callback
+
+        expect(response).to redirect_to("/settings/social_connections")
+        blob = user.reload.avatar.blob
+        expect(blob).to have_attributes(filename: ActiveStorage::Filename.new("photo_400x400.png"), content_type: "image/png", byte_size: png.bytesize,
+                                        checksum: Digest::MD5.base64digest(png), service_name: "test")
+        expect(blob.metadata).to include("identified" => true, "analyzed" => true, "width" => 7, "height" => 5)
+        expect(ActiveStorage::Blob.service.exist?(blob.key)).to be(true)
+        # The test adapter keeps the ActiveJob that production hands to Sidekiq; the replay checks Node pushed the same one.
+        analyze = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |job| job["job_class"] == "ActiveStorage::AnalyzeJob" || job[:job] == ActiveStorage::AnalyzeJob }
+        expect(analyze.map { |job| [job[:queue], job[:args]] }).to eq([["default", [{ "_aj_globalid" => "gid://gumroad/ActiveStorage::Blob/#{blob.id}" }]]])
+      end
+
+      it "attaches a jpeg picture", parity: true do
+        stub_profile(url: "#{photo_url}_normal.jpg")
+        stub_photo(path: "#{photo_url}_400x400.jpg", type: "image/jpeg", body: Base64.decode64(JPEG_9X4))
+
+        callback
+
+        expect(user.reload.avatar.blob).to have_attributes(content_type: "image/jpeg")
+        expect(user.avatar.blob.metadata).to include("width" => 9, "height" => 4)
+      end
+
+      it "leaves the seller without a picture when the profile cannot be read", parity: true do
+        callback
+
+        expect(response).to redirect_to("/settings/social_connections")
+        expect(user.reload.avatar).not_to be_attached
+      end
+
+      it "leaves the seller without a picture when the download is refused", parity: true do
+        stub_profile
+        stub_photo(status: 404, body: "")
+
+        callback
+
+        expect(response).to redirect_to("/settings/social_connections")
+        expect(user.reload.avatar).not_to be_attached
+      end
     end
   end
 end
