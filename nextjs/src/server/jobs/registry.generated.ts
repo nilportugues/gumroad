@@ -724,7 +724,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteOldPingDeliveriesJob": {
     "file": "app/sidekiq/delete_old_ping_deliveries_job.rb",
@@ -980,7 +980,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 7200,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "EndSubscriptionWorker": {
     "file": "app/sidekiq/end_subscription_worker.rb",
@@ -1328,7 +1328,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateFeesByCreatorLocationReportJob": {
     "file": "app/sidekiq/generate_fees_by_creator_location_report_job.rb",
@@ -1511,7 +1511,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleNewUserComplianceInfoWorker": {
     "file": "app/sidekiq/handle_new_user_compliance_info_worker.rb",
@@ -2877,7 +2877,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendDeferredRefundsReportWorker": {
     "file": "app/sidekiq/send_deferred_refunds_report_worker.rb",
@@ -2893,7 +2893,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 7200,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendFeatureAnnouncementCampaignJob": {
     "file": "app/sidekiq/send_feature_announcement_campaign_job.rb",
@@ -2922,7 +2922,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 7200,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendLastPostJob": {
     "file": "app/sidekiq/send_last_post_job.rb",
@@ -3102,7 +3102,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 10800,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendStripeCurrencyBalancesReportJob": {
     "file": "app/sidekiq/send_stripe_currency_balances_report_job.rb",
@@ -3118,7 +3118,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendToElasticsearchWorker": {
     "file": "app/sidekiq/send_to_elasticsearch_worker.rb",
@@ -3438,7 +3438,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "TranscodeVideoForStreamingWorker": {
     "file": "app/sidekiq/transcode_video_for_streaming_worker.rb",

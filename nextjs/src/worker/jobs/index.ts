@@ -88,7 +88,10 @@ import { recoverStrandedBuyersJobWith } from "./recover-stranded-buyers-job.ts";
 import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
 import { createLicensesForExistingCustomersWorkerWith } from "./create-licenses-for-existing-customers-worker.ts";
 import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
-import { refreshAffiliateEarningsJob, refreshAffiliateEarningsJobRetriesExhausted } from "./refresh-affiliate-earnings-job.ts";
+import {
+  refreshAffiliateEarningsJob,
+  refreshAffiliateEarningsJobRetriesExhausted,
+} from "./refresh-affiliate-earnings-job.ts";
 import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
 import { processAssetPreviewRetinaWorker } from "./process-asset-preview-retina-worker.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
@@ -236,6 +239,34 @@ import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
 import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
 import { stripeRestraintNoticeEmailJob } from "./stripe-restraint-notice-email-job.ts";
+import {
+  emailOutstandingBalancesCsvWorker,
+  emailOutstandingBalancesCsvWorkerRetriesExhausted,
+  sendDailyFinanceLedgerReportJob,
+  sendDailyFinanceLedgerReportJobRetriesExhausted,
+  sendDeferredRefundsReportWorker,
+  sendDeferredRefundsReportWorkerRetriesExhausted,
+  sendFinancesReportWorker,
+  sendFinancesReportWorkerRetriesExhausted,
+  sendStripeBalanceSummariesReportJob,
+  sendStripeBalanceSummariesReportJobRetriesExhausted,
+  sendStripeCurrencyBalancesReportJob,
+  sendStripeCurrencyBalancesReportJobRetriesExhausted,
+} from "./finance-report-jobs.ts";
+import {
+  taxFormTransactionReportJob,
+  taxFormTransactionReportJobRetriesExhausted,
+} from "./tax-form-transaction-report-job.ts";
+import {
+  deleteGuardianStripePersonJob,
+  deleteGuardianStripePersonJobRetriesExhausted,
+  handleNewBankAccountWorker,
+  handleNewBankAccountWorkerRetriesExhausted,
+} from "./payout-note-retries-exhausted-jobs.ts";
+import {
+  generateCommunityChatRecapJob,
+  generateCommunityChatRecapJobRetriesExhausted,
+} from "./generate-community-chat-recap-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -454,6 +485,16 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   FinalizeBuyerPresentmentPurchaseJob: finalizeBuyerPresentmentPurchaseJob,
   AttachPastPurchasesToUserWorker: attachPastPurchasesToUserWorker,
   StripeRestraintNoticeEmailJob: stripeRestraintNoticeEmailJob,
+  EmailOutstandingBalancesCsvWorker: emailOutstandingBalancesCsvWorker,
+  SendStripeCurrencyBalancesReportJob: sendStripeCurrencyBalancesReportJob,
+  SendDeferredRefundsReportWorker: sendDeferredRefundsReportWorker,
+  SendFinancesReportWorker: sendFinancesReportWorker,
+  SendStripeBalanceSummariesReportJob: sendStripeBalanceSummariesReportJob,
+  SendDailyFinanceLedgerReportJob: sendDailyFinanceLedgerReportJob,
+  TaxFormTransactionReportJob: taxFormTransactionReportJob,
+  HandleNewBankAccountWorker: handleNewBankAccountWorker,
+  DeleteGuardianStripePersonJob: deleteGuardianStripePersonJob,
+  GenerateCommunityChatRecapJob: generateCommunityChatRecapJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
@@ -468,4 +509,14 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   ReindexSellerOfferCodesJob: reindexSellerOfferCodesJobRetriesExhausted,
   ReindexSellerOfferCodesRecoveryJob: reindexSellerOfferCodesRecoveryJobRetriesExhausted,
   RefreshAffiliateEarningsJob: refreshAffiliateEarningsJobRetriesExhausted,
+  EmailOutstandingBalancesCsvWorker: emailOutstandingBalancesCsvWorkerRetriesExhausted,
+  SendStripeCurrencyBalancesReportJob: sendStripeCurrencyBalancesReportJobRetriesExhausted,
+  SendDeferredRefundsReportWorker: sendDeferredRefundsReportWorkerRetriesExhausted,
+  SendFinancesReportWorker: sendFinancesReportWorkerRetriesExhausted,
+  SendStripeBalanceSummariesReportJob: sendStripeBalanceSummariesReportJobRetriesExhausted,
+  SendDailyFinanceLedgerReportJob: sendDailyFinanceLedgerReportJobRetriesExhausted,
+  TaxFormTransactionReportJob: taxFormTransactionReportJobRetriesExhausted,
+  HandleNewBankAccountWorker: handleNewBankAccountWorkerRetriesExhausted,
+  DeleteGuardianStripePersonJob: deleteGuardianStripePersonJobRetriesExhausted,
+  GenerateCommunityChatRecapJob: generateCommunityChatRecapJobRetriesExhausted,
 };

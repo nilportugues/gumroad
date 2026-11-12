@@ -185,16 +185,16 @@ function rubyTimeToS(value: Date): string {
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 
-// User#add_payout_note
-async function addPayoutNote(
-  user: UserRecord,
+// User#add_payout_note, for the user with this id.
+export async function addPayoutNoteTo(
+  userId: bigint | number,
   content: string,
   sellerVisible: boolean,
   options: SaveOptions,
 ): Promise<void> {
   await Comments.createBang(
     {
-      commentable_id: user.get("id") as never,
+      commentable_id: userId as never,
       commentable_type: "User",
       content,
       author_id: BigInt(gumroadAdminId() as number),
@@ -204,6 +204,9 @@ async function addPayoutNote(
     options,
   );
 }
+
+const addPayoutNote = (user: UserRecord, content: string, sellerVisible: boolean, options: SaveOptions) =>
+  addPayoutNoteTo(user.get("id") as never, content, sellerVisible, options);
 
 async function enqueueCreatorMail(method: string, paymentId: unknown): Promise<void> {
   await deliverLater(
