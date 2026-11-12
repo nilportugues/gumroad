@@ -49,6 +49,8 @@ const ANALYZE_JOB = "ActiveStorage::AnalyzeJob";
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
+let jobOrder: string[] = [];
+
 function redisJobs(redis: Redis): JobsChannel {
   return {
     async reset() {},
@@ -68,7 +70,12 @@ function redisJobs(redis: Redis): JobsChannel {
           continue;
         jobs.push({ class: item.class, args: item.args, queue: item.queue });
       }
-      return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      // Rails' order where the recording has the class, so two jobs of one save compare as they were pushed.
+      const rank = (job: RawJob) => {
+        const at = jobOrder.indexOf(job.class);
+        return at === -1 ? jobOrder.length : at;
+      };
+      return jobs.sort((a, b) => rank(a) - rank(b) || jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
@@ -92,6 +99,7 @@ type Put = {
   body: Buffer;
   rows: Record<string, unknown>[];
 };
+const PWNED_URL = /^https:\/\/api\.pwnedpasswords\.com\//u;
 const BUCKET_URL = /^https?:\/\/localhost:9010\//u;
 
 const COMPARE = {
@@ -104,6 +112,13 @@ const COMPARE = {
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
     "db.active_storage_blobs.inserted.*.key",
+    // A new account's random password, external id and OTP secret.
+    "db.users.inserted.*.encrypted_password",
+    "db.users.inserted.*.external_id",
+    "db.users.inserted.*.otp_secret_key",
+    // The recording sent no User-Agent; the replay's client sends its own.
+    "db.signup_events.inserted.*.browser",
+    "db.signup_events.inserted.*.browser_fingerprint",
     "http",
   ],
 };
@@ -151,6 +166,8 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
   let rails: Server;
   let standIn: Server;
   let bucket: Server;
+  let pwned: Server;
+  const pwnedPrefixes: string[] = [];
   const objects = new Map<string, Buffer>();
   const puts: Put[] = [];
   let recorded: CapturedHttp[] = [];
@@ -207,6 +224,12 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
       });
     });
     await new Promise<void>((resolve) => bucket.listen(0, "127.0.0.1", resolve));
+    // api.pwnedpasswords.com: the recorded answer is an empty range.
+    pwned = createServer((request, response) => {
+      pwnedPrefixes.push((request.url ?? "").replace("/range/", ""));
+      response.writeHead(200, { "content-type": "text/plain" }).end("");
+    });
+    await new Promise<void>((resolve) => pwned.listen(0, "127.0.0.1", resolve));
     standIn = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -260,6 +283,7 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
+      PWNED_PASSWORDS_ORIGIN: `http://127.0.0.1:${(pwned.address() as { port: number }).port}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
@@ -279,6 +303,7 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
     rails.close();
     await new Promise((resolve) => standIn.close(resolve));
     await new Promise((resolve) => bucket.close(resolve));
+    pwned.close();
     await closeAllRedis();
     await redis.quit();
     await client.$disconnect();
@@ -317,6 +342,13 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
     // Minted per session, so a request that starts one (no earlier request set it) differs on both.
     delete session.session_id;
     delete session._csrf_token;
+    delete session.two_factor_auth_token_sent_at;
+    // A new account's random password: Devise keeps the head of its salt in the session key.
+    const key = session["warden.user.user.key"] as unknown[] | undefined;
+    if (key) key[1] = "<salt>";
+    // The sign-in time, whenever the recording was made.
+    const warden = session["warden.user.user.session"] as Record<string, unknown> | undefined;
+    if (warden) delete warden.last_sign_in_at;
     return session;
   };
 
@@ -342,7 +374,9 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
         const fixture = loadFixture(file);
         const exchange = fixture.exchanges[index]!;
         const recordedPuts = exchange.http.filter((call) => BUCKET_URL.test(call.url) && call.method === "PUT");
-        recorded = exchange.http.filter((call) => !BUCKET_URL.test(call.url));
+        recorded = exchange.http.filter((call) => !BUCKET_URL.test(call.url) && !PWNED_URL.test(call.url));
+        pwnedPrefixes.length = 0;
+        jobOrder = exchange.jobs.map((job) => job.class);
         objects.clear();
         puts.length = 0;
         received.length = 0;
@@ -353,7 +387,7 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
           // Twitter answering 5xx to the request-token call is the one hand-back made after a provider call.
           expect(received).toHaveLength(name.includes("-when-twitter-is-unavailable") ? 1 : 0);
-          expect(mismatches).toEqual([]);
+          if (mismatches.length > 0) throw new Error(`provider calls differ: ${JSON.stringify(mismatches)}`);
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({
             method: exchange.request.method,
@@ -365,7 +399,7 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
         const replayed = await replayFixtureExchange(fixture, index, replayOptions());
         assertParity(replayed);
         // The port made the provider calls Rails made, in the same order and with the same credentials, and no others.
-        expect(mismatches).toEqual([]);
+        if (mismatches.length > 0) throw new Error(`provider calls differ: ${JSON.stringify(mismatches)}`);
         expect(received).toHaveLength(recorded.length);
         // Every call carries the OAuth header Rails signed.
         received.forEach((call, at) => {
@@ -383,9 +417,13 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
           expect(node.headers["content-type"]).toBe(rails.contentType);
           expect(node.headers["x-amz-acl"]).toBe(rails.headers?.["x-amz-acl"]);
         }
+        // The password check of a new account: one range lookup per recorded one, on a prefix of the (random) password's hash.
+        expect(pwnedPrefixes).toHaveLength(exchange.http.filter((call) => PWNED_URL.test(call.url)).length);
+        expect(pwnedPrefixes.every((prefix) => /^[0-9A-F]{5}$/u.test(prefix))).toBe(true);
         const analyze = await analyzeJobs(redis);
-        if (recordedPuts.length === 0) expect(analyze).toEqual([]);
-        else {
+        if (recordedPuts.length === 0) {
+          if (analyze.length > 0) throw new Error(`analysis jobs ${JSON.stringify(analyze)}, Rails enqueues none`);
+        } else {
           const [blob] = await sql.query("SELECT `id` FROM `active_storage_blobs` ORDER BY `id` DESC LIMIT 1");
           const expectedJob = [
             {
@@ -399,9 +437,9 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
         // The session the callback leaves behind: the flash, the spent OmniAuth keys and the return entry.
         const { expected, actual } = replayed.exchanges[0]!;
         const sessionName = fixture.sessionCookie!;
-        expect(sessionOf(sessionName, actual.response.cookies)).toEqual(
-          sessionOf(sessionName, expected.response.cookies),
-        );
+        const nodeSession = JSON.stringify(sessionOf(sessionName, actual.response.cookies));
+        const railsSession = JSON.stringify(sessionOf(sessionName, expected.response.cookies));
+        if (nodeSession !== railsSession) throw new Error(`session ${nodeSession}, Rails left ${railsSession}`);
       } catch (error) {
         const logs = server
           .output()

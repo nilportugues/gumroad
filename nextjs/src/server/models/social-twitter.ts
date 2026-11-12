@@ -1,13 +1,17 @@
 // User.query_twitter and the link half of User::OmniauthCallbacksController (app/modules/user/social_twitter.rb): the Twitter (X) account a
 // signed-in seller links is written to the user and to a SocialConnectVerification, and the profile picture of a seller with none is
 // downloaded and attached (`twitterPictureUrl`, profile-picture.ts).
+import { randomBytes } from "node:crypto";
+
 import { Prisma } from "@prisma/client";
+
+import { db } from "../../lib/db.ts";
 
 import { twitterPictureUrl } from "./profile-picture.ts";
 import { recordSocialConnectEvent } from "./social-connect-funnel.ts";
 import { presence, presentToI, record, rubyToS, stringColumn } from "./social-connect-verification.ts";
 import { execute, selectRows, column, table } from "./sql.ts";
-import { findUserBang, INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX, Users } from "./user.ts";
+import { findUserBang, INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX, setPassword, type UserRecord, Users } from "./user.ts";
 
 type Hash = Record<string, unknown>;
 const isHash = (value: unknown): value is Hash => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -39,7 +43,7 @@ export function parseTwitterTime(value: unknown): Date | null {
 }
 
 // SocialConnectVerification.record_from_twitter!
-async function recordFromTwitter(userId: bigint, rawInfo: Hash, now: () => Date) {
+async function recordFromTwitter(userId: bigint, rawInfo: Hash, now: () => Date, recordFunnelConnected: boolean) {
   const uid = rubyToS(rawInfo.id);
   const errors = rawInfo.errors;
   if (uid === "" || (errors !== null && errors !== undefined && errors !== false && presence(errors) !== null))
@@ -57,6 +61,7 @@ async function recordFromTwitter(userId: bigint, rawInfo: Hash, now: () => Date)
       last_posted_at: isHash(status) ? parseTwitterTime(status.created_at) : null,
     },
     now,
+    recordFunnelConnected,
   );
 }
 
@@ -78,18 +83,19 @@ function expandDescription(data: Hash): void {
 
 const REVERT_TOKENS = { token: "twitter_oauth_token", secret: "twitter_oauth_secret" } as const;
 
-// User::OmniauthCallbacksController#link_twitter_account over User.query_twitter(logged_in_user, data).
-export async function linkTwitterAccount(
-  userId: bigint,
+// User.query_twitter(user, data, record_funnel_connected:) for a persisted user: the Twitter account and profile fields saved, the verification
+// recorded and, for a user with no avatar, the profile picture attached.
+export async function queryTwitter(
+  user: UserRecord,
   data: Hash,
-  credentials: { token: string; secret: string },
   now: () => Date,
+  recordFunnelConnected: boolean,
 ): Promise<void> {
-  const user = await findUserBang(userId);
+  const userId = BigInt(String(user.get("id")));
   user.set("twitter_user_id", data.id === null || data.id === undefined ? null : String(data.id));
   user.set("twitter_handle", (data.screen_name as string | null | undefined) ?? null);
   try {
-    await recordFromTwitter(userId, data, now);
+    await recordFromTwitter(userId, data, now, recordFunnelConnected);
   } catch (error) {
     // Verification metadata feeds risk reviews; it must never break signup/link.
     console.error(
@@ -112,6 +118,17 @@ export async function linkTwitterAccount(
   if (!(await Users.valid(user))) user.set("username", null);
   await Users.save(user, { now });
   if (!(await avatarAttached(userId))) await twitterPictureUrl(user, now);
+}
+
+// User::OmniauthCallbacksController#link_twitter_account over User.query_twitter(logged_in_user, data).
+export async function linkTwitterAccount(
+  userId: bigint,
+  data: Hash,
+  credentials: { token: string; secret: string },
+  now: () => Date,
+): Promise<void> {
+  const user = await findUserBang(userId);
+  await queryTwitter(user, data, now, true);
 
   user.assign({ [REVERT_TOKENS.token]: credentials.token, [REVERT_TOKENS.secret]: credentials.secret });
   await Users.saveBang(user, { now });
@@ -128,4 +145,41 @@ export async function avatarAttached(userId: bigint): Promise<boolean> {
     Prisma.sql`SELECT 1 AS one FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_id")} = ${userId} AND ${column("active_storage_attachments", "record_type")} = 'User' AND ${column("active_storage_attachments", "name")} = 'avatar' LIMIT 1`,
   );
   return rows.length > 0;
+}
+
+// Devise.friendly_token(20): SecureRandom.urlsafe_base64(20).tr("lIO0", "sxyz")[0, 20]
+const RANDOM_PASSWORD_LENGTH = 20;
+export function friendlyToken(): string {
+  return randomBytes(RANDOM_PASSWORD_LENGTH)
+    .toString("base64url")
+    .replace(/[lIO0]/gu, (c) => ({ l: "s", I: "x", O: "y", "0": "z" })[c]!)
+    .slice(0, RANDOM_PASSWORD_LENGTH);
+}
+
+// User.find_or_create_for_twitter_oauth!(data) with `data["extra"]["raw_info"]` as `info`: the user holding the Twitter id, or a new one
+// (provider twitter, a random password, confirmed), then query_twitter without the funnel's "connected" event. Rails raises on an invalid
+// record (`save!`), and on an `errors` entry of the payload (a Hash answering `message`), both after the verifier was spent.
+export async function findOrCreateForTwitterOauth(info: Hash, now: () => Date): Promise<UserRecord> {
+  const twitterId = info.id === null || info.id === undefined ? null : String(info.id);
+  const found =
+    twitterId === null
+      ? null
+      : await db.user.findFirst({ where: { twitter_user_id: twitterId }, orderBy: { id: "asc" } });
+  let user: UserRecord;
+  if (found) user = await findUserBang(found.id);
+  else {
+    user = Users.build({});
+    user.set("provider", "twitter");
+    user.set("twitter_user_id", twitterId);
+    await setPassword(user, friendlyToken());
+    // skip_confirmation!
+    user.set("confirmed_at", new Date(Math.floor(now().getTime() / 1000) * 1000));
+    await Users.saveBang(user, { now });
+  }
+  const errors = info.errors;
+  if (errors !== null && errors !== undefined && errors !== false && presence(errors) !== null)
+    throw new TwitterPayloadError("undefined method 'message' for an instance of Hash");
+  await queryTwitter(user, info, now, false);
+  await Users.saveBang(user, { now });
+  return user;
 }
