@@ -204,7 +204,7 @@ function userRow(attributes: Partial<User>): User {
 
 function seedGoldenDatabase(overrides: Record<number, Row> = {}) {
   const rows = golden.existing.map((r) => ({ ...r, ...overrides[r.id] }));
-  db.on(/FROM `users` WHERE `users`.`username` = BINARY/u, ([value, exceptId]) =>
+  db.on(/FROM `users` WHERE `users`.`username` = CAST\(\?/u, ([value, exceptId]) =>
     rows
       .filter((r) => r.username === value && (exceptId === undefined || BigInt(r.id) !== exceptId))
       .map(() => ({ one: 1 })),
