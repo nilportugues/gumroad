@@ -536,9 +536,9 @@ const classOf = (controller: string) =>
 
 // ---- the report ----
 
-type Row = Route & { status: "native" | "hands back" | "not registered"; workstream: string; weight: number };
+export type Row = Route & { status: "native" | "hands back" | "not registered"; workstream: string; weight: number };
 
-function rows(parsed: Parsed): Row[] {
+export function rows(parsed: Parsed): Row[] {
   const registered = registeredRoutes();
   const literals = sourceLiterals();
   const serverText = readAllServerText(SERVER_DIR);
@@ -571,7 +571,7 @@ function sumBy<T>(items: T[], pick: (item: T) => number) {
   return items.reduce((total, item) => total + pick(item), 0);
 }
 
-function pageStatus() {
+export function pageStatus() {
   const railsPages = new Set<string>();
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {
