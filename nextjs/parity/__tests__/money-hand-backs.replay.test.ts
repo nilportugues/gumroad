@@ -10,7 +10,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type Exchange } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -33,6 +33,7 @@ const SPECS = [
   "instant_payouts_parity_spec",
   "instant_payouts_failures_parity_spec",
   "settings_payments_stripe_account_parity_spec",
+  "settings_payments_stripe_account_failures_parity_spec",
 ];
 const ROUTE_FLAGS = ["nextjs_purchases_seller_guards", "nextjs_payouts_guards", "nextjs_settings_payments_guards"].join(
   ",",
@@ -467,6 +468,50 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       ["comments", "merchant_accounts", "tos_agreements", "users"],
       ["bank_accounts", "comments", "merchant_accounts"],
     ]);
+  });
+
+  // What Rails does when Stripe does not just answer the creation (settings_payments_stripe_account_failures_parity_spec.rb): the
+  // pending-creation note is written before the first attempt, the gem makes four attempts under one key for a 5xx or a dropped
+  // connection and one for a 429, and the failure is written (merchant account soft-deleted, note updated, retry job) only after.
+  it("records the order of the Stripe account creation failures", () => {
+    const exchangeOf = (fragment: string) => {
+      for (const [, file, index] of cases) {
+        if (!file.includes("stripe_account_failures_parity_spec")) continue;
+        const fixture = loadFixture(file);
+        if (fixture.example.includes(fragment)) return fixture.exchanges[index]!;
+      }
+      throw new Error(`no recorded example mentions ${fragment}`);
+    };
+    const attempts = (exchange: Exchange) => exchange.http.map((call) => `${call.method} ${new URL(call.url).pathname}`);
+    const BEFORE = ["comments", "merchant_accounts", "tos_agreements", "users"];
+
+    for (const [fragment, count] of [
+      ["fails with a server error", 4],
+      ["drops on every attempt", 4],
+      ["answers a rate limit", 1],
+      ["rejects the account details", 1],
+    ] as const) {
+      const exchange = exchangeOf(fragment);
+      expect(attempts(exchange)).toEqual(Array<string>(count).fill("POST /v1/accounts"));
+      // One idempotency key per creation: the recorder normalizes it to <uuid>, and the spec asserts the attempts shared it.
+      for (const call of exchange.http) expect(call.headers).toMatchObject({ "idempotency-key": "<uuid>" });
+      const segments = timelineSegments(exchange.timeline!);
+      expect(segments[0]).toEqual(BEFORE);
+      expect(segments.slice(1, count)).toEqual(Array<string[]>(count - 1).fill([]));
+      expect(segments.at(-1)).toEqual(["comments", "merchant_accounts"]);
+    }
+    const dropped = exchangeOf("drops on every attempt");
+    expect(dropped.http.every((call) => (call.response as { dropped?: boolean }).dropped === true)).toBe(true);
+    for (const fragment of ["fails with a server error", "drops on every attempt", "answers a rate limit"])
+      expect(exchangeOf(fragment).jobs!.map((job) => `${job.class} ${job.queue}`)).toEqual([
+        "RetryStripeRejectedPayoutSetupForSellerJob low",
+      ]);
+    expect(exchangeOf("rejects the account details").jobs ?? []).toEqual([]);
+
+    // A dropped first attempt retried: two calls, the second answered, and the account is written after them.
+    const retried = exchangeOf("drops once");
+    expect(retried.http.map((call) => (call.response as { dropped?: boolean }).dropped === true)).toEqual([true, false]);
+    expect(timelineSegments(retried.timeline!)[0]).toEqual(BEFORE);
   });
 
   it.each(cases)(
