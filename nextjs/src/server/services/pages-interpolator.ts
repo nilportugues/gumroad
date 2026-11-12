@@ -1,8 +1,16 @@
-// Port of Pages::Interpolator.interpolate_profile (app/services/pages/interpolator.rb): the profile half, which fills display fields
-// of a seller's custom HTML. The product half (`interpolate`) also needs the product's formatted price, its review stats and
-// Pages::BuyButtonParams, and is not ported.
-import { allElements, getAttribute, isEmptyTag, type ElementNode, type TextNode } from "../html/libxml2-tree.ts";
+// Port of Pages::Interpolator (app/services/pages/interpolator.rb): `interpolate_profile` in full, and the product half
+// (`interpolate`) for the markers that need only the product's name, description and review summary.
+import {
+  allElements,
+  getAttribute,
+  insertBefore,
+  isEmptyTag,
+  removeNode,
+  type ElementNode,
+  type TextNode,
+} from "../html/libxml2-tree.ts";
 import { fragmentToHtml, html4Fragment } from "../html/loofah.ts";
+import { sanitize } from "../html/sanitizer.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 
 export type ProfileFields = { name_or_username: string | null; bio: string | null };
@@ -55,6 +63,79 @@ function writeText(node: ElementNode, text: string): void {
     throw new NotPortedError("Pages::Interpolator writing into this element or text");
   const child: TextNode = { type: "text", content: text, parent: node };
   node.children = text === "" ? [] : [child];
+}
+
+// ---- Pages::Interpolator.interpolate (the product half) ----
+//
+// The caller resolves what Ruby reads off the product: its name, description, and the review summary (null when reviews are hidden
+// or none exist yet: `review_summary`). A marker that needs the product's formatted price or its options' prices, and every buy
+// button (Pages::BuyButtonParams), stay in Rails: the port throws before it reads anything else.
+export type ProductFields = {
+  name: string | null;
+  description: string | null;
+  reviews: { average: number; count: number } | null;
+};
+
+// Pages::Interpolator::DESCRIPTION_SANITIZE_OPTIONS
+const DESCRIPTION_SANITIZE_OPTIONS = {
+  tags: ["p", "br", "h1", "h2", "h3", "strong", "em", "ul", "li", "a"],
+  attributes: ["href"],
+};
+// Pages::Interpolator::PHRASING_ONLY_MARKER_TAGS
+const PHRASING_ONLY_MARKER_TAGS = new Set(["p", "span", "a", "em", "strong", "b", "i", "small", "label"]);
+// Pages::Interpolator::DESCRIPTION_BLOCK_TAGS (Ruby's \s is ASCII)
+const DESCRIPTION_BLOCK_TAGS = /<(?:p|h1|h2|h3|ul)[\t-\r >]/u;
+
+// What `inner_html = value` leaves for sanitized text: the three entities the serializer writes decode back to the text they came from,
+// and anything with a tag or another reference is a context-dependent parse left to Rails.
+function sanitizedTextOnly(value: string): string {
+  if (value.includes("<")) throw new NotPortedError("Pages::Interpolator writing sanitized markup into an element");
+  if (/&(?!(?:amp|lt|gt);)/u.test(value)) {
+    throw new NotPortedError("Pages::Interpolator writing a character reference into an element");
+  }
+  return value.replace(/&(?:amp|lt|gt);/gu, (match) => (match === "&amp;" ? "&" : match === "&lt;" ? "<" : ">"));
+}
+
+export function interpolateProduct(html: string, product: ProductFields): string {
+  if (blank(html)) return html;
+  // `return if stats[:count].zero?`
+  const reviews = product.reviews !== null && product.reviews.count !== 0 ? product.reviews : null;
+  const fragment = html4Fragment(html);
+  let sanitizedDescription: string | undefined;
+  for (const node of allElements(fragment)) {
+    const field = getAttribute(node, "data-gumroad-field");
+    if (field === undefined) continue;
+    const name = field ?? "";
+    let value: string | null;
+    let raw = false;
+    if (name === "price") {
+      throw new NotPortedError("Pages::Interpolator writing the product's formatted price");
+    } else if (name === "name") {
+      value = product.name ?? "";
+    } else if (name === "description") {
+      sanitizedDescription ??= sanitize(product.description ?? "", DESCRIPTION_SANITIZE_OPTIONS);
+      value = sanitizedDescription;
+      raw = true;
+    } else if (name === "rating") {
+      value = reviews === null ? null : String(reviews.average);
+    } else if (name === "review-count") {
+      value = reviews === null ? null : String(reviews.count);
+    } else {
+      continue;
+    }
+    if (value === null) continue;
+    if (raw && PHRASING_ONLY_MARKER_TAGS.has(node.name) && DESCRIPTION_BLOCK_TAGS.test(value)) {
+      // node.replace(Loofah.fragment(value).children): the marker's own attributes are lost with it.
+      insertBefore(node, [...html4Fragment(value).children]);
+      removeNode(node);
+    } else {
+      writeText(node, raw ? sanitizedTextOnly(value) : value);
+    }
+  }
+  if (allElements(fragment).some((node) => getAttribute(node, "data-gumroad-action") === "buy")) {
+    throw new NotPortedError("Pages::Interpolator validating a buy button");
+  }
+  return fragmentToHtml(fragment);
 }
 
 export function interpolateProfile(html: string, options: { profile: ProfileFields; prices?: ProductPrices }): string {

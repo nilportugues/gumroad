@@ -1,6 +1,8 @@
-// Api::Internal::AgentCustomHtmlPreviewsController. #show is a Redis read and runs here. #create answers the gates and every proposal the
-// controller refuses before it sanitizes anything; a preview that renders (Ai::PageSanitizer over Nokogiri, Pages::Interpolator,
-// Pages::ProfileData, Pages::DefaultProfileDocument) is Rails'.
+// Api::Internal::AgentCustomHtmlPreviewsController. #show is a Redis read and runs here. #create answers the gates, every proposal the
+// controller refuses before it sanitizes anything, and a preview that renders when every step can be proven byte-equal: Ai::PageSanitizer,
+// Pages::Interpolator.interpolate_profile, Pages::ProfileData for a seller with nothing to list, and the sandboxed document. A page that
+// references prices (Pages::ProductPrices.build), a seller with products or posts, a proposal that clears the page
+// (Pages::DefaultProfileDocument) or a guarded undo is Rails', handed back before anything is staged.
 import { db } from "../../lib/db.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
@@ -8,7 +10,9 @@ import { storageConfig } from "../infra/storage.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 
+import { stagePreview, type PreviewSeller as PreviewSellerRow } from "./agent-preview-render.ts";
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
+import { PREVIEW_CHANGED_MARKER, PREVIEW_CHANGED_MARKER_TEXT } from "./custom-html-document.ts";
 import { authorizeStoreAgent, guarded, handingBack } from "./internal-agent.ts";
 import { json, jsonAction } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -101,22 +105,20 @@ function tolerantPattern(find: string): RegExp {
   return new RegExp(segments.join(""), "gu");
 }
 
-// Ai::CustomHtmlSnippetMatcher.match, reduced to what the controller reads before it splices: the occurrence count and the edited length
-function matchSnippet(page: string, find: string, replace: string): { occurrences: number; edited: string } {
+// Ai::CustomHtmlSnippetMatcher.match, reduced to what the controller reads: the occurrence count and `page.sub(matcher) { text }`
+function matchSnippet(page: string, find: string): { occurrences: number; splice: (text: string) => string } {
   const exact = page.split(find).length - 1;
   if (exact > 0) {
     const at = page.indexOf(find);
-    return { occurrences: exact, edited: `${page.slice(0, at)}${replace}${page.slice(at + find.length)}` };
+    return { occurrences: exact, splice: (text) => `${page.slice(0, at)}${text}${page.slice(at + find.length)}` };
   }
   const pattern = tolerantPattern(find);
   const matches = [...page.matchAll(pattern)];
   const first = matches[0];
   return {
     occurrences: matches.length,
-    edited:
-      first === undefined
-        ? page
-        : `${page.slice(0, first.index)}${replace}${page.slice(first.index + first[0].length)}`,
+    splice: (text) =>
+      first === undefined ? page : `${page.slice(0, first.index)}${text}${page.slice(first.index + first[0].length)}`,
   };
 }
 
@@ -126,6 +128,10 @@ const lengthError = (text: string): string | null =>
     : `The edited page would be too long (maximum is ${MAX_CUSTOM_HTML_LENGTH} characters).`;
 
 const failure = (error: string) => json({ success: false, error });
+
+async function previewUrl(seller: PreviewSellerRow, resulting: string, marked: string | null): Promise<ActionResult> {
+  return json({ success: true, preview_url: await stagePreview(seller, resulting, marked) });
+}
 
 // #resulting_custom_html up to the point a proposal needs the sanitizer
 async function previewProposal(input: MutationInput): Promise<ActionResult> {
@@ -145,7 +151,7 @@ async function previewProposal(input: MutationInput): Promise<ActionResult> {
       throw new HandBackToRails("a proposal that clears the page");
     const tooLong = lengthError(customHtml);
     if (tooLong !== null) return failure(tooLong);
-    throw new HandBackToRails("a page preview, which sanitizes the proposed HTML");
+    return previewUrl(seller, customHtml, null);
   }
   if (endpoint === "edit_user_custom_html") {
     const { find, replace } = params;
@@ -162,12 +168,15 @@ async function previewProposal(input: MutationInput): Promise<ActionResult> {
     const { expected_custom_html_sha256: expected, result_custom_html_sha256: result } = params;
     if (expected !== undefined && expected !== null) throw new HandBackToRails("a guarded edit");
     if (result !== undefined && result !== null) throw new HandBackToRails("a guarded edit");
-    const { occurrences, edited } = matchSnippet(current, find, replace);
+    const { occurrences, splice } = matchSnippet(current, find);
+    const edited = splice(replace);
     if (occurrences === 0) return failure("The snippet to replace no longer appears in the current page.");
     if (occurrences > 1) return failure(`The snippet to replace matches ${occurrences} places in the current page.`);
     const tooLong = lengthError(edited);
     if (tooLong !== null) return failure(tooLong);
-    throw new HandBackToRails("a page preview, which sanitizes the edited HTML");
+    // A page that already holds the marker text would send the scroll script to the wrong place, so it is not marked.
+    const marked = edited.includes(PREVIEW_CHANGED_MARKER_TEXT) ? null : splice(`${PREVIEW_CHANGED_MARKER}${replace}`);
+    return previewUrl(seller, edited, marked);
   }
   return failure("This change doesn't have a page preview.");
 }
