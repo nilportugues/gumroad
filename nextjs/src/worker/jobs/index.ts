@@ -174,6 +174,7 @@ import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-produ
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
 import { updateTaxRatesJob } from "./update-tax-rates-job.ts";
+import { compileGumroadDailyAnalyticsJob } from "./compile-gumroad-daily-analytics-job.ts";
 import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
@@ -337,6 +338,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   GenerateUsernameJob: generateUsernameJob,
   CancelSubscriptionsForProductWorker: cancelSubscriptionsForProductWorker,
   UpdateTaxRatesJob: updateTaxRatesJob,
+  CompileGumroadDailyAnalyticsJob: compileGumroadDailyAnalyticsJob,
   DeleteProductFilesWorker: deleteProductFilesWorker,
 };
 
