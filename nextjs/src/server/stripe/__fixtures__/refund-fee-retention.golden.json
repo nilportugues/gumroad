@@ -227,6 +227,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -349,6 +350,548 @@
       }
     },
     {
+      "name": "another process pinned a different transfer while we waited for the lock",
+      "input": {
+        "account": {
+          "country": "CA",
+          "currency": "cad"
+        },
+        "refund": {},
+        "collect": true,
+        "gumroad_held": false,
+        "holder_of_funds": "stripe",
+        "credit_amount_cents": -59,
+        "on_lock": {
+          "fee_retention_source_transfer": "tr_other"
+        },
+        "internal_transfer_ids": []
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_a",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        },
+        {
+          "write": "refund.with_lock"
+        }
+      ],
+      "outcome": {
+        "returned": null
+      },
+      "refund": {
+        "fee_retention_source_transfer": "tr_other"
+      }
+    },
+    {
+      "name": "another process recorded the collection while we waited for the lock",
+      "input": {
+        "account": {
+          "country": "CA",
+          "currency": "cad"
+        },
+        "refund": {},
+        "collect": true,
+        "gumroad_held": false,
+        "holder_of_funds": "stripe",
+        "credit_amount_cents": -59,
+        "on_lock": {
+          "debited_stripe_transfer": "trr_other",
+          "fee_retention_collected_cents": 1234
+        },
+        "internal_transfer_ids": []
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_a",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        },
+        {
+          "write": "refund.with_lock"
+        }
+      ],
+      "outcome": {
+        "returned": 1234
+      },
+      "refund": {
+        "debited_stripe_transfer": "trr_other",
+        "fee_retention_collected_cents": 1234
+      }
+    },
+    {
+      "name": "another process wrote the fee off while we waited for the lock",
+      "input": {
+        "account": {
+          "country": "CA",
+          "currency": "cad"
+        },
+        "refund": {},
+        "collect": true,
+        "gumroad_held": false,
+        "holder_of_funds": "stripe",
+        "credit_amount_cents": -59,
+        "on_lock": {
+          "fee_retention_written_off_at": "2026-11-02T00:00:00Z"
+        },
+        "internal_transfer_ids": []
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_a",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        },
+        {
+          "write": "refund.with_lock"
+        }
+      ],
+      "outcome": {
+        "returned": null
+      },
+      "refund": {
+        "fee_retention_pending": false,
+        "fee_retention_written_off_at": "2026-11-02T00:00:00Z"
+      }
+    },
+    {
+      "name": "the only transfer refuses the reversal and no other fits",
+      "input": {
+        "account": {
+          "country": "CA",
+          "currency": "cad"
+        },
+        "refund": {},
+        "collect": true,
+        "gumroad_held": false,
+        "holder_of_funds": "stripe",
+        "credit_amount_cents": -59,
+        "on_lock": null,
+        "internal_transfer_ids": []
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_a",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          },
+          {
+            "object": "list",
+            "data": [],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "error": {
+              "class": "Stripe::InvalidRequestError",
+              "message": "Cannot create a reversal for more than the amount remaining to reverse (0)."
+            }
+          }
+        ],
+        "Transfer.list_reversals": [
+          {
+            "object": "list",
+            "data": [],
+            "has_more": false
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        },
+        {
+          "write": "refund.with_lock"
+        },
+        {
+          "write": "refund.save!",
+          "refund": {
+            "fee_retention_source_transfer": "tr_a"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_a",
+          "params": {
+            "amount": 59,
+            "metadata": {
+              "refund_id": "<refund>"
+            }
+          },
+          "options": {
+            "idempotency_key": "refund_fee_retention_reversal_<refund>_tr_a"
+          }
+        },
+        {
+          "call": "Transfer.list_reversals",
+          "id": "tr_a",
+          "params": {
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        }
+      ],
+      "outcome": {
+        "raised": "Stripe::InvalidRequestError",
+        "message": "Cannot create a reversal for more than the amount remaining to reverse (0)."
+      },
+      "refund": {
+        "fee_retention_source_transfer": "tr_a"
+      }
+    },
+    {
+      "name": "a reversal of another refund on the refused transfer is not adopted",
+      "input": {
+        "account": {
+          "country": "CA",
+          "currency": "cad"
+        },
+        "refund": {},
+        "collect": true,
+        "gumroad_held": false,
+        "holder_of_funds": "stripe",
+        "credit_amount_cents": -59,
+        "on_lock": null,
+        "internal_transfer_ids": []
+      },
+      "answers": {
+        "Transfer.list": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_a",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              },
+              {
+                "id": "tr_b",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          },
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "tr_b",
+                "object": "transfer",
+                "amount": 5000,
+                "amount_reversed": 0,
+                "currency": "usd",
+                "description": null,
+                "destination": "acct_golden01",
+                "reversals": {
+                  "object": "list",
+                  "data": [],
+                  "has_more": false
+                }
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Transfer.create_reversal": [
+          {
+            "error": {
+              "class": "Stripe::InvalidRequestError",
+              "message": "Cannot create a reversal for more than the amount remaining to reverse (0)."
+            }
+          },
+          {
+            "id": "trr_b",
+            "object": "transfer_reversal",
+            "amount": 4125,
+            "currency": "cad",
+            "source_refund": null,
+            "metadata": {},
+            "destination_payment_refund": "pyr_golden01"
+          }
+        ],
+        "Transfer.list_reversals": [
+          {
+            "object": "list",
+            "data": [
+              {
+                "id": "trr_other",
+                "object": "transfer_reversal",
+                "amount": 4125,
+                "currency": "cad",
+                "source_refund": null,
+                "metadata": {
+                  "refund_id": "999"
+                },
+                "destination_payment_refund": "pyr_golden01"
+              }
+            ],
+            "has_more": false
+          }
+        ],
+        "Refund.retrieve": [
+          {
+            "id": "pyr_golden01",
+            "balance_transaction": "txn_golden01"
+          }
+        ],
+        "BalanceTransaction.retrieve": [
+          {
+            "id": "txn_golden01",
+            "net": -3000
+          }
+        ]
+      },
+      "events": [
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        },
+        {
+          "write": "refund.with_lock"
+        },
+        {
+          "write": "refund.save!",
+          "refund": {
+            "fee_retention_source_transfer": "tr_a"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_a",
+          "params": {
+            "amount": 59,
+            "metadata": {
+              "refund_id": "<refund>"
+            }
+          },
+          "options": {
+            "idempotency_key": "refund_fee_retention_reversal_<refund>_tr_a"
+          }
+        },
+        {
+          "call": "Transfer.list_reversals",
+          "id": "tr_a",
+          "params": {
+            "limit": 100
+          }
+        },
+        {
+          "call": "Transfer.list",
+          "params": {
+            "destination": "acct_golden01",
+            "created": {
+              "lt": 1784116800
+            },
+            "limit": 100
+          }
+        },
+        {
+          "write": "refund.with_lock"
+        },
+        {
+          "write": "refund.save!",
+          "refund": {
+            "fee_retention_source_transfer": "tr_b"
+          }
+        },
+        {
+          "call": "Transfer.create_reversal",
+          "id": "tr_b",
+          "params": {
+            "amount": 59,
+            "metadata": {
+              "refund_id": "<refund>"
+            }
+          },
+          "options": {
+            "idempotency_key": "refund_fee_retention_reversal_<refund>_tr_b"
+          }
+        },
+        {
+          "write": "refund.save!",
+          "refund": {
+            "fee_retention_source_transfer": "tr_b",
+            "debited_stripe_transfer": "trr_b"
+          }
+        },
+        {
+          "call": "Refund.retrieve",
+          "id": "pyr_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "call": "BalanceTransaction.retrieve",
+          "id": "txn_golden01",
+          "options": {
+            "stripe_account": "acct_golden01"
+          }
+        },
+        {
+          "write": "refund.save!",
+          "refund": {
+            "fee_retention_source_transfer": "tr_b",
+            "debited_stripe_transfer": "trr_b",
+            "fee_retention_collected_cents": 3000
+          }
+        }
+      ],
+      "outcome": {
+        "returned": 3000
+      },
+      "refund": {
+        "fee_retention_source_transfer": "tr_b",
+        "debited_stripe_transfer": "trr_b",
+        "fee_retention_collected_cents": 3000
+      }
+    },
+    {
       "name": "an internal payout transfer is reversed before the sale transfers are listed",
       "input": {
         "account": {
@@ -360,6 +903,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": [
           "tr_int1",
           null
@@ -484,6 +1028,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": [
           "tr_int1"
         ]
@@ -639,6 +1184,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": [
           "tr_int1"
         ]
@@ -786,6 +1332,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": [
           "tr_int1"
         ]
@@ -856,6 +1403,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -1003,6 +1551,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -1150,6 +1699,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -1383,6 +1933,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -1539,6 +2090,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -1700,6 +2252,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -1751,6 +2304,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3219,6 +3773,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3261,6 +3816,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3349,6 +3905,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3437,6 +3994,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3543,7 +4101,7 @@
             "destination": null,
             "transfer_group": "refund_fee_retention_<refund>",
             "metadata": {
-              "refund_id": "<refund>"
+              "refund_id": "<refund:int>"
             }
           },
           "options": {
@@ -3581,6 +4139,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3627,7 +4186,7 @@
             "destination": null,
             "transfer_group": "refund_fee_retention_<refund>",
             "metadata": {
-              "refund_id": "<refund>"
+              "refund_id": "<refund:int>"
             }
           },
           "options": {
@@ -3663,6 +4222,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3728,6 +4288,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3766,7 +4327,7 @@
             "destination": null,
             "transfer_group": "refund_fee_retention_<refund>",
             "metadata": {
-              "refund_id": "<refund>"
+              "refund_id": "<refund:int>"
             }
           },
           "options": {
@@ -3793,6 +4354,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3833,6 +4395,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -3901,6 +4464,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {},
@@ -3928,6 +4492,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4007,6 +4572,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4065,6 +4631,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {},
@@ -4091,6 +4658,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4222,6 +4790,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4341,6 +4910,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4444,6 +5014,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4553,6 +5124,7 @@
         "gumroad_held": false,
         "holder_of_funds": "stripe",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {
@@ -4591,6 +5163,7 @@
         "gumroad_held": true,
         "holder_of_funds": "gumroad",
         "credit_amount_cents": -59,
+        "on_lock": null,
         "internal_transfer_ids": []
       },
       "answers": {},
@@ -5109,7 +5682,7 @@
               "currency": "usd",
               "source_refund": null,
               "metadata": {
-                "external_refund_reversal": "re_golden01"
+                "external_refund_id": "re_golden01"
               }
             }
           ]
@@ -5158,7 +5731,7 @@
                   "currency": "usd",
                   "source_refund": null,
                   "metadata": {
-                    "external_refund_reversal": "re_golden01"
+                    "external_refund_id": "re_golden01"
                   },
                   "object": "transfer_reversal"
                 }
@@ -5195,7 +5768,7 @@
           "call": "Transfer.create_reversal",
           "id": "tr_golden",
           "params": {
-            "amount": 400
+            "amount": 300
           }
         },
         {
@@ -5217,11 +5790,11 @@
         "returned": true
       },
       "credit": {
-        "amount_cents": -400,
+        "amount_cents": -300,
         "balance_transaction": {
           "issued_amount_currency": "usd",
-          "issued_amount_gross_cents": -400,
-          "issued_amount_net_cents": -400,
+          "issued_amount_gross_cents": -300,
+          "issued_amount_net_cents": -300,
           "holding_amount_currency": "cad",
           "holding_amount_gross_cents": -400,
           "holding_amount_net_cents": -400

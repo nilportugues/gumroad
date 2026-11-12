@@ -41,6 +41,13 @@ def api_error(message) = Stripe::APIError.new(message)
 module Trace
   EVENTS = []
   ANSWERS = {}
+  # Changes another process makes to the refund row between the first lock request and the lock being granted.
+  ON_LOCK = []
+  @silent = false
+
+  class << self
+    attr_accessor :silent
+  end
 
   def self.reset(answers)
     EVENTS.clear
@@ -93,12 +100,17 @@ end
 
 Refund.prepend(Module.new do
   def save!(*args, **kwargs, &block)
-    Trace::EVENTS << { "write" => "refund.save!", "refund" => Trace.refund_snapshot(self) }
+    Trace::EVENTS << { "write" => "refund.save!", "refund" => Trace.refund_snapshot(self) } unless Trace.silent
     super
   end
 
   def with_lock(*args, **kwargs, &block)
     Trace::EVENTS << { "write" => "refund.with_lock" }
+    if (change = Trace::ON_LOCK.shift)
+      Trace.silent = true
+      Refund.find(id).update!(change)
+      Trace.silent = false
+    end
     super
   end
 end)
@@ -178,13 +190,37 @@ end
 # The refund's id and everything derived from it are written back as <refund>, so the golden does not move with the database.
 def scrub(value, refund)
   json = value.to_json.gsub(%("#{refund.id}"), '"<refund>"').gsub(/refund_fee_retention_(reversal_)?#{refund.id}(?![0-9])/, 'refund_fee_retention_\\1<refund>')
-  JSON.parse(json.gsub(/"refund_id":#{refund.id}(?![0-9])/, '"refund_id":"<refund>"'))
+  JSON.parse(json.gsub(/"refund_id":#{refund.id}(?![0-9])/, '"refund_id":"<refund:int>"'))
 end
 
 COLLECTION_CASES = {
   "a reversible transfer on the first page" => {
     account: { country: "CA", currency: "cad" },
     answers: { "Transfer.list" => list(transfer("tr_a", amount: 5000)), "Transfer.create_reversal" => reversal("trr_a"),
+               "Refund.retrieve" => obj(id: "pyr_golden01", balance_transaction: "txn_golden01"), "BalanceTransaction.retrieve" => obj(id: "txn_golden01", net: -3000) }
+  },
+  "another process pinned a different transfer while we waited for the lock" => {
+    account: { country: "CA", currency: "cad" }, on_lock: { fee_retention_source_transfer: "tr_other" },
+    answers: { "Transfer.list" => list(transfer("tr_a")) }
+  },
+  "another process recorded the collection while we waited for the lock" => {
+    account: { country: "CA", currency: "cad" }, on_lock: { debited_stripe_transfer: "trr_other", fee_retention_collected_cents: 1234 },
+    answers: { "Transfer.list" => list(transfer("tr_a")) }
+  },
+  "another process wrote the fee off while we waited for the lock" => {
+    account: { country: "CA", currency: "cad" }, on_lock: { fee_retention_written_off_at: "2026-11-02T00:00:00Z" },
+    answers: { "Transfer.list" => list(transfer("tr_a")) }
+  },
+  "the only transfer refuses the reversal and no other fits" => {
+    account: { country: "CA", currency: "cad" },
+    answers: { "Transfer.list" => [list(transfer("tr_a")), list], "Transfer.create_reversal" => invalid_request("Cannot create a reversal for more than the amount remaining to reverse (0)."),
+               "Transfer.list_reversals" => list }
+  },
+  "a reversal of another refund on the refused transfer is not adopted" => {
+    account: { country: "CA", currency: "cad" },
+    answers: { "Transfer.list" => [list(transfer("tr_a"), transfer("tr_b")), list(transfer("tr_b"))],
+               "Transfer.create_reversal" => [invalid_request("Cannot create a reversal for more than the amount remaining to reverse (0)."), reversal("trr_b")],
+               "Transfer.list_reversals" => list(reversal("trr_other", refund_id: "999")),
                "Refund.retrieve" => obj(id: "pyr_golden01", balance_transaction: "txn_golden01"), "BalanceTransaction.retrieve" => obj(id: "txn_golden01", net: -3000) }
   },
   "an internal payout transfer is reversed before the sale transfers are listed" => {
@@ -326,6 +362,7 @@ def run_collection(seller, product)
                   stripe_internal_transfer_id: attributes[:transfer]).save!(validate: false)
     end
     Trace.reset(answers)
+    Trace::ON_LOCK.replace(spec[:on_lock] ? [spec[:on_lock]] : [])
     scripted = Trace::ANSWERS.transform_values { |queue| queue.map { serialise_answer(_1) } }
     outcome = begin
       { "returned" => StripeChargeProcessor.debit_stripe_account_for_refund_fee(credit: Credit.find(credit.id), collect: spec.fetch(:collect, true)) }
@@ -337,7 +374,7 @@ def run_collection(seller, product)
       "name" => name,
       "input" => {
         "account" => spec[:account].transform_keys(&:to_s), "refund" => (spec[:refund] || {}).transform_keys(&:to_s), "collect" => spec.fetch(:collect, true), "gumroad_held" => spec[:gumroad_held] == true,
-        "holder_of_funds" => credit.merchant_account.holder_of_funds, "credit_amount_cents" => credit.amount_cents, "internal_transfer_ids" => (spec[:payments] || []).map { _1[:transfer] }
+        "holder_of_funds" => credit.merchant_account.holder_of_funds, "credit_amount_cents" => credit.amount_cents, "on_lock" => spec[:on_lock]&.transform_keys(&:to_s), "internal_transfer_ids" => (spec[:payments] || []).map { _1[:transfer] }
       },
       "answers" => scrub(scripted, refund),
       "events" => scrub(Trace::EVENTS, refund),
@@ -360,7 +397,7 @@ EXCESS_CASES = {
     transfer: { amount: 700, reversals: [{ id: "trr_p", amount: 400, currency: "usd", source_refund: "re_golden01" }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 }, answers: {}
   },
   "a reversal tagged with the refund by metadata" => {
-    transfer: { amount: 700, reversals: [{ id: "trr_p", amount: 100, currency: "usd", source_refund: nil, metadata: { external_refund_reversal: "re_golden01" } }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 },
+    transfer: { amount: 700, reversals: [{ id: "trr_p", amount: 100, currency: "usd", source_refund: nil, metadata: { external_refund_id: "re_golden01" } }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 },
     answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 300, currency: "usd") }
   },
   "less room on the transfer than the excess" => {
@@ -392,7 +429,7 @@ def run_excess(seller, product, admin)
     end
     reversals = (spec[:transfer][:reversals] || []).map do |r|
       r = r.merge(source_refund: refund.processor_refund_id) if r[:source_refund]
-      r = r.merge(metadata: { external_refund_reversal: refund.processor_refund_id }) if r.dig(:metadata, :external_refund_reversal)
+      r = r.merge(metadata: { external_refund_id: refund.processor_refund_id }) if r.dig(:metadata, :external_refund_id)
       obj(r.merge(object: "transfer_reversal"))
     end
     answers = spec[:answers].merge(
