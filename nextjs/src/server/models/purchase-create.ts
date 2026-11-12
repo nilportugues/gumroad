@@ -763,13 +763,16 @@ const snapshotInventoryPreSaveState: Callback<Purchase> = {
     if (record.newRecord) return;
     const memo = record.ivars as { inventorySnapshot?: InventorySnapshot | null };
     if (memo.inventorySnapshot) return;
-    if (record.attributeInDatabase("subscription_id") != null)
-      throw notPorted("a purchase that belongs to a subscription");
-    memo.inventorySnapshot = {
-      purchase_state: record.attributeInDatabase("purchase_state"),
-      flags: record.attributeInDatabase("flags"),
-      quantity: record.attributeInDatabase("quantity"),
-    };
+    // These reads leave PaperTrail's `object` in column order for a purchase loaded with `find` (purchase-seller-balance.golden.json)
+    record.untracked(() => {
+      if (record.attributeInDatabase("subscription_id") != null)
+        throw notPorted("a purchase that belongs to a subscription");
+      memo.inventorySnapshot = {
+        purchase_state: record.attributeInDatabase("purchase_state"),
+        flags: record.attributeInDatabase("flags"),
+        quantity: record.attributeInDatabase("quantity"),
+      };
+    });
   },
 };
 
