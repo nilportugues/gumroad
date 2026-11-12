@@ -15,6 +15,7 @@ const {
   setLibraryFlag,
   loadLibraryPurchase,
   urlRedirectMobileData,
+  mobilePreview,
 } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
@@ -33,6 +34,7 @@ const {
   setLibraryFlag: vi.fn(),
   loadLibraryPurchase: vi.fn(),
   urlRedirectMobileData: vi.fn(),
+  mobilePreview: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -50,6 +52,7 @@ vi.mock("../models/purchase-library-writes.ts", () => ({ setLibraryFlag, loadLib
 vi.mock("../models/purchase-product-updates.ts", () => ({ preloadProductUpdatesData }));
 vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
+vi.mock("../presenters/mobile-preview.ts", () => ({ mobilePreview }));
 vi.mock("../presenters/mobile-url-redirect.ts", () => ({ urlRedirectMobileData }));
 vi.mock("../presenters/mobile-serializers.ts", () => ({ purchaseJsonDataForMobile }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({
@@ -74,6 +77,7 @@ const status = (result: unknown) => (result as { status: number }).status;
 
 beforeEach(() => {
   selectRows.mockReset();
+  mobilePreview.mockReset().mockResolvedValue({ preview: null, thumbnailOrCoverUrl: "https://example.com/thumb.png" });
   process.mockReset();
   creatorAppPurchasesJson.mockReset();
   findLink.mockReset();
@@ -266,14 +270,24 @@ describe("GET /mobile/purchases/purchase_attributes/:id", () => {
     expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({
       productUpdatesData: [],
       purchaser: expect.objectContaining({ id: 7n }),
-      link: { thumbnailOrCoverUrl: "https://example.com/thumb.png", hasAlivePreviews: false },
+      link: { thumbnailOrCoverUrl: "https://example.com/thumb.png", preview: null },
     });
   });
 
-  it("tells the serializer when the product has asset previews", async () => {
-    stub({ rows: [[], [], [{ "1": 1 }]] });
+  it("gives the serializer the preview fields and cover URL the product's covers yield", async () => {
+    stub();
+    const preview = {
+      previewUrl: "https://example.com/c.png",
+      previewOembedUrl: "",
+      previewHeight: 0,
+      previewWidth: 5,
+    };
+    mobilePreview.mockResolvedValue({ preview, thumbnailOrCoverUrl: "https://example.com/c.png" });
     await run(input({ id: "12" }), authFor());
-    expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({ link: { hasAlivePreviews: true } });
+    expect(mobilePreview).toHaveBeenCalledWith(2n, "https://example.com/thumb.png");
+    expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({
+      link: { preview, thumbnailOrCoverUrl: "https://example.com/c.png" },
+    });
   });
 
   it("adds the url redirect's keys and files when the purchase has one", async () => {

@@ -11,6 +11,7 @@ import { UserFlags } from "../models/user.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
+import type { MobilePreview } from "./mobile-preview.ts";
 import { longFormattedDatetime } from "./mobile-time.ts";
 
 // ChargeProcessor.charge_processor_ids
@@ -35,14 +36,14 @@ export type MobileLinkInput = {
   creatorProfileUrl: string;
   // Link#thumbnail_or_cover_url
   thumbnailOrCoverUrl: string | null;
-  // Link#display_asset_previews, which would feed preview_url, the oembed fields and the preview size.
-  hasAlivePreviews: boolean;
+  // The preview fields of Link#display_asset_previews (mobile-preview.ts); null for a product without a cover.
+  preview: MobilePreview | null;
 };
 
 // Port of app/models/concerns/product/as_json.rb (Product::AsJson#as_json_for_mobile_api)
 export function linkAsJsonMobile(input: MobileLinkInput): Record<string, unknown> {
   const { link, creator } = input;
-  if (input.hasAlivePreviews) throw new NotPortedError("Link#as_json(mobile: true) for a product with asset previews");
+  const { preview } = input;
   return {
     // serializable_hash(only:) keeps columns in table order
     name: link.name,
@@ -56,12 +57,12 @@ export function linkAsJsonMobile(input: MobileLinkInput): Record<string, unknown
     creator_profile_picture_url: input.creatorAvatarUrl,
     creator_profile_url: input.creatorProfileUrl,
     // preview_oembed_thumbnail_url || preview_url || "" with no main preview
-    preview_url: "",
+    preview_url: preview?.previewUrl ?? "",
     thumbnail_url: input.thumbnailOrCoverUrl,
     // mobile_oembed_url, preview_height_for_mobile and preview_width_for_mobile without a preview
-    preview_oembed_url: "",
-    preview_height: MOBILE_PREVIEW_HEIGHT_FLOOR,
-    preview_width: 0,
+    preview_oembed_url: preview?.previewOembedUrl ?? "",
+    preview_height: preview?.previewHeight ?? MOBILE_PREVIEW_HEIGHT_FLOOR,
+    preview_width: preview?.previewWidth ?? 0,
     has_rich_content: true,
   };
 }

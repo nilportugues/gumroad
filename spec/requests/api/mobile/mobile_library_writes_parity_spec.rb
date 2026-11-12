@@ -86,6 +86,25 @@ describe "Mobile API library writes", type: :request, parity_timeline: true do
       expect(response.parsed_body["product"]["file_data"].size).to eq(3)
     end
 
+    it "reads the purchase of a product whose main cover is a player with a thumbnail", parity: true do
+      create(:asset_preview, attach: false, link: product, guid: "mobilereadplayer", oembed: {
+        "html" => "<iframe src=\"https://example.com/player\"></iframe>",
+        "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/thumb.png" }
+      })
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response.parsed_body["product"]).to include("preview_url" => "https://example.com/thumb.png", "preview_oembed_url" => "", "preview_width" => 640)
+    end
+
+    it "hands a purchase of a product with an uploaded cover to Rails", parity: true do
+      create(:asset_preview_jpg, link: product, guid: "mobilereadupload")
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response).to have_http_status(:ok)
+    end
+
     it "archives the purchase and answers with its files", parity: true do
       post "/mobile/purchases/#{purchase.external_id}/archive", params: auth(buyer)
 

@@ -94,6 +94,26 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       expect(response.parsed_body["subscription"]).to include("updates_data" => [], "purchase_id" => be_present)
     end
 
+    it "serves the cover fields of a membership whose main cover is a player the apps embed", parity: true do
+      create(:asset_preview, attach: false, link: product, guid: "mobilesubplayer", oembed: {
+        "html" => "<iframe src=\"https://www.youtube.com/embed/abc123\"></iframe>",
+        "info" => { "width" => 800, "height" => 450, "thumbnail_url" => "https://i.ytimg.com/vi/abc123/hq.jpg" }
+      })
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/second.jpg", guid: "mobilesubphoto")
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response.parsed_body["subscription"]).to include("preview_oembed_url" => "https://www.youtube.com/embed/abc123", "preview_height" => 376)
+    end
+
+    it "hands a subscription whose product has an uploaded cover to Rails", parity: true do
+      create(:asset_preview_jpg, link: product, guid: "mobilesubupload")
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response).to have_http_status(:ok)
+    end
+
     it "hands a subscription whose seller has posts to Rails", parity: true do
       create(:installment, link: product, published_at: Time.current)
 
@@ -155,6 +175,14 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
         get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
 
         expect(response.parsed_body["product"]).to include("is_archived" => true)
+      end
+
+      it "serves the cover fields of a preorder whose cover is a photo", parity: true do
+        AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/preorder.jpg", guid: "mobilepreorderphoto")
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("preview_url" => "https://images.example.com/preorder.jpg", "thumbnail_url" => "https://images.example.com/preorder.jpg", "preview_height" => 0)
       end
 
       it "hands a preorder whose seller has posts to Rails", parity: true do

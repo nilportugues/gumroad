@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NotPortedError } from "../page-props/not-ported.ts";
+
 import type { MobileAction, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, db } = vi.hoisted(() => ({
+const { actions, selectRows, db, mobilePreview } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
+  mobilePreview: vi.fn(),
   db: { link: { findUnique: vi.fn() }, user: { findUnique: vi.fn() }, purchase: { findUnique: vi.fn() } },
 }));
 
@@ -23,6 +26,7 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
 }));
 vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
+vi.mock("../presenters/mobile-preview.ts", () => ({ mobilePreview }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ thumbnailUrlsByProduct: async () => new Map() }));
 
 await import("./mobile-preorders.ts");
@@ -55,7 +59,7 @@ const purchase = (extra = {}) => ({
   ...extra,
 });
 
-// The queries in order: the preorder, its purchases, its preorder link, then posts and previews.
+// The queries in order: the preorder, its purchases, its preorder link, then posts.
 function stub({
   row = preorder,
   states = ["preorder_authorization_successful"] as (string | null)[],
@@ -68,8 +72,10 @@ function stub({
     .mockResolvedValueOnce([row])
     .mockResolvedValueOnce(states.map((purchase_state, index) => ({ id: BigInt(11 + index), purchase_state })))
     .mockResolvedValueOnce([{ link_id: 2n, release_at: new Date("2026-12-01T10:00:00Z") }])
-    .mockResolvedValueOnce(posts ? [{}] : [])
-    .mockResolvedValueOnce(previews ? [{}] : []);
+    .mockResolvedValueOnce(posts ? [{}] : []);
+  mobilePreview.mockReset();
+  if (previews) mobilePreview.mockRejectedValue(new NotPortedError("Link#as_json(mobile: true) for an uploaded cover"));
+  else mobilePreview.mockResolvedValue({ preview: null, thumbnailOrCoverUrl: null });
   db.link.findUnique.mockResolvedValue(link);
   db.user.findUnique.mockImplementation(async ({ where }: { where: { id: bigint } }) =>
     where.id === 7n ? creator : { id: 5n, external_id: "buyer-ext" },
@@ -140,7 +146,7 @@ describe("GET /mobile/preorders/preorder_attributes/:id", () => {
     stub({ posts: true });
     await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/seller with posts/u);
     stub({ previews: true });
-    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/asset previews/u);
+    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/uploaded cover/u);
   });
 
   it("reads the archived flag of the authorization purchase", async () => {

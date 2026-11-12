@@ -12,12 +12,13 @@ import { column, selectRows, table } from "../models/sql.ts";
 import { ACTIVE_SUBSCRIPTION } from "../models/subscription-json.ts";
 import { cancelBang, loadSubscription } from "../models/subscription-writes.ts";
 import { defaultSubscriptionDeps } from "../models/subscription.ts";
-import { RECURRENCE_LABELS } from "../page-props/seller-products/listing.ts";
-import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
-import { jsonTime, linkAsJsonMobile } from "../presenters/mobile-serializers.ts";
+import { RECURRENCE_LABELS } from "../page-props/seller-products/listing.ts";
+import { avatarUrl } from "../page-props/signed-in/presenters.ts";
+import { mobilePreview } from "../presenters/mobile-preview.ts";
 import { thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
+import { jsonTime, linkAsJsonMobile } from "../presenters/mobile-serializers.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
 import { fetchError, registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
@@ -108,10 +109,8 @@ async function subscriptionAttributes(input: MobileInput) {
   if (await sellerHasPosts(creator.id, link.id))
     throw new NotPortedError("Subscription#updates_mobile_json_data for a seller with posts");
 
-  const previews = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${link.id} AND ${column("asset_previews", "deleted_at")} IS NULL LIMIT 1`,
-  );
   const thumbnails = await thumbnailUrlsByProduct([link.id]);
+  const { preview, thumbnailOrCoverUrl } = await mobilePreview(link.id, thumbnails.get(link.id) ?? null);
   const purchaser =
     purchase.purchaser_id === null ? null : await db.user.findUnique({ where: { id: purchase.purchaser_id } });
   if (creator.username === null || creator.username.trim() === "")
@@ -122,8 +121,8 @@ async function subscriptionAttributes(input: MobileInput) {
     creator,
     creatorAvatarUrl: await avatarUrl(creator),
     creatorProfileUrl: profileUrl(creator),
-    thumbnailOrCoverUrl: thumbnails.get(link.id) ?? null,
-    hasAlivePreviews: previews.length > 0,
+    thumbnailOrCoverUrl,
+    preview,
   });
   json.subscription_data = {
     subscribed_at: jsonTime(subscription.created_at),
@@ -148,7 +147,10 @@ async function cancelSubscription(input: MobileInput, auth: MobileAuth | null) {
   const row = id === null ? null : await db.subscription.findUnique({ where: { id: BigInt(id) } });
   if (row === null || row.seller_id !== auth!.owner.id) return fetchError(NOT_FOUND_MESSAGE);
 
-  const subscription = loadSubscription(row, { now: () => new Date(), featureActive: defaultSubscriptionDeps.featureActive });
+  const subscription = loadSubscription(row, {
+    now: () => new Date(),
+    featureActive: defaultSubscriptionDeps.featureActive,
+  });
   await cancelBang(subscription, { bySeller: true });
   return renderJson({ success: true });
 }
