@@ -272,6 +272,10 @@ function passthru(): ActionResult {
   return { status: NOT_FOUND, body: PASSTHRU_BODY, contentType: "text/plain; charset=utf-8" };
 }
 
+// Rails' request.xhr?
+const isXhr = (input: MutationInput): boolean =>
+  /XMLHttpRequest/iu.test(input.request.headers.get("x-requested-with") ?? "");
+
 export function assertHtml(input: MutationInput): void {
   if (requestFormat(input.request) !== "html") throw new HandBackToRails("a request whose format is not HTML");
 }
@@ -357,6 +361,8 @@ export const presentString = (value: unknown): value is string => typeof value =
 // controller filter: a redirect with the session cookie and nothing else.
 function unavailableCallback(strategy: Strategy) {
   return async (chain: Chain): Promise<Redirected | null> => {
+    // An XHR callback is never answered here: the callback itself hands back a disabled connect.
+    if (/XMLHttpRequest/iu.test(chain.request.headers.get("x-requested-with") ?? "")) return null;
     if (requestFormat(chain.request) !== "html") return null;
     if (chain.auth.effects.signOut) throw new HandBackToRails("a visitor Devise signs out on the way");
     if (await connectEnabled(strategy, chain.auth)) return null;
@@ -462,8 +468,8 @@ async function socialFailure(
   };
 }
 
-// A code the strategy exchanges is spent, so every request Rails would answer differently is handed back before the exchange: no code to
-// speak of, and the options of omniauth-google-oauth2's `get_access_token` that change what it sends (an XHR, a redirect URI of its own).
+// A code the strategy exchanges is spent, so a request Rails would answer differently is handed back before the exchange: no code at all.
+// An empty or blank code is not nil in Ruby, so the strategy sends it and the provider refuses it.
 async function socialConnect(
   strategy: Strategy,
   input: MutationInput,
@@ -471,15 +477,16 @@ async function socialConnect(
 ): Promise<ActionResult> {
   const { chain } = input;
   const code = stringParam(input, "code");
-  if (code === undefined || !isPresent(code)) throw new HandBackToRails("a callback without a code");
+  if (code === undefined) throw new HandBackToRails("a callback without a code");
+  let redirectUri = `${fullHost()}${callbackPath(strategy)}`;
   if (strategy.name === "youtube") {
-    if (input.request.headers.get("x-requested-with") === "XMLHttpRequest")
-      throw new HandBackToRails("an XHR callback");
-    if (stringParam(input, "redirect_uri") !== undefined)
-      throw new HandBackToRails("a callback that names a redirect URI");
+    // omniauth-google-oauth2's get_access_token: the request's own `redirect_uri`, else `postmessage` for an XHR, else the callback URL.
+    const own = stringParam(input, "redirect_uri");
+    const xhr = isXhr(input);
+    redirectUri = own ?? (xhr ? "postmessage" : redirectUri);
   }
   const provider = strategy.name as SocialProvider;
-  const exchanged = await exchangeCode(provider, code, `${fullHost()}${callbackPath(strategy)}`, chain.now);
+  const exchanged = await exchangeCode(provider, code, redirectUri, chain.now);
   if (!exchanged.ok) return socialFailure(strategy, input, exchanged.type, omniauthParams);
   const destination = await consumeSocialConnectReturn(chain, omniauthParams);
   const user = railsLoggedInUser(chain.auth.context);
@@ -506,7 +513,9 @@ export const authFailure = (strategy: string, input: MutationInput, type: string
 
 function callbackPhase(strategy: Strategy) {
   return async (input: MutationInput): Promise<ActionResult> => {
-    assertHtml(input);
+    // A social connect redirects whatever the format; an XHR callback has a js format the HTML check refuses.
+    const xhr = strategy.social !== undefined && isXhr(input);
+    if (!xhr) assertHtml(input);
     // Work on a copy: a request that is handed back must leave the session as Rails will find it.
     const chain = input.chain;
     const saved = { ...chain.session.data };
@@ -517,6 +526,7 @@ function callbackPhase(strategy: Strategy) {
         // The strategy's own check comes before OAuth2's: a disabled connect with a return token fails with that token to return to.
         // (Without one, `unavailableCallback` has already answered.)
         if (!(await connectEnabled(strategy, chain.auth))) {
+          if (xhr) throw new HandBackToRails("an XHR callback of a disabled social connect");
           delete chain.session.data["omniauth.origin"];
           delete chain.session.data["omniauth.params"];
           if (!presentString(omniauthParams[SOCIAL_CONNECT_RETURN]))
