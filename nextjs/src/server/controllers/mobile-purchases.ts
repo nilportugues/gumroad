@@ -16,7 +16,12 @@ import { profileUrl } from "../page-props/buyer/users.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { mobilePreview } from "../presenters/mobile-preview.ts";
-import { creatorAppPurchasesJson, thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
+import {
+  amountRefundedCentsByPurchase,
+  creatorAppPurchasesJson,
+  ratingByPurchase,
+  thumbnailUrlsByProduct,
+} from "../presenters/mobile-serializer-reads.ts";
 import { purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
 import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { linkOptions } from "../presenters/product-props.ts";
@@ -115,13 +120,6 @@ async function search(input: MobileInput, auth: MobileAuth | null) {
   });
 }
 
-const hasRows = async (tableName: string, columnName: string, id: bigint): Promise<boolean> =>
-  (
-    await selectRows(
-      Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${column(tableName, columnName)} = ${id} LIMIT 1`,
-    )
-  ).length > 0;
-
 // before_action :fetch_purchase: the caller's purchase, or null for the 404 (`successful_and_not_reversed? || subscription`).
 async function fetchPurchase(input: MobileInput, auth: MobileAuth | null): Promise<Purchase | null> {
   const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
@@ -145,9 +143,8 @@ async function fetchPurchase(input: MobileInput, auth: MobileAuth | null): Promi
 async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
   if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
   if (purchase.preorder_id !== null) throw new HandBackToRails("Preorder#mobile_json_data");
-  if (await hasRows("refunds", "purchase_id", purchase.id)) throw new NotPortedError("Purchase#amount_refunded_cents");
-  if (await hasRows("product_reviews", "purchase_id", purchase.id))
-    throw new NotPortedError("Purchase#original_product_review");
+  const amountRefundedCents = (await amountRefundedCentsByPurchase([purchase.id])).get(purchase.id) ?? 0;
+  const productRating = (await ratingByPurchase([purchase.id])).get(purchase.id) ?? null;
 
   const link = purchase.link_id === null ? null : await db.link.findUnique({ where: { id: purchase.link_id } });
   const creator = link?.user_id == null ? null : await db.user.findUnique({ where: { id: link.user_id } });
@@ -189,8 +186,8 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
         link: linkInput,
         seller,
         purchaser: libraryOwner(auth),
-        productRating: null,
-        amountRefundedCents: 0,
+        productRating,
+        amountRefundedCents,
         productUpdatesData: productUpdates,
         urlRedirect,
       }),

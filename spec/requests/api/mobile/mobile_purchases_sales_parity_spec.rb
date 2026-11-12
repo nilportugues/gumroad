@@ -83,6 +83,68 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["product"]).to include("purchase_id" => purchase.external_id, "product_updates_data" => [])
     end
 
+    describe "refunds and reviews" do
+      let(:purchase) { purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", price_cents: 500, stripe_partially_refunded: true) }
+
+      def refund_row(amount_cents:, **attributes)
+        build(:refund, purchase:, amount_cents:, **attributes).tap { |refund| refund.save!(validate: false) }
+      end
+
+      def product_json = response.parsed_body["product"]
+
+      it "subtracts a partial refund from the refundable amount", parity: true do
+        refund_row(amount_cents: 200)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("amount_refundable_in_currency" => "3", "partially_refunded" => true, "refunded" => false)
+      end
+
+      it "sums several refunds and counts the refund with no amount as zero", parity: true do
+        refund_row(amount_cents: 100)
+        refund_row(amount_cents: 150)
+        refund_row(amount_cents: 0).update_columns(amount_cents: nil)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json["amount_refundable_in_currency"]).to eq("2.50")
+      end
+
+      it "leaves out a failed refund whose balance debits were reversed but keeps one that was not", parity: true do
+        refund_row(amount_cents: 100, status: "failed", balance_reversed_on_failure: true)
+        refund_row(amount_cents: 50, status: "canceled")
+        refund_row(amount_cents: 25, status: "failed", balance_reversed_on_failure: false)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json["amount_refundable_in_currency"]).to eq("4.25")
+      end
+
+      it "reports the rating of the purchase's review", parity: true do
+        create(:product_review, purchase:, link: product, rating: 4)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("product_rating" => 4)
+      end
+
+      it "reports a review that has no rating as null", parity: true do
+        create(:product_review, purchase:, link: product, rating: 1).update_columns(rating: nil)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("product_rating" => nil)
+      end
+
+      it "hands a refund whose balance_reversed_on_failure is not a boolean to Rails", parity: true do
+        refund_row(amount_cents: 100, status: "failed").update_columns(json_data: { balance_reversed_on_failure: "false" })
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
     it "does not find a refunded purchase", parity: true do
       purchase = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", stripe_refunded: true)
 
