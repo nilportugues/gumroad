@@ -16,6 +16,19 @@ describe "Subscription cancellations", type: :request, defer_audience_refresh: t
   let(:subscription) { purchase.subscription.tap { |record| record.update_columns(user_id: member.id) } }
   let(:member) { create(:user, name: "Cancel Member") }
   let(:headers) { { "Accept" => "application/json" } }
+  let(:plan_product) { create(:product, :with_installment_plan, user: seller) }
+  # The installment_plan_purchase factory charges a card, so the same rows are built and saved without validation.
+  let(:plan_purchase) do
+    build(:purchase, link: plan_product, purchaser: member, email: "member@example.com", is_original_subscription_purchase: true, is_installment_payment: true).tap do |record|
+      record.installment_plan = plan_product.installment_plan
+      record.set_price_and_rate
+      record.save!(validate: false)
+      record.subscription = create(:subscription, link: plan_product, is_installment_plan: true, user: member)
+      record.save!(validate: false)
+      create(:installment_plan_snapshot, payment_option: record.subscription.last_payment_option, number_of_installments: record.installment_plan.number_of_installments, recurrence: record.installment_plan.recurrence, total_price_cents: record.total_price_before_installments || record.price_cents)
+    end
+  end
+  let(:plan) { plan_purchase.subscription }
 
   before { host! DOMAIN }
 
@@ -110,6 +123,25 @@ describe "Subscription cancellations", type: :request, defer_audience_refresh: t
       expect(response.parsed_body).to eq("success" => false)
     end
 
+    it "cancels an installment plan at the end of its paid period", parity: true do
+      log_in(seller)
+
+      unsubscribe_by_seller(plan.external_id)
+
+      expect(response).to have_http_status(:no_content)
+      expect(plan.reload.cancelled_at).to be_present
+      expect(plan.cancelled_by_buyer?).to eq(false)
+    end
+
+    it "leaves an installment plan that is already cancelled alone", parity: true do
+      plan.cancel!(by_seller: true)
+      log_in(seller)
+
+      unsubscribe_by_seller(plan.external_id)
+
+      expect(response).to have_http_status(:no_content)
+    end
+
     it "hands a signed-out request to Rails", parity: true do
       unsubscribe_by_seller
 
@@ -176,6 +208,26 @@ describe "Subscription cancellations", type: :request, defer_audience_refresh: t
       unsubscribe_by_user("unknown-subscription")
 
       expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "refuses to let the buyer cancel an installment plan", parity: true do
+      log_in(member)
+
+      unsubscribe_by_user(plan.external_id)
+
+      expect(response).to redirect_to(manage_subscription_path(plan.external_id))
+      expect(flash[:alert]).to eq("Validation failed: Installment plans cannot be cancelled by the customer")
+      expect(plan.reload.cancelled_at).to be_nil
+    end
+
+    it "answers an installment plan with every installment paid with a 404", parity: true do
+      plan.update_columns(charge_occurrence_count: 1)
+      log_in(member)
+
+      unsubscribe_by_user(plan.external_id)
+
+      expect(response).to have_http_status(:not_found)
+      expect(plan.reload.cancelled_at).to be_nil
     end
 
     it "keeps the first cancellation when the member cancels twice", parity: true do
