@@ -4,8 +4,8 @@
 // The token endpoint runs the authorization_code, client_credentials, refresh_token and device-code grants in full: validation order, PKCE, the
 // redirect URI check (models/oauth-redirect-uri.ts), the grant and refresh locks, the shared application lock around a refresh and
 // the rows Doorkeeper writes (random urlsafe tokens, a revoked grant or refresh token). Dynamically registered MCP clients get
-// Gumroad's S256 and resource checks. Handed to Rails whole, before any write: a brand account token (team membership), a
-// request whose session cookie holds more than a session id, and any parameter that is not a string.
+// Gumroad's S256 and resource checks, and a brand account token (one with a team membership) is validated and refreshed with its
+// membership kept. Handed to Rails whole, before any write: a request whose session cookie holds more than a session id, and any parameter that is not a string.
 import { createHash } from "node:crypto";
 
 import { withApplicationLock } from "../models/oauth-application-writes.ts";
@@ -22,6 +22,8 @@ import {
   type AccessTokenRow,
   accessible,
   type ApplicationRow,
+  brandTokenValid,
+  copyTeamMembership,
   findAccessGrant,
   findAccessToken,
   findApplicationById,
@@ -183,10 +185,11 @@ async function dynamicCodeExchangeError(grant: AccessGrantRow, input: MutationIn
   return null;
 }
 
-// MobileAccountToken.valid? can only fail for a brand token (one with a team membership), whose membership, member and session
-// checks stay in Rails; Mcp::DynamicClientOauth.refresh_error is the dynamic client's resource binding.
+// Oauth::TokensController#dynamic_client_token_error for a refresh: MobileAccountToken.valid? (it can only fail for a brand token, one with
+// a team membership), then Mcp::DynamicClientOauth.refresh_error, the dynamic client's resource binding.
 async function dynamicRefreshError(token: AccessTokenRow, input: MutationInput): Promise<Rendered | null> {
-  if (token.team_membership_id !== null) throw new NotPortedError("a brand account token", RUBY_FILE);
+  if (!(await brandTokenValid(token)))
+    return gumroadError("invalid_grant", "The team membership behind this token is no longer active");
   const application = await findApplicationById(token.application_id);
   if (application === null || !truthy(application.mcp_dynamic_client)) return null;
   if (!isPresent(token.resource)) return gumroadError("invalid_grant", "refresh token has no bound resource");
@@ -341,11 +344,11 @@ async function refreshTokenGrant(input: MutationInput, state: string | null, now
         ? oldScopes
         : oldScopes.filter((scope) => applicationScopes.includes(scope));
 
-    return transaction(async () => {
+    const outcome = await transaction(async () => {
       const locked = await lockAccessToken(old.id);
       if (locked === null || revokedNow(locked, new Date())) return invalidGrant(state);
       await revokeAccessToken(old.id, now);
-      const issued = await insertAccessToken({
+      return insertAccessToken({
         applicationId: old.application_id,
         resourceOwnerId: old.resource_owner_id,
         scopes: scopeString(scopes),
@@ -354,8 +357,11 @@ async function refreshTokenGrant(input: MutationInput, state: string | null, now
         resource: old.resource,
         createdAt: now,
       });
-      return tokenResponse(issued);
     });
+    if (!("token" in outcome)) return outcome;
+    // before_successful_strategy_response: a refreshed brand token keeps the team membership of the one it replaces.
+    if (old.team_membership_id !== null) await copyTeamMembership(outcome.token, old.team_membership_id);
+    return tokenResponse(outcome);
   };
   // Oauth::TokensController#authorize_response: the whole refresh runs under the shared application lock.
   const application = old === null ? null : await findApplicationById(old.application_id);

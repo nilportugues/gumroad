@@ -115,8 +115,9 @@ describe "Settings::PasswordController#update", type: :request do
     expect(flash[:alert]).to eq("You have to confirm your email address before you can do that.")
   end
 
-  it "hands a password change to Rails", parity: true do
+  it "changes the password and keeps the current browser signed in", parity: true do
     log_in(seller)
+    seller.update_columns(updated_at: Time.utc(2025, 1, 2))
 
     send_form(:patch, { user: { password: seller.password, new_password: } })
 
@@ -125,15 +126,44 @@ describe "Settings::PasswordController#update", type: :request do
     expect(seller.reload.valid_password?(new_password)).to be(true)
   end
 
-  it "hands a password change on PUT to Rails", parity: true do
+  it "keeps the account as it is when no new password is sent", parity: true do
     log_in(seller)
+
+    send_form(:patch, { user: { password: seller.password } })
+
+    expect(response).to have_http_status(:see_other)
+    expect(flash[:notice]).to eq("You have successfully changed your password.")
+    expect(seller.reload.valid_password?(seller.password)).to be(true)
+  end
+
+  it "refuses a blank new password", parity: true do
+    log_in(seller)
+
+    send_form(:patch, { user: { password: seller.password, new_password: "" } })
+
+    expect(response).to redirect_to("/settings/password")
+    expect(flash[:alert]).to eq("New password can't be blank")
+  end
+
+  it "refuses a new password that is too long", parity: true do
+    log_in(seller)
+
+    send_form(:patch, { user: { password: seller.password, new_password: "a" * 129 } })
+
+    expect(response).to redirect_to("/settings/password")
+    expect(flash[:alert]).to start_with("New password")
+  end
+
+  it "changes the password on PUT as well", parity: true do
+    log_in(seller)
+    seller.update_columns(updated_at: Time.utc(2025, 1, 2))
 
     send_form(:put, { user: { password: seller.password, new_password: } })
 
     expect(response).to have_http_status(:see_other)
   end
 
-  it "hands a new password that is too short to Rails", parity: true do
+  it "refuses a new password that is too short", parity: true do
     log_in(seller)
 
     send_form(:patch, { user: { password: seller.password, new_password: "abc" } })
@@ -142,9 +172,9 @@ describe "Settings::PasswordController#update", type: :request do
     expect(flash[:alert]).to start_with("New password")
   end
 
-  it "hands the first password of a confirmed OAuth account to Rails", parity: true do
+  it "sets the first password of a confirmed OAuth account", parity: true do
     log_in(seller)
-    seller.update_columns(provider: "google_oauth2")
+    seller.update_columns(provider: "google_oauth2", updated_at: Time.utc(2025, 1, 2))
 
     send_form(:patch, { user: { new_password: } })
 

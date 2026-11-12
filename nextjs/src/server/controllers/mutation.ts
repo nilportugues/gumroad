@@ -3,7 +3,7 @@
 //
 // Whatever the port cannot prove goes to Rails whole, body included, before its first write: a request whose CSRF token or Origin
 // Rails would judge differently (Rails answers with a null session), a body Node does not parse, and any NotPortedError.
-import { HandBackToRails, forwardToRails, processAction, sessionCsrfToken, type ActionContext, type ActionOptions, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, forwardToRails, processAction, sessionCsrfToken, type ActionContext, type ActionOptions, type ActionResult, type Chain } from "./application-controller.ts";
 import { MUTATION_PATH } from "./inertia-page.ts";
 import { railsRequest, type RailsRequest } from "./rails-request.ts";
 import { requestFormat } from "./rails-params.ts";
@@ -156,7 +156,9 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
     throw error;
   }
 
-  return processAction(request, candidate.options ?? {}, async ({ request: railsReq, context, peekState, chain }) => {
+  const { prepended } = candidate.options ?? {};
+  const options = prepended ? { ...candidate.options, prepended: (chain: Chain) => prepended(chain, params) } : (candidate.options ?? {});
+  return processAction(request, options, async ({ request: railsReq, context, peekState, chain }) => {
     const config = domainConfig(process.env);
     const actionUrl = new URL(`${railsReq.path}${railsReq.queryString === "" ? "" : `?${railsReq.queryString}`}`, `${railsReq.protocol}${railsReq.hostWithPort}`);
     try {

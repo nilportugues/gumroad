@@ -93,6 +93,25 @@ describe "Signup create", type: :request do
     end
   end
 
+  describe "a visitor who is already signed in" do
+    let(:signed_in) { create(:user, email: "signed-in@example.com", password: "a-long-existing-2", created_at: Time.utc(2025, 1, 1)) }
+
+    before { log_in(signed_in) }
+
+    it "sends them home without creating an account", parity: true do
+      post "/signup", params: signup_params(email: "ignored@example.com", password: "a-long-signup-password")
+
+      expect(response).to redirect_to("/dashboard")
+      expect(User.find_by(email: "ignored@example.com")).to be_nil
+    end
+
+    it "sends them to the next path", parity: true do
+      post "/signup", params: signup_params({ email: "ignored@example.com", password: "a-long-signup-password" }, next: "/products")
+
+      expect(response).to redirect_to("/products")
+    end
+  end
+
   describe "an address that is taken" do
     let!(:existing) { create(:user, email: "taken@example.com", password: "a-long-existing-1") }
 

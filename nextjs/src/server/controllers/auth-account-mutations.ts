@@ -267,7 +267,6 @@ async function confirmationShow(input: MutationInput): Promise<ActionResult> {
   if (context.impersonatedUser) throw new HandBackToRails("a confirmation while impersonating");
   const visitor = context.loggedInUser;
   const ip = clientIp(input);
-  if (!visitor) await assertNoGuestCart(chain);
 
   user.set("confirmed_at", toSeconds(chain.now));
   await Users.save(user, { validate: false, now: () => chain.now });

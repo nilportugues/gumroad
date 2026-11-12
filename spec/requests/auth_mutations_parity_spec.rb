@@ -60,6 +60,69 @@ describe "Authentication mutations", type: :request do
       expect(response).to redirect_to("/library")
     end
 
+    it "merges the guest cart of the browser into the cart the user already has", parity: true do
+      seller = create(:user, created_at: Time.utc(2025, 1, 3))
+      guest_cart = create(:cart, :guest, browser_guid: "login-guid", discount_codes: [{ "code" => "GUEST", "fromUrl" => false }])
+      create(:cart_product, cart: guest_cart, product: create(:product, user: seller, name: "Guest line", created_at: Time.utc(2025, 1, 3)))
+      own_cart = create(:cart, user:, browser_guid: "old-browser")
+      create(:cart_product, cart: own_cart, product: create(:product, user: seller, name: "Own line", created_at: Time.utc(2025, 1, 3)))
+      cookies[:_gumroad_guid] = "login-guid"
+
+      post login_path, params: login_params(user.email, user.password)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(own_cart.reload.alive_cart_products.count).to eq(2)
+      expect(own_cart.discount_codes).to eq([{ "code" => "GUEST", "fromUrl" => false }])
+      expect(own_cart.browser_guid).to eq("login-guid")
+      expect(guest_cart.reload).to be_deleted
+    end
+
+    # User::DeviseInternal#active_for_authentication? is always true: Devise never refuses an unconfirmed address.
+    it "signs in an account whose address is unconfirmed", parity: true do
+      user.update_columns(confirmed_at: nil)
+
+      post login_path, params: login_params(user.email, user.password)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(set_cookies).to include("remember_user_token=")
+      expect(user.reload.sign_in_count).to eq(1)
+      expect(user.confirmed_at).to be_nil
+    end
+
+    describe "from a browser that is already signed in" do
+      let(:other) { create(:user, email: "already-in@example.com", username: "alreadyin", password: "a-long-password-2", created_at: Time.utc(2025, 1, 1)) }
+
+      before { log_in(other) }
+
+      it "sends the visitor home without signing anyone in", parity: true do
+        post login_path, params: login_params(user.email, user.password)
+
+        expect(response).to redirect_to("/dashboard")
+        expect(user.reload.sign_in_count).to eq(0)
+      end
+
+      it "sends the visitor to the next path", parity: true do
+        post login_path, params: login_params(user.email, user.password).merge(next: "/products")
+
+        expect(response).to redirect_to("/products")
+      end
+
+      it "sends a buyer to the library", parity: true do
+        build(:purchase, purchaser: other, email: other.email).save!(validate: false)
+
+        post login_path, params: login_params(user.email, user.password)
+
+        expect(response).to redirect_to("/library")
+      end
+
+      it "ignores an unsafe next path", parity: true do
+        post login_path, params: login_params(user.email, user.password).merge(next: "https://evil.example.org/phish")
+
+        expect(response).to have_http_status(:found)
+        expect(response.location).not_to include("evil.example.org")
+      end
+    end
+
     it "goes to the next path", parity: true do
       post login_path, params: login_params(user.email, user.password).merge(next: "/products")
 
@@ -196,6 +259,18 @@ describe "Authentication mutations", type: :request do
       expect(response).to redirect_to("/dashboard")
     end
 
+    it "gives the guest cart of the browser to the user once the token is accepted", parity: true do
+      seller = create(:user, created_at: Time.utc(2025, 1, 3))
+      guest_cart = create(:cart, :guest, browser_guid: "two-factor-guid")
+      create(:cart_product, cart: guest_cart, product: create(:product, user: seller, name: "Guest line", created_at: Time.utc(2025, 1, 3)))
+      cookies[:_gumroad_guid] = "two-factor-guid"
+      start_two_factor
+      post "/two-factor", params: { authenticity_token: csrf_token, token: User::DEFAULT_AUTH_TOKEN, user_id: user.encrypted_external_id }
+
+      expect(response).to redirect_to("/dashboard")
+      expect(guest_cart.reload.user).to eq(user)
+    end
+
     it "verifies a token from the emailed link", parity: true do
       start_two_factor
       get "/two-factor/verify", params: { token: User::DEFAULT_AUTH_TOKEN, user_id: user.encrypted_external_id }
@@ -255,6 +330,50 @@ describe "Authentication mutations", type: :request do
       post "/two-factor/switch_to_recovery", params: { authenticity_token: csrf_token, user_id: user.encrypted_external_id }
 
       expect(response).to redirect_to(two_factor_authentication_path)
+    end
+
+    describe "with a recovery code" do
+      let!(:credential) { create(:totp_credential, user:, confirmed_at: Time.current) }
+      let!(:codes) { credential.generate_recovery_codes }
+
+      before do
+        credential.update_columns(updated_at: 1.day.ago)
+        start_two_factor
+        post "/two-factor/switch_to_recovery", params: { authenticity_token: csrf_token, user_id: user.encrypted_external_id }
+      end
+
+      def redeem(code)
+        post "/two-factor", params: { authenticity_token: csrf_token, token: code, user_id: user.encrypted_external_id }
+      end
+
+      it "signs in with a recovery code and burns it", parity: true do
+        redeem(codes.first)
+
+        expect(response).to redirect_to("/dashboard")
+        expect(credential.reload.recovery_codes.size).to eq(codes.size - 1)
+      end
+
+      it "accepts a lowercase code with dashes", parity: true do
+        redeem(codes.second.downcase.insert(4, "-"))
+
+        expect(response).to redirect_to("/dashboard")
+        expect(credential.reload.recovery_codes.size).to eq(codes.size - 1)
+      end
+
+      it "refuses a code that matches none", parity: true do
+        redeem("ABCD1234")
+
+        expect(response).to redirect_to(two_factor_authentication_path)
+        expect(credential.reload.recovery_codes.size).to eq(codes.size)
+      end
+
+      it "refuses a code that was already used", parity: true do
+        credential.redeem_recovery_code(codes.first)
+        credential.update_columns(updated_at: 1.day.ago)
+        redeem(codes.first)
+
+        expect(response).to redirect_to(two_factor_authentication_path)
+      end
     end
 
     it "switches to the authenticator", parity: true do
