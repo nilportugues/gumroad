@@ -19,6 +19,7 @@ import { setAssociation } from "./concerns/rails-validations.ts";
 import { ago } from "./concerns/ruby-time.ts";
 import { LinkFlags } from "./link.ts";
 import { PurchaseRefundPolicies } from "./purchase-refund-policy.ts";
+import { PurchaseUrlParameters } from "./purchase-url-parameter.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { castRow, column, execute, selectRows, table } from "./sql.ts";
@@ -97,6 +98,8 @@ export type PurchaseContext = {
   chargeReceipt?: boolean;
   // `purchase.url_parameters`, the parsed PurchaseUrlParameter row the sale ping carries
   urlParameters?: Record<string, unknown> | null;
+  // The parameters the purchase saves into its PurchaseUrlParameter row
+  urlParametersToSave?: Record<string, unknown> | null;
   // The Redis, Flipper and random reads of the success transition and of the commit hooks
   effects?: CheckoutEffects;
 };
@@ -902,6 +905,17 @@ export const Purchases = defineModel<Purchase>({
       name: "mark_inventory_new_in_txn",
       run(record) {
         pendingCreateCommitIds.add(record.get("id"));
+      },
+    },
+    {
+      // has_one :purchase_url_parameter, declared ahead of the refund policy
+      name: "save_has_one_association purchase_url_parameter",
+      async run(record, ctx) {
+        const params = contextOf(record).urlParametersToSave;
+        if (!params) return;
+        const child = PurchaseUrlParameters.build({ purchase_id: record.get("id"), params } as never);
+        setAssociation(child, "purchase", record.get("id"), record.attributes as never);
+        await PurchaseUrlParameters.saveBang(child, { now: ctx.now });
       },
     },
     {

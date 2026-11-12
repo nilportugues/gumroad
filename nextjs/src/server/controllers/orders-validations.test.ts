@@ -31,6 +31,12 @@ describe("OrdersController#create email check", () => {
     expect(emailIsInvalid(email)).toBe(true);
   });
 
+  it("judges an address padded with whitespace after stripping it, as the purchase does", () => {
+    expect(emailIsInvalid("  buyer@example.com \t")).toBe(false);
+    expect(emailIsInvalid("  not-an-email ")).toBe(true);
+    expect(() => emailIsInvalid(" buyer @example.com")).toThrow(HandBackToRails);
+  });
+
   it("hands an email that is not text back", () => {
     expect(() => emailIsInvalid(["a@b.co"])).toThrow(HandBackToRails);
   });
