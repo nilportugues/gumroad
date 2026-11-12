@@ -114,6 +114,14 @@ const RENDERED = new Set(
     "with-the-discover-layout-renders-a-product-without-a-taxonomy",
     "with-the-discover-layout-answers-the-search-box-s-autocomplete-request-with-the-sugge-b0c7b45c",
     "with-the-discover-layout-renders-a-storefront-seller-s-product-without-the-catalogue",
+    "arriving-from-discover-stores-a-click-of-a-signed-in-buyer-on-a-product-without-a-cat-545a35ed",
+    "arriving-from-discover-stores-a-click-on-the-inertia-visit",
+    "arriving-from-discover-stores-a-discover-click-that-carries-no-query",
+    "arriving-from-discover-stores-a-search-click-on-the-product-with-the-product-s-own-ca-66fcb3a8",
+    "arriving-from-discover-stores-an-autocomplete-click-without-a-suggestion",
+    "arriving-from-discover-stores-nothing-for-a-crawler",
+    "arriving-from-discover-stores-nothing-for-another-recommender",
+    "arriving-from-discover-stores-nothing-while-the-flag-is-off",
   ]
     .map((name) => `on-a-seller-subdomain-${name}`)
     .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls", "signed-in-lists-the-viewer-s-wishlists-with-what-each-holds-of-the-product", "signed-in-shows-a-buyer-whose-purchase-was-refunded-the-product-without-a-purchase", "signed-in-counts-the-waitlist-of-an-unpublished-product-for-the-seller"]),

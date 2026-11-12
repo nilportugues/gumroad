@@ -37,7 +37,7 @@ import { longUrl } from "./product.ts";
 import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
 import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
 import { setHostMeta } from "../page-props/storefront/post-pages.ts";
-import { hasCuratedProductSources } from "../page-props/discover/discover.ts";
+import { createDiscoverSearch, hasCuratedProductSources } from "../page-props/discover/discover.ts";
 import { taxonomiesForNav } from "../page-props/discover/taxonomies.ts";
 import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
 
@@ -471,13 +471,41 @@ async function build(
   return { ...page, taxonomy_path: await taxonomyPath(row), taxonomies_for_nav: await taxonomiesForNav() };
 }
 
+// The click-through of a Discover result is attributed to the clicked product's own category, not the browsed one.
+async function recordDiscoverClick(chain: Chain, product: LinkRow, query: Query): Promise<void> {
+  const { request } = chain;
+  await createDiscoverSearch(
+    {
+      query: typeof query.query === "string" ? query.query : null,
+      taxonomyId: product.taxonomy_id as bigint | null,
+      autocomplete: query.autocomplete === "true",
+      clickedResource: { type: "Link", id: product.id },
+    },
+    {
+      path: request.path,
+      queryString: request.queryString,
+      method: request.method,
+      headers: request.headers,
+      host: request.host,
+      hostWithPort: request.hostWithPort,
+      protocol: request.protocol,
+      remoteIp: remoteIp(request.headers) ?? "127.0.0.1",
+      cookies: new Map(),
+      guid: request.cookies.get(GUID_COOKIE) ?? null,
+      currentSellerId: null,
+    },
+    railsLoggedInUser(chain.auth.context),
+    query,
+  );
+}
+
 export async function assertRenderable(context: RenderContext): Promise<void> {
   const { chain, product, seller, query, code } = context;
   for (const name of UNSUPPORTED_PARAMS) if (name in query) throw new HandBackToRails();
   // A layout that is not text (`layout[]=x`) matches no branch in Rails but reaches the bundle links as a hash or list.
   if ("layout" in query && typeof query.layout !== "string") throw new HandBackToRails();
-  if (typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by))
-    throw new HandBackToRails();
+  const discoverRecommended =
+    typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by);
   try {
     const user = railsLoggedInUser(chain.auth.context);
     const viewer = viewerOf(
@@ -498,6 +526,8 @@ export async function assertRenderable(context: RenderContext): Promise<void> {
       chain.request.host,
       productPageKind(query),
     );
+    // create_discover_search!(clicked_resource: @product, ...) comes before the noindex header and the render.
+    if (discoverRecommended) await recordDiscoverClick(chain, product, query);
     // set_noindex_header if !@product.alive?
     if (product.purchase_disabled_at !== null || product.banned_at !== null || product.deleted_at !== null)
       chain.headers.set("x-robots-tag", "noindex");

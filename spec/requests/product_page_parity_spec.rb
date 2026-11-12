@@ -622,6 +622,87 @@ describe "Product page", type: :request do
       end
     end
 
+    describe "arriving from Discover" do
+      let(:product) { create(:product, user: seller, name: "Clicked", taxonomy: Taxonomy.create!(slug: "design")) }
+
+      before do
+        Feature.activate(:store_discover_searches)
+        cookies[:_gumroad_guid] = "discover-click-guid" unless RSpec.current_example.metadata[:signed_in]
+      end
+
+      it "stores a search click on the product with the product's own category", parity: true do
+        expect { get "/l/#{product.unique_permalink}?recommended_by=search&query=rig+kit" }.to change(DiscoverSearch, :count).by(1)
+
+        expect(response).to be_successful
+        search = DiscoverSearch.last
+        expect(search).to have_attributes(query: "rig kit", clicked_resource: product, taxonomy_id: product.taxonomy_id, autocomplete: false)
+        expect(search.discover_search_suggestion).to be_present
+      end
+
+      it "stores a Discover click that carries no query", parity: true do
+        expect { get "/l/#{product.unique_permalink}?recommended_by=discover" }.to change(DiscoverSearch, :count).by(1)
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.last.query).to be_nil
+      end
+
+      it "stores an autocomplete click without a suggestion", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig&autocomplete=true"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.last).to have_attributes(autocomplete: true, discover_search_suggestion: nil)
+      end
+
+      it "stores a click of a signed-in buyer on a product without a category", parity: true, signed_in: true do
+        product.update!(taxonomy: nil)
+        host! DOMAIN
+        log_in(buyer, token_path: "/help")
+        seller_host!
+        # Logging in sets the guid the click is attributed to.
+
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.last).to have_attributes(user_id: buyer.id, taxonomy_id: nil)
+      end
+
+      it "stores a click on the Inertia visit", parity: true do
+        inertia_visit "/l/#{product.unique_permalink}?recommended_by=discover&query=kit"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(1)
+      end
+
+      it "stores nothing for a crawler", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig", headers: { "User-Agent" => "Googlebot/2.1" }
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(0)
+      end
+
+      it "stores nothing while the flag is off", parity: true do
+        Feature.deactivate(:store_discover_searches)
+
+        get "/l/#{product.unique_permalink}?recommended_by=search&query=rig"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(0)
+      end
+
+      it "stores nothing for another recommender", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=library&query=rig"
+
+        expect(response).to be_successful
+        expect(DiscoverSearch.count).to eq(0)
+      end
+
+      it "hands a nested query back to Rails", parity: true do
+        get "/l/#{product.unique_permalink}?recommended_by=search&query[]=rig"
+
+        expect(response).to be_successful
+      end
+    end
+
     it "hands a visitor of a storefront seller to Rails", parity: true do
       seller.update!(product_page_storefront_enabled: true)
       product = create(:product, user: seller)
