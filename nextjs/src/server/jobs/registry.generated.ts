@@ -395,7 +395,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CancelSubscriptionsForProductWorker": {
     "file": "app/sidekiq/cancel_subscriptions_for_product_worker.rb",

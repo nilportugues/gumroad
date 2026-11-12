@@ -69,6 +69,7 @@ import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from 
 import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-worker.ts";
 import { renameProductFileWorker } from "./rename-product-file-worker.ts";
 import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
+import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
 import {
   refreshMerchantAccountProductsRecommendationEligibilityJob,
@@ -183,6 +184,7 @@ import {
 } from "./workflow-jobs.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
+  CancelPreorderWorker: cancelPreorderWorker,
   DeleteProductFilesWorker: deleteProductFilesWorker,
   RenameProductFileWorker: renameProductFileWorker,
   ChargeSuccessfulPreordersWorker: chargeSuccessfulPreordersWorker,

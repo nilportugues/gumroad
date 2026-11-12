@@ -1,0 +1,989 @@
+{
+  "cases": [
+    {
+      "name": "a preorder that does not exist",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'is_authorization_successful?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        99
+      ]
+    },
+    {
+      "name": "a preorder id of nil",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'is_authorization_successful?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        null
+      ]
+    },
+    {
+      "name": "a in_progress preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "in_progress",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "in_progress",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a authorization_successful preorder",
+      "error": {
+        "class": "StateMachines::InvalidTransition",
+        "message": "Cannot transition state via :mark_cancelled from :authorization_successful (Reason(s): Seller can't be blank)"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a charge_successful preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "charge_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "charge_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a test_authorization_successful preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "test_authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "test_authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a cancelled preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "cancelled",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a authorization_failed preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "authorization_failed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_failed",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a preorder in a state the machine does not know",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "mystery",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "mystery",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "another preorder is authorized",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "in_progress",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "in_progress",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              2,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1
+      ]
+    },
+    {
+      "name": "a preorder id given as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "cancelled",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        "1"
+      ]
+    },
+    {
+      "name": "a preorder id given as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "cancelled",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        1.0
+      ]
+    },
+    {
+      "name": "a preorder id given as a word",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'is_authorization_successful?' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "http": [],
+      "job": "CancelPreorderWorker",
+      "args": [
+        "abc"
+      ]
+    }
+  ]
+}
