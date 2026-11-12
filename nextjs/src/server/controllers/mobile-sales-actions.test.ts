@@ -5,7 +5,8 @@ import { PurchaseFlags } from "../search/flags.ts";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, eligibleToSendEmails, resendReceipt, setPurchase } = vi.hoisted(() => ({
+const { actions, selectRows, eligibleToSendEmails, resendReceipt, setPurchase, changeCanContact } = vi.hoisted(() => ({
+  changeCanContact: vi.fn(),
   resendReceipt: vi.fn(),
   setPurchase: vi.fn(),
   actions: [] as MobileAction[],
@@ -22,6 +23,7 @@ vi.mock("../models/sql.ts", async (original) => ({
   selectRows,
 }));
 vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
+vi.mock("../models/purchase-contact-writes.ts", () => ({ changeCanContact }));
 vi.mock("./purchase-access-writes.ts", () => ({ setPurchase }));
 vi.mock("../models/user-email-eligibility.ts", () => ({ eligibleToSendEmails }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
@@ -79,13 +81,32 @@ describe("member actions", () => {
     expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
   });
 
-  it.each(["change_can_contact", "mark_as_shipped", "resend_ping"])(
-    "hands %s of a sale that exists to Rails",
-    async (name) => {
-      selectRows.mockResolvedValueOnce([sale()]);
-      await handedBack(run("POST", `/mobile/sales/:id/${name}`, {}));
-    },
-  );
+  it.each(["mark_as_shipped", "resend_ping"])("hands %s of a sale that exists to Rails", async (name) => {
+    selectRows.mockResolvedValueOnce([sale()]);
+    await handedBack(run("POST", `/mobile/sales/:id/${name}`, {}));
+  });
+});
+
+describe("POST /mobile/sales/:id/change_can_contact", () => {
+  const action = "/mobile/sales/:id/change_can_contact";
+
+  beforeEach(() => {
+    changeCanContact.mockReset();
+    setPurchase.mockReset().mockResolvedValue({ id: 5n });
+  });
+
+  it("answers success once the purchase is saved", async () => {
+    selectRows.mockResolvedValueOnce([sale()]);
+    changeCanContact.mockResolvedValue("changed");
+    expect(body(await run("POST", action, { id: "5", can_contact: "false" }))).toEqual({ success: true });
+    expect(changeCanContact).toHaveBeenCalledWith({ id: 5n }, "false");
+  });
+
+  it("hands a change Node cannot prove to Rails", async () => {
+    selectRows.mockResolvedValueOnce([sale()]);
+    changeCanContact.mockRejectedValue(new HandBackToRails("a purchase that has a review"));
+    await handedBack(run("POST", action, { id: "5", can_contact: "false" }));
+  });
 });
 
 describe("POST /mobile/sales/:id/resend_receipt", () => {

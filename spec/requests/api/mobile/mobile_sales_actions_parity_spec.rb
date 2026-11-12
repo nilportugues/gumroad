@@ -246,6 +246,23 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(response.parsed_body).to eq("success" => true)
     end
 
+    it "stops emailing the buyer of a free sale", parity: true, defer_audience_refresh: true do
+      free_sale = purchase_row(link: create(:product, user: seller, price_cents: 0), seller:, email: "customer@example.com", purchase_state: "successful")
+
+      post "/mobile/sales/#{free_sale.external_id}/change_can_contact", params: auth(seller).merge(can_contact: "false")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(free_sale.reload.can_contact).to be(false)
+    end
+
+    it "writes nothing when the buyer of a free sale can already be contacted", parity: true, defer_audience_refresh: true do
+      free_sale = purchase_row(link: create(:product, user: seller, price_cents: 0), seller:, email: "customer@example.com", purchase_state: "successful")
+
+      post "/mobile/sales/#{free_sale.external_id}/change_can_contact", params: auth(seller).merge(can_contact: "1")
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
     it "hands a can_contact change to Rails", parity: true do
       post "/mobile/sales/#{sale.external_id}/change_can_contact", params: auth(seller).merge(can_contact: "false")
 

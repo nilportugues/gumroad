@@ -2,12 +2,13 @@
 // them: the 404 and authorization guards of every action that sends mail, charges or refunds, or mints and reads signed tokens.
 // Whatever passes a guard goes to Rails whole, before anything is written. revoke_access and undo_revoke_access are in
 // purchase-access-writes.ts; search and export (Elasticsearch, a mobile token, a CSV mail) stay in Rails untouched.
-import { Prisma } from "@prisma/client";
+import { Prisma, type Purchase } from "@prisma/client";
 
 import { decrypt, encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
 import { readEncryptedCookie } from "../auth/rails-cookies.ts";
 import { railsCookieSecrets } from "../auth/rails-session-config.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { changeCanContact } from "../models/purchase-contact-writes.ts";
 import { decryptSecureExternalId, SecureExternalIdError } from "../models/secure-external-id.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { audiencePurchasePolicy } from "../policies/audience-purchase.ts";
@@ -46,7 +47,11 @@ type Policy = (context: Parameters<typeof audiencePurchasePolicy.update>[0]) => 
 
 // ----- the seller's actions: authenticate_user!, set_purchase, verify_current_seller_is_seller_for_purchase, authorize
 
-function sellerPurchaseAction(query: Policy, reason: string) {
+function sellerPurchaseAction(
+  query: Policy,
+  reason: string,
+  perform?: (purchase: Purchase, input: MutationInput) => Promise<ActionResult>,
+) {
   return async (input: MutationInput): Promise<ActionResult> => {
     const seller = input.context.currentSeller;
     if (railsLoggedInUser(input.context) === null || seller === null) throw new HandBackToRails("a signed-out request");
@@ -56,6 +61,7 @@ function sellerPurchaseAction(query: Policy, reason: string) {
     if (purchase.seller_id !== seller.id) return { ...notFoundJson(), rescued: true };
     const denied = await authorizeJson(input, (context) => authorize(query, context));
     if (denied) return denied;
+    if (perform) return perform(purchase, input);
     throw new HandBackToRails(reason);
   };
 }
@@ -122,7 +128,14 @@ registerMutations(
     method: "POST",
     pattern: "/purchases/:id/change_can_contact",
     json: true,
-    run: sellerPurchaseAction(audiencePurchasePolicy.changeCanContact, "a can_contact change"),
+    run: sellerPurchaseAction(
+      audiencePurchasePolicy.changeCanContact,
+      "a can_contact change",
+      async (purchase, input) => {
+        await changeCanContact(purchase, input.params.can_contact);
+        return noContent();
+      },
+    ),
   },
   {
     method: "POST",
