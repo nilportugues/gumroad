@@ -33,6 +33,7 @@ const SPECS = [
   "review_reminders_parity_spec",
   "feature_announcements_unsubscribe_parity_spec",
   "signup_create_parity_spec",
+  "signup_save_to_library_parity_spec",
   "mobile_forgot_password_parity_spec",
 ];
 const ROUTE_FLAGS = [
@@ -40,6 +41,7 @@ const ROUTE_FLAGS = [
   "nextjs_auth_login_writes",
   "nextjs_auth_logout",
   "nextjs_auth_signup_writes",
+  "nextjs_signup_save_to_library",
   "nextjs_mobile_forgot_password",
   "nextjs_auth_two_factor_writes",
   "nextjs_auth_passwords",
@@ -155,6 +157,7 @@ const MAILS = [
   ["sends-the-reset-instructions", "UserSignupMailer", "reset_password_instructions"],
   ["mobile-forgot-password-accepts-a-json-body", "UserSignupMailer", "reset_password_instructions"],
   ["signup-create-a-new-account", "UserSignupMailer", "confirmation_instructions"],
+  ["save-to-library-creates-the-account", "UserSignupMailer", "confirmation_instructions"],
 ] as const;
 
 const allCases = SPECS.flatMap((spec) => {
@@ -410,11 +413,16 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
           expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
         }
         // A new account: Node's bcrypt hash verifies like Rails' and the confirmation mail carries the raw token stored on the row.
-        if (name.includes("signup-create-a-new-account")) {
+        if (name.includes("signup-create-a-new-account") || name.includes("save-to-library-creates-the-account")) {
           const row = (await client.user.findFirst({
             select: { encrypted_password: true, confirmation_token: true },
           }))!;
-          expect(await validPassword(row.encrypted_password, "a-long-signup-password")).toBe(true);
+          expect(
+            await validPassword(
+              row.encrypted_password,
+              name.includes("save-to-library") ? "a-long-library-password" : "a-long-signup-password",
+            ),
+          ).toBe(true);
           expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
           expect(row.confirmation_token).toMatch(/^[A-Za-z0-9_-]{20}$/u);
           expect(JSON.stringify(mailJobs[0]!.args)).toContain(row.confirmation_token!);
@@ -428,7 +436,9 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
           // A new account's cookie name carries a hash of its random external id: it is the one two-factor cookie of the response.
           const nodeName =
             cookieName.startsWith("_gumroad_two_factor_") && !actual.response.cookies?.[cookieName]
-              ? Object.keys(actual.response.cookies ?? {}).find((candidate) => candidate.startsWith("_gumroad_two_factor_"))
+              ? Object.keys(actual.response.cookies ?? {}).find((candidate) =>
+                  candidate.startsWith("_gumroad_two_factor_"),
+                )
               : cookieName;
           const nodeCookie = nodeName === undefined ? undefined : actual.response.cookies?.[nodeName];
           if (cookieName.startsWith("_gumroad_two_factor_")) {
