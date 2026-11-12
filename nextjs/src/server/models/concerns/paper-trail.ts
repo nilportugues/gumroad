@@ -29,6 +29,9 @@ export type PaperTrailOptions = {
   ignore?: string[];
   // Defaults to the Prisma model's columns; tests pass them explicitly.
   columnTypes?: Record<string, ColumnType>;
+  // `normalizes :attr, with:`: the version serializes the attribute through its type, which normalizes a value the row holds
+  // as stored (the model itself reads and writes it unchanged until assigned).
+  normalizers?: Record<string, (value: unknown) => unknown>;
 };
 
 export type VersionRow = {
@@ -202,19 +205,27 @@ export function columnTypesFromPrisma(model: Prisma.ModelName): Record<string, C
 
 const UPDATE_TIMESTAMPS = ["updated_at", "updated_on"];
 
-export type Resolved = Required<Omit<PaperTrailOptions, "columnTypes">> & { columnTypes: Record<string, ColumnType> };
+export type Resolved = Required<Omit<PaperTrailOptions, "columnTypes" | "normalizers">> & {
+  columnTypes: Record<string, ColumnType>;
+  normalizers?: Record<string, (value: unknown) => unknown>;
+};
+
+const normalized = (config: Resolved, name: string, value: unknown) => {
+  const normalize = config.normalizers?.[name];
+  return value == null || !normalize ? value : normalize(value);
+};
 
 // Follows `attributes`, whose order ModelRecord#attributeOrder tracks.
 function encodeObject(record: ModelRecord, config: Resolved, valueOf: (name: string) => unknown): string {
   const names = record.untracked(() => record.attributeOrder().filter((k) => !config.skip.includes(k)));
-  return `{${names.map((k) => `${encodeString(k)}:${encodeAttribute(config.columnTypes[k], valueOf(k))}`).join(",")}}`;
+  return `{${names.map((k) => `${encodeString(k)}:${encodeAttribute(config.columnTypes[k], normalized(config, k, valueOf(k)))}`).join(",")}}`;
 }
 
 function encodeChanges(changes: [string, [unknown, unknown]][], config: Resolved): string {
   return `{${changes
     .map(
       ([k, [a, b]]) =>
-        `${encodeString(k)}:[${encodeAttribute(config.columnTypes[k], a)},${encodeAttribute(config.columnTypes[k], b)}]`,
+        `${encodeString(k)}:[${encodeAttribute(config.columnTypes[k], normalized(config, k, a))},${encodeAttribute(config.columnTypes[k], normalized(config, k, b))}]`,
     )
     .join(",")}}`;
 }
@@ -322,6 +333,7 @@ export function hasPaperTrail<R extends Row>(
       skip: options.skip ?? [],
       ignore: options.ignore ?? [],
       columnTypes: options.columnTypes ?? columnTypesFromPrisma(prismaModel),
+      normalizers: options.normalizers ?? {},
     });
 
   const record =
