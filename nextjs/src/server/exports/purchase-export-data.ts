@@ -1,7 +1,7 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
 // the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
 // refunds and its custom fields. A sale that needs anything else (gifts, pre-orders, subscriptions,
-// UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
+// carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
 // throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
 
@@ -38,8 +38,6 @@ const PURCHASE_ID_TABLES: readonly [string, string, string][] = [
   ["gifts", "gifter_purchase_id", "a gift"],
   ["gifts", "giftee_purchase_id", "a gift"],
   ["purchase_presentments", "purchase_id", "a buyer-currency charge"],
-  ["upsell_purchases", "purchase_id", "an upsell"],
-  ["utm_link_driven_sales", "purchase_id", "a UTM link"],
   ["order_purchases", "purchase_id", "a cart"],
 ];
 
@@ -52,6 +50,14 @@ const flagSet = (purchase: Purchase, name: Parameters<typeof PurchaseFlags.isSet
 
 type CustomFieldRow = { purchase_id: bigint; name: string | null; value: string | null; field_type: string | null };
 type LicenseRow = { purchase_id: bigint; serial: string | null; uses: number | null; disabled_at: Date | null };
+type UtmRow = {
+  purchase_id: bigint;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+};
 type RefundRow = { purchase_id: bigint; amount_cents: number | null };
 // The one BaseVariant (a Variant or a Sku) a purchase holds in `variant_attributes`.
 type VariantRow = {
@@ -230,6 +236,17 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       throw new HandBackToRails("a licensed product's sale with a variant");
   }
 
+  const upsold = await idsWithRows("upsell_purchases", "purchase_id", purchaseIds);
+  // purchase.utm_link, through its one driven sale
+  const utmRows = await selectRows<UtmRow>(
+    Prisma.sql`SELECT ${column("utm_link_driven_sales", "purchase_id")}, ${column("utm_links", "utm_source")}, ${column("utm_links", "utm_medium")}, ${column("utm_links", "utm_campaign")}, ${column("utm_links", "utm_term")}, ${column("utm_links", "utm_content")} FROM ${table("utm_link_driven_sales")} INNER JOIN ${table("utm_links")} ON ${column("utm_links", "id")} = ${column("utm_link_driven_sales", "utm_link_id")} WHERE ${column("utm_link_driven_sales", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+  );
+  const utmByPurchase = new Map<string, UtmRow>();
+  for (const utm of utmRows) {
+    if (utmByPurchase.has(String(utm.purchase_id))) throw new HandBackToRails("a sale driven by several UTM links");
+    utmByPurchase.set(String(utm.purchase_id), utm);
+  }
+
   // purchase.affiliate&.affiliate_user&.form_email
   const affiliateIds = [
     ...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id): id is bigint => id !== null)),
@@ -293,6 +310,8 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         tipCents: tipCents.get(key),
         review: reviewByPurchase.get(key),
         license: licenseByPurchase.get(key),
+        upsold: upsold.has(key),
+        utm: utmByPurchase.get(key),
       }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
@@ -325,6 +344,8 @@ function purchaseFields(
     tipCents: number | undefined;
     review: { rating: number | null; message: string | null } | undefined;
     license: LicenseRow | undefined;
+    upsold: boolean;
+    utm: UtmRow | undefined;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [
@@ -441,13 +462,13 @@ function purchaseFields(
     "Stripe Fee Amount": null,
     "Stripe Fee Currency": null,
     "Purchasing Power Parity Discounted?": flagSet(purchase, "is_purchasing_power_parity_discounted") ? 1 : 0,
-    "Upsold?": 0,
+    "Upsold?": lookups.upsold ? 1 : 0,
     "Sent Abandoned Cart Email?": 0,
-    "UTM Source": null,
-    "UTM Medium": null,
-    "UTM Campaign": null,
-    "UTM Term": null,
-    "UTM Content": null,
+    "UTM Source": lookups.utm?.utm_source ?? null,
+    "UTM Medium": lookups.utm?.utm_medium ?? null,
+    "UTM Campaign": lookups.utm?.utm_campaign ?? null,
+    "UTM Term": lookups.utm?.utm_term ?? null,
+    "UTM Content": lookups.utm?.utm_content ?? null,
     "Buyer Currency": null,
     "Buyer Total": null,
     "Buyer Refunded Total": null,

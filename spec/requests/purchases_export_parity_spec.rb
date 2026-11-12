@@ -288,6 +288,23 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("License Key")] }).to include("AAAA-BBBB-CCCC-DDDD", "EEEE-FFFF-GGGG-HHHH")
   end
 
+  it "writes the UTM link columns and flags an upsold sale", parity: true do
+    utm_link = create(:utm_link, seller:, utm_source: "newsletter", utm_medium: "email", utm_campaign: "launch", utm_term: "term one", utm_content: "banner")
+    visit = create(:utm_link_visit, utm_link:)
+    driven = sell(price_cents: 500)
+    create(:utm_link_driven_sale, utm_link:, utm_link_visit: visit, purchase: driven)
+    upsold = sell(price_cents: 600)
+    upsell = create(:upsell, seller:, product:, name: "Bonus")
+    build(:upsell_purchase, upsell:, purchase: upsold, selected_product: product).save!(validate: false)
+    sell(price_cents: 500)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("UTM Source")] }).to include("newsletter")
+    expect(csv.map { |row| row[csv.first.index("Upsold?")] }).to include("1")
+  end
+
   it "hands a sale of a licensed product with a variant to Rails", parity: true do
     licensed = create(:product, user: seller, name: "Licensed versions", is_licensed: true)
     category = create(:variant_category, link: licensed, title: "Edition")
