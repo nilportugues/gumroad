@@ -1220,7 +1220,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "FindExpiredSubscriptionsToSetAsDeactivatedWorker": {
     "file": "app/sidekiq/find_expired_subscriptions_to_set_as_deactivated_worker.rb",
