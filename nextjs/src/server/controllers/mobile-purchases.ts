@@ -9,6 +9,7 @@ import { Prisma, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
+import { NOT_RECURRING_CHARGE, purchaseFlag, states } from "../models/offer-code.ts";
 import { type LibraryFlag, loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
 import { column, selectRows, table } from "../models/sql.ts";
@@ -58,27 +59,55 @@ function requireConfirmedUser(auth: MobileAuth | null) {
   return fetchError("Please confirm your email address before you can see your purchases.", FORBIDDEN);
 }
 
-// PagyPresenter#metadata for a collection with no rows.
-const emptyPagination = (items: number) => ({
-  count: 0,
-  items,
-  page: FIRST_PAGE,
-  pages: 1,
-  prev: null,
-  next: null,
-  last: 1,
-});
-
-async function buyerHasPurchases(buyerId: bigint): Promise<boolean> {
-  const rows = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "purchaser_id")} = ${buyerId} LIMIT 1`,
-  );
-  return rows.length > 0;
+// PagyPresenter#metadata for a Pagy of `count` rows, `items` to a page, on a page that exists.
+function pagyMetadata(count: number, page: number, items: number) {
+  const pages = Math.max(Math.ceil(count / items), FIRST_PAGE);
+  return {
+    count,
+    items,
+    page,
+    pages,
+    prev: page > FIRST_PAGE ? page - 1 : null,
+    next: page < pages ? page + 1 : null,
+    last: pages,
+  };
 }
 
-// A buyer with no purchases row at all has an empty listing whatever for_mobile_listing, q, seller, archived and purchase_ids filter.
-async function emptyLibrary(auth: MobileAuth | null): Promise<boolean> {
-  return !(await buyerHasPurchases(libraryOwner(auth).id));
+// Purchase::ALL_SUCCESS_STATES
+const ALL_SUCCESS_STATES = [...NON_GIFT_SUCCESS_STATES, "gift_receiver_purchase_successful"];
+
+// Purchase.for_mobile_listing for one buyer, without its order and includes.
+const listingWhere = (buyerId: bigint) =>
+  Prisma.sql`${column("purchases", "purchaser_id")} = ${buyerId} AND ${states(ALL_SUCCESS_STATES)} AND ${purchaseFlag("is_deleted_by_buyer", false)} AND ${purchaseFlag("is_additional_contribution", false)} AND ${NOT_RECURRING_CHARGE} AND ${purchaseFlag("is_gift_sender_purchase", false)} AND ${NOT_REFUNDED_EXCEPT_SUBSCRIPTIONS} AND ${NOT_CHARGEDBACK_OR_REVERSED} AND ${purchaseFlag("is_archived_original_subscription_purchase", false)} AND ${NOT_RENTAL_EXPIRED}`;
+
+const NOT_REFUNDED_EXCEPT_SUBSCRIPTIONS = Prisma.raw(
+  "((purchases.subscription_id IS NULL AND (purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)) OR purchases.subscription_id IS NOT NULL)",
+);
+const NOT_CHARGEDBACK_OR_REVERSED = Prisma.raw(
+  "(purchases.chargeback_date IS NULL OR (purchases.chargeback_date IS NOT NULL AND purchases.flags & '512' != 0))",
+);
+const NOT_RENTAL_EXPIRED = Prisma.raw("(purchases.rental_expired = FALSE OR purchases.rental_expired IS NULL)");
+
+// The listing's rows by id, in the order the ids came in; an id with no row (deleted in between) is dropped.
+async function purchasesInOrder(ids: bigint[]): Promise<Purchase[]> {
+  if (ids.length === 0) return [];
+  const found = await db.purchase.findMany({ where: { id: { in: ids } } });
+  const byId = new Map(found.map((row) => [row.id, row]));
+  return ids.flatMap((id) => byId.get(id) ?? []);
+}
+
+// Api::Mobile::PurchasesController#purchases_to_json. A purchase Node does not serialize (a membership, a gift, a media location, a
+// post to show) hands the whole page back before anything is answered.
+async function libraryJson(rows: Purchase[], auth: MobileAuth | null, includeProductUpdates: boolean) {
+  const ids = rows.map((row) => row.id);
+  const shared = newShared();
+  shared.refunds = await amountRefundedCentsByPurchase(ids);
+  shared.ratings = await ratingByPurchase(ids);
+  if (includeProductUpdates && rows.length > 0) shared.updates = await preloadProductUpdatesData(rows);
+  const json: Record<string, unknown>[] = [];
+  for (const row of rows)
+    json.push((await plainPurchaseJson(row, auth, { includeProductUpdates, shared })).render(row));
+  return json;
 }
 
 async function index(input: MobileInput, auth: MobileAuth | null) {
@@ -89,14 +118,71 @@ async function index(input: MobileInput, auth: MobileAuth | null) {
     Math.max(integerParam(input.params.per_page, DEFAULT_PER_PAGE, "per_page"), 1),
     MAX_PER_PAGE,
   );
-  if (page !== FIRST_PAGE || !(await emptyLibrary(auth)))
-    throw new HandBackToRails("a purchase listing with rows or beyond the first page");
+  const owner = libraryOwner(auth);
+  const where = listingWhere(owner.id);
+  const [counted] = await selectRows<{ count: bigint }>(
+    Prisma.sql`SELECT COUNT(*) AS count FROM ${table("purchases")} WHERE ${where}`,
+  );
+  const count = Number(counted?.count ?? 0);
+  // Pagy raises past the last page (Pagy::OverflowError), which the controller answers with a 400 that is not served here.
+  if (page < FIRST_PAGE || page > Math.max(Math.ceil(count / perPage), FIRST_PAGE))
+    throw new HandBackToRails("a purchase listing page that does not exist");
+  const idRows = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${where} ORDER BY ${column("purchases", "id")} DESC LIMIT ${perPage} OFFSET ${(page - 1) * perPage}`,
+  );
+  const rows = await purchasesInOrder(idRows.map((row) => BigInt(row.id)));
   return renderJson({
     success: true,
-    products: [],
-    user_id: libraryOwner(auth).external_id,
-    meta: { pagination: emptyPagination(perPage) },
+    products: await libraryJson(rows, auth, true),
+    user_id: owner.external_id,
+    meta: { pagination: pagyMetadata(count, page, perPage) },
   });
+}
+
+// ActiveModel::Type::Boolean#cast: only these strings are false.
+const FALSE_VALUES = new Set(["0", "f", "F", "false", "FALSE", "off", "OFF"]);
+// String#present?: not blank (Ruby's blank also covers whitespace)
+const present = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
+
+// ActiveRecord::Base.sanitize_sql_like
+const sanitizeSqlLike = (value: string) => value.replace(/[\\%_]/gu, (char) => `\\${char}`);
+
+// PurchasesController#search_purchases: the filters and the order of the search listing.
+async function searchListing(input: MobileInput, buyerId: bigint) {
+  const conditions = [listingWhere(buyerId)];
+  const { q, seller, archived, purchase_ids: purchaseIds, order } = input.params;
+  const joins = present(q)
+    ? Prisma.sql`LEFT JOIN ${table("links")} ON ${column("links", "id")} = ${column("purchases", "link_id")} LEFT JOIN ${table("users")} ON ${column("users", "id")} = ${column("purchases", "seller_id")}`
+    : Prisma.empty;
+  if (present(q)) {
+    const pattern = `%${sanitizeSqlLike(q)}%`;
+    conditions.push(
+      Prisma.sql`(${column("links", "name")} LIKE ${pattern} OR ${column("users", "name")} LIKE ${pattern})`,
+    );
+  }
+  if (present(seller)) {
+    // Resolved to ids first, as the controller does, so the seller filter is plain ids.
+    const sellers = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${column("users", "id")} FROM ${table("users")} WHERE ${column("users", "external_id")} = ${seller}`,
+    );
+    conditions.push(
+      sellers.length === 0
+        ? Prisma.sql`1=0`
+        : Prisma.sql`${column("purchases", "seller_id")} IN (${Prisma.join(sellers.map((row) => BigInt(row.id)))})`,
+    );
+  }
+  if (present(archived)) conditions.push(purchaseFlag("is_archived", !FALSE_VALUES.has(archived)));
+  if (present(purchaseIds)) {
+    const decrypted = decrypt(purchaseIds);
+    conditions.push(Prisma.sql`${column("purchases", "id")} IN (${decrypted === null ? 0n : BigInt(decrypted)})`);
+  }
+  const orderBy =
+    order === undefined || order === null || order === "date-desc"
+      ? Prisma.sql`${column("purchases", "created_at")} DESC, ${column("purchases", "id")} DESC`
+      : order === "date-asc"
+        ? Prisma.sql`${column("purchases", "created_at")} ASC, ${column("purchases", "id")} ASC`
+        : Prisma.sql`${column("purchases", "id")} DESC`;
+  return { joins, where: Prisma.join(conditions, " AND "), orderBy };
 }
 
 async function search(input: MobileInput, auth: MobileAuth | null) {
@@ -109,14 +195,37 @@ async function search(input: MobileInput, auth: MobileAuth | null) {
   }
   const page = integerParam(input.params.page, FIRST_PAGE, "page");
   const items = integerParam(input.params.items, DEFAULT_SEARCH_RESULTS_SIZE, "items");
-  if (page !== FIRST_PAGE || items < 1 || !(await emptyLibrary(auth)))
-    throw new HandBackToRails("a purchase search with rows or beyond the first page");
+  const owner = libraryOwner(auth);
+  const { joins, where, orderBy } = await searchListing(input, owner.id);
+  const [counted] = await selectRows<{ count: bigint }>(
+    Prisma.sql`SELECT COUNT(*) AS count FROM ${table("purchases")} ${joins} WHERE ${where}`,
+  );
+  const count = Number(counted?.count ?? 0);
+  if (items < 1 || page < FIRST_PAGE || page > Math.max(Math.ceil(count / items), FIRST_PAGE))
+    throw new HandBackToRails("a purchase search page that does not exist");
+  // sellers_from_purchases groups the filtered relation by seller under its own ORDER BY on a column outside the group, so
+  // the order of several sellers is MySQL's; one seller (or none) has only one order.
+  const sellerRows = await selectRows<{ seller_id: bigint | null; purchases_count: bigint }>(
+    Prisma.sql`SELECT ${column("purchases", "seller_id")}, COUNT(*) AS purchases_count FROM ${table("purchases")} ${joins} WHERE ${where} GROUP BY ${column("purchases", "seller_id")}`,
+  );
+  if (sellerRows.length > 1) throw new HandBackToRails("a purchase search over several sellers");
+  const idRows = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} ${joins} WHERE ${where} ORDER BY ${orderBy} LIMIT ${items} OFFSET ${(page - 1) * items}`,
+  );
+  const rows = await purchasesInOrder(idRows.map((row) => BigInt(row.id)));
+  const sellers: Record<string, unknown>[] = [];
+  for (const row of sellerRows) {
+    if (row.seller_id === null) continue;
+    const seller = await db.user.findUnique({ where: { id: BigInt(row.seller_id) } });
+    if (seller)
+      sellers.push({ id: seller.external_id, name: seller.name, purchases_count: Number(row.purchases_count) });
+  }
   return renderJson({
     success: true,
-    user_id: libraryOwner(auth).external_id,
-    purchases: [],
-    sellers: [],
-    meta: { pagination: emptyPagination(items) },
+    user_id: owner.external_id,
+    purchases: await libraryJson(rows, auth, false),
+    sellers,
+    meta: { pagination: pagyMetadata(count, page, items) },
   });
 }
 
@@ -178,16 +287,49 @@ async function preorderSource(purchase: Purchase, productId: bigint, purchaser: 
   };
 }
 
+// Rows a page of purchases shares (products, users, a product's creator-side fields), read once. `refunds`, `ratings` and `updates` are
+// the batched reads of a listing; a single purchase reads its own.
+type Shared = {
+  memo: <V>(key: string, load: () => Promise<V>) => Promise<V>;
+  refunds?: Map<bigint, number>;
+  ratings?: Map<bigint, number | null>;
+  updates?: Map<bigint, Record<string, unknown>[]>;
+};
+
+function newShared(): Shared {
+  const cache = new Map<string, Promise<unknown>>();
+  return {
+    memo<V>(key: string, load: () => Promise<V>): Promise<V> {
+      let hit = cache.get(key) as Promise<V> | undefined;
+      if (hit === undefined) {
+        hit = load();
+        cache.set(key, hit);
+      }
+      return hit;
+    },
+  };
+}
+
 // What Purchase#json_data_for_mobile needs for a plain purchase, loaded and checked before any write, so a purchase Node
 // cannot serialize hands back (or throws NotPortedError) unchanged. `render` takes the row as the action leaves it.
-async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
+// `includeProductUpdates: false` is the search listing, which leaves product_updates_data out.
+async function plainPurchaseJson(
+  purchase: Purchase,
+  auth: MobileAuth | null,
+  { includeProductUpdates = true, shared = newShared() }: { includeProductUpdates?: boolean; shared?: Shared } = {},
+) {
   if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
-  const amountRefundedCents = (await amountRefundedCentsByPurchase([purchase.id])).get(purchase.id) ?? 0;
-  const productRating = (await ratingByPurchase([purchase.id])).get(purchase.id) ?? null;
+  const amountRefundedCents =
+    (shared.refunds ?? (await amountRefundedCentsByPurchase([purchase.id]))).get(purchase.id) ?? 0;
+  const productRating = (shared.ratings ?? (await ratingByPurchase([purchase.id]))).get(purchase.id) ?? null;
 
-  const link = purchase.link_id === null ? null : await db.link.findUnique({ where: { id: purchase.link_id } });
-  const creator = link?.user_id == null ? null : await db.user.findUnique({ where: { id: link.user_id } });
-  const seller = purchase.seller_id === null ? null : await db.user.findUnique({ where: { id: purchase.seller_id } });
+  const userById = (id: bigint) => shared.memo(`user:${id}`, () => db.user.findUnique({ where: { id } }));
+  const link =
+    purchase.link_id === null
+      ? null
+      : await shared.memo(`link:${purchase.link_id}`, () => db.link.findUnique({ where: { id: purchase.link_id! } }));
+  const creator = link?.user_id == null ? null : await userById(link.user_id);
+  const seller = purchase.seller_id === null ? null : await userById(purchase.seller_id);
   if (!link || !creator || !seller) throw new NotPortedError("a purchase whose product or seller row is missing");
   if (creator.username === null || creator.username.trim() === "")
     throw new NotPortedError("User#profile_url for a creator without a username");
@@ -210,18 +352,23 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
       ? await preorderSource(purchase, link.id, libraryOwner(auth))
       : undefined;
   const updatesFor = preorder?.source ?? purchase;
-  const productUpdates = (await preloadProductUpdatesData([updatesFor])).get(updatesFor.id)!;
+  let productUpdates: Record<string, unknown>[] | null = null;
+  if (includeProductUpdates)
+    productUpdates =
+      shared.updates?.get(updatesFor.id) ?? (await preloadProductUpdatesData([updatesFor])).get(updatesFor.id)!;
 
-  const thumbnails = await thumbnailUrlsByProduct([link.id]);
-  const { preview, thumbnailOrCoverUrl } = await mobilePreview(link.id, thumbnails.get(link.id) ?? null);
-  const linkInput = {
-    link,
-    creator,
-    creatorAvatarUrl: await avatarUrl(creator),
-    creatorProfileUrl: profileUrl(creator),
-    thumbnailOrCoverUrl,
-    preview,
-  };
+  const linkInput = await shared.memo(`link-input:${link.id}`, async () => {
+    const thumbnails = await thumbnailUrlsByProduct([link.id]);
+    const { preview, thumbnailOrCoverUrl } = await mobilePreview(link.id, thumbnails.get(link.id) ?? null);
+    return {
+      link,
+      creator,
+      creatorAvatarUrl: await avatarUrl(creator),
+      creatorProfileUrl: profileUrl(creator),
+      thumbnailOrCoverUrl,
+      preview,
+    };
+  });
   return {
     seller,
     render: (row: Purchase) =>

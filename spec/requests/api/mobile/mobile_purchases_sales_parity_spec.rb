@@ -66,12 +66,186 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(other.reload.is_deleted_by_buyer).to eq(false)
     end
 
-    it "hands a library with purchases to Rails", parity: true do
+    it "lists a library with one purchase", parity: true do
       library_purchase
 
       get "/mobile/purchases/index", params: auth(buyer)
 
       expect(response.parsed_body["products"].size).to eq(1)
+    end
+
+    describe "the library listing" do
+      let(:other_seller) { create(:user, name: "Other Seller") }
+      let(:alpha) { create(:product, user: seller, name: "Alpha guide") }
+      let(:beta) { create(:product, user: seller, name: "Beta 100%_pack") }
+
+      def listed(link, **attributes)
+        purchase_row(link:, seller: link.user, purchaser: buyer, email: buyer.email, purchase_state: "successful", **attributes)
+      end
+
+      def listed_ids(key = "products") = response.parsed_body[key].map { _1["purchase_id"] }
+
+      it "lists the buyer's purchases newest first and leaves out the ones the library hides", parity: true do
+        older = listed(alpha, created_at: 5.hours.ago)
+        newer = listed(beta, created_at: 2.hours.ago)
+        archived = listed(alpha, created_at: 3.hours.ago, flags: Purchase.flag_mapping["flags"][:is_archived])
+        listed(alpha, is_deleted_by_buyer: true)
+        listed(alpha, stripe_refunded: true)
+        listed(alpha, purchase_state: "failed")
+        purchase_row(link: alpha, seller:, purchase_state: "successful", email: "other@example.com")
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(listed_ids).to eq([newer, archived, older].sort_by { -_1.id }.map(&:external_id))
+        expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "items" => 100, "pages" => 1)
+      end
+
+      it "pages through the library", parity: true do
+        rows = Array.new(3) { |n| listed(alpha, created_at: (n + 1).hours.ago) }
+
+        get "/mobile/purchases/index", params: auth(buyer).merge(per_page: "2", page: "2")
+
+        expect(listed_ids).to eq([rows.min_by(&:id).external_id])
+        expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "items" => 2, "page" => 2, "pages" => 2, "prev" => 1, "next" => nil, "last" => 2)
+      end
+
+      it "lists the files of a purchase with a url redirect", parity: true do
+        purchase = listed(alpha)
+        create(:readable_document, link: alpha, position: 0)
+        create(:url_redirect, purchase:, link: alpha)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["file_data"].size).to eq(1)
+      end
+
+      it "hands a library page past the last to Rails", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/index", params: auth(buyer).merge(page: "3")
+
+        expect(response).to have_http_status(:bad_request)
+      end
+
+      it "hands a library with a membership to Rails", parity: true do
+        membership = create(:membership_product, user: seller)
+        purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer), purchaser: buyer, email: buyer.email)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].size).to eq(1)
+      end
+
+      it "hands a library with a post to show to Rails", parity: true do
+        listed(alpha)
+        create(:installment, link: alpha, published_at: Time.current, shown_on_profile: true, send_emails: false)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["product_updates_data"].size).to eq(1)
+      end
+
+      it "searches by product name, matching a percent sign and an underscore literally", parity: true do
+        listed(alpha)
+        listed(create(:product, user: seller, name: "Gamma 1009x"))
+        match = listed(beta)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(q: "100%_")
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+        expect(response.parsed_body["sellers"]).to eq([{ "id" => seller.external_id, "name" => seller.name, "purchases_count" => 1 }])
+      end
+
+      it "searches by seller name without product updates", parity: true do
+        listed(alpha)
+        other_product = create(:product, user: other_seller, name: "Gamma")
+        match = listed(other_product)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(q: "other sel")
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+        expect(response.parsed_body["purchases"].first).not_to have_key("product_updates_data")
+        expect(response.parsed_body["sellers"].first).to include("id" => other_seller.external_id, "purchases_count" => 1)
+      end
+
+      it "filters by seller", parity: true do
+        listed(alpha)
+        match = listed(create(:product, user: other_seller))
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(seller: other_seller.external_id)
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+      end
+
+      it "finds nothing for a seller that does not exist", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(seller: "nobody")
+
+        expect(response.parsed_body).to include("purchases" => [], "sellers" => [])
+      end
+
+      it "filters archived purchases", parity: true do
+        listed(alpha, created_at: 2.hours.ago)
+        archived = listed(alpha, created_at: 1.hour.ago, flags: Purchase.flag_mapping["flags"][:is_archived])
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(archived: "true")
+
+        expect(listed_ids("purchases")).to eq([archived.external_id])
+      end
+
+      it "filters active purchases when archived is a false word", parity: true do
+        active = listed(alpha, created_at: 2.hours.ago)
+        listed(alpha, created_at: 1.hour.ago, flags: Purchase.flag_mapping["flags"][:is_archived])
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(archived: "off")
+
+        expect(listed_ids("purchases")).to eq([active.external_id])
+      end
+
+      it "filters by purchase id", parity: true do
+        listed(alpha)
+        match = listed(beta)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(purchase_ids: match.external_id)
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+      end
+
+      it "finds nothing for a purchase id it cannot decode", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(purchase_ids: "garbage")
+
+        expect(response.parsed_body["purchases"]).to eq([])
+      end
+
+      it "orders by date ascending and pages with items", parity: true do
+        rows = Array.new(3) { |n| listed(alpha, created_at: (3 - n).hours.ago) }
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(order: "date-asc", items: "2", page: "2")
+
+        expect(listed_ids("purchases")).to eq([rows.last.external_id])
+        expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "items" => 2, "page" => 2, "pages" => 2)
+      end
+
+      it "orders an unknown order by id descending", parity: true do
+        older = listed(alpha, created_at: 1.hour.ago)
+        newer = listed(alpha, created_at: 3.hours.ago)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(order: "bogus")
+
+        expect(listed_ids("purchases")).to eq([newer, older].sort_by { -_1.id }.map(&:external_id))
+      end
+
+      it "hands a search over purchases of several sellers to Rails", parity: true do
+        listed(alpha)
+        listed(create(:product, user: other_seller))
+
+        get "/mobile/purchases/search", params: auth(buyer)
+
+        expect(response.parsed_body["sellers"].size).to eq(2)
+      end
     end
 
     it "serves the buyer's own purchase with no product updates", parity: true do
