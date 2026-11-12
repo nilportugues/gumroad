@@ -7,14 +7,14 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { domainConfig } from "./domain.ts";
 import { railsEnv, railsRoot } from "./rails-env.ts";
 
-type Manifest = Record<string, { file: string }>;
+type Manifest = Record<string, { file: string; css?: string[]; imports?: string[] }>;
 
 let cached: { file: string; manifest: Manifest } | undefined;
 
 // config/vite.json: `publicOutputDir` per environment.
 const OUTPUT_DIRS = { test: "vite-test", development: "vite-dev" } as const;
 
-export function viteAssetPath(name: string): string {
+function loadManifest(): { dir: string; local: boolean; manifest: Manifest } {
   const env = railsEnv();
   const local = env === "test" || env === "development";
   const dir = local ? OUTPUT_DIRS[env] : "vite";
@@ -26,7 +26,24 @@ export function viteAssetPath(name: string): string {
       throw new NotPortedError(`the Vite manifest at ${file}`);
     }
   }
-  const entry = cached.manifest[name];
+  return { dir, local, manifest: cached.manifest };
+}
+
+// `ViteRuby.instance.manifest.resolve_entries(name, type: :typescript)[:stylesheets]`: the css of the entry's TypeScript file, as
+// paths under the output directory (no asset host). A chunk it imports that carries css of its own is not modelled.
+export function viteEntrypointStylesheets(name: string): string[] {
+  if (railsEnv() === "development") throw new NotPortedError("the Vite dev server's stylesheet entries");
+  const { dir, manifest } = loadManifest();
+  const entry = manifest[`entrypoints/${name}.ts`];
+  if (!entry) throw new NotPortedError(`entrypoints/${name}.ts in the Vite manifest`);
+  if ((entry.imports ?? []).some((chunk) => (manifest[chunk]?.css ?? []).length > 0))
+    throw new NotPortedError(`the stylesheets of the chunks entrypoints/${name}.ts imports`);
+  return [...new Set(entry.css ?? [])].map((file) => `/${dir}/${file}`);
+}
+
+export function viteAssetPath(name: string): string {
+  const { dir, local, manifest } = loadManifest();
+  const entry = manifest[name];
   if (!entry) throw new NotPortedError(`${name} in the Vite manifest`);
   // `path_to_asset` adds the asset host only where config.asset_host is set (staging and production).
   return `${local ? "" : (domainConfig().assetHost ?? "")}/${dir}/${entry.file}`;
