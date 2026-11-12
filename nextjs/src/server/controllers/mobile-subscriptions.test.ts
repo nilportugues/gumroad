@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { NotPortedError } from "../page-props/not-ported.ts";
+
 import type { MobileAction, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, db } = vi.hoisted(() => ({
+const { actions, selectRows, db, mobilePreview } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
+  mobilePreview: vi.fn(),
   db: { link: { findUnique: vi.fn() }, user: { findUnique: vi.fn() }, purchase: { findUnique: vi.fn() } },
 }));
 
@@ -23,6 +26,7 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
 }));
 vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
+vi.mock("../presenters/mobile-preview.ts", () => ({ mobilePreview }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ thumbnailUrlsByProduct: async () => new Map() }));
 
 await import("./mobile-subscriptions.ts");
@@ -62,7 +66,7 @@ const purchase = (extra = {}) => ({
   ...extra,
 });
 
-// The queries in order: active subscription, original purchase id, then (per test) posts, previews, payment option, price.
+// The queries in order: active subscription, original purchase id, then (per test) posts, payment option, price.
 function stub({
   posts = false,
   previews = false,
@@ -75,9 +79,11 @@ function stub({
     .mockResolvedValueOnce([sub])
     .mockResolvedValueOnce([{ id: row.id }])
     .mockResolvedValueOnce(posts ? [{}] : [])
-    .mockResolvedValueOnce(previews ? [{}] : [])
     .mockResolvedValueOnce([{ price_id: 3n }])
     .mockResolvedValueOnce([{ recurrence }]);
+  mobilePreview.mockReset();
+  if (previews) mobilePreview.mockRejectedValue(new NotPortedError("Link#as_json(mobile: true) for an uploaded cover"));
+  else mobilePreview.mockResolvedValue({ preview: null, thumbnailOrCoverUrl: null });
   db.link.findUnique.mockResolvedValue(link);
   db.user.findUnique.mockImplementation(async ({ where }: { where: { id: bigint } }) =>
     where.id === 7n ? creator : { id: 5n, external_id: "buyer-ext" },
@@ -149,7 +155,7 @@ describe("GET /mobile/subscriptions/subscription_attributes/:id", () => {
     stub({ posts: true });
     await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/seller with posts/u);
     stub({ previews: true });
-    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/asset previews/u);
+    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/uploaded cover/u);
     stub({ row: purchase({ displayed_price_currency_type: "eur" }) });
     await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/currency other than USD/u);
   });

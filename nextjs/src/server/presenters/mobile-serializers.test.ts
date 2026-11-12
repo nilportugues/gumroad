@@ -74,7 +74,7 @@ const mobileLinkInput = (overrides = {}) => ({
   creatorAvatarUrl: "https://example.com/avatar.png",
   creatorProfileUrl: "https://seller.example.com",
   thumbnailOrCoverUrl: null,
-  hasAlivePreviews: false,
+  preview: null,
   ...overrides,
 });
 const creatorApp = (p: Purchase, l: Link = link()) =>
@@ -241,8 +241,24 @@ describe("Link#as_json(mobile: true)", () => {
     });
   });
 
-  it("refuses a product with asset previews", () => {
-    expect(() => linkAsJsonMobile(mobileLinkInput({ hasAlivePreviews: true }))).toThrow(/not ported/u);
+  it("prints the preview fields of the main cover", () => {
+    const json = linkAsJsonMobile(
+      mobileLinkInput({
+        preview: {
+          previewUrl: "https://example.com/t.png",
+          previewOembedUrl: "https://www.youtube.com/embed/x",
+          previewHeight: 300,
+          previewWidth: 500,
+        },
+      }),
+    );
+
+    expect(json).toMatchObject({
+      preview_url: "https://example.com/t.png",
+      preview_oembed_url: "https://www.youtube.com/embed/x",
+      preview_height: 300,
+      preview_width: 500,
+    });
   });
 });
 

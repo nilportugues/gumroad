@@ -101,8 +101,7 @@ export async function renderHomePage(
   response: { paramsRead?: boolean; headers?: Record<string, string> } = {},
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
-  // `signed_in?` is the Warden session; an impersonating admin has one of their own.
-  if (action.context.impersonatedUser !== null) throw new HandBackToRails("a home page for an impersonated session");
+  // `signed_in?` is the Warden session, which an impersonating admin has as themselves.
   const signedIn = railsLoggedInUser(action.context) !== null;
   const origin = `${config.protocol}://${request.hostWithPort}`;
   const githubStars = await cachedGithubStars();

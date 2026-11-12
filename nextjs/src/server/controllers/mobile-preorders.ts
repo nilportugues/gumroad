@@ -12,6 +12,7 @@ import { column, selectRows, table } from "../models/sql.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
+import { mobilePreview } from "../presenters/mobile-preview.ts";
 import { thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
 import { jsonTime, linkAsJsonMobile } from "../presenters/mobile-serializers.ts";
 import { PurchaseFlags } from "../search/flags.ts";
@@ -71,10 +72,8 @@ async function preorderAttributes(input: MobileInput) {
   if (creator.username === null || creator.username.trim() === "")
     throw new NotPortedError("User#profile_url for a creator without a username");
 
-  const previews = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${link.id} AND ${column("asset_previews", "deleted_at")} IS NULL LIMIT 1`,
-  );
   const thumbnails = await thumbnailUrlsByProduct([link.id]);
+  const { preview, thumbnailOrCoverUrl } = await mobilePreview(link.id, thumbnails.get(link.id) ?? null);
   const purchaser =
     purchase.purchaser_id === null ? null : await db.user.findUnique({ where: { id: purchase.purchaser_id } });
 
@@ -83,8 +82,8 @@ async function preorderAttributes(input: MobileInput) {
     creator,
     creatorAvatarUrl: await avatarUrl(creator),
     creatorProfileUrl: profileUrl(creator),
-    thumbnailOrCoverUrl: thumbnails.get(link.id) ?? null,
-    hasAlivePreviews: previews.length > 0,
+    thumbnailOrCoverUrl,
+    preview,
   });
   json.purchase_id = encrypt(purchase.id);
   json.purchased_at = jsonTime(purchase.created_at);

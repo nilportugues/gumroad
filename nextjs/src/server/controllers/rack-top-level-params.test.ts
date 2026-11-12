@@ -25,7 +25,14 @@ describe("rackTopLevelParams", () => {
     expect(params.get("filter")).toEqual({ nested: true });
   });
 
-  it.each(["a=1&a[b]=2", "a[]=1&a[b]=2", "a[b][c]=1", "[x]=1", "a=%E0%A4%A", "a%ZZ=1"])("hands back %s", (query) => {
+  it("reads a list or hash of any depth as the key it hangs from", () => {
+    const params = rackTopLevelParams("a[b][c]=1&a[b][d]=2&a[e][]=3&f[g][h][i]=4&a[b][c]=5");
+
+    expect(params.get("a")).toEqual({ nested: true });
+    expect(params.get("f")).toEqual({ nested: true });
+  });
+
+  it.each(["a=1&a[b]=2", "a[]=1&a[b]=2", "a[b]=1&a[b][c]=2", "a[b][c]=1&a[b]=2", "a[b]=1&a[]=2", "a[][b]=1", "[x]=1", "a[b", "a[b]c=1", "a]=1", "a=%E0%A4%A", "a%ZZ=1"])("hands back %s", (query) => {
     expect(() => rackTopLevelParams(query)).toThrow();
   });
 });

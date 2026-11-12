@@ -15,6 +15,7 @@ import { column, selectRows, table } from "../models/sql.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
+import { mobilePreview } from "../presenters/mobile-preview.ts";
 import { creatorAppPurchasesJson, thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
 import { purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
 import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
@@ -170,17 +171,15 @@ async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
         });
   const productUpdates = (await preloadProductUpdatesData([purchase])).get(purchase.id)!;
 
-  const [previews] = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${link.id} AND ${column("asset_previews", "deleted_at")} IS NULL LIMIT 1`,
-  );
   const thumbnails = await thumbnailUrlsByProduct([link.id]);
+  const { preview, thumbnailOrCoverUrl } = await mobilePreview(link.id, thumbnails.get(link.id) ?? null);
   const linkInput = {
     link,
     creator,
     creatorAvatarUrl: await avatarUrl(creator),
     creatorProfileUrl: profileUrl(creator),
-    thumbnailOrCoverUrl: thumbnails.get(link.id) ?? null,
-    hasAlivePreviews: previews !== undefined,
+    thumbnailOrCoverUrl,
+    preview,
   };
   return {
     seller,

@@ -49,8 +49,11 @@ function filetype(filename: string, contentType: string): string {
   return extension !== "" ? extension : contentType.split("/").pop()!;
 }
 
-const dimension = (value: unknown): number | null =>
-  typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+// A dimension the analyzer never wrote is nil; one it wrote as anything but a positive integer (0, a float) is Rails'.
+const dimension = (value: unknown): number | null => {
+  if (value === undefined || value === null) return null;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : handBack();
+};
 
 export async function uploadedCoverAsJson(
   previewId: bigint,
@@ -65,7 +68,6 @@ export async function uploadedCoverAsJson(
   const metadata = file.metadata === null ? null : (JSON.parse(file.metadata) as Record<string, unknown>);
   const width = dimension(metadata?.width);
   const height = dimension(metadata?.height);
-  if (width === null || height === null) return handBack();
 
   const cache = railsCache();
   const original = () =>
@@ -77,7 +79,13 @@ export async function uploadedCoverAsJson(
     // `file.variant` raises, and `url_from_file` rescues to the file's own URL.
     url = publicStorageUrl(file.key);
   } else {
-    const digest = resizeToLimitDigest(contentType, file.filename, Math.min(RETINA_DISPLAY_WIDTH, width), null);
+    // retina_width is nil while the blob has no width, and the variation then limits to [nil, nil].
+    const digest = resizeToLimitDigest(
+      contentType,
+      file.filename,
+      width === null ? null : Math.min(RETINA_DISPLAY_WIDTH, width),
+      null,
+    );
     const recordId = await variantRecordId(file.blob_id, digest);
     if (recordId === null) {
       await enqueue("ProcessAssetPreviewRetinaWorker", [Number(previewId)]);

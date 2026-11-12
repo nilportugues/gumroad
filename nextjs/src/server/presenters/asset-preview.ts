@@ -38,12 +38,57 @@ function toI(value: YamlValue | undefined): number {
 // `safe_url?`
 const safeUrl = (url: string): boolean => !blank(url) && !/^[\t-\r ]*(?:javascript|data|vbscript|file):/iu.test(url);
 
-// The first `<iframe>` of the document, read the way libxml2's HTML parser does for plain markup. Comments, raw-text elements and
-// character references can make the two parsers disagree, so a document with any of them goes to Rails.
+// The first `<iframe>` of the document, read the way libxml2's HTML parser does for plain markup. Raw-text elements, doctypes and
+// processing instructions can make the two parsers disagree, so a document with any of them goes to Rails.
 const IFRAME_ATTRIBUTES = String.raw`((?:[\t-\r ]+[^\t-\r "'<>/=]+(?:[\t-\r ]*=[\t-\r ]*(?:"[^"]*"|'[^']*'|[^\t-\r "'<>=\x60]+))?)*)[\t-\r ]*/?>`;
 const ATTRIBUTE = /([^\t-\r "'<>/=]+)(?:[\t-\r ]*=[\t-\r ]*(?:"([^"]*)"|'([^']*)'|([^\t-\r "'<>=`]+)))?/gu;
 
-function iframeSrc(html: string): string | null {
+// A comment libxml2 drops whole: it ends at the first `-->` and holds no `--`. Every `<` of a document that has one must open such
+// a comment or a tag without a quoted `>`, so no comment can sit inside a tag, where the parsers differ.
+const COMMENT = /<!--(?!-?>)(?:(?!--)[^])*-->/uy;
+const PLAIN_TAG = /<\/?[A-Za-z][^<>]*>/uy;
+
+function withoutComments(html: string): string {
+  if (!html.includes("<!--")) return html;
+  let rest = "";
+  let position = 0;
+  while (position < html.length) {
+    const next = html.indexOf("<", position);
+    if (next === -1) return rest + html.slice(position);
+    rest += html.slice(position, next);
+    COMMENT.lastIndex = next;
+    PLAIN_TAG.lastIndex = next;
+    if (COMMENT.test(html)) {
+      position = COMMENT.lastIndex;
+      continue;
+    }
+    const tag = PLAIN_TAG.exec(html);
+    if (!tag) return handBack();
+    rest += tag[0];
+    position = PLAIN_TAG.lastIndex;
+  }
+  return rest;
+}
+
+// libxml2's attribute value: the four named references and ASCII numeric ones are decoded; any other reference goes to Rails.
+const CHARACTER_REFERENCE = /&(?:#([0-9]+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z][A-Za-z0-9]*));/gu;
+const NAMED_REFERENCES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"' };
+const FIRST_PRINTABLE_ASCII = 0x20;
+const LAST_PRINTABLE_ASCII = 0x7e;
+
+function attributeValue(value: string): string {
+  // `&#` without digits and a semicolon is read differently; only the shapes above are proven.
+  if (/&#(?![0-9]+;|[xX][0-9A-Fa-f]+;)/u.test(value)) return handBack();
+  return value.replace(CHARACTER_REFERENCE, (_match, decimal?: string, hex?: string, name?: string) => {
+    if (name !== undefined) return NAMED_REFERENCES[name] ?? handBack();
+    const code = decimal !== undefined ? Number.parseInt(decimal, 10) : Number.parseInt(hex!, 16);
+    if (!(code >= FIRST_PRINTABLE_ASCII && code <= LAST_PRINTABLE_ASCII)) return handBack();
+    return String.fromCharCode(code);
+  });
+}
+
+function iframeSrc(source: string): string | null {
+  const html = withoutComments(source);
   if (
     /<(?:!|\?|\/?(?:script|style|textarea|title|xmp|plaintext|noscript|noembed|noframes|template|svg|math|object|embed|frameset|frame|html|head|body))/iu.test(
       html,
@@ -58,8 +103,7 @@ function iframeSrc(html: string): string | null {
     if (match[1]!.toLowerCase() !== "src") continue;
     const value = match[2] ?? match[3] ?? match[4];
     if (value === undefined) return handBack();
-    if (/&(?:#|[A-Za-z][A-Za-z0-9]*;)/u.test(value)) return handBack();
-    return value;
+    return attributeValue(value);
   }
   // `iframe[:src].strip` raises NoMethodError on a missing attribute.
   return handBack();

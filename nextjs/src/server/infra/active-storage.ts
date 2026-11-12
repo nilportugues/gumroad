@@ -61,7 +61,7 @@ function defaultVariantFormat(contentType: string, filename: string): string | R
 export function resizeToLimitDigest(
   contentType: string,
   filename: string,
-  limit: number,
+  limit: number | null,
   height: number | null = limit,
 ): string {
   const transformations = new Map<MarshalValue, MarshalValue>([

@@ -73,10 +73,48 @@ describe("coverAsJson for an oEmbed cover", () => {
     });
   });
 
+  it("skips a comment, including one that holds another player", () => {
+    const json = cover(
+      yaml(
+        "<div><!-- <iframe src='https://decoy.example.com'></iframe> --><iframe src='https://e.com/real'></iframe></div>",
+        "  width: 1\n  height: 1\n",
+      ),
+    );
+
+    expect(json.url).toBe("https://e.com/real");
+  });
+
+  it("decodes the four named references and ASCII numeric ones in the src", () => {
+    const json = cover(
+      yaml(
+        "<iframe src='https://e.com/?a=1&amp;b=2&#38;c=3&#x26;d&quot;&lt;&gt;'></iframe>",
+        "  width: 1\n  height: 1\n",
+      ),
+    );
+
+    expect(json.url).toBe('https://e.com/?a=1&b=2&c=3&d"<>');
+  });
+
   it.each([
     ["an iframe without a src", yaml("<iframe></iframe>", "  width: 1\n  height: 1\n")],
-    ["a document with a comment", yaml("<!-- x --><iframe src='https://e.com'></iframe>", "  width: 1\n  height: 1\n")],
-    ["an entity in the src", yaml("<iframe src='https://e.com/?a=1&amp;b=2'></iframe>", "  width: 1\n  height: 1\n")],
+    ["a comment inside a tag", yaml("<iframe <!-- x --> src='https://e.com'></iframe>", "  width: 1\n  height: 1\n")],
+    [
+      "a comment with a double dash",
+      yaml("<!-- a -- b --><iframe src='https://e.com'></iframe>", "  width: 1\n  height: 1\n"),
+    ],
+    ["an unterminated comment", yaml("<iframe src='https://e.com'></iframe><!-- x", "  width: 1\n  height: 1\n")],
+    [
+      "a named reference outside the four",
+      yaml("<iframe src='https://e.com/?a=1&copy;b'></iframe>", "  width: 1\n  height: 1\n"),
+    ],
+    [
+      "a numeric reference above ASCII",
+      yaml("<iframe src='https://e.com/?a=&#233;'></iframe>", "  width: 1\n  height: 1\n"),
+    ],
+    [
+      "a numeric reference without a semicolon",
+      yaml("<iframe src='https://e.com/?a=&#38b'></iframe>", "  width: 1\n  height: 1\n"),
+    ],
     ["no info hash", "---\nhtml: x\n"],
     ["a document that is not a hash", "--- foo\n"],
     ["a width Ruby cannot call to_i on", yaml("<iframe src='https://e.com'></iframe>", "  width: [1]\n  height: 1\n")],

@@ -51,13 +51,18 @@ export function assertFlatQuery(query: string, arrayKeys: string[] = []): void {
 }
 
 // The top-level keys of `params` Rack builds from a query string, for a caller that reads only which keys exist and whether a flat
-// one has a value (`a` has none, `a=` has an empty string). `a[]` and `a[b]` are one level of list or hash; `a[b][c]`, a name that
-// is only brackets, and a name used both flat and nested (Rack raises a 400 for it) go to Rails. Later pairs of a flat name win.
+// one has a value (`a` has none, `a=` has an empty string). `a[]`, `a[b]` and `a[b][c]` hang a list or a hash of any depth from the
+// key. A name that is only brackets, a bracket that does not close or sits before the last segment as `[]`, and a name Rack would
+// raise a 400 for (one path used as two kinds of value) go to Rails. Later pairs of a flat name win.
 export type RackTopLevelParam = { nested: false; value: string | null } | { nested: true };
+
+type RackNode = "leaf" | "list" | Map<string, RackNode>;
+
+const NESTED_SEGMENT = /\[([^[\]]*)\]/uy;
 
 export function rackTopLevelParams(query: string): Map<string, RackTopLevelParam> {
   const params = new Map<string, RackTopLevelParam>();
-  const shapes = new Map<string, string>();
+  const trees = new Map<string, RackNode>();
   for (const pair of query.replace(/^\?/u, "").split("&")) {
     if (pair === "") continue;
     const index = pair.indexOf("=");
@@ -69,17 +74,48 @@ export function rackTopLevelParams(query: string): Map<string, RackTopLevelParam
     } catch {
       throw new HandBackToRails("a query string with an invalid percent escape");
     }
-    const parts = /^([^[\]]+)(?:\[([^[\]]*)\])?$/u.exec(name);
-    if (!parts) throw new HandBackToRails("a query parameter name Rack nests deeper than one level");
-    const [, base = "", inner] = parts;
-    const shape = inner === undefined ? "flat" : inner === "" ? "list" : "hash";
-    const known = shapes.get(base);
-    if (known !== undefined && known !== shape)
+    const base = /^[^[\]]+/u.exec(name)?.[0];
+    if (base === undefined) throw new HandBackToRails("a query parameter name that is only brackets");
+    const segments: string[] = [];
+    let position = base.length;
+    while (position < name.length) {
+      NESTED_SEGMENT.lastIndex = position;
+      const match = NESTED_SEGMENT.exec(name);
+      if (!match) throw new HandBackToRails("a query parameter name with an unbalanced bracket");
+      segments.push(match[1]!);
+      position = NESTED_SEGMENT.lastIndex;
+    }
+    if (segments.slice(0, -1).includes("")) throw new HandBackToRails("a query parameter list of nested values");
+    const shape = segments.length === 0 ? "leaf" : segments.at(-1) === "" ? "list" : "hash";
+    if (!mergeRackNode(trees, base, segments, shape))
       throw new HandBackToRails("a query parameter used as two kinds of value");
-    shapes.set(base, shape);
-    params.set(base, shape === "flat" ? { nested: false, value } : { nested: true });
+    params.set(base, segments.length === 0 ? { nested: false, value } : { nested: true });
   }
   return params;
+}
+
+// Merges one pair into the tree Rack keeps per top-level key; false is where Rack raises ParameterTypeError.
+function mergeRackNode(trees: Map<string, RackNode>, base: string, segments: string[], shape: "leaf" | "list" | "hash") {
+  const path = segments.at(-1) === "" ? segments.slice(0, -1) : segments;
+  let parent: Map<string, RackNode> = trees;
+  let key = base;
+  for (const segment of path) {
+    let node = parent.get(key);
+    if (node === undefined) {
+      node = new Map();
+      parent.set(key, node);
+    }
+    if (!(node instanceof Map)) return false;
+    parent = node;
+    key = segment;
+  }
+  const existing = parent.get(key);
+  const wanted: RackNode = shape === "list" ? "list" : "leaf";
+  if (existing === undefined) {
+    parent.set(key, wanted);
+    return true;
+  }
+  return existing === wanted;
 }
 
 // ActionDispatch::Request#referrer

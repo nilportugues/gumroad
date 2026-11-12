@@ -74,8 +74,16 @@ const RENDERED = new Set(
     "renders-a-product-whose-cover-is-an-uploaded-gif",
     "renders-a-product-whose-cover-is-an-uploaded-image-the-retina-worker-has-not-processe-34e98bca",
     "renders-a-product-whose-cover-is-an-uploaded-image-with-a-processed-retina-variant",
+    "renders-a-product-whose-cover-is-an-uploaded-image-the-analyzer-wrote-no-dimensions-f-e675828f",
+    "renders-a-product-whose-cover-is-an-uploaded-image-with-a-width-and-no-height",
     "renders-a-product-whose-cover-is-a-vimeo-video-with-a-protocol-relative-player-and-a-cfb6aabe",
     "renders-a-product-whose-oembed-cover-reports-a-width-that-is-not-a-number",
+    "renders-an-oembed-cover-whose-comment-holds-another-player",
+    "renders-an-oembed-cover-whose-document-has-a-comment-before-the-player",
+    "renders-an-oembed-cover-whose-player-url-has-character-references",
+    "renders-an-oembed-cover-with-a-player-and-no-thumbnail",
+    "renders-an-oembed-cover-with-a-thumbnail-and-no-player",
+    "renders-an-oembed-cover-with-neither-a-player-nor-a-thumbnail",
     "renders-an-ebook-with-its-book-files-in-the-structured-data",
     "renders-a-euro-product-with-its-price-converted-to-dollars-in-the-structured-data",
     "renders-a-product-by-its-custom-permalink",
@@ -229,7 +237,7 @@ describe.skipIf(!url)("Product page parity", () => {
     async (_name, c) => {
       // Rails re-enqueues the retina job on every cover URL it reads (props, preload, og:image, twitter, structured data) because the
       // test adapter takes no unique lock; Node's real lock keeps one. The job is asserted below instead of compared.
-      const retinaEnqueue = /retina-worker-has-not/u.test(c.name);
+      const retinaEnqueue = /retina-worker-has-not|analyzer-wrote-no|width-and-no-height/u.test(c.name);
       const compare = {
         ...COMPARE,
         ignore: [...COMPARE.ignore, ...c.ignore, ...(c.status === 404 ? ["response.body"] : []), ...(retinaEnqueue ? ["jobs"] : [])],
