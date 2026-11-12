@@ -1,6 +1,7 @@
 // The auth hash omniauth-google-oauth2 1.1.2 builds from the userinfo answer (`uid`, `info`, `extra`), and the reads
-// User::SocialGoogle makes of it (app/models/concerns/user/social_google.rb). Nothing here writes; the account lookups and the avatar attach
-// that consume it are not ported (parity-debt.md).
+// User::SocialGoogle makes of it (app/models/concerns/user/social_google.rb). Nothing here writes; social-google.ts consumes it.
+import { rubyUriParse, rubyUriToString, RubyUriError, setQuery } from "../infra/ruby-uri.ts";
+
 type Hash = Record<string, unknown>;
 const isHash = (value: unknown): value is Hash => value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -9,7 +10,8 @@ export const DELETED_ACCOUNT_EMAIL_DOMAIN = "deleted.invalid";
 export type GoogleAuthData = {
   uid: string | null;
   info: { name?: string; email?: string; unverified_email?: string; email_verified?: unknown; image?: string };
-  rawInfo: Hash;
+  // The pruned userinfo answer; a String answer is kept as it came.
+  rawInfo: Hash | string;
 };
 
 // The gem's `prune!`: nil and empty values (strings, arrays, hashes) are dropped, depth first. `false` and 0 stay.
@@ -30,67 +32,97 @@ export function prune(value: Hash): Hash {
 
 const truthy = (value: unknown) => value !== null && value !== undefined && value !== false;
 
-// CGI.parse then URI.encode_www_form of what is left once `sz` is gone; nil when nothing is. Form encoding: space is "+", and "*-._" and
-// alphanumerics stay.
-function formEncode(value: string): string {
-  return encodeURIComponent(value)
-    .replaceAll("%20", "+")
-    .replace(/[!'()~]/gu, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+// An exception raised while OmniAuth builds the auth hash. The strategy ends in `fail!(e.message, e)`, so the message is the failure kind the
+// failure action shows.
+export class AuthHashError extends Error {}
+
+// The bytes of an ASCII string as Ruby's binary strings hold them: one character per byte.
+const BYTE_SAFE = /[*\-.0-9A-Z_a-z]/u;
+const hexByte = (code: number) => `%${code.toString(16).toUpperCase().padStart(2, "0")}`;
+
+// URI.encode_www_form_component on bytes: space is "+", and "*-._" and alphanumerics stay.
+function formEncode(bytes: string): string {
+  let out = "";
+  for (const char of bytes) out += BYTE_SAFE.test(char) ? char : char === " " ? "+" : hexByte(char.charCodeAt(0));
+  return out;
 }
 
+// CGI.unescape on bytes: "+" is a space and every %hh is a byte; anything else stays.
+const formDecode = (text: string) =>
+  text
+    .replaceAll("+", " ")
+    .replace(/%([0-9a-fA-F]{2})/gu, (_, digits: string) => String.fromCharCode(Number.parseInt(digits, 16)));
+
+// CGI.parse, `params.delete_if { |key| key == 'sz' }`, then URI.encode_www_form; nil when nothing is left.
 function stripSize(query: string): string | null {
-  const grouped = new Map<string, (string | null)[]>();
+  const grouped = new Map<string, string[]>();
   for (const pair of query.split(/[&;]/u)) {
     if (pair === "") continue;
     const at = pair.indexOf("=");
-    const unescape = (text: string) => decodeURIComponent(text.replaceAll("+", " "));
-    const key = unescape(at === -1 ? pair : pair.slice(0, at));
-    const entry = at === -1 ? null : unescape(pair.slice(at + 1));
-    grouped.set(key, [...(grouped.get(key) ?? []), entry]);
+    const key = formDecode(at === -1 ? pair : pair.slice(0, at));
+    const entries = grouped.get(key) ?? [];
+    if (at !== -1) entries.push(formDecode(pair.slice(at + 1)));
+    grouped.set(key, entries);
   }
   grouped.delete("sz");
   if (grouped.size === 0) return null;
-  // CGI.parse keeps a key with no "=" as an empty list, which encode_www_form writes as an empty segment.
+  // A key with no "=" is an empty list, which encode_www_form writes as an empty segment.
   return [...grouped]
-    .map(([key, entries]) =>
-      entries
-        .filter((entry) => entry !== null)
-        .map((entry) => `${formEncode(key)}=${formEncode(entry!)}`)
-        .join("&"),
-    )
+    .map(([key, entries]) => entries.map((entry) => `${formEncode(key)}=${formEncode(entry)}`).join("&"))
     .join("&");
 }
 
-// `image_url`: the picture with a doubled scheme repaired and the query rewritten without `sz`.
-export function googleImageUrl(picture: unknown): string | null {
-  if (!truthy(picture) || typeof picture !== "string") return null;
-  const fixed = picture.replace("https:https", "https");
-  // URI.parse raises on anything outside RFC 3986 and the callback would 500: this port does not guess.
-  if (/[^A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]/u.test(fixed)) throw new Error("not ported: a picture URL URI.parse rejects");
-  const hash = fixed.indexOf("#");
-  const withoutFragment = hash === -1 ? fixed : fixed.slice(0, hash);
-  const fragment = hash === -1 ? "" : fixed.slice(hash);
-  const question = withoutFragment.indexOf("?");
-  if (question === -1) return fixed;
-  const query = stripSize(withoutFragment.slice(question + 1));
-  return `${withoutFragment.slice(0, question)}${query === null ? "" : `?${query}`}${fragment}`;
+// The receiver NoMethodError#message names, in Ruby 3.4's wording.
+function receiverName(value: unknown): string {
+  if (value === true) return "true";
+  if (Array.isArray(value)) return "an instance of Array";
+  if (typeof value === "object") return "an instance of Hash";
+  return Number.isInteger(value) || typeof value === "bigint" ? "an instance of Integer" : "an instance of Float";
 }
 
-// OmniAuth's `auth_hash` for a userinfo answer: `uid { raw_info['sub'] }` and the pruned `info` block.
+// `image_url`: the picture with a doubled scheme repaired, parsed as Ruby's URI does, and the query rewritten without `sz`. An address
+// URI.parse rejects raises (AuthHashError), as in Rails.
+export function googleImageUrl(picture: unknown): string | null {
+  if (!truthy(picture)) return null;
+  if (typeof picture !== "string") throw new AuthHashError(`undefined method 'gsub' for ${receiverName(picture)}`);
+  try {
+    const uri = rubyUriParse(picture.replaceAll("https:https", "https"));
+    setQuery(uri, uri.query === null ? null : stripSize(uri.query));
+    return rubyUriToString(uri);
+  } catch (error) {
+    if (error instanceof RubyUriError) throw new AuthHashError(error.message);
+    throw error;
+  }
+}
+
+// `raw_info[key]` for a parsed userinfo (or tokeninfo) answer of any JSON shape, in Ruby 3.4's wording when the receiver has no such reader.
+// A String answers the key when it holds it as a substring.
+export function rubyIndex(value: unknown, key: string): unknown {
+  if (isHash(value)) return value[key] ?? null;
+  if (typeof value === "string") return value.includes(key) ? key : null;
+  if (Array.isArray(value) || typeof value === "bigint" || (typeof value === "number" && Number.isInteger(value)))
+    throw new AuthHashError("no implicit conversion of String into Integer");
+  const name =
+    value === null || value === undefined ? "nil" : typeof value === "boolean" ? String(value) : "an instance of Float";
+  throw new AuthHashError(`undefined method '[]' for ${name}`);
+}
+
+// OmniAuth's `auth_hash` for a userinfo answer: `uid { raw_info['sub'] }` and the pruned `info` block. Anything Ruby raises while building them
+// is an AuthHashError.
 export function googleAuthData(rawInfo: unknown): GoogleAuthData {
-  const raw = isHash(rawInfo) ? rawInfo : {};
-  const sub = raw.sub;
+  const read = (key: string) => rubyIndex(rawInfo, key);
+  const sub = read("sub");
   const info = prune({
-    name: raw.name,
-    email: truthy(raw.email_verified) ? raw.email : null,
-    unverified_email: raw.email,
-    email_verified: raw.email_verified,
-    image: googleImageUrl(raw.picture),
+    name: read("name"),
+    email: truthy(read("email_verified")) ? read("email") : null,
+    unverified_email: read("email"),
+    email_verified: read("email_verified"),
+    image: googleImageUrl(read("picture")),
   });
   return {
     uid: sub === null || sub === undefined ? null : String(sub),
     info: info as GoogleAuthData["info"],
-    rawInfo: prune(raw),
+    rawInfo: isHash(rawInfo) ? prune(rawInfo) : (rawInfo as string),
   };
 }
 
@@ -105,12 +137,18 @@ const presence = (value: unknown): string | null => (typeof value === "string" &
 
 // `reported_google_email`
 export function reportedGoogleEmail(data: GoogleAuthData): string | null {
-  return presence(data.info.email) ?? presence(data.rawInfo.email);
+  const first = presence(data.info.email);
+  if (first !== null) return first;
+  // `data.dig("extra", "raw_info", "email")`: a String has no #dig, which Rails does not rescue.
+  if (typeof data.rawInfo === "string") throw new Error("String does not have #dig method");
+  return presence(data.rawInfo.email);
 }
 
 // `verified_google_email`: an address Google has not vouched for never matches or creates a row.
 export function verifiedGoogleEmail(data: GoogleAuthData): string | null {
-  const verified = data.info.email_verified ?? data.rawInfo.email_verified;
+  if (typeof data.rawInfo === "string" && (data.info.email_verified ?? null) === null)
+    throw new Error("String does not have #dig method");
+  const verified = data.info.email_verified ?? (data.rawInfo as Hash).email_verified;
   return castBoolean(verified) === true ? reportedGoogleEmail(data) : null;
 }
 

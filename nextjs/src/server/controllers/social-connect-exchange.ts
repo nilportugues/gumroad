@@ -21,6 +21,7 @@ import {
   UserTiktokIdentities,
   UserYoutubeIdentities,
 } from "../models/social-connect-verification.ts";
+import { AuthHashError, rubyIndex } from "../models/social-google-auth.ts";
 import { isRecordNotUnique } from "../models/sql.ts";
 
 import type { ActionResult } from "./application-controller.ts";
@@ -360,7 +361,8 @@ export type GoogleAuth = { scope: unknown; idInfo: Hash | null; rawInfo: unknown
 
 function jwtClaims(token: string): Hash | null {
   const payload = token.split(".")[1];
-  const parsed = payload === undefined ? null : (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as unknown);
+  const parsed =
+    payload === undefined ? null : (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as unknown);
   return isHash(parsed) ? parsed : null;
 }
 
@@ -385,7 +387,9 @@ async function googleAuthHash(token: AccessToken, idToken: unknown, now: Date): 
 
 // --- The exchange as the strategy runs it ------------------------------------------------------------------------------------------------
 
-export type Exchanged = { ok: true; token: string; uid: unknown; google: GoogleAuth | null } | { ok: false; type: string };
+export type Exchanged =
+  | { ok: true; token: string; uid: unknown; google: GoogleAuth | null }
+  | { ok: false; type: string };
 
 // OmniAuth::Strategies::OAuth2#callback_phase from `build_access_token` on. A failure is the type the failure action receives.
 export async function exchangeCode(
@@ -408,6 +412,41 @@ export async function exchangeCode(
     if (error instanceof OAuth2Error) return { ok: false, type: "invalid_credentials" };
     if (error instanceof StrategyFailure) return { ok: false, type: error.type };
     throw error;
+  }
+}
+
+// --- Google login ---------------------------------------------------------------------------------------------------------------
+
+export type GoogleLogin = { ok: true; rawInfo: unknown } | { ok: false; type: string };
+
+// The google_oauth2 strategy up to its auth hash, in the order OmniAuth builds it: the token exchange, `credentials` (tokeninfo, whose
+// `scope` is read), `extra` (the ID token's claims, then the userinfo answer). Everything Ruby raises on the way ends in `fail!`, so nothing
+// here throws: a failure comes back as the kind the failure action shows. Shapes whose Ruby message this port cannot reproduce (a redirect
+// from a provider endpoint, a token that has to be refreshed, invalid JSON, a network error other than a timeout or an unresolved host) come
+// back with the message Node has; the kind of failure is the same, the wording of its flash is not.
+export async function exchangeGoogleLogin(code: string, callbackUrl: string, now: Date): Promise<GoogleLogin> {
+  try {
+    const token = await exchange(STRATEGIES.youtube(), code, callbackUrl, now);
+    const info = await oauthRequest(
+      `https://www.googleapis.com/oauth2/v3/tokeninfo?${faradayQuery({ access_token: token.token })}`,
+      { method: "GET" },
+    );
+    rubyIndex(oauthParsed(info.contentType, info.text), "scope");
+    const idToken = token.params.id_token;
+    if (idToken !== undefined && idToken !== null && typeof idToken !== "string")
+      throw new NotPorted("an ID token that is not a string");
+    const jwt = typeof idToken === "string" && idToken !== "" ? idToken : token.token;
+    verifyIdToken(jwt, getConfig("GOOGLE_CLIENT_ID"), now);
+    const user = await oauthRequest("https://www.googleapis.com/oauth2/v3/userinfo", {
+      method: "GET",
+      headers: bearer(token.token),
+    });
+    return { ok: true, rawInfo: oauthParsed(user.contentType, user.text) };
+  } catch (error) {
+    if (error instanceof OAuth2Error) return { ok: false, type: "invalid_credentials" };
+    if (error instanceof StrategyFailure) return { ok: false, type: error.type };
+    if (error instanceof AuthHashError) return { ok: false, type: error.message };
+    return { ok: false, type: error instanceof Error ? error.message : String(error) };
   }
 }
 

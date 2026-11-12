@@ -28,6 +28,7 @@ import "@/server/controllers/omniauth-failure";
 import "@/server/controllers/omniauth-phases";
 import "@/server/controllers/omniauth-twitter";
 import "@/server/controllers/omniauth-apple";
+import "@/server/controllers/omniauth-google";
 import "@/server/controllers/confirmations-create";
 import "@/server/controllers/custom-domain-verifications";
 import "@/server/controllers/mobile-pre-authorizations";

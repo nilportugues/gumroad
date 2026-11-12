@@ -164,27 +164,6 @@ describe "OmniAuth phases", type: :request do
 
       expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Csrf detected\".")
     end
-
-    it "hands a callback for a returning Google user to Rails", parity: true do
-      google_user = create(:user, google_uid: "google-uid-1", provider: "google_oauth2")
-      id_token = JWT.encode({ iss: "https://accounts.google.com", aud: GOOGLE_CLIENT_ID, sub: "google-uid-1", exp: 1.hour.from_now.to_i }, nil, "none")
-      stub_request(:post, "https://oauth2.googleapis.com/token").to_return(
-        status: 200, headers: { "Content-Type" => "application/json" },
-        body: { access_token: "google-access-token", token_type: "Bearer", expires_in: 3599, id_token: }.to_json
-      )
-      stub_request(:get, %r{\Ahttps://www\.googleapis\.com/oauth2/v3/tokeninfo}).to_return(
-        status: 200, headers: { "Content-Type" => "application/json" }, body: { scope: "email profile" }.to_json
-      )
-      stub_request(:get, "https://www.googleapis.com/oauth2/v3/userinfo").to_return(
-        status: 200, headers: { "Content-Type" => "application/json" },
-        body: { sub: "google-uid-1", name: google_user.name, email: google_user.email, email_verified: true }.to_json
-      )
-      state = begin_flow("google_oauth2")
-
-      get "/users/auth/google_oauth2/callback", params: { code: "code-1", state: }
-
-      expect(response).to have_http_status(:found)
-    end
   end
 
   describe "GET /users/auth/stripe_connect/callback" do

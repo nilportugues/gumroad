@@ -25,7 +25,7 @@ import { analyzeBlobLater } from "./active-storage-blob.ts";
 import { afterCommitEverywhere } from "./concerns/job-runtime.ts";
 import { transaction } from "./runtime/transaction.ts";
 import { column, execute, selectRows, table } from "./sql.ts";
-import { type UserRecord, Users } from "./user.ts";
+import { type PendingAvatar, type UserRecord, Users } from "./user.ts";
 
 // User::Validations::MAXIMUM_AVATAR_FILE_SIZE
 export const MAXIMUM_AVATAR_FILE_SIZE = 10 * 1024 * 1024;
@@ -45,7 +45,7 @@ export class AvatarNotPorted extends Error {
 
 export type AvatarPicture = { bytes: Buffer; filename: string };
 
-// ActiveStorage::Filename#sanitized
+// ActiveStorage::Filename#sanitized: what a reader of the blob sees. The column holds the name as `attach` was given it, so nothing here writes it.
 const FILENAME_UNSAFE = /[‮%$|:;/<>?*"\t\r\n\\]/gu;
 export const sanitizeFilename = (filename: string) => filename.trim().replaceAll(FILENAME_UNSAFE, "-");
 
@@ -88,7 +88,7 @@ export async function attachAvatar(user: UserRecord, picture: AvatarPicture, dep
   const userId = user.get("id");
   const key = secureToken();
   const checksum = createHash("md5").update(bytes).digest("base64");
-  const filename = sanitizeFilename(picture.filename);
+  const { filename } = picture;
   const uuid = deps.uuid ?? randomUUID;
   const put = deps.putObject ?? putPublicObject;
 
@@ -123,4 +123,69 @@ export async function attachAvatar(user: UserRecord, picture: AvatarPicture, dep
     );
     await Users.touch(user, { now: deps.now, deferred: true });
   });
+}
+
+// Marcel::MimeType.for(io, name:, declared_type:): the type the bytes' magic names, else the declared type. Only the signatures of the types a
+// picture host may send are known here (an avatar is valid as a PNG or a JPEG, and every other type fails the same validation); bytes that
+// match none are taken for the declared type.
+const MAGIC: [string, Buffer][] = [
+  ["image/png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+  ["image/jpeg", Buffer.from([0xff, 0xd8, 0xff])],
+  ["image/gif", Buffer.from("GIF87a", "latin1")],
+  ["image/gif", Buffer.from("GIF89a", "latin1")],
+  ["application/pdf", Buffer.from("%PDF-", "latin1")],
+];
+const RIFF_END = 4;
+const WEBP_TAG_START = 8;
+const WEBP_TAG_END = 12;
+const BINARY = "application/octet-stream";
+
+export function marcelContentType(bytes: Buffer, declared: string): string {
+  const fallback = declared.split(";")[0]!.trim().toLowerCase();
+  for (const [type, signature] of MAGIC) if (bytes.subarray(0, signature.length).equals(signature)) return type;
+  if (
+    bytes.toString("latin1", 0, RIFF_END) === "RIFF" &&
+    bytes.toString("latin1", WEBP_TAG_START, WEBP_TAG_END) === "WEBP"
+  )
+    return "image/webp";
+  return fallback === "" ? BINARY : fallback;
+}
+
+export type AssignedAvatar = { bytes: Buffer; filename: string; declaredType: string };
+
+// `user.avatar.attach(io:, filename:, content_type:)` then `user.avatar.blob.save!`, as User#google_picture_url runs it (its analysis is
+// skipped, so the blob keeps `{"identified":true}`). The blob row is written at once. The attachment row, the upload and the AnalyzeJob follow
+// the user's save: the caller's own when the record is new or has changes, the one `attach` runs itself when it is persisted and unchanged.
+// A type that is no PNG or JPEG fails that save's validation and leaves the blob behind.
+export async function assignAvatar(user: UserRecord, picture: AssignedAvatar, deps: AttachDeps): Promise<void> {
+  const { bytes } = picture;
+  const contentType = marcelContentType(bytes, picture.declaredType);
+  const immediate = user.persisted && !user.hasChangesToSave();
+  const checksum = createHash("md5").update(bytes).digest("base64");
+  const key = secureToken();
+  const { filename } = picture;
+  const uuid = deps.uuid ?? randomUUID;
+  const put = deps.putObject ?? putPublicObject;
+
+  const blobId = await transaction(async () => {
+    await execute(
+      Prisma.sql`INSERT INTO ${table(BLOBS)} (${Prisma.raw("`key`, `filename`, `content_type`, `metadata`, `byte_size`, `checksum`, `created_at`, `service_name`")}) VALUES (${key}, ${filename}, ${contentType}, ${'{"identified":true}'}, ${bytes.length}, ${checksum}, ${deps.now()}, ${configuredServiceName()})`,
+    );
+    const [blob] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);
+    return blob!.id;
+  });
+
+  const pending: PendingAvatar = {
+    contentType,
+    async save(record, now) {
+      await execute(
+        Prisma.sql`INSERT INTO ${table(ATTACHMENTS)} (${Prisma.raw("`name`, `record_type`, `record_id`, `blob_id`, `created_at`")}) VALUES ('avatar', 'User', ${record.get("id")}, ${blobId}, ${now()})`,
+      );
+      // The attachment's after_create_commit hook (analyze_blob_later) and the bucket upload both wait for the commit.
+      await afterCommitEverywhere(() => analyzeBlobLater(blobId, uuid));
+      await afterCommitEverywhere(() => put(key, bytes, contentType, checksum));
+    },
+  };
+  user.ivars.pending_avatar = pending;
+  if (immediate) await Users.save(user, { now: deps.now });
 }
