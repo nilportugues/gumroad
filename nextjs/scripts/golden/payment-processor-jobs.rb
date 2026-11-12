@@ -183,7 +183,7 @@ cases << stripe_event("stripe event: a prefix of a handled type is not handled",
 cases << stripe_event("stripe event: no type", { "id" => "evt_1" })
 cases << stripe_event("stripe event: a null type", { "type" => nil })
 cases << stripe_event("stripe event: an unhandled event for a connected account", { "type" => "customer.created", "account" => "acct_1" })
-cases << stripe_event("stripe event: a charge event is handed back", { "type" => "charge.succeeded", "data" => { "object" => { "id" => "ch_1" } } }, hands_back: true)
+cases << stripe_event("stripe event: a charge event is handed back", { "type" => "charge.succeeded", "created" => 1, "data" => { "object" => { "object" => "charge", "id" => "ch_1", "metadata" => {} } } }, hands_back: true)
 cases << stripe_event("stripe event: a refund event is handed back", { "type" => "refund.updated" }, hands_back: true)
 cases << stripe_event("stripe event: a payout event for a connected account is handed back", { "type" => "payout.paid", "account" => "acct_1" }, hands_back: true)
 cases << stripe_event("stripe event: a deauthorization of an account nobody has", { "type" => "account.application.deauthorized", "account" => "acct_1" })

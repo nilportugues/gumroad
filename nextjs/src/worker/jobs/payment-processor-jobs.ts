@@ -23,12 +23,15 @@ import { ago, rubyTimeToF } from "../../server/models/concerns/ruby-time.ts";
 import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.ts";
 import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { isBlank } from "../../server/models/runtime/validators.ts";
+import { handleSellerPlanStripeEvent } from "../../server/models/seller-plan-offer.ts";
 import { column, columnIn, findInBatches, selectRows, table } from "../../server/models/sql.ts";
 import { handleStripeAccountDeauthorized } from "../../server/models/stripe-account-deauthorized.ts";
 import {
   handleStripeAccountUpdated,
   handleStripeCapabilityUpdated,
 } from "../../server/models/stripe-account-events.ts";
+import { handleStripeChargeProcessorEvent } from "../../server/models/stripe-charge-events.ts";
+import { isObject } from "../../server/models/stripe-event-values.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 import { stripePlatformAccountId } from "../../server/stripe/config.ts";
 import { Payout } from "../../server/stripe/resources.ts";
@@ -120,21 +123,23 @@ const HANDLED_EVENT_PREFIXES = [
   "refund.failed",
 ];
 
-// Handled prefixes that `handle_event_for_gumroad` (no connected account, or the platform's own id)
-// routes to no handler: it only dispatches charge., capital., radar., refund and payment_intent.
-// events to the charge processor and checkout.session / customer.subscription. to SellerPlan.
-const PLATFORM_ACCOUNT_NOOP_PREFIXES = [
-  "account.application.deauthorized",
-  "account.updated",
-  "capability.updated",
-  "payout.",
+// `StripeChargeProcessor::HANDLED_REFUND_EVENTS` and the payment_intent events are matched by prefix here and in the processor.
+const CHARGE_PROCESSOR_PREFIXES = [
+  "charge.",
+  "radar.",
+  "refund.updated",
+  "refund.failed",
+  "payment_intent.payment_failed",
+  "payment_intent.processing",
+  "payment_intent.succeeded",
 ];
+// Only the platform's own events reach the financing and seller plan handlers.
+const PLATFORM_ONLY_CHARGE_PROCESSOR_PREFIXES = ["capital."];
+const SELLER_PLAN_PREFIXES = ["checkout.session.completed", "customer.subscription."];
+// StripePayoutProcessor.handle_stripe_event ignores every other payout event before reading anything.
+const PAYOUT_EVENTS = ["payout.paid", "payout.canceled", "payout.failed"];
 
-// `stripe_connect_account_id.present? && != STRIPE_PLATFORM_ACCOUNT_ID`
-function isConnectedAccountEvent(params: Record<string, unknown>): boolean {
-  const accountId = isBlank(params.user_id) ? params.account : params.user_id;
-  return !isBlank(accountId) && accountId !== stripePlatformAccountId();
-}
+const startsWithAny = (type: string, prefixes: string[]) => prefixes.some((prefix) => type.startsWith(prefix));
 
 // `stripe_connect_account_id` of a connected-account event, when it is a String: `params[:user_id].present? ? user_id : account`.
 function connectedAccountId(params: Record<string, unknown>): string | null {
@@ -142,41 +147,73 @@ function connectedAccountId(params: Record<string, unknown>): string | null {
   return typeof id === "string" ? id : null;
 }
 
-// Every handled event ends in a charge processor call, a Stripe API read or a ledger write, except the
-// ones the handler logs and drops and the platform-account events nothing routes. `params[:type].to_s`: a
-// type that is not a String (a Number, an Array, null) never starts with a prefix; a payload that is not
-// an object fails in `to_hash`, which Node leaves to Ruby. A deauthorization, a `capability.updated` outside
-// Japan and the `account.updated` of a standard account of a connected account are served whole
-// (stripe-account-deauthorized.ts, stripe-account-events.ts); every other handled event goes to Rails.
-type ConnectedAccountAction =
+// `stripe_connect_account_id.present? && != STRIPE_PLATFORM_ACCOUNT_ID`
+function isConnectedAccountEvent(params: Record<string, unknown>): boolean {
+  const accountId = isBlank(params.user_id) ? params.account : params.user_id;
+  return !isBlank(accountId) && accountId !== stripePlatformAccountId();
+}
+
+// StripeEventHandler#handle_stripe_event. A deauthorization, a `capability.updated` outside Japan and the `account.updated` of a
+// standard account of a connected account, the events the charge processor and the seller plan handler end without a ledger write
+// or a Stripe call, and the events no branch routes are served whole (stripe-account-deauthorized.ts, stripe-account-events.ts,
+// stripe-charge-events.ts, seller-plan-offer.ts); everything else goes to Rails before its first write.
+type EventAction =
   | { kind: "deauthorized"; accountId: string }
   | { kind: "capability_updated" }
-  | { kind: "account_updated" };
+  | { kind: "account_updated" }
+  | { kind: "charge_processor"; type: string }
+  | { kind: "seller_plan"; type: string };
 
-export const handleStripeEventWorkerWith = modelJob({ min: 1 }, async ([params], deps) => {
-  const action = await beforeSideEffects((): ConnectedAccountAction | null => {
-    if (params === null || typeof params !== "object" || Array.isArray(params))
-      throw new NotPortedError("StripeEventHandler#initialize", "params is not a Hash");
-    const event = params as Record<string, unknown>;
-    const type = event.type;
-    if (typeof type !== "string" || !HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) return null;
-    if (!isConnectedAccountEvent(event) && PLATFORM_ACCOUNT_NOOP_PREFIXES.some((prefix) => type.startsWith(prefix)))
-      return null;
-    const accountId = connectedAccountId(event);
-    if (type === "account.application.deauthorized" && isConnectedAccountEvent(event) && accountId !== null)
-      return { kind: "deauthorized", accountId };
-    if (isConnectedAccountEvent(event) && type === "capability.updated") return { kind: "capability_updated" };
-    if (isConnectedAccountEvent(event) && type === "account.updated") return { kind: "account_updated" };
+function routeEvent(event: Record<string, unknown>): EventAction | null {
+  const type = event.type;
+  if (typeof type !== "string" || !HANDLED_EVENT_PREFIXES.some((prefix) => type.startsWith(prefix))) return null;
+  if (!isConnectedAccountEvent(event)) {
+    if (startsWithAny(type, [...CHARGE_PROCESSOR_PREFIXES, ...PLATFORM_ONLY_CHARGE_PROCESSOR_PREFIXES]))
+      return { kind: "charge_processor", type };
+    if (startsWithAny(type, SELLER_PLAN_PREFIXES)) return { kind: "seller_plan", type };
+    return null;
+  }
+  const accountId = connectedAccountId(event);
+  if (type === "account.application.deauthorized" && accountId !== null) return { kind: "deauthorized", accountId };
+  if (startsWithAny(type, CHARGE_PROCESSOR_PREFIXES)) return { kind: "charge_processor", type };
+  if (type === "capability.updated") return { kind: "capability_updated" };
+  if (type === "account.updated") return { kind: "account_updated" };
+  if (startsWithAny(type, ["account.", "capability."]))
     throw new NotPortedError(
       "StripeEventHandler#handle_stripe_event",
-      "stripe_event_handler.rb:handle_stripe_event (charge processor, Stripe API reads and ledger writes)",
+      "stripe_merchant_account_manager.rb:handle_stripe_event",
     );
+  if (type.startsWith("payout.")) {
+    if (!PAYOUT_EVENTS.includes(type)) return null;
+    throw new NotPortedError(
+      "StripeEventHandler#handle_stripe_event",
+      "stripe_payout_processor.rb:handle_stripe_event (Stripe::Payout.retrieve, payment writes)",
+    );
+  }
+  return null;
+}
+
+export const handleStripeEventWorkerWith = modelJob({ min: 1 }, async ([params], deps) => {
+  const action = await beforeSideEffects((): EventAction | null => {
+    if (params === null || typeof params !== "object" || Array.isArray(params))
+      throw new NotPortedError("StripeEventHandler#initialize", "params is not a Hash");
+    return routeEvent(params as Record<string, unknown>);
   });
   if (action === null) return;
   const event = params as Record<string, unknown>;
   if (action.kind === "deauthorized") await handleStripeAccountDeauthorized(action.accountId, deps.now);
   else if (action.kind === "capability_updated") await handleStripeCapabilityUpdated(event);
-  else await handleStripeAccountUpdated(event, deps.now);
+  else if (action.kind === "account_updated") await handleStripeAccountUpdated(event, deps.now);
+  else if (action.kind === "charge_processor")
+    await beforeSideEffects(() => handleStripeChargeProcessorEvent(event, action.type));
+  else
+    await beforeSideEffects(() => {
+      const data = event.data;
+      const object = isObject(data) ? data.object : undefined;
+      if (!isObject(object))
+        throw new NotPortedError("a seller plan event without data.object", "seller_plan/stripe_event_handler.rb");
+      return handleSellerPlanStripeEvent(action.type, object, deps.now);
+    });
 });
 export const handleStripeEventWorker = handleStripeEventWorkerWith();
 
