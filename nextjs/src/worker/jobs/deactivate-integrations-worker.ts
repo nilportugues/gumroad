@@ -6,18 +6,13 @@
 // Golden: __fixtures__/deactivate-integrations-worker.golden.json (scripts/golden/deactivate-integrations-worker.rb).
 import { Prisma, type Purchase, type Subscription } from "@prisma/client";
 
-import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import {
-  CIRCLE_INTEGRATION,
-  DISCORD_INTEGRATION,
-  discordUserIdFor,
-  findEnabledIntegration,
-  keepsInactiveMembers,
-} from "../../server/models/purchase-integrations.ts";
+import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
+import { CIRCLE_INTEGRATION, DISCORD_INTEGRATION } from "../../server/models/purchase-integrations.ts";
 import { PurchaseRecord } from "../../server/models/purchase-pricing.ts";
 import { findById, findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 
+import { deactivateIntegration } from "./support/integration-services.ts";
 import { modelJob } from "./support/job-deps.ts";
 
 // purchase.subscription.purchases.joins(:live_purchase_integrations).distinct
@@ -37,23 +32,13 @@ async function purchasesToProcess(purchase: PurchaseRecord): Promise<PurchaseRec
   return all.filter((candidate, index) => all.findIndex((other) => other.id === candidate.id) === index);
 }
 
-// BaseIntegrationService#deactivate: an integration to deactivate means the service's own block, an API call.
-async function deactivate(purchase: PurchaseRecord, name: string): Promise<void> {
-  const integration = await findEnabledIntegration(purchase, name);
-  if (integration === null || keepsInactiveMembers(integration)) return;
-
-  if (name === CIRCLE_INTEGRATION) throw new HandBackToRuby("a Circle member to remove");
-  // DiscordIntegrationService#deactivate does nothing for a purchase without a Discord user id.
-  if (((await discordUserIdFor(purchase)) ?? "") !== "") throw new HandBackToRuby("a Discord member to remove");
-}
-
 export const deactivateIntegrationsWorkerWith = modelJob({ min: 1 }, async ([purchaseId]) => {
   const id = await beforeSideEffects(() => recordIdFrom(purchaseId, "Purchase.find"));
   const purchase = new PurchaseRecord(await findByIdBang<Purchase>("Purchase", id), null);
 
   await beforeSideEffects(async () => {
     for (const candidate of await purchasesToProcess(purchase)) {
-      for (const name of [CIRCLE_INTEGRATION, DISCORD_INTEGRATION]) await deactivate(candidate, name);
+      for (const name of [CIRCLE_INTEGRATION, DISCORD_INTEGRATION]) await deactivateIntegration(candidate, name);
     }
   });
 });

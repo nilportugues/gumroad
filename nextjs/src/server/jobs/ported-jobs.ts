@@ -194,4 +194,5 @@ export const PORTED_JOBS: readonly string[] = [
   "GenerateProductFilesArchivesJob",
   "ActivateIntegrationsWorker",
   "DeactivateIntegrationsWorker",
+  "UpdateIntegrationsOnTierChangeWorker",
 ];
