@@ -249,6 +249,24 @@ describe "OAuth token issuance", type: :request do
     end
   end
 
+  describe "on the API host" do
+    before { host! API_DOMAIN }
+
+    it "issues a client_credentials token", parity: true do
+      post "/oauth/token", params: { grant_type: "client_credentials", scope: "view_profile" }, headers: basic(confidential_app)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "exchanges an authorization code", parity: true do
+      grant = grant_for(confidential_app)
+
+      post "/oauth/token", params: { grant_type: "authorization_code", code: grant.token, redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   describe "client_credentials" do
     it "issues an access token with no refresh token and no owner", parity: true do
       post "/oauth/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: confidential_app.secret, scope: "view_profile" }

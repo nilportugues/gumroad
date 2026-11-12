@@ -240,6 +240,37 @@ describe "OAuth tokens", type: :request do
     end
   end
 
+  # `use_doorkeeper` is not behind a host constraint, so the same endpoints answer on the API host.
+  describe "on the API host" do
+    before { host! API_DOMAIN }
+
+    it "answers a failing code exchange", parity: true do
+      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", redirect_uri: confidential_app.redirect_uri }, headers: basic(confidential_app)
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "revokes the token of a public client", parity: true do
+      token = access_token_for(public_app)
+
+      post "/oauth/revoke", params: { token: token.token, client_id: public_app.uid }
+
+      expect(token.reload.revoked_at).to be_present
+    end
+
+    it "reports an active token to the client it was issued to", parity: true do
+      post "/oauth/introspect", params: { token: access_token_for(confidential_app).token }, headers: basic(confidential_app)
+
+      expect(response.parsed_body).to include("active" => true)
+    end
+
+    it "answers invalid_token for an unknown bearer token", parity: true do
+      get "/oauth/token/info", headers: { "Authorization" => "Bearer unknown" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
   describe "POST /oauth/revoke" do
     it "refuses a request with no client", parity: true do
       post "/oauth/revoke", params: { token: access_token_for(public_app).token }
