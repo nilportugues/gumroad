@@ -6,13 +6,12 @@
 import { db } from "../../lib/db.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
-import { storageConfig } from "../infra/storage.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 
 import { stagePreview, type PreviewSeller as PreviewSellerRow } from "./agent-preview-render.ts";
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
-import { PREVIEW_CHANGED_MARKER, PREVIEW_CHANGED_MARKER_TEXT } from "./custom-html-document.ts";
+import { customHtmlCsp, PREVIEW_CHANGED_MARKER, PREVIEW_CHANGED_MARKER_TEXT } from "./custom-html-document.ts";
 import { authorizeStoreAgent, guarded, handingBack } from "./internal-agent.ts";
 import { json, jsonAction } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -20,27 +19,6 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 // Page::MAX_CUSTOM_HTML_LENGTH
 const MAX_CUSTOM_HTML_LENGTH = 500_000;
 const CUSTOM_FEATURE = "custom_html_pages";
-
-// RendersCustomHtmlPages::CUSTOM_HTML_SANDBOX_TOKENS
-const SANDBOX = "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox";
-
-// RendersCustomHtmlPages::CUSTOM_HTML_CSP
-function customHtmlCsp(): string {
-  const { protocol, assetDomain } = domainConfig(process.env);
-  const { cdnS3ProxyHost, publicStorageCdnS3ProxyHost } = storageConfig();
-  const assetHosts = [...new Set([cdnS3ProxyHost, publicStorageCdnS3ProxyHost])].join(" ");
-  return `${[
-    `sandbox ${SANDBOX}`,
-    "default-src 'none'",
-    "script-src 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://unpkg.com",
-    `style-src 'unsafe-inline' ${protocol}://${assetDomain} https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.bunny.net`,
-    `img-src data: blob: ${assetHosts}`,
-    `media-src data: blob: ${assetHosts}`,
-    "font-src data: https://fonts.gstatic.com https://fonts.bunny.net",
-    "connect-src 'none'",
-    "form-action 'self'",
-  ].join("; ")};`;
-}
 
 // AgentCustomHtmlPreviewsController::EXPIRED_PREVIEW_DOCUMENT
 const EXPIRED_PREVIEW_DOCUMENT = `<!doctype html>

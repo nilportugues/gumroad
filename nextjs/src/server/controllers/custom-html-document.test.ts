@@ -7,7 +7,17 @@ import { afterEach, describe, expect, it } from "vitest";
 import { NotPortedError } from "../page-props/not-ported.ts";
 
 import golden from "./__fixtures__/custom-html-document.golden.json" with { type: "json" };
-import { pagesTailwindHead, profileCustomHtmlDocument } from "./custom-html-document.ts";
+import {
+  customHtmlBackgroundWrapperScript,
+  customHtmlFollowWrapperScript,
+  customHtmlLiveReloadScript,
+  customHtmlNavigationBridgeScript,
+  FOLLOW_BRIDGE_SCRIPT,
+  pagesTailwindHead,
+  PRODUCTS_BRIDGE_SCRIPT,
+  profileCustomHtmlDocument,
+  themeBackgroundCss,
+} from "./custom-html-document.ts";
 
 const ASSET_HOST = "http://test.gumroad.com:31337";
 
@@ -79,20 +89,20 @@ describe("profile_custom_html_document against Ruby", () => {
       prices_json?: string;
       scroll_to_change?: boolean;
       live_fields?: boolean;
+      navigation_bridge?: string;
+      follow_bridge?: string;
+      products_bridge?: string;
     };
-    if (args.live_fields) {
-      it(`${c.name} is not built here`, () => {
-        // The preview never shows live fields; the builder has no argument for them.
-        expect(c.document).toContain("gumroad:profile-fields");
-      });
-      continue;
-    }
     it(c.name, () => {
       expect(
         profileCustomHtmlDocument(c.custom_html, {
           dataJson: args.data_json,
           pricesJson: args.prices_json,
           scrollToChange: args.scroll_to_change,
+          liveFields: args.live_fields,
+          navigationBridge: args.navigation_bridge,
+          followBridge: args.follow_bridge,
+          productsBridge: args.products_bridge,
           tailwindHead,
         }),
       ).toBe(c.document);
@@ -102,4 +112,38 @@ describe("profile_custom_html_document against Ruby", () => {
   it("refuses a page with a sharp s, where Ruby's case-insensitive match reads it as ss", () => {
     expect(() => profileCustomHtmlDocument("<p>Straße</p>", { tailwindHead: "" })).toThrow(NotPortedError);
   });
+});
+
+describe("custom_html_navigation_bridge_script against Ruby", () => {
+  const TEST_VALID_HOSTS = ["127.0.0.1", "app.test.gumroad.com", "test.gumroad.com"];
+
+  for (const c of golden.navigation_bridges) {
+    it(`fills ${JSON.stringify(c.allowed_hostnames)}`, () => {
+      expect(customHtmlNavigationBridgeScript(c.allowed_hostnames, TEST_VALID_HOSTS)).toBe(c.script);
+    });
+  }
+
+  it("keeps the follow and products bridges the documents embed", () => {
+    for (const c of golden.documents.filter((entry) => "follow_bridge" in entry.arguments)) {
+      expect(c.document).toContain(FOLLOW_BRIDGE_SCRIPT);
+      expect(c.document).toContain(PRODUCTS_BRIDGE_SCRIPT);
+    }
+  });
+});
+
+describe("the trusted wrapper's scripts against Ruby", () => {
+  for (const c of golden.wrapper_scripts) {
+    const { seller_external_id: id, nonce, version_src: versionSrc } = c.arguments;
+    it(`fills ${JSON.stringify(c.arguments)}`, () => {
+      expect(customHtmlFollowWrapperScript(id, nonce)).toBe(c.follow);
+      expect(customHtmlBackgroundWrapperScript(nonce)).toBe(c.background);
+      expect(customHtmlLiveReloadScript(versionSrc, nonce)).toBe(c.live_reload);
+    });
+  }
+
+  for (const c of golden.safe_css_colors) {
+    it(`reads ${JSON.stringify(c.value)} as ${c.safe ? "safe" : "unsafe"} for CSS`, () => {
+      expect(themeBackgroundCss(c.value)).toBe(c.safe ? `html{background:${c.value}}` : "");
+    });
+  }
 });

@@ -9,9 +9,14 @@ import { db } from "../../lib/db.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 
+import { storeHostWithProtocol, type HostSeller } from "./custom-domain-hosts.ts";
+
 const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 
 export type ProfileDataFacts = {
+  // User#store_host_with_protocol, and the CustomDomain id whose routability refresh reading it enqueues.
+  storeHost: string | null;
+  routabilityRefresh: number | null;
   // Links of the seller that are `alive` (not deleted, banned or purchase-disabled): a superset of `products.alive.not_archived.not_draft`.
   undeletedProducts: number;
   // Installments of the seller that are not deleted and have a publish time: a superset of `visible_on_profile`.
@@ -71,7 +76,9 @@ export function profileDataJson(facts: ProfileDataFacts): string {
   return jsonEscape(JSON.stringify(payload));
 }
 
-export async function loadProfileDataFacts(sellerId: bigint): Promise<ProfileDataFacts> {
+export async function loadProfileDataFacts(seller: HostSeller, now: Date): Promise<ProfileDataFacts> {
+  const sellerId = seller.id;
+  const { host: storeHost, refresh } = await storeHostWithProtocol(seller, now);
   const [undeletedProducts, publishedPosts, profile, reputationSummaryEnabled] = await Promise.all([
     db.link.count({ where: { user_id: sellerId, deleted_at: null, banned_at: null, purchase_disabled_at: null } }),
     db.installment.count({ where: { seller_id: Number(sellerId), deleted_at: null, published_at: { not: null } } }),
@@ -79,6 +86,8 @@ export async function loadProfileDataFacts(sellerId: bigint): Promise<ProfileDat
     isFeatureEnabled(REPUTATION_SUMMARY_FEATURE, userActor(String(sellerId))),
   ]);
   return {
+    storeHost,
+    routabilityRefresh: refresh,
     undeletedProducts,
     publishedPosts,
     reputationSummaryEnabled,

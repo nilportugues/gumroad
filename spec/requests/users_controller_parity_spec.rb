@@ -208,14 +208,15 @@ describe "UsersController", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the embed of live custom HTML to Rails", parity: true do
+    it "hands the embed of a page that references product prices to Rails", parity: true do
       host! DOMAIN
       publish_custom_html(seller)
+      seller.update!(custom_html: "<section><span data-gumroad-product=\"abc\" data-gumroad-field=\"price\">$1</span></section>")
 
       get "/#{seller.username}/landing/embed"
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("Landing")
+      expect(response.body).to include("gumroad-prices")
     end
 
     it "hands the products slice of live custom HTML to Rails", parity: true do

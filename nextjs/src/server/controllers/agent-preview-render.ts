@@ -9,6 +9,7 @@ import { fragmentToHtml, html4Fragment } from "../html/loofah.ts";
 import { getRedis } from "../infra/redis.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
+import { enqueueRoutabilityRefresh } from "../services/custom-domain-hosts.ts";
 import { interpolateProfile } from "../services/pages-interpolator.ts";
 import { referencedInPrices } from "../services/pages-product-prices.ts";
 import { loadProfileDataFacts, profileDataJson } from "../services/pages-profile-data.ts";
@@ -89,7 +90,8 @@ export async function stagePreview(
     profile: { name_or_username: nameOrUsername(seller), bio: seller.bio },
     prices: {},
   });
-  const dataJson = profileDataJson(await loadProfileDataFacts(seller.id));
+  const facts = await loadProfileDataFacts(seller, new Date());
+  const dataJson = profileDataJson(facts);
   const { protocol, assetDomain } = domainConfig(process.env);
   const document = profileCustomHtmlDocument(interpolated, {
     dataJson,
@@ -97,5 +99,6 @@ export async function stagePreview(
     scrollToChange,
     tailwindHead: pagesTailwindHead(`${protocol}://${assetDomain}`),
   });
+  await enqueueRoutabilityRefresh(facts.routabilityRefresh);
   return stageDocument(seller.id, document);
 }

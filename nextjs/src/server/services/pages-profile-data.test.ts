@@ -27,6 +27,8 @@ const golden = JSON.parse(
 
 // What loadProfileDataFacts reads for the seller the case set up: every product the seller has not deleted, every published post.
 const factsOf = (c: Case): ProfileDataFacts => ({
+  storeHost: null,
+  routabilityRefresh: null,
   undeletedProducts: c.products + c.draft_products + c.archived_products,
   publishedPosts: c.posts,
   reputationSummaryEnabled: c.reputation_summary_enabled,
@@ -49,6 +51,8 @@ describe("Pages::ProfileData against Ruby (nextjs/scripts/golden/pages-profile-d
 
 describe("what profileDataJson reads from the profile", () => {
   const facts = (sellerProfileJsonData: unknown): ProfileDataFacts => ({
+    storeHost: null,
+    routabilityRefresh: null,
     undeletedProducts: 0,
     publishedPosts: 0,
     reputationSummaryEnabled: false,

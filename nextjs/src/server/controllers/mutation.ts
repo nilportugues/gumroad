@@ -135,7 +135,14 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
   const url = new URL(target, `${protocol}://${host}`);
   const request = new Request(url, { method: incoming.method, headers: incoming.headers, body: bytes.length > 0 ? bytes : undefined });
 
-  const spec = REGISTRY.map((candidate) => ({ candidate, routeParams: candidate.method === request.method ? matchPattern(candidate.pattern, url.pathname) : null })).find(({ routeParams }) => routeParams !== null);
+  // A literal segment wins over a parameter (`/edit` over `/:slug`), as the more specific route is the one Rails declares first.
+  const literalSegments = (pattern: string) => pattern.split("/").filter((segment) => segment !== "" && !/^[:*]/u.test(segment)).length;
+  const spec = REGISTRY.map((candidate) => ({ candidate, routeParams: candidate.method === request.method ? matchPattern(candidate.pattern, url.pathname) : null }))
+    .filter(({ routeParams }) => routeParams !== null)
+    .reduce<{ candidate: MutationSpec; routeParams: Record<string, string> | null } | undefined>(
+      (best, entry) => (best === undefined || literalSegments(entry.candidate.pattern) > literalSegments(best.candidate.pattern) ? entry : best),
+      undefined,
+    );
   if (spec === undefined || spec.candidate.railsOnly !== undefined) return forwardToRails(request);
   const { candidate, routeParams } = spec;
 
