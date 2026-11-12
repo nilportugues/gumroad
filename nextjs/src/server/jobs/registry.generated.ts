@@ -443,7 +443,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CheckIndianCardMandateRegistrationJob": {
     "file": "app/sidekiq/check_indian_card_mandate_registration_job.rb",
