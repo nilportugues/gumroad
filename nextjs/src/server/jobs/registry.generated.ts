@@ -1414,7 +1414,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateSalesReportJob": {
     "file": "app/sidekiq/generate_sales_report_job.rb",
