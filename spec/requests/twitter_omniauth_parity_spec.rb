@@ -145,7 +145,7 @@ describe "Twitter OAuth", type: :request do
       expect(response).to have_http_status(:found)
     end
 
-    it "sends a visitor to the login page when Twitter is unavailable", parity: true do
+    it "hands a request to Rails when Twitter is unavailable", parity: true do
       stub_request_token(status: 503, body: "Over capacity")
       post "/users/auth/twitter", params: { authenticity_token: csrf_token }
 
@@ -153,7 +153,7 @@ describe "Twitter OAuth", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from Twitter because \"Service unavailable\".")
     end
 
-    it "records the failure of a link request of a signed-in seller", parity: true do
+    it "hands a link request of a signed-in seller to Rails when Twitter is unavailable", parity: true do
       log_in(user)
       stub_request_token(status: 503, body: "Over capacity")
 
@@ -185,6 +185,7 @@ describe "Twitter OAuth", type: :request do
       begin_flow("state=link_twitter_account")
       stub_access_token
       stub_credentials
+      user.update_columns(updated_at: 1.hour.ago)
     end
 
     it "links the account of a signed-in seller", parity: true do
@@ -241,9 +242,10 @@ describe "Twitter OAuth", type: :request do
     end
 
     it "clears the reconnect notice of a seller whose X posts were waiting for write permission", parity: true do
-      waiting = create(:marketing_action, user:, error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING)
-      posted = create(:marketing_action, user:, error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING, status: "posted")
+      waiting = create(:marketing_action, user:, link: create(:product), error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING)
+      posted = create(:marketing_action, user:, link: create(:product), error_code: Marketing::Action::X_WRITE_PERMISSION_MISSING, status: "posted")
       link!
+      [waiting, posted].each { |action| action.update_columns(updated_at: 1.hour.ago) }
 
       callback
 
@@ -287,7 +289,7 @@ describe "Twitter OAuth", type: :request do
       expect(SocialConnectVerification.where(user:)).to be_empty
     end
 
-    it "sends a visitor whose request token Twitter refuses to the login page", parity: true do
+    it "hands a login callback to Rails when Twitter refuses the request token", parity: true do
       begin_flow
       stub_access_token(status: 401, body: "Invalid / expired Token")
 
@@ -304,7 +306,7 @@ describe "Twitter OAuth", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from Twitter because \"Session expired\".")
     end
 
-    it "tells a visitor that Twitter is unavailable when the access token call fails", parity: true do
+    it "hands a login callback to Rails when the access token call fails", parity: true do
       begin_flow
       stub_access_token(status: 502, body: "Bad gateway")
 
@@ -336,7 +338,7 @@ describe "Twitter OAuth", type: :request do
     end
 
     it "hands a callback of a seller with no avatar to Rails", parity: true do
-      user.avatar.detach
+      ActiveStorage::Attachment.where(record_type: "User", record_id: user.id, name: "avatar").delete_all
       link!
 
       callback

@@ -129,14 +129,6 @@ async function requestPhase(input: MutationInput): Promise<ActionResult> {
 
   session.data["omniauth.params"] = params;
   const warden = auth?.context.loggedInUser;
-  if (warden)
-    await recordSocialConnectEvent({
-      userId: warden.id,
-      stage: "attempted",
-      provider: "twitter",
-      surface: "omniauth",
-      now: () => input.chain.now,
-    });
   const origin = stringParam(input, "origin");
   const referer = input.request.headers.get("referer");
   if (origin !== undefined) session.data["omniauth.origin"] = origin;
@@ -171,6 +163,16 @@ async function requestPhase(input: MutationInput): Promise<ActionResult> {
   const token = parseTokenAnswer(answer.text);
   if (token.oauth_callback_confirmed !== "true" || !token.oauth_token || token.oauth_token_secret === undefined)
     throw new HandBackToRails("a request token answer without a confirmed callback");
+
+  // Written once nothing can hand the request back: Rails would record it again.
+  if (warden)
+    await recordSocialConnectEvent({
+      userId: warden.id,
+      stage: "attempted",
+      provider: "twitter",
+      surface: "omniauth",
+      now: () => input.chain.now,
+    });
 
   const oauth = isHash(session.data.oauth) ? session.data.oauth : {};
   oauth.twitter = {
