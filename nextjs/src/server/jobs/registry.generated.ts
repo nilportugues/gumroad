@@ -612,7 +612,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateUsStateMonthlySalesReportsJob": {
     "file": "app/sidekiq/create_us_state_monthly_sales_reports_job.rb",
