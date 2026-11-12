@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
 
-import { Base32Error, totpAt, verifyTotp } from "./rotp.ts";
+import { base32Decode, base32Encode, Base32Error, provisioningUri, randomSecret, totpAt, verifyTotp } from "./rotp.ts";
+
+describe("base32Encode", () => {
+  it("encodes RFC 4648 vectors without padding and round-trips through base32Decode", () => {
+    expect(base32Encode(Buffer.from("foobar"))).toBe("MZXW6YTBOI");
+    expect(base32Encode(Buffer.from("fooba"))).toBe("MZXW6YTB");
+    expect(base32Encode(Buffer.from("f"))).toBe("MY");
+    const bytes = Buffer.from(Array.from({ length: 20 }, (_, index) => 255 - index * 11));
+    expect(base32Decode(base32Encode(bytes))).toEqual(bytes);
+  });
+
+  it("draws 32-character secrets", () => {
+    expect(randomSecret()).toMatch(/^[A-Z2-7]{32}$/u);
+  });
+});
+
+describe("provisioningUri", () => {
+  it("builds the otpauth URI ROTP writes for an issuer and an account", () => {
+    expect(provisioningUri("JBSWY3DPEHPK3PXP", "a+b@example.com", "Gumroad")).toBe(
+      "otpauth://totp/Gumroad:a%2Bb%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Gumroad",
+    );
+  });
+
+  it("percent-encodes what ERB::Util.url_encode does and writes colons as underscores", () => {
+    expect(provisioningUri("ABC", "it's:me (x)@example.com ", "Gumroad")).toBe(
+      "otpauth://totp/Gumroad:it%27s_me%20%28x%29%40example.com?secret=ABC&issuer=Gumroad",
+    );
+  });
+});
 
 // RFC 6238 appendix B's SHA-1 seed, base32-encoded; ROTP keeps the last 6 of its 8 digits.
 const RFC_SECRET = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";

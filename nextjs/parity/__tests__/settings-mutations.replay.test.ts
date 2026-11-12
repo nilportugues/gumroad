@@ -1,21 +1,23 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
+import { compare } from "bcryptjs";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { totpAt } from "@/lib/rotp";
 import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
-import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
-import { withoutRailsOnly } from "../src/rails-only";
+import { loadFixture, type CapturedExchange, type Exchange, type Fixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -143,6 +145,13 @@ const COMPARE = {
     "db.blocked_customer_objects.updated.*.changes.updated_at",
     "db.billing_details.updated.*.changes.updated_at",
     "db.team_memberships.updated.*.changes.updated_at",
+    // Random bcrypt hashes and the codes they hide: assertTotp reads them back.
+    "response.json.recovery_codes",
+    "response.json.secret",
+    "response.json.provisioning_uri",
+    "response.json.qr_svg",
+    "db.totp_credentials.inserted.*.otp_secret",
+    "db.totp_credentials.updated.*.changes.recovery_codes",
     // The join's cookie is encrypted with a random IV: assertJoin reads it back.
     "response.cookies.current_seller_id.value",
     "db.webauthn_credentials.updated.*.changes.updated_at",
@@ -158,6 +167,20 @@ const COMPARE = {
     "http",
   ],
 };
+
+// Seconds from the replay's clock for the code a confirmation sends; the recorded code is for a clock the replay does not have.
+const TOTP_OFFSETS = [
+  ["confirms-with-the-code-of-the-previous-interval", -30],
+  ["answers-422-for-the-code-of-the-next-interval", 30],
+  ["confirms-with-the-current-code", 0],
+] as const;
+
+function withCurrentTotpCode<T extends { body?: string }>(name: string, request: T, loaded: Fixture, now: Date): T {
+  const offset = TOTP_OFFSETS.find(([fragment]) => name.includes(fragment))?.[1];
+  if (offset === undefined) return request;
+  const secret = loaded.exchanges.at(-1)!.seed.tables.totp_credentials!.rows[0]!.otp_secret as string;
+  return { ...request, body: JSON.stringify({ code: totpAt(secret, new Date(now.getTime() + offset * 1000)) }) };
+}
 
 const allCases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -253,7 +276,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
-    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    ) => withCurrentTotpCode(name, reencryptCookies(request, loaded, SECRET_KEY_BASE, now), loaded, now),
     // The test environment answers a 422 with its exception debug page, which the fixture does not keep.
     compare: /422|unknown-invitation/u.test(name)
       ? { ignore: [...COMPARE.ignore, "response.body"] }
@@ -348,6 +371,50 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     );
   }
 
+  // The recovery codes a confirmation or a regeneration made: ten of them, shaped as shown to the user, and the stored list holds a
+  // bcrypt hash of each (cost 12, `$2a$`). WRITE_NODE_TOTP hands both to spec/requests/node_output_parity_spec.rb, where Rails redeems them.
+  async function assertTotp(name: string, actual: CapturedExchange) {
+    if (!name.startsWith("settings_totp_signed_in_spec")) return;
+    const codes = (actual.response.json as { recovery_codes?: string[] } | undefined)?.recovery_codes;
+    if (codes === undefined) return;
+    expect(codes).toHaveLength(10);
+    for (const code of codes) expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/u);
+    const credential = await client.totpCredential.findFirstOrThrow();
+    const hashes = JSON.parse(credential.recovery_codes!) as string[];
+    expect(hashes).toHaveLength(10);
+    for (const [index, hash] of hashes.entries()) {
+      expect(hash).toMatch(/^\$2a\$12\$[./A-Za-z0-9]{53}$/u);
+      expect(await compare(codes[index]!.replace("-", ""), hash)).toBe(true);
+    }
+    expect(credential.recovery_codes_generated_at).not.toBeNull();
+    if (process.env.WRITE_NODE_TOTP && name.includes("confirms-with-the-current-code")) {
+      const user = await client.user.findFirstOrThrow();
+      writeFileSync(
+        process.env.WRITE_NODE_TOTP,
+        `${JSON.stringify({ user: { id: Number(user.id), email: user.email }, otp_secret: credential.otp_secret, confirmed_at: credential.confirmed_at, recovery_codes: credential.recovery_codes, recovery_codes_generated_at: credential.recovery_codes_generated_at, codes }, null, 2)}\n`,
+      );
+    }
+  }
+
+  // A setup's secret is 160 random bits in base32 and is the one in the row; WRITE_NODE_TOTP_SETUP hands the secret and what Node drew
+  // from it to spec/requests/node_output_parity_spec.rb, where Rails draws the same URI and QR code.
+  async function assertSetup(name: string, actual: CapturedExchange) {
+    if (!name.startsWith("settings_totp_signed_in_spec")) return;
+    const body = actual.response.json as { secret?: string; provisioning_uri?: string; qr_svg?: string } | undefined;
+    if (body?.secret === undefined) return;
+    expect(body.secret).toMatch(/^[A-Z2-7]{32}$/u);
+    const credential = await client.totpCredential.findFirstOrThrow();
+    expect(credential.otp_secret).toBe(body.secret);
+    expect(credential.confirmed_at).toBeNull();
+    if (process.env.WRITE_NODE_TOTP_SETUP && name.includes("starts-a-setup")) {
+      const user = await client.user.findFirstOrThrow();
+      writeFileSync(
+        process.env.WRITE_NODE_TOTP_SETUP,
+        `${JSON.stringify({ user: { id: Number(user.id), email: user.email }, secret: body.secret, provisioning_uri: body.provisioning_uri, qr_svg: body.qr_svg }, null, 2)}\n`,
+      );
+    }
+  }
+
   it("finds the fixtures", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
@@ -397,6 +464,8 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         assertParity(result);
         await assertSend(_name, result.exchanges[0]!.actual);
         await assertJoin(_name, result.exchanges[0]!.actual);
+        await assertTotp(_name, result.exchanges[0]!.actual);
+        await assertSetup(_name, result.exchanges[0]!.actual);
       } catch (error) {
         const logs = server
           .output()

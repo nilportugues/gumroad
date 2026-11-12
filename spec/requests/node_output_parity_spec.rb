@@ -78,4 +78,48 @@ describe "Output of the Node port, read by Rails", type: :request do
       expect_signed_in("/dashboard")
     end
   end
+
+  describe "the authenticator app confirmation" do
+    # WRITE_NODE_TOTP in settings-mutations.replay.test.ts: the row Node left after a confirmation and the codes it showed.
+    it "stores recovery codes that Rails redeems and a secret that Rails accepts", parity: false do
+      output = node_output("NODE_TOTP")
+      user = create(:user, id: output["user"]["id"], email: output["user"]["email"], username: nil, created_at: Time.utc(2025, 1, 1))
+      credential = user.create_totp_credential!
+      credential.update_columns(
+        otp_secret: output["otp_secret"],
+        confirmed_at: output["confirmed_at"],
+        recovery_codes: JSON.parse(output["recovery_codes"]),
+        recovery_codes_generated_at: output["recovery_codes_generated_at"]
+      )
+      credential.reload
+
+      # The column holds exactly the JSON text Rails would have written for the same list.
+      expect(output["recovery_codes"]).to eq(JSON.generate(credential.recovery_codes))
+      expect(output["codes"].length).to eq(TotpCredential::RECOVERY_CODE_COUNT)
+      expect(credential.recovery_codes.length).to eq(TotpCredential::RECOVERY_CODE_COUNT)
+      expect(credential.recovery_codes).to all(start_with("$2a$12$"))
+      expect(credential.verify_code(credential.otp_code)).to be(true)
+      expect(credential.totp_provisioning_uri).to start_with("otpauth://totp/Gumroad:")
+      output["codes"].each_with_index do |code, index|
+        expect(BCrypt::Password.new(credential.recovery_codes[index])).to eq(code.delete("-"))
+      end
+      output["codes"].each { |code| expect(credential.redeem_recovery_code(code)).to be(true) }
+      expect(credential.reload.recovery_codes).to eq([])
+    end
+  end
+
+  describe "the authenticator app setup" do
+    # WRITE_NODE_TOTP_SETUP: the secret Node drew and the URI and QR code it drew from it.
+    it "draws the provisioning URI and the QR code Rails draws for the same secret", parity: false do
+      output = node_output("NODE_TOTP_SETUP")
+      user = create(:user, id: output["user"]["id"], email: output["user"]["email"], username: nil, created_at: Time.utc(2025, 1, 1))
+      credential = user.create_totp_credential!
+      credential.update_columns(otp_secret: output["secret"])
+
+      expect(output["secret"]).to match(/\A[A-Z2-7]{32}\z/)
+      expect(output["provisioning_uri"]).to eq(credential.reload.totp_provisioning_uri)
+      expect(output["qr_svg"]).to eq(RQRCode::QRCode.new(output["provisioning_uri"]).as_svg(module_size: 4, offset: 16, fill: "ffffff", use_path: true, viewbox: true))
+      expect(ROTP::Base32.decode(output["secret"]).bytesize).to eq(20)
+    end
+  end
 end

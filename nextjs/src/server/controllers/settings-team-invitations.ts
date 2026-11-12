@@ -9,12 +9,10 @@ import * as Routes from "@/lib/navigation/routes";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { switchSellerAccount } from "./switch-seller-account.ts";
-import { transaction } from "../models/runtime/transaction.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
-import { TeamMemberships } from "../models/team-membership.ts";
 import { afterCommitEverywhere } from "../models/concerns/job-runtime.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
 import {
   checkSendThrottle,
   deliverInvitationAccepted,
@@ -36,6 +34,7 @@ import {
   TeamInvitationDeletable,
   TeamInvitations,
 } from "../models/team-invitation.ts";
+import { TeamMemberships } from "../models/team-membership.ts";
 import { findUser, isAccountActive, isConfirmed, Users, type UserRecord } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { NotAuthorizedError, loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
@@ -45,6 +44,7 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { toSentence } from "./settings-mutations.ts";
+import { switchSellerAccount } from "./switch-seller-account.ts";
 
 const NOT_FOUND = 404;
 const FORBIDDEN = 403;
@@ -309,7 +309,11 @@ async function joinTeam(invitation: Invitation, loggedIn: UserRecord): Promise<M
     await TeamInvitations.updateBang(invitation, { accepted_at: now, deleted_at: now }, { now: () => now });
     await createOwnerMembershipIfNeeded(loggedIn, now);
     const membership = await TeamMemberships.createBang(
-      { seller_id: seller.get("id"), user_id: loggedIn.get("id"), role: invitation.get("role") } as Partial<TeamMembership>,
+      {
+        seller_id: seller.get("id"),
+        user_id: loggedIn.get("id"),
+        role: invitation.get("role"),
+      } as Partial<TeamMembership>,
       { now: () => now },
     );
     // ActiveJob's Sidekiq adapter enqueues once the transaction has committed.
