@@ -109,7 +109,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnStripeDobDriftJob": {
     "file": "app/sidekiq/alert_on_stripe_dob_drift_job.rb",
@@ -561,7 +561,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CreateMissingDisputeEvidenceJob": {
     "file": "app/sidekiq/create_missing_dispute_evidence_job.rb",

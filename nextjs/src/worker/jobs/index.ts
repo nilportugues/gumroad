@@ -84,6 +84,8 @@ import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-w
 import { renameProductFileWorker } from "./rename-product-file-worker.ts";
 import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
 import { recoverStrandedBuyersJobWith } from "./recover-stranded-buyers-job.ts";
+import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
+import { createLicensesForExistingCustomersWorkerWith } from "./create-licenses-for-existing-customers-worker.ts";
 import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
 import { refreshAffiliateEarningsJob, refreshAffiliateEarningsJobRetriesExhausted } from "./refresh-affiliate-earnings-job.ts";
 import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
@@ -223,6 +225,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteProductFilesWorker: deleteProductFilesWorker,
   RefreshAffiliateEarningsJob: refreshAffiliateEarningsJob,
   AlertOnStuckPiracyReportsJob: alertOnStuckPiracyReportsJobWith(),
+  AlertOnStalledPostEmailBlastsJob: alertOnStalledPostEmailBlastsJobWith(),
+  CreateLicensesForExistingCustomersWorker: createLicensesForExistingCustomersWorkerWith(),
   RecoverStrandedBuyersJob: recoverStrandedBuyersJobWith(),
   RenameProductFileWorker: renameProductFileWorker,
   ChargeSuccessfulPreordersWorker: chargeSuccessfulPreordersWorker,

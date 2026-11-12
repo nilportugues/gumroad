@@ -29,9 +29,9 @@ export const TranscodedVideos = defineModel<TranscodedVideo>({
   beforeSave: [
     {
       name: "assign_default_last_accessed_at",
-      run(record) {
+      run(record, ctx) {
         // `||=` assigns nothing when the column is set, and a plain read leaves PaperTrail's attribute order alone.
-        if (record.get("last_accessed_at") == null) record.set("last_accessed_at", new Date());
+        if (record.get("last_accessed_at") == null) record.set("last_accessed_at", (ctx.now ?? (() => new Date()))());
       },
     },
   ],

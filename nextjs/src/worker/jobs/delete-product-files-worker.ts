@@ -1,16 +1,18 @@
-// Port of app/sidekiq/delete_product_files_worker.rb up to the first ProductFile#delete!: a product whose deletion was undone, one
-// with a successful sale (one sales search) and a deleted one with no files at all finish here; a search answer Ruby cannot read
-// fails with its NoMethodError. A product with a file to delete is handed back right after its files are read, before any write
-// (the soft delete runs callbacks, PaperTrail and the subtitle files). An id Rails casts (a Float, a word) hands back before any
-// statement.
+// Port of app/sidekiq/delete_product_files_worker.rb: a product whose deletion was undone or with a successful sale (one sales
+// search) finishes early; a search answer Ruby cannot read fails with its NoMethodError. Each file is soft-deleted through
+// ProductFile#delete! (models/product-file-writes.ts: validations, PaperTrail, cache invalidation, HLS renditions, subtitle files).
+// A product that has a taxonomy, or inferred taxonomy values to clear, hands back after its files are read and before the first
+// write: the commit callback that follows each save would then classify it (Discover::TaxonomyAttributeClassifier), which is not
+// ported, and Rails cannot resume once a file is deleted. An id Rails casts (a Float, a word) hands back before any statement.
 // Golden: __fixtures__/delete-product-files-worker.golden.json (scripts/golden/delete-product-files-worker.rb).
-import { Prisma, type Link } from "@prisma/client";
+import { Prisma, type Link, type ProductFile } from "@prisma/client";
 
 import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { ACTIVE_SALES_SEARCH_OPTIONS } from "../../server/models/link-metrics.ts";
+import { classifierIsNoop, deleteProductFileBang, loadProductFile } from "../../server/models/product-file-writes.ts";
 import { findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
 import { RecordNotFound } from "../../server/models/runtime/errors.ts";
-import { column, selectRows, table } from "../../server/models/sql.ts";
+import { castRow, column, selectRows, table } from "../../server/models/sql.ts";
 import { PurchaseSearchService } from "../../server/search/purchase-search.ts";
 
 import { RubyNoMethodError } from "./calculate-sale-numbers-worker.ts";
@@ -46,7 +48,7 @@ async function hasSuccessfulSales(productId: bigint): Promise<boolean> {
   return value > 0;
 }
 
-export const deleteProductFilesWorkerWith = modelJob({ min: 1 }, async ([productId]) => {
+export const deleteProductFilesWorkerWith = modelJob({ min: 1 }, async ([productId], deps) => {
   if (productId === null) throw new RecordNotFound("Couldn't find Link without an ID");
   const id = await beforeSideEffects(() => recordIdFrom(productId, "Link.find"));
   const product = await findOneBy<Link>("Link", "id", id);
@@ -57,7 +59,21 @@ export const deleteProductFilesWorkerWith = modelJob({ min: 1 }, async ([product
   const files = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`product_files`.*")} FROM ${table("product_files")} WHERE ${column("product_files", "link_id")} = ${id}`,
   );
-  if (files.length > 0) throw new HandBackToRuby("ProductFile#delete! is not ported");
+  if (files.length === 0) return;
+  if (!classifierIsNoop(product as unknown as Record<string, unknown>)) {
+    throw new HandBackToRuby(
+      "the product has a taxonomy or inferred taxonomy values for the file classifier to rewrite",
+    );
+  }
+
+  for (const row of files) {
+    await deleteProductFileBang(
+      loadProductFile(castRow<ProductFile>("ProductFile", row), product as unknown as Record<string, unknown>),
+      {
+        now: deps.now,
+      },
+    );
+  }
 });
 
 export const deleteProductFilesWorker = deleteProductFilesWorkerWith();

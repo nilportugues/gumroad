@@ -3,6 +3,7 @@
 // column, so it is a nil attribute that PaperTrail's `object` lists right after the ones the caller assigned (see `loadSubtitleFile`).
 import type { SubtitleFile } from "@prisma/client";
 
+import { deletable } from "./concerns/deletable.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { validatesAssociationPresence, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel } from "./runtime/define-model.ts";
@@ -40,6 +41,9 @@ export const SubtitleFiles = defineModel<SubtitleFile>({
   afterUpdate: [...paperTrail.afterUpdate],
   afterCreate: [...paperTrail.afterCreate],
 });
+
+// SubtitleFile#mark_deleted only assigns deleted_at; the callers save! after it, which is Deletable's mark_deleted!.
+export const SubtitleFileDeletable = deletable(SubtitleFiles);
 
 // The row as Rails materializes it: the virtual `json_data` attribute comes before the table's columns.
 export const loadSubtitleFile = (row: SubtitleFile) => SubtitleFiles.load({ json_data: null, ...row } as SubtitleFile);
