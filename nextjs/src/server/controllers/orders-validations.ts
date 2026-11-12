@@ -26,6 +26,7 @@ import type { LinkRow } from "../presenters/product-reads.ts";
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { json } from "./json-actions.ts";
 import { registerMutations, remoteIp, type MutationInput } from "./mutation.ts";
+import { freeOrderResponse } from "./orders-free-purchase.ts";
 
 // Cart::MAX_ALLOWED_CART_PRODUCTS
 const MAX_ALLOWED_CART_PRODUCTS = 50;
@@ -148,9 +149,11 @@ const PRINTABLE_ASCII_WITHOUT_SPACE = /^[!-~]*$/u;
 export function emailIsInvalid(email: unknown): boolean {
   if (email === undefined || email === null || email === "") return true;
   if (typeof email !== "string") return handBack("with an email that is not text");
-  if (!PRINTABLE_ASCII_WITHOUT_SPACE.test(email))
+  // Purchase's `stripped_fields :email` runs before the validation, so padding does not make an address invalid.
+  const stripped = email.replace(/^[\t\n\v\f\r ]+|[\t\n\v\f\r ]+$/gu, "");
+  if (!PRINTABLE_ASCII_WITHOUT_SPACE.test(stripped))
     return handBack("with an email holding spaces or non-ASCII characters");
-  return !EMAIL_REGEX.test(email);
+  return !EMAIL_REGEX.test(stripped);
 }
 
 // An Integer for a JSON number or a string of digits; Ruby's `to_i` on anything else is not modelled.
@@ -234,6 +237,11 @@ async function create(input: MutationInput): Promise<ActionResult> {
       row: typeof permalink === "string" ? await findLinkByPermalink(permalink) : null,
     });
   }
+
+  // A single line that would be saved (a valid email) is written here when it is a plain free product, else Rails takes it
+  const [only] = found;
+  if (found.length === 1 && only!.row !== null && !blank(params.email) && !emailIsInvalid(params.email))
+    return freeOrderResponse(input, only!.line, only!.row, canBuyerSignUp);
 
   const ip = remoteIp(request);
   const ipCountry = geoIpLookup(ip)?.countryName ?? null;

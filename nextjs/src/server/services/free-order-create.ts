@@ -226,10 +226,16 @@ async function buildPurchase(req: FreeOrderRequest, link: Link, seller: User, ef
   );
   if (bundleProducts.length > 0) handBack("a bundle");
 
-  const urlParameters = parseUrlParameters(
-    blank(line.url_parameters) || line.url_parameters === "{}" ? params.url_parameters : line.url_parameters,
-  );
-  if (urlParameters !== null && Object.keys(urlParameters).length > 0) handBack("url parameters");
+  // Order::CreateService falls back to the query string of the referrer when the line carries none; a referrer that is a product URL
+  // with one stays in Rails.
+  if (
+    (blank(line.url_parameters) || line.url_parameters === "{}") &&
+    !blank(params.referrer) &&
+    params.referrer !== "direct" &&
+    /\/l\/[^/?]+\?[a-z0-9]+/iu.test(String(params.referrer))
+  )
+    handBack("a referrer that carries url parameters");
+  const urlParameters = parseUrlParameters(line.url_parameters);
 
   // The refund policy copied onto the purchase
   let refundPolicy: PurchaseContext["refundPolicy"] = null;
@@ -307,7 +313,8 @@ async function buildPurchase(req: FreeOrderRequest, link: Link, seller: User, ef
     buyerLookupEmail: email,
     purchaserEmail: purchaser?.email ?? undefined,
     chargeReceipt: true,
-    urlParameters: null,
+    urlParameters: urlParameters !== null && Object.keys(urlParameters).length > 0 ? urlParameters : null,
+    urlParametersToSave: urlParameters !== null && Object.keys(urlParameters).length > 0 ? urlParameters : null,
     effects,
   };
   const purchase = withContext(Purchases.build(attributes as never), context);
@@ -338,7 +345,7 @@ async function createOrderAndPurchase(req: FreeOrderRequest, link: Link, seller:
   if (existingTaxInfo.length > 0) throw new Error("A new purchase already has sales tax info");
   await PurchaseSalesTaxInfos.createBang(
     {
-      purchase_id: purchase.get("id"),
+      purchase_id: Number(purchase.get("id")),
       elected_country_code: elected == null ? null : String(elected),
       card_country_code: null,
       ip_country_code: null,
@@ -447,6 +454,7 @@ async function chargeFreeOrder(
     seller,
     purchaser,
     urlRedirect: marked.urlRedirect,
+    urlParameters: (purchase.ivars.context as PurchaseContext).urlParameters,
   });
   return { charge, urlRedirect: marked.urlRedirect, facts };
 }
@@ -479,22 +487,23 @@ async function recordPurchaseEvents(req: FreeOrderRequest, order: OrderRecord) {
         ? null
         : // eslint-disable-next-line no-control-regex
           requestReferrer.replaceAll(/[^\x00-\x7F]/gu, "").slice(0, EVENT_REFERRER_LENGTH) || null;
-    const plugins = blank(req.params.plugins) ? null : String(req.params.plugins);
-    const friend = blank(req.params.friend) ? null : String(req.params.friend);
+    // The recorded request sends `plugins` and `friend` at the top level and Rails stores neither on the event.
+    const plugins: string | null = null;
+    const friend: string | null = null;
     await Events.createBang(
       {
         visit_id: 0,
         ip_address: req.ip,
         event_name: "purchase",
         user_id: null,
-        link_id: link?.id ?? purchase.link_id,
+        link_id: Number(link?.id ?? purchase.link_id),
         referrer: purchase.referrer,
         parent_referrer: null,
         language: req.acceptLanguage,
         browser: req.userAgent,
         is_mobile: req.isMobile,
         email: null,
-        purchase_id: purchase.id,
+        purchase_id: Number(purchase.id),
         price_cents: purchase.price_cents,
         credit_card_id: null,
         card_type: purchase.card_type,
@@ -531,7 +540,7 @@ function referrerDomain(referrer: string | null): string | null {
   if (referrer === null) return null;
   if (referrer === "direct") return "direct";
   try {
-    return new URL(referrer).host || null;
+    return new URL(referrer).hostname || null;
   } catch {
     return null;
   }
