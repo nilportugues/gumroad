@@ -152,6 +152,22 @@ export function homeHelpers(config: DomainConfig): Helpers {
     render: ({ positional, keywords }) => {
       const partial = positional[0];
       if (partial === "home/shared/footer") return new SafeString(footer(config));
+      if (partial === "home/shared/header") {
+        const text = (key: string) => (typeof keywords[key] === "string" ? String(keywords[key]) : undefined);
+        return new SafeString(
+          header({
+            bgColor: String(keywords.bg_color),
+            textColor: text("text_color"),
+            subtitle: text("subtitle"),
+            title: text("title"),
+            description: text("description"),
+            noBorder: keywords.no_border === true,
+            gap: text("gap"),
+            darkBgColor: text("dark_bg_color"),
+            content: "",
+          }),
+        );
+      }
       if (partial !== "home/shared/button") throw new NotPortedError(`the partial ${String(partial)}`);
       return new SafeString(
         button({
@@ -165,6 +181,7 @@ export function homeHelpers(config: DomainConfig): Helpers {
     },
     image_tag: ({ positional, keywords }) => imageTag(imagePath(config, String(positional[0])), keywords),
     link_to: ({ positional, keywords }) => linkTo(String(positional[0]), String(positional[1]), keywords),
+    help_center_article_path: ({ positional }) => `/help/article/${String(positional[0])}`,
     ...Object.fromEntries(Object.entries(PATHS).map(([name, value]) => [name, () => value])),
   };
 }

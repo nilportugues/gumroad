@@ -33,6 +33,7 @@ import {
 } from "./application-controller.ts";
 import { discordHandlers } from "./discord.ts";
 import { gumclawPage } from "./erb-pages.ts";
+import { homePage, homePageOptions } from "./home-pages.ts";
 import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
@@ -287,7 +288,7 @@ async function acmeChallenge(token: string): Promise<Rendered> {
 }
 
 type Handler = {
-  options?: ActionOptions;
+  options?: ActionOptions | ((request: RailsRequest) => ActionOptions);
   run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult>;
 };
 
@@ -312,6 +313,10 @@ const HANDLERS: Record<string, Handler> = {
     run: (request, url, action) => Promise.resolve(featuresMd(request, url, action.chain.now)),
   },
   gumclaw: { run: (request, _url, action) => gumclawPage(request, action) },
+  home_page: {
+    options: homePageOptions,
+    run: (request, url, action) => homePage(request, action, url.pathname.replace(/^\/|\/$/gu, "")),
+  },
   mcp_connectors_index: { run: (request, _url, action) => mcpConnectorPage(request, action, null) },
   mcp_connectors_show: {
     run: (request, url, action) => mcpConnectorPage(request, action, decodeURIComponent(url.pathname).replace(/^\/|\/$/gu, "")),
@@ -360,5 +365,6 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const url = new URL(target, `${protocol}://${host}`);
   const request = new Request(url, { method: incoming.method, headers: incoming.headers });
-  return processAction(request, handler.options ?? {}, (action) => handler.run(railsRequest(request), url, action));
+  const options = typeof handler.options === "function" ? handler.options(railsRequest(request)) : (handler.options ?? {});
+  return processAction(request, options, (action) => handler.run(railsRequest(request), url, action));
 }

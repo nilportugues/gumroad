@@ -17,6 +17,7 @@ import { viteEntrypointStylesheet } from "../infra/vite.ts";
 import { formAuthenticityToken } from "../page-props/csrf.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { MetaTagBuilder } from "../page-props/meta-tags.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
 import type { SharedPropsPorts } from "../page-props/ports.ts";
 import { applicationMetaTags } from "../page-props/shared.ts";
 
@@ -55,6 +56,7 @@ export async function renderHomePage(
   action: ActionContext,
   page: PageMeta | ((origin: string) => PageMeta),
   view: (ctx: LayoutContext) => string,
+  response: { paramsRead?: boolean; headers?: Record<string, string> } = {},
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
   // A signed-in visitor sees the Dashboard nav and the seller-aware analytics flags, none of it recorded.
@@ -85,13 +87,21 @@ export async function renderHomePage(
     signedIn: false,
     hideLayouts: true,
   };
+  // A tag the ERB table does not list is a page Rails renders, not one to guess.
+  let renderedBody: string;
+  try {
+    renderedBody = renderHomeLayout(ctx, view(ctx), origin);
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
+    throw error;
+  }
   return {
     status: 200,
-    body: renderHomeLayout(ctx, view(ctx), origin),
+    body: renderedBody,
     contentType: HTML,
-    headers: { link: viteEntrypointStylesheet("entrypoints/design.scss").linkHeader },
+    headers: { ...response.headers, link: viteEntrypointStylesheet("entrypoints/design.scss").linkHeader },
     cspNonce: nonce,
-    paramsRead: true,
+    paramsRead: response.paramsRead ?? true,
   };
 }
 
