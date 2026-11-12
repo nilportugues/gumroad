@@ -25,6 +25,14 @@ import { RubyHash } from "./concerns/psych.ts";
 import { rubyJsonGenerate } from "./concerns/serialized-columns.ts";
 import { gumroadAdminId } from "./gumroad-admin-id.ts";
 import { HOLDER_OF_FUNDS } from "./merchant-account.ts";
+import { reverseInternalTransferOrHoldPayoutsBang } from "./payment-hold.ts";
+import {
+  createPaymentBang,
+  markFailedBang,
+  markProcessingBang,
+  PAYMENT_STATES,
+  type PaymentRecord,
+} from "./payment.ts";
 import {
   holdOf,
   getPayoutDetails,
@@ -334,4 +342,115 @@ export async function claimPayoutGroups(
     }
     return groups;
   });
+}
+
+export type PreparePayment = (
+  payment: PaymentRecord,
+  balances: BalanceRecord[],
+  merchantAccount: PayoutGroup["merchantAccount"],
+  payoutCurrency: string | null,
+) => Promise<string[]>;
+export type CreatePayments = CreatePaymentsOptions & { prepare: PreparePayment };
+
+const TRUNCATED_ERROR_MESSAGE_LENGTH = 1000;
+const PROCESSOR_UNAVAILABLE = "processor_unavailable";
+
+// `String#truncate(1000)`: the omission counts toward the limit.
+const rubyTruncate = (text: string, length: number) =>
+  text.length <= length ? text : `${text.slice(0, length - 3)}...`;
+
+// The class name Rails would put in front of the message.
+const errorClassName = (error: unknown) => {
+  if (error instanceof Error) return error.constructor === Error ? "RuntimeError" : error.name;
+  return "RuntimeError";
+};
+
+// `user.active_bank_account`: bank_accounts.alive.first
+async function activeBankAccountId(user: UserRecord): Promise<unknown> {
+  const [row] = await selectRows<{ id: unknown }>(
+    Prisma.sql`SELECT ${Prisma.raw("`bank_accounts`.*")} FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${user.get("id")} AND ${column("bank_accounts", "deleted_at")} IS NULL ORDER BY ${column("bank_accounts", "id")} ASC LIMIT 1`,
+  );
+  return row?.id ?? null;
+}
+
+// `Payouts.create_payments(date, STRIPE, user, ...)`. `prepare` is `StripePayoutProcessor.prepare_payment_and_set_amount`, which is
+// not ported: a caller has to bring one, so nothing here is reachable from a request until it is.
+export async function createPaymentsBang(
+  date: Date,
+  user: UserRecord,
+  input: CreatePayments,
+): Promise<[PaymentRecord, string[]][]> {
+  const options: SaveOptions = input.now ? { now: input.now } : {};
+  // A datetime(0) column drops the fraction of a second.
+  const claimedAtExact = (input.now ?? (() => new Date()))();
+  const claimedAt = new Date(Math.floor(claimedAtExact.getTime() / 1000) * 1000);
+  const payoutType = input.payoutType ?? PAYOUT_TYPE_STANDARD;
+  const created = await transaction(async () => {
+    const groups = await claimPayoutGroups(user, date, input);
+    const payments: { payment: PaymentRecord; group: PayoutGroup }[] = [];
+    for (const group of groups) {
+      let bankAccountId = await activeBankAccountId(user);
+      const accountCurrency =
+        group.merchantAccount === null
+          ? null
+          : String((group.merchantAccount as unknown as { currency: unknown }).currency ?? "");
+      if (group.merchantAccount === null || group.currency !== accountCurrency) bankAccountId = null;
+      const payment = await createPaymentBang(
+        {
+          user,
+          processor: STRIPE,
+          payoutPeriodEndDate: date,
+          payoutType,
+          createdAt: claimedAt,
+          currency: group.currency ?? "usd",
+          stripeConnectAccountId:
+            group.merchantAccount === null
+              ? null
+              : String(
+                  (group.merchantAccount as unknown as { charge_processor_merchant_id: unknown })
+                    .charge_processor_merchant_id ?? "",
+                ),
+          bankAccountId,
+          balances: group.balances.map((entry) => entry.balance),
+        },
+        options,
+      );
+      payments.push({ payment, group });
+    }
+    return payments;
+  });
+
+  const results: [PaymentRecord, string[]][] = [];
+  for (const { payment, group } of created) {
+    try {
+      const errors = await input.prepare(
+        payment,
+        group.balances.map((entry) => entry.balance),
+        group.merchantAccount,
+        group.currency,
+      );
+      if (payment.get("state") !== PAYMENT_STATES.FAILED) await markProcessingBang(payment, options);
+      results.push([payment, errors]);
+    } catch (error) {
+      // The processor owns transfer reversal and unknown-outcome holds; do not overwrite its reason.
+      if (payment.get("state") !== PAYMENT_STATES.FAILED) {
+        const message = `${errorClassName(error)}: ${error instanceof Error ? error.message : String(error)}`;
+        setRecordJsonDataForAttr(
+          payment as never,
+          "error_message",
+          rubyTruncate(message, TRUNCATED_ERROR_MESSAGE_LENGTH),
+        );
+        await markFailedBang(payment, PROCESSOR_UNAVAILABLE, options);
+        await reverseInternalTransferOrHoldPayoutsBang(payment, payment.get("failure_reason"), options);
+      }
+      notifyError(error, { payment_id: payment.get("id") });
+      results.push([payment, [error instanceof Error ? error.message : String(error)]]);
+    }
+  }
+  return results;
+}
+
+// `Payouts.create_payment`: the single payment, refusing a seller who needs several.
+export async function createPaymentBangFor(date: Date, user: UserRecord, input: CreatePayments) {
+  return (await createPaymentsBang(date, user, { ...input, singleGroup: true }))[0];
 }

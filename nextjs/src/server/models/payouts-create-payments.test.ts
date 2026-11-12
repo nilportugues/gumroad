@@ -13,10 +13,20 @@ import { esRecorder } from "../search/__fixtures__/job-harness.ts";
 
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { resetLinkCollaborators, setLinkCollaborators } from "./link.ts";
+import { markFailedBang, type PaymentRecord } from "./payment.ts";
 import { resetPayoutReadCollaborators, setPayoutReadCollaborators } from "./payout-reads.ts";
-import { claimPayoutGroups, markBalancesProcessing, PAYOUT_TYPE_INSTANT, PAYOUT_TYPE_STANDARD } from "./payouts.ts";
+import {
+  assertPayoutShape,
+  claimPayoutGroups,
+  createPaymentBangFor,
+  createPaymentsBang,
+  markBalancesProcessing,
+  PAYOUT_TYPE_INSTANT,
+  PAYOUT_TYPE_STANDARD,
+  type PreparePayment,
+} from "./payouts.ts";
 import { setSellerProfileCacheForTesting } from "./seller-profile.ts";
-import { findUserBang, resetUserCollaborators, setUserCollaborators } from "./user.ts";
+import { NotPortedError, findUserBang, resetUserCollaborators, setUserCollaborators } from "./user.ts";
 
 type Case = {
   name: string;
@@ -147,4 +157,179 @@ describe("a withheld ledger", () => {
       expect(result).toEqual([]);
     });
   }
+});
+
+describe("the payments of a payout", () => {
+  type Behaviour = "none" | "raise" | "fail";
+  // The stub the Ruby cases install for `prepare_payment_and_set_amount`: it records its arguments and may raise or fail the payment.
+  const prepareStub =
+    (calls: unknown[], behaviour: Behaviour): PreparePayment =>
+    async (payment, balances, account, currency) => {
+      calls.push({
+        payment_id: Number(payment.get("id")),
+        balance_ids: balances.map((balance) => Number(balance.get("id"))),
+        merchant_account_id: account === null ? null : Number(account.id),
+        payout_currency: currency,
+      });
+      if (behaviour === "raise") throw new Error("stripe is unreachable");
+      if (behaviour === "fail") {
+        await markFailedBang(payment, "cannot_pay", { now });
+        return ["failed"];
+      }
+      return [];
+    };
+  const CASES: Record<string, { behaviour: Behaviour; type?: string; single?: boolean }> = {
+    "one payable Stripe-held balance becomes one processing payment": { behaviour: "none" },
+    "two balances share one payment": { behaviour: "none" },
+    "a balance dated after the payout date is not claimed": { behaviour: "none" },
+    "an instant payout records its payout type": { behaviour: "none", type: PAYOUT_TYPE_INSTANT },
+    "Gumroad-held balances join the seller's own group": { behaviour: "none" },
+    "a processor error fails the payment as processor_unavailable": { behaviour: "raise" },
+    "a payment the processor already failed is not marked processing": { behaviour: "fail" },
+    "create_payment returns the single payment": { behaviour: "none", single: true },
+  };
+  for (const [name, spec] of Object.entries(CASES)) {
+    it(name, async () => {
+      const c = byName(name);
+      const calls: unknown[] = [];
+      let payments: [PaymentRecord, string[]][] = [];
+      const { sql, error } = await run(c, c.statements, async () => {
+        const user = await seller();
+        const input = { payoutType: spec.type as never, now, prepare: prepareStub(calls, spec.behaviour) };
+        if (spec.single) {
+          const single = await createPaymentBangFor(PAYOUT_DATE, user, input);
+          payments = single ? [single] : [];
+        } else payments = await createPaymentsBang(PAYOUT_DATE, user, input);
+      });
+      expect(sql.log).toEqual(sql.expected);
+      expect(error).toBeNull();
+      expect(calls).toEqual(c.prepare_calls);
+      expect(payments.map(([payment]) => payment.get("state"))).toEqual([
+        spec.behaviour === "none" ? "processing" : "failed",
+      ]);
+    });
+  }
+});
+
+describe("shapes refused before the first write", () => {
+  // The first case with one of its answers changed: the statements Node sends are judged, not compared with Ruby's.
+  const patched = (patch: (statement: Statement, index: number) => void): Statement[] => {
+    const copy = structuredClone(byName("one payable Stripe-held balance becomes one processing payment").statements);
+    copy.forEach(patch);
+    return copy;
+  };
+  const setField = (statement: Statement, field: string, value: unknown) => {
+    const index = statement.result?.fields?.indexOf(field) ?? -1;
+    if (index >= 0) for (const row of statement.result!.rows!) row[index] = value as never;
+  };
+  const table = (statement: Statement) => /FROM `(\w+)`/u.exec(statement.sql)?.[1];
+  const refused = async (statements: Statement[], input: Partial<Parameters<typeof createPaymentsBang>[2]> = {}) => {
+    const c = byName("one payable Stripe-held balance becomes one processing payment");
+    const prepared: unknown[] = [];
+    const { sql, error } = await run(c, statements, async () =>
+      createPaymentsBang(PAYOUT_DATE, await seller(), {
+        now,
+        prepare: (...args) => Promise.resolve((prepared.push(args), [])),
+        ...input,
+      }),
+    );
+    expect(error).toBeInstanceOf(NotPortedError);
+    // Nothing was written and Stripe was never reached: only reads, the seller lock and the balances' lock were sent.
+    expect(sql.log.filter((statement) => /^(INSERT|UPDATE|DELETE)/u.test(statement))).toEqual([]);
+    expect(prepared).toEqual([]);
+    return error as NotPortedError;
+  };
+
+  it("a balance in a currency its Stripe account does not hold", async () => {
+    const error = await refused(
+      patched((s) => {
+        if (table(s) === "balances") setField(s, "holding_currency", "eur");
+      }),
+    );
+    expect(error.message).toMatch(/currency its Stripe account does not hold/u);
+  });
+
+  it("a balance held on a retired Stripe account", async () => {
+    const error = await refused(
+      patched((s) => {
+        if (table(s) === "merchant_accounts" && s.sql.includes("`id` = 3"))
+          setField(s, "charge_processor_alive_at", null);
+      }),
+    );
+    expect(error.message).toMatch(/retired Stripe account/u);
+  });
+
+  it("a balance on an account retired by adoption", async () => {
+    const error = await refused(
+      patched((s) => {
+        if (table(s) === "merchant_accounts" && s.sql.includes("`id` = 3"))
+          setField(s, "json_data", '{"retired_by_adoption_at":"2025-10-01T00:00:00Z"}');
+      }),
+    );
+    expect(error.message).toMatch(/retired Stripe account/u);
+  });
+
+  it("a seller paused by the system, who may be under the chargeback-rate reserve", async () => {
+    const error = await refused(
+      patched((s) => {
+        if (table(s) === "users") {
+          setField(s, "flags", 1 << 19);
+          setField(s, "json_data", '{"payouts_paused_by":"system"}');
+        }
+      }),
+    );
+    expect(error.message).toMatch(/chargeback-rate reserve/u);
+  });
+
+  it("a retried payout", async () => {
+    const error = await refused(byName("one payable Stripe-held balance becomes one processing payment").statements, {
+      retrying: true,
+    });
+    expect(error.message).toMatch(/retried payout/u);
+  });
+
+  it("a seller with Stripe Connect routing", async () => {
+    const c = byName("one payable Stripe-held balance becomes one processing payment");
+    const sql = sqlReplay(c.statements);
+    setPayoutReadCollaborators({ isFeatureEnabled: () => Promise.resolve(true) });
+    let error: unknown = null;
+    try {
+      await createPaymentsBang(PAYOUT_DATE, await seller(), { now, prepare: () => Promise.resolve([]) });
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(NotPortedError);
+    expect(sql.log.filter((statement) => /^(INSERT|UPDATE|DELETE)/u.test(statement))).toEqual([]);
+  });
+
+  it("a legal entity outside the United States", async () => {
+    const error = await refused(
+      patched((s) => {
+        if (table(s) === "user_compliance_info") {
+          s.result = { fields: ["id", "country", "is_business"], rows: [[1, "Canada", false]] };
+        }
+      }),
+    );
+    expect(error.message).toMatch(/country other than the United States/u);
+  });
+
+  it("a single payout that would need several, and a group that sums to nothing", () => {
+    const held = (id: number, accountId: number, amount: number, holder = "stripe") =>
+      ({
+        holder,
+        account: {},
+        balance: {
+          get: (name: string) =>
+            ({ id, merchant_account_id: accountId, holding_currency: "usd", amount_cents: amount })[name],
+        },
+      }) as never;
+    const account = { id: 3, currency: "usd" } as never;
+    expect(() => assertPayoutShape([held(1, 3, 100), held(2, 4, 100)], account, true)).toThrow(
+      /MultiplePayoutGroupsError/u,
+    );
+    expect(() => assertPayoutShape([held(1, 3, 100), held(2, 4, 100)], account, false)).not.toThrow();
+    expect(() => assertPayoutShape([held(1, 3, 100), held(2, 4, 0)], account, false)).toThrow(/sums to nothing/u);
+    // A negative ledger is withheld, not refused.
+    expect(() => assertPayoutShape([held(1, 3, 100), held(2, 4, -500)], account, true)).not.toThrow();
+  });
 });

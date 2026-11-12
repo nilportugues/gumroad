@@ -4,7 +4,7 @@
 //
 // Not ported, and refused with NotPortedError before anything is written: every other event (completed, cancelled, reversed,
 // returned, unclaimed), the PayPal and other processors' validations and callbacks, and the sync_with_* methods.
-import { Prisma, type Payment } from "@prisma/client";
+import { Prisma, type Payment, type PaymentsBalance } from "@prisma/client";
 
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
@@ -124,6 +124,57 @@ export function paymentBalances(payment: PaymentRecord): Promise<BalanceRecord[]
     balancesOf.set(payment, loaded);
   }
   return loaded;
+}
+
+// `payment.balances = group_balances`: the association target is the balances the payout was claimed with, so a later read
+// does not query for them.
+export function setPaymentBalances(payment: PaymentRecord, balances: BalanceRecord[]): void {
+  balancesOf.set(payment, Promise.resolve(balances));
+}
+
+const PaymentsBalances = defineModel<PaymentsBalance>({
+  rubyClass: "PaymentsBalance",
+  prismaModel: "PaymentsBalance",
+  delegate: (tx) => tx.paymentsBalance as never,
+});
+
+export type NewPayment = {
+  user: UserRecord;
+  processor: string;
+  payoutPeriodEndDate: Date;
+  payoutType: string;
+  createdAt: Date;
+  currency: string;
+  stripeConnectAccountId: string | null;
+  bankAccountId: unknown;
+  balances: BalanceRecord[];
+};
+
+// Payment.create!(user:, balances:, processor:, processor_fee_cents: 0, payout_period_end_date:, payout_type:, created_at:,
+// currency:, stripe_connect_account_id:, bank_account:) for a Stripe payout: the payment, then one payments_balances row per balance.
+export function createPaymentBang(attributes: NewPayment, options: SaveOptions = {}): Promise<PaymentRecord> {
+  return transaction(async () => {
+    const payment = Payments.build({
+      state: PAYMENT_STATES.CREATING,
+      processor: attributes.processor,
+      processor_fee_cents: 0,
+      payout_period_end_date: attributes.payoutPeriodEndDate,
+      created_at: attributes.createdAt,
+      currency: attributes.currency,
+      stripe_connect_account_id: attributes.stripeConnectAccountId,
+      bank_account_id: attributes.bankAccountId as never,
+    });
+    assignPaymentUser(payment, attributes.user);
+    setJsonDataForAttr(payment as never, "payout_type", attributes.payoutType);
+    await Payments.saveBang(payment, options);
+    for (const balance of attributes.balances)
+      await PaymentsBalances.saveBang(
+        PaymentsBalances.build({ payment_id: Number(payment.get("id")), balance_id: Number(balance.get("id")) }),
+        options,
+      );
+    setPaymentBalances(payment, attributes.balances);
+    return payment;
+  });
 }
 
 // Time#to_s of a UTC time: "2025-10-31 10:00:00 UTC".
