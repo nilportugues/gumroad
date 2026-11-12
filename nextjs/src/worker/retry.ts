@@ -4,6 +4,7 @@
 // retry with the delay this computed (see `retryDelayMs`), or fails the job for good.
 import { UnrecoverableError } from "bullmq";
 
+import { ExhaustedHandBack, HandBackToRuby } from "../server/jobs/hand-back.ts";
 import type { JobDefinition } from "../server/jobs/registry-types.ts";
 import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import type { SidekiqItem } from "../server/jobs/sidekiq/item.ts";
@@ -87,20 +88,25 @@ export async function handleFailure(error: unknown, context: FailureContext): Pr
     retry_count: count,
   } as SidekiqItem;
 
-  const exhaust = async () => {
+  // A hook may throw HandBackToRuby when what is left of its work is Ruby's; Ruby then gets one last attempt and its own hook.
+  const exhaust = async (): Promise<ExhaustedHandBack | undefined> => {
     const hook = hooks.retriesExhausted[name];
-    if (!hook) return;
+    if (!hook) return undefined;
     try {
       await hook(msg, error, { runtime });
     } catch (hookError) {
+      if (hookError instanceof HandBackToRuby) {
+        return new ExhaustedHandBack(hookError.message, {
+          ...msg,
+          retry_count: Math.max(maxRetryAttempts(retry) - 1, 0),
+        });
+      }
       console.error(`Error calling retries_exhausted for ${name} ${String(item.jid)}:`, hookError);
     }
+    return undefined;
   };
 
-  if (count >= maxRetryAttempts(retry)) {
-    await exhaust();
-    return error;
-  }
+  if (count >= maxRetryAttempts(retry)) return (await exhaust()) ?? error;
 
   let strategy: number | "discard" | "kill" | undefined;
   try {
@@ -111,7 +117,8 @@ export async function handleFailure(error: unknown, context: FailureContext): Pr
   }
   if (strategy === "discard") return new UnrecoverableError(`${name} ${String(item.jid)} discarded by sidekiq_retry_in: ${errorMessage(error)}`);
   if (strategy === "kill") {
-    await exhaust();
+    const handBack = await exhaust();
+    if (handBack) return handBack;
     return new UnrecoverableError(`${name} ${String(item.jid)} killed by sidekiq_retry_in: ${errorMessage(error)}`);
   }
 

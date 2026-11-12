@@ -2,6 +2,7 @@
 import { UnrecoverableError } from "bullmq";
 import { describe, expect, it, vi } from "vitest";
 
+import { ExhaustedHandBack, HandBackToRuby } from "../server/jobs/hand-back.ts";
 import type { JobDefinition } from "../server/jobs/registry-types.ts";
 import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import type { SidekiqItem } from "../server/jobs/sidekiq/item.ts";
@@ -57,6 +58,17 @@ describe("handleFailure", () => {
     });
     expect(error).toBeInstanceOf(Error);
     expect(retryDelayMs(error)).toBeUndefined();
+  });
+
+  it("returns an ExhaustedHandBack when the hook hands back, with retry_count one below the maximum", async () => {
+    const exhausted = vi.fn<RetriesExhausted>(async () => { throw new HandBackToRuby("money"); });
+    const outcome = await fail(3, hooks(undefined, exhausted));
+    expect(outcome).toBeInstanceOf(ExhaustedHandBack);
+    expect((outcome as ExhaustedHandBack).item).toMatchObject({ jid: "abc", retry_count: 2, error_message: "boom", retried_at: new RubyFloat(1_761_955_200.5) });
+    const killed = await fail(1, hooks(() => "kill", exhausted));
+    expect(killed).toBeInstanceOf(ExhaustedHandBack);
+    const once = await fail(0, hooks(undefined, exhausted), { item: { ...item, retry: 0 } });
+    expect((once as ExhaustedHandBack).item).toMatchObject({ retry_count: 0 });
   });
 
   it("runs the exhausted hook on the only run of retry: 0, and never for retry: false", async () => {

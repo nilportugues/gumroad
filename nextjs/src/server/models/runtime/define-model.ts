@@ -10,7 +10,7 @@
 // run_after_transaction_callbacks_in_order_defined = false.
 import { Prisma } from "@prisma/client";
 
-import { castRow, column, quoteName, selectRows, table, tableName } from "../sql.ts";
+import { castRow, column, connection, quoteName, selectRows, table, tableName } from "../sql.ts";
 
 import { AbortChain, RecordInvalid, RecordNotDestroyed, RecordNotFound, RecordNotSaved } from "./errors.ts";
 import { clearQueryCache } from "./query-cache.ts";
@@ -379,6 +379,10 @@ export function defineModel<R extends Row>(def: ModelDefinition<R>) {
     },
     // `valid?` outside a save still runs inside a transaction so uniqueness checks see a client.
     valid: (record: ModelRecord<R>, context?: string) => transaction((tx) => valid(record, { tx }, context)),
+    // `valid?` as ActiveRecord sends it: the checks read through the connection with no BEGIN around them. For models whose
+    // validations only read (a validator that writes needs the transaction above).
+    validWithoutTransaction: async (record: ModelRecord<R>, context?: string) =>
+      valid(record, { tx: (await connection()) as Tx }, context),
     save,
     touch,
     saveBang,

@@ -664,7 +664,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "CustomDomainsVerificationWorker": {
     "file": "app/sidekiq/custom_domains_verification_worker.rb",
@@ -870,7 +870,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": true,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DetectFailingPaypalRailsJob": {
     "file": "app/sidekiq/detect_failing_paypal_rails_job.rb",
@@ -1103,7 +1103,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Exports::AudienceExportWorker": {
     "file": "app/sidekiq/exports/audience_export_worker.rb",
@@ -1116,7 +1116,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "Exports::Sales::CompileChunksWorker": {
     "file": "app/sidekiq/exports/sales/compile_chunks_worker.rb",
@@ -1453,7 +1453,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateUsernameJob": {
     "file": "app/sidekiq/generate_username_job.rb",
@@ -1930,7 +1930,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PublishScheduledPostJob": {
     "file": "app/sidekiq/publish_scheduled_post_job.rb",
@@ -2708,7 +2708,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReviewReminderJob": {
     "file": "app/sidekiq/review_reminder_job.rb",
@@ -3245,7 +3245,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": true,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "StripeCreateMerchantAccountsWorker": {
     "file": "app/sidekiq/stripe_create_merchant_accounts_worker.rb",

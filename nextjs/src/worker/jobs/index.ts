@@ -267,6 +267,19 @@ import {
   generateCommunityChatRecapJob,
   generateCommunityChatRecapJobRetriesExhausted,
 } from "./generate-community-chat-recap-job.ts";
+import {
+  reverseDeferredInternalTransferJob,
+  reverseDeferredInternalTransferJobRetriesExhausted,
+} from "./reverse-deferred-internal-transfer-job.ts";
+import {
+  generateSubscribePreviewJob,
+  generateSubscribePreviewJobRetriesExhausted,
+} from "./generate-subscribe-preview-job.ts";
+import { productBuildUnpackJob } from "./product-build-unpack-job.ts";
+import { stampPdfForPurchaseJob } from "./stamp-pdf-for-purchase-job.ts";
+import { deliverFilesReadyNotificationJob } from "./deliver-files-ready-notification-job.ts";
+import { customDomainVerificationWorker } from "./custom-domain-verification-worker.ts";
+import { affiliateExportWorker, audienceExportWorker } from "./user-export-workers.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -495,6 +508,14 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   HandleNewBankAccountWorker: handleNewBankAccountWorker,
   DeleteGuardianStripePersonJob: deleteGuardianStripePersonJob,
   GenerateCommunityChatRecapJob: generateCommunityChatRecapJob,
+  ReverseDeferredInternalTransferJob: reverseDeferredInternalTransferJob,
+  GenerateSubscribePreviewJob: generateSubscribePreviewJob,
+  ProductBuildUnpackJob: productBuildUnpackJob,
+  StampPdfForPurchaseJob: stampPdfForPurchaseJob,
+  DeliverFilesReadyNotificationJob: deliverFilesReadyNotificationJob,
+  CustomDomainVerificationWorker: customDomainVerificationWorker,
+  "Exports::AffiliateExportWorker": affiliateExportWorker,
+  "Exports::AudienceExportWorker": audienceExportWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
@@ -519,4 +540,6 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   HandleNewBankAccountWorker: handleNewBankAccountWorkerRetriesExhausted,
   DeleteGuardianStripePersonJob: deleteGuardianStripePersonJobRetriesExhausted,
   GenerateCommunityChatRecapJob: generateCommunityChatRecapJobRetriesExhausted,
+  ReverseDeferredInternalTransferJob: reverseDeferredInternalTransferJobRetriesExhausted,
+  GenerateSubscribePreviewJob: generateSubscribePreviewJobRetriesExhausted,
 };
