@@ -36,7 +36,7 @@ export const cancelSubscriptionsForProductWorkerWith = modelJob({ min: 1 }, asyn
 
   await deliverLater(
     runtime,
-    { mailer: MAILER, method: METHOD, args: [productId], queue: "critical" },
+    { mailer: MAILER, method: METHOD, args: [productId as string | number], queue: "critical" },
     mailRoute(MAILER, METHOD),
   );
 });
