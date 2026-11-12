@@ -10,6 +10,8 @@ require "spec_helper"
 # An example named "hands ..." is one Node leaves to Rails: the verifier is spent by the token call, so what Node cannot finish after it
 # (a login or signup, a profile picture to download, the async window page) is handed back before anything is asked of Twitter.
 describe "Twitter OAuth", type: :request do
+  PNG_7X5 = "iVBORw0KGgoAAAANSUhEUgAAAAcAAAAFAQMAAACzVGSbAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAABlBMVEX/AAD///9BHTQRAAAAAWJLR0QB/wIt3gAAAAd0SU1FB+oLDAUCF/EjOUMAAAALSURBVAjXY2CAAQAACgAB5/ja+gAAACV0RVh0ZGF0ZTpjcmVhdGUAMjAyNi0xMS0xMlQwNTowMjoyMyswMDowMKb5F4IAAAAldEVYdGRhdGU6bW9kaWZ5ADIwMjYtMTEtMTJUMDU6MDI6MjMrMDA6MDDXpK8+AAAAAElFTkSuQmCC"
+  JPEG_9X4 = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAAEAAkDAREAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAYJ/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8Anu1TQ4D/2Q=="
   include Parity::AudienceSignedIn
 
   let(:nonce) { "c25dfixednonce" }
@@ -337,13 +339,70 @@ describe "Twitter OAuth", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a callback of a seller with no avatar to Rails", parity: true do
-      ActiveStorage::Attachment.where(record_type: "User", record_id: user.id, name: "avatar").delete_all
-      link!
+    describe "a seller with no avatar" do
+      let(:photo_url) { "http://pbs.twimg.com/profile_images/4242424242/photo" }
+      let(:png) { Base64.decode64(PNG_7X5) }
 
-      callback
+      before do
+        ActiveStorage::Attachment.where(record_type: "User", record_id: user.id, name: "avatar").delete_all
+        $twitter.bearer_token = nil
+        # `avatar_url` renders the 400x400 variant, whose bytes are ImageMagick's re-encoding of the picture: the port leaves it to the first render
+        # that needs it, so the recording does not hold the variant rows and files either.
+        allow_any_instance_of(User).to receive(:avatar_url).and_return("avatar-url")
+        link!
+      end
 
-      expect(response).to redirect_to("/settings/social_connections")
+      def stub_profile(url: "#{photo_url}_normal.png")
+        stub_request(:get, %r{api\.twitter\.com/1\.1/users/show}).to_return(status: 200, headers: json, body: { id: 4_242_424_242, profile_image_url_https: url.sub("http:", "https:") }.to_json)
+      end
+
+      def stub_photo(path: "#{photo_url}_400x400.png", status: 200, type: "image/png", body: png)
+        stub_request(:get, path).to_return(status:, headers: { "Content-Type" => type }, body:)
+      end
+
+      it "downloads the profile picture at its larger size and attaches it", parity: true do
+        stub_profile
+        stub_photo
+
+        callback
+
+        expect(response).to redirect_to("/settings/social_connections")
+        blob = user.reload.avatar.blob
+        expect(blob).to have_attributes(filename: ActiveStorage::Filename.new("photo_400x400.png"), content_type: "image/png", byte_size: png.bytesize,
+                                        checksum: Digest::MD5.base64digest(png), service_name: "test")
+        expect(blob.metadata).to include("identified" => true, "analyzed" => true, "width" => 7, "height" => 5)
+        expect(ActiveStorage::Blob.service.exist?(blob.key)).to be(true)
+        # The test adapter keeps the ActiveJob that production hands to Sidekiq; the replay checks Node pushed the same one.
+        analyze = ActiveJob::Base.queue_adapter.enqueued_jobs.select { |job| job["job_class"] == "ActiveStorage::AnalyzeJob" || job[:job] == ActiveStorage::AnalyzeJob }
+        expect(analyze.map { |job| [job[:queue], job[:args]] }).to eq([["default", [{ "_aj_globalid" => "gid://gumroad/ActiveStorage::Blob/#{blob.id}" }]]])
+      end
+
+      it "attaches a jpeg picture", parity: true do
+        stub_profile(url: "#{photo_url}_normal.jpg")
+        stub_photo(path: "#{photo_url}_400x400.jpg", type: "image/jpeg", body: Base64.decode64(JPEG_9X4))
+
+        callback
+
+        expect(user.reload.avatar.blob).to have_attributes(content_type: "image/jpeg")
+        expect(user.avatar.blob.metadata).to include("width" => 9, "height" => 4)
+      end
+
+      it "leaves the seller without a picture when the profile cannot be read", parity: true do
+        callback
+
+        expect(response).to redirect_to("/settings/social_connections")
+        expect(user.reload.avatar).not_to be_attached
+      end
+
+      it "leaves the seller without a picture when the download is refused", parity: true do
+        stub_profile
+        stub_photo(status: 404, body: "")
+
+        callback
+
+        expect(response).to redirect_to("/settings/social_connections")
+        expect(user.reload.avatar).not_to be_attached
+      end
     end
   end
 end

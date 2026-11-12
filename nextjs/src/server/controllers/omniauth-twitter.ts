@@ -3,13 +3,12 @@
 // signed-in seller (User::OmniauthCallbacksController#twitter, link state).
 //
 // The verifier is spent by the access token call, so what Node cannot finish afterwards is handed back to Rails before it: a login or signup
-// (it finds or creates an account from the payload), the async link (an ERB page that closes the window) and a seller with no avatar (the
-// profile picture is downloaded and attached). See parity-debt.md.
+// (it finds or creates an account from the payload) and the async link (an ERB page that closes the window). See parity-debt.md.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { getConfig } from "../infra/config.ts";
 import { OAuth1Timeout, parseTokenAnswer, signedRequest } from "../infra/oauth1.ts";
 import { recordSocialConnectEvent } from "../models/social-connect-funnel.ts";
-import { avatarAttached, linkTwitterAccount, TwitterPayloadError } from "../models/social-twitter.ts";
+import { linkTwitterAccount, TwitterPayloadError } from "../models/social-twitter.ts";
 
 import { type ActionResult, HandBackToRails } from "./application-controller.ts";
 import { type MutationInput, registerMutations } from "./mutation.ts";
@@ -204,8 +203,6 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
     if (input.params.callback_url !== undefined || omniauthParams.callback_url !== undefined)
       throw new HandBackToRails("a callback_url of its own");
     const user = railsLoggedInUser(chain.auth.context);
-    if (user && !(await avatarAttached(user.id)))
-      throw new HandBackToRails("a seller whose profile picture would be downloaded");
     if (chain.auth.effects.signOut || chain.auth.authenticatedVia === "remember_cookie")
       throw new HandBackToRails("a visitor Devise signs in or out on the way");
     const { key, secret } = secrets();

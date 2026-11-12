@@ -1,8 +1,9 @@
 // User.query_twitter and the link half of User::OmniauthCallbacksController (app/modules/user/social_twitter.rb): the Twitter (X) account a
-// signed-in seller links is written to the user and to a SocialConnectVerification. The profile picture download (`twitter_picture_url`) is
-// not ported: the callback is handed back to Rails before the verifier is spent for a seller with no avatar.
+// signed-in seller links is written to the user and to a SocialConnectVerification, and the profile picture of a seller with none is
+// downloaded and attached (`twitterPictureUrl`, profile-picture.ts).
 import { Prisma } from "@prisma/client";
 
+import { twitterPictureUrl } from "./profile-picture.ts";
 import { recordSocialConnectEvent } from "./social-connect-funnel.ts";
 import { presence, presentToI, record, rubyToS, stringColumn } from "./social-connect-verification.ts";
 import { execute, selectRows, column, table } from "./sql.ts";
@@ -110,6 +111,7 @@ export async function linkTwitterAccount(
   if (presence(user.get("username")) === null) user.set("username", user.get("twitter_handle"));
   if (!(await Users.valid(user))) user.set("username", null);
   await Users.save(user, { now });
+  if (!(await avatarAttached(userId))) await twitterPictureUrl(user, now);
 
   user.assign({ [REVERT_TOKENS.token]: credentials.token, [REVERT_TOKENS.secret]: credentials.secret });
   await Users.saveBang(user, { now });

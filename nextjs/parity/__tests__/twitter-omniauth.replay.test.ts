@@ -14,6 +14,7 @@ import { resolveTimeToken } from "../src/canonical";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { type CapturedHttp, loadFixture } from "../src/fixture";
+import { keptHttpHeaders } from "../src/http";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -42,6 +43,9 @@ const TIME_TOKEN = /<now(?:[+-]\d+[smh])?>/gu;
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item. The product reindexes a user save triggers ask Elasticsearch for documents the
 // replay does not hold, and Node then queues the fallback job Rails never needed.
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
+// Active Storage's analysis of an attached picture: the recording runs ActiveJob on the test adapter, which the fixture does not hold, so the
+// replay checks the job on its own (the spec asserts the same payload on the Rails side).
+const ANALYZE_JOB = "ActiveStorage::AnalyzeJob";
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
@@ -60,13 +64,35 @@ function redisJobs(redis: Redis): JobsChannel {
           queue: string;
           wrapped?: string;
         };
-        if (item.wrapped === "MailDeliveryJob" || IGNORED_JOBS.has(item.class)) continue;
+        if (item.wrapped === "MailDeliveryJob" || item.wrapped === ANALYZE_JOB || IGNORED_JOBS.has(item.class))
+          continue;
         jobs.push({ class: item.class, args: item.args, queue: item.queue });
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
+
+// ActiveJob jobs reach Sidekiq's own queue (the wrapper is not a BullMQ job), so the analysis is read from the list.
+async function analyzeJobs(redis: Redis) {
+  const found: { queue: string; arguments: unknown }[] = [];
+  for (const raw of await redis.lrange("queue:default", 0, -1)) {
+    const item = JSON.parse(raw) as { queue: string; wrapped?: string; args: { arguments: unknown }[] };
+    if (item.wrapped === ANALYZE_JOB) found.push({ queue: item.queue, arguments: item.args[0]?.arguments });
+  }
+  return found;
+}
+
+// The bucket the recording uploaded to, answered from memory: the replay holds Node to the upload Rails made (checksum, type, ACL, bytes) and
+// to the order (rows first, upload after the commit). Rails' reads of the bucket (an existence check, the download for the analysis) are not
+// repeated by Node, which analyses the bytes it holds.
+type Put = {
+  path: string;
+  headers: Record<string, string | string[] | undefined>;
+  body: Buffer;
+  rows: Record<string, unknown>[];
+};
+const BUCKET_URL = /^https?:\/\/localhost:9010\//u;
 
 const COMPARE = {
   ignore: [
@@ -77,6 +103,7 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    "db.active_storage_blobs.inserted.*.key",
     "http",
   ],
 };
@@ -123,6 +150,9 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
   let server: NextServer;
   let rails: Server;
   let standIn: Server;
+  let bucket: Server;
+  const objects = new Map<string, Buffer>();
+  const puts: Put[] = [];
   let recorded: CapturedHttp[] = [];
   const received: Received[] = [];
   const mismatches: string[] = [];
@@ -150,6 +180,33 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    bucket = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        void (async () => {
+          const objectPath = decodeURIComponent((request.url ?? "").split("?")[0]!);
+          if (request.method === "PUT") {
+            const body = Buffer.concat(chunks);
+            objects.set(objectPath, body);
+            // The key of the object is the key of a blob row, and that row exists when the upload happens.
+            const key = objectPath.split("/").slice(2).join("/");
+            const rows = await sql.query(
+              "SELECT `id`, `key`, `byte_size` FROM `active_storage_blobs` WHERE `key` = ?",
+              [key],
+            );
+            puts.push({ path: objectPath, headers: request.headers, body, rows });
+            return void response.writeHead(200, { etag: `"${"0".repeat(32)}"` }).end();
+          }
+          const object = objects.get(objectPath);
+          if (object === undefined) return void response.writeHead(404).end();
+          response
+            .writeHead(200, { "content-length": object.length })
+            .end(request.method === "HEAD" ? undefined : object);
+        })();
+      });
+    });
+    await new Promise<void>((resolve) => bucket.listen(0, "127.0.0.1", resolve));
     standIn = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -170,7 +227,12 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
           normalizedUrl(expected.url) === normalizedUrl(call.url) &&
           (expected.contentType ?? undefined) === (call.contentType ?? undefined) &&
           JSON.stringify(normalizedForm(expected.body)) === JSON.stringify(normalizedForm(call.body)) &&
-          (expected.authorization ?? undefined) === (call.authorization ?? undefined);
+          // An OAuth 1.0a call is compared whole; a Basic or Bearer credential by the digest the recorder keeps of it.
+          (expected.authorization !== undefined
+            ? expected.authorization === call.authorization
+            : expected.headers?.authorization === undefined ||
+              expected.headers.authorization ===
+                keptHttpHeaders(request.headers as Record<string, string>).authorization);
         if (!matches) {
           mismatches.push(
             `call ${received.length}: sent ${call.method} ${call.url} ${call.body} ${call.authorization ?? ""}, Rails made ${
@@ -183,7 +245,11 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
         }
         const answer = expected.response;
         response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
-        response.end(resolveTimes(answer.body ?? "", new Date()));
+        response.end(
+          answer.bodyBase64 !== undefined
+            ? Buffer.from(answer.bodyBase64, "base64")
+            : resolveTimes(answer.body ?? "", new Date()),
+        );
       });
     });
     await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
@@ -202,7 +268,7 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
       ...CLIENT_ENV,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
-      AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      AWS_S3_ENDPOINT: `http://127.0.0.1:${(bucket.address() as { port: number }).port}`,
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
@@ -212,6 +278,7 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
     await server.stop();
     rails.close();
     await new Promise((resolve) => standIn.close(resolve));
+    await new Promise((resolve) => bucket.close(resolve));
     await closeAllRedis();
     await redis.quit();
     await client.$disconnect();
@@ -260,7 +327,9 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
   it(
     "compiles the handlers",
     async () => {
-      for (const [, file, index] of cases.slice(0, 2))
+      // The attach path pulls in the S3 client, which is slow to compile: warm it with the first fixture that uploads.
+      const warm = cases.filter(([name]) => name.includes("downloads-the-profile-picture"));
+      for (const [, file, index] of [...warm, ...cases.slice(0, 2)])
         await replayFixtureExchange(file, index, replayOptions()).catch(() => undefined);
     },
     FIRST_COMPILE_TIMEOUT_MS,
@@ -272,7 +341,10 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
       try {
         const fixture = loadFixture(file);
         const exchange = fixture.exchanges[index]!;
-        recorded = exchange.http;
+        const recordedPuts = exchange.http.filter((call) => BUCKET_URL.test(call.url) && call.method === "PUT");
+        recorded = exchange.http.filter((call) => !BUCKET_URL.test(call.url));
+        objects.clear();
+        puts.length = 0;
         received.length = 0;
         mismatches.length = 0;
         handedBack.length = 0;
@@ -296,7 +368,34 @@ describe.skipIf(!url)("Twitter OmniAuth", () => {
         expect(mismatches).toEqual([]);
         expect(received).toHaveLength(recorded.length);
         // Every call carries the OAuth header Rails signed.
-        received.forEach((call, at) => expect(call.authorization).toBe(recorded[at]!.authorization));
+        received.forEach((call, at) => {
+          if (recorded[at]!.authorization !== undefined) expect(call.authorization).toBe(recorded[at]!.authorization);
+        });
+        // The upload: what Rails put in the bucket, once, after the blob and its attachment were committed.
+        expect(puts).toHaveLength(recordedPuts.length);
+        for (const [at, rails] of recordedPuts.entries()) {
+          const node = puts[at]!;
+          expect(node.rows).toHaveLength(1);
+          expect(node.path).toBe(`/gumroad-specs/${String(node.rows[0]!.key)}`);
+          expect(String(node.rows[0]!.key)).toMatch(/^[a-z0-9]{28}$/u);
+          expect(node.body.toString("base64")).toBe(rails.bodyBase64);
+          expect(node.headers["content-md5"]).toBe(rails.headers?.["content-md5"]);
+          expect(node.headers["content-type"]).toBe(rails.contentType);
+          expect(node.headers["x-amz-acl"]).toBe(rails.headers?.["x-amz-acl"]);
+        }
+        const analyze = await analyzeJobs(redis);
+        if (recordedPuts.length === 0) expect(analyze).toEqual([]);
+        else {
+          const [blob] = await sql.query("SELECT `id` FROM `active_storage_blobs` ORDER BY `id` DESC LIMIT 1");
+          const expectedJob = [
+            {
+              queue: "default",
+              arguments: [{ _aj_globalid: `gid://gumroad/ActiveStorage::Blob/${String(blob!.id)}` }],
+            },
+          ];
+          if (JSON.stringify(analyze) !== JSON.stringify(expectedJob))
+            throw new Error(`analysis job ${JSON.stringify(analyze)}, Rails enqueues ${JSON.stringify(expectedJob)}`);
+        }
         // The session the callback leaves behind: the flash, the spent OmniAuth keys and the return entry.
         const { expected, actual } = replayed.exchanges[0]!;
         const sessionName = fixture.sessionCookie!;
