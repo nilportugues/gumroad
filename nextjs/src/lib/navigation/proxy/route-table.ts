@@ -13,6 +13,8 @@ export type HostScope =
   | "api"
   // DiscoverDomainConstraint: the discover host (gumroad.com; app.gumroad.com is a Gumroad host but not this one).
   | "discover"
+  // `constraints(host: /#{THIRD_PARTY_ANALYTICS_DOMAIN}/o)`: the host that serves other sites' tracking snippets.
+  | "analytics"
   | "any";
 
 export type RouteEntry = {
@@ -60,7 +62,7 @@ export type RouteTable = Record<string, string | RouteEntry>;
 // ("seller:/affiliates") because the same path can also be a Gumroad-domain page.
 export type CompiledRoute = Required<Omit<RouteEntry, "flag" | "pathGate" | "handler" | "redirect" | "redirectQuery" | "redirectReplace" | "redirectExcept">> & { pathGate: "taxonomy" | null; handler: string | null; redirect: string | null; redirectQuery: string | null; redirectReplace: [string, string] | null; redirectExcept: Record<string, string[]>; flag: string | null; pattern: string; path: string; regexp: RegExp };
 
-const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api", "discover:": "discover" };
+const SCOPE_PREFIXES: Record<string, HostScope> = { "seller:": "seller", "product:": "product", "api:": "api", "discover:": "discover", "analytics:": "analytics" };
 
 // "POST /emails": a route for one HTTP method, the key of a mutation.
 const METHOD_PREFIX = /^(POST|PUT|PATCH|DELETE) /u;
@@ -124,6 +126,7 @@ function hostMatches(scope: HostScope, host: HostClassification): boolean {
   if (scope === "gumroad") return host.gumroad;
   if (scope === "discover") return host.discover;
   if (scope === "api") return host.api;
+  if (scope === "analytics") return host.thirdPartyAnalytics;
   if (scope === "product") return !host.gumroad && host.customDomainLookup !== null;
   return !host.gumroad && (host.sellerSubdomain !== null || host.customDomainLookup !== null);
 }
