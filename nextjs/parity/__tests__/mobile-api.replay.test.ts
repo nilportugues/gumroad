@@ -92,6 +92,16 @@ function redisJobs(redis: Redis): JobsChannel {
           ...(item.at === undefined ? {} : { at: item.at }),
         });
       }
+      // A job whose body stays in Ruby goes to Sidekiq's list, or to its schedule when delayed (PostToPingEndpointsWorker). The mail
+      // jobs are not in the fixtures: the request spec's test adapter never queued them.
+      const ruby: string[] = [];
+      for (const key of await redis.keys("queue:*")) ruby.push(...(await redis.lrange(key, 0, -1)));
+      ruby.push(...(await redis.zrange("schedule", "0", "-1")));
+      for (const raw of ruby) {
+        const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number; wrapped?: string };
+        if (item.wrapped === "MailDeliveryJob") continue;
+        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+      }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };

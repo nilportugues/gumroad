@@ -463,6 +463,37 @@ function handBackIfCancelled(record: SubscriptionModel): void {
     throw new HandBackToRuby("the subscription was cancelled while waiting for its lock");
 }
 
+// `cancel!(by_seller:, by_admin:)`: the member keeps access until `end_time_of_subscription`; `cancelled_at` is that date. Cancelling
+// twice is a no-op. A member cancellation workflow is scheduled later, by the deactivation job (SetSubscriptionAsDeactivatedWorker).
+export async function cancelBang(
+  record: SubscriptionModel,
+  { bySeller = true, byAdmin = false }: { bySeller?: boolean; byAdmin?: boolean } = {},
+): Promise<void> {
+  await withLock(record, async () => {
+    if (record.get("cancelled_at") != null) return;
+
+    const now = () => nowOf(record);
+    record.set("user_requested_cancellation_at", now());
+    record.set("cancelled_at", await subscriptionView(record).endTimeOfSubscription());
+    let flags = SubscriptionFlags.set(record.get("flags"), "cancelled_by_buyer", !bySeller);
+    flags = SubscriptionFlags.set(flags, "cancelled_by_admin", byAdmin);
+    record.set("flags", flags);
+    await Subscriptions.saveBang(record, { now });
+
+    if (flag(record, "cancelled_by_buyer")) {
+      await deliverMail(record, CUSTOMER_LOW_PRIORITY_MAILER, "subscription_cancelled", "low");
+      if (await enablePaymentEmail(record))
+        await deliverMail(record, CONTACTING_CREATOR_MAILER, "subscription_cancelled_by_customer", "critical");
+    } else {
+      await deliverMail(record, CUSTOMER_LOW_PRIORITY_MAILER, "subscription_cancelled_by_seller", "low");
+      if (await enablePaymentEmail(record))
+        await deliverMail(record, CONTACTING_CREATOR_MAILER, "subscription_cancelled", "critical");
+    }
+
+    await sendNotificationWebhook(record, CANCELLED_RESOURCE_NAME);
+  });
+}
+
 // `end_subscription!`
 export async function endSubscriptionBang(record: SubscriptionModel): Promise<void> {
   await withLock(record, async () => {

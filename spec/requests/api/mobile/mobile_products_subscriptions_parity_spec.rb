@@ -102,10 +102,20 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a cancel to Rails", parity: true do
+    # The audience projection rebuild is recorded as the job it is (RefreshAudienceMemberJob), not run inline.
+    it "cancels a member's subscription for the seller", parity: true, defer_audience_refresh: true do
       post "/mobile/subscriptions/#{subscription.external_id}/cancel", params: auth(seller)
 
       expect(response.parsed_body["success"]).to eq(true)
+      expect(subscription.reload.cancelled_at).to be_present
+    end
+
+    it "does not cancel another seller's subscription", parity: true do
+      post "/mobile/subscriptions/#{subscription.external_id}/cancel", params: auth(create(:user))
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Could not find subscription")
+      expect(subscription.reload.cancelled_at).to be_nil
     end
   end
 

@@ -27,7 +27,7 @@ vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ thumbnailUrlsByProd
 
 await import("./mobile-subscriptions.ts");
 
-const action = actions[0]!;
+const action = actions.find((candidate) => candidate.method === "GET")!;
 const input = (params: Record<string, unknown> = {}) => ({ params }) as unknown as MobileInput;
 const body = (result: unknown) => JSON.parse((result as { body: string }).body);
 const status = (result: unknown) => (result as { status: number }).status;
@@ -91,8 +91,9 @@ beforeEach(() => {
 });
 
 describe("GET /mobile/subscriptions/subscription_attributes/:id", () => {
-  it("registers without an OAuth scope and leaves cancel to Rails", () => {
+  it("registers the read without an OAuth scope and the cancel under mobile_api", () => {
     expect(actions.map((a) => [a.method, a.pattern, a.scopes])).toEqual([
+      ["POST", "/mobile/subscriptions/:id/cancel", ["mobile_api"]],
       ["GET", "/mobile/subscriptions/subscription_attributes/:id", null],
     ]);
   });

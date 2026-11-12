@@ -2,8 +2,7 @@
 //
 // Served here: the 404 for a subscription that is not `Subscription.active` and the payload of one whose product, creator and original
 // purchase fit the ported serializers (USD, no asset previews, no uploaded avatar or thumbnail) and whose seller has no posts, so
-// `updates_data` is []. Everything else goes to Rails whole. #cancel is not registered: it ends the subscription, sends mail and
-// enqueues jobs, so Rails keeps it.
+// `updates_data` is []. Everything else goes to Rails whole. #cancel runs Subscription#cancel! (subscription-writes.ts).
 import { Prisma, type Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
@@ -11,6 +10,8 @@ import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { formatJustPriceInCents } from "../models/concerns/money-formatter.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { ACTIVE_SUBSCRIPTION } from "../models/subscription-json.ts";
+import { cancelBang, loadSubscription } from "../models/subscription-writes.ts";
+import { defaultSubscriptionDeps } from "../models/subscription.ts";
 import { RECURRENCE_LABELS } from "../page-props/seller-products/listing.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
@@ -19,7 +20,7 @@ import { jsonTime, linkAsJsonMobile } from "../presenters/mobile-serializers.ts"
 import { thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
-import { fetchError, registerMobile, renderJson, type MobileInput } from "./mobile-api.ts";
+import { fetchError, registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
 
 const NOT_FOUND_MESSAGE = "Could not find subscription";
 const SINGLE_CHARGE = 1;
@@ -140,6 +141,24 @@ async function subscriptionAttributes(input: MobileInput) {
   json.updates_data = [];
   return renderJson({ success: true, subscription: json });
 }
+
+// Api::Mobile::SubscriptionsController#cancel: the seller cancels one of their members' subscriptions from the app.
+async function cancelSubscription(input: MobileInput, auth: MobileAuth | null) {
+  const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
+  const row = id === null ? null : await db.subscription.findUnique({ where: { id: BigInt(id) } });
+  if (row === null || row.seller_id !== auth!.owner.id) return fetchError(NOT_FOUND_MESSAGE);
+
+  const subscription = loadSubscription(row, { now: () => new Date(), featureActive: defaultSubscriptionDeps.featureActive });
+  await cancelBang(subscription, { bySeller: true });
+  return renderJson({ success: true });
+}
+
+registerMobile({
+  method: "POST",
+  pattern: "/mobile/subscriptions/:id/cancel",
+  scopes: ["mobile_api"],
+  run: cancelSubscription,
+});
 
 registerMobile({
   method: "GET",
