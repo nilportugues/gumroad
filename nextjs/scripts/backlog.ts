@@ -124,7 +124,7 @@ const EPICS: Epic[] = [
     title: "Sign-in providers and account security",
     files: /omniauth|social-|oauth|passkey|webauthn|totp|team-invit|auth-|login|signup|session|confirmation/u,
     fallback: /instagram/u,
-    state: "mostly done (Apple, Twitter, Google, TOTP, team join, passkey login in Node); YouTube, Instagram, TikTok, Stripe Connect callbacks and some passkey shapes left",
+    state: "mostly done (Apple, Twitter, Google, YouTube, Instagram, TikTok, TOTP, team join, passkey login and registration in Node); the Stripe Connect callback, the POST callbacks and the unprovable passkey shapes (signed attestation formats, non-ES256 keys) left",
     blocker: "Single-use codes must not be spent unless every outcome is reproducible.",
     scope: "Remaining OmniAuth callbacks, passkey registration shapes, team invitation for the Gumroad account's own team, unconfirmed-account adoption.",
   },
@@ -324,7 +324,7 @@ function build(): string {
   out.push(`${n(remainingRoutes.length)} routes: ${n(remainingRoutes.filter((r) => r.status === "hands back").length)} listed in \`routes.json\` without Node code (hands back) and ${n(remainingRoutes.filter((r) => r.status === "not registered").length)} not registered (Rails serves them).`);
   out.push("");
   out.push(
-    "Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google OmniAuth callback runs in Node through the shared phases handler (`nextjs_omniauth_phases`) although its route is built from the strategy name. So at least 4 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.",
+    "Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google, YouTube, Instagram and TikTok OmniAuth callbacks run in Node through the shared phases handler (`nextjs_omniauth_phases`) although their routes are built from the strategy name. So at least 7 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.",
   );
   out.push("");
   out.push("| Route | Controller#action | Status | Workstream |");
