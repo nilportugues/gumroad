@@ -1,6 +1,6 @@
-// UrlRedirectsController#stream (GET /s/:id and /s/:id/:product_file_id): the access gate, the props
-// UrlRedirectPresenter#stream_page_props builds for UrlRedirects/Stream, and the after_action that counts the visit.
-// The consumption event is written by the page's own script, not by this action.
+// UrlRedirectsController#stream (GET /s/:id and /s/:id/:product_file_id) and #read (GET /read/:id and /read/:id/:product_file_id):
+// the access gate, the props UrlRedirectPresenter builds for UrlRedirects/Stream and UrlRedirects/Read, and the after_actions that
+// count the visit. #stream writes no consumption event (the page's own script does); #read writes the read event.
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import {
@@ -12,17 +12,19 @@ import {
 import { requireHtml } from "../../controllers/buyer-pages.ts";
 import { assertFlatQuery } from "../../controllers/rails-params.ts";
 import { queryParam } from "../../controllers/rails-request.ts";
+import { createConsumptionEvent } from "../../controllers/url-redirects/access.ts";
 import {
   aliveProductFiles,
   fieldsOf,
   hlsPlaylistOrSmilPath,
   signedUrl,
   StorageObjectMissing,
+  triggerFilesLifecycleEvents,
   type DeliveryFile,
 } from "../../controllers/url-redirects/files.ts";
 import { findFile } from "../../controllers/url-redirects/streaming.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { isStreamable } from "../../models/product-file.ts";
+import { browserReadable, isEpub, isStreamable, mustBePdfStamped } from "../../models/product-file.ts";
 import { nameDisplayable } from "../audience/product-file-json.ts";
 import { jsonTime } from "../../presenters/mobile-serializers.ts";
 

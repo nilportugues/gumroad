@@ -26,6 +26,7 @@ describe "Url redirect players", type: :request do
     "specs/player-captions.srt" => "﻿1\r\n0:00:01,5 --> 0:00:02,000\r\nHello\r\n\r\n2\r\nnot a timing line\r\nlost\r\n\r\n3\r\n00:00:03,000 --> 00:00:04,000\r\nSecond line\r\nover two lines\r\n\r\n4\r\n00:00:05,000 --> 00:00:06,000\r\n   \r\n",
     "specs/player-captions.vtt" => "WEBVTT\n\nNOTE a note\n\nintro\n00:01.000 --> 00:02.000\nPlain cue\n\n00:03.000 --> 00:04.000 align:start\nPositioned cue\n",
     "specs/player-book.pdf" => "%PDF-1.4 player spec",
+    "specs/player-book.epub" => "player spec epub",
   }.freeze
 
   before do
@@ -194,6 +195,92 @@ describe "Url redirect players", type: :request do
       log_in(buyer)
 
       get url_redirect_stream_page_path(token)
+
+      expect(response).to be_successful
+    end
+  end
+
+  describe "GET /read/:id" do
+    let(:book) { create(:readable_document, link: product, display_name: "Book one", url: "#{S3_BASE_URL}specs/player-book.pdf") }
+    let(:second_book) { create(:readable_document, link: product, display_name: "Book two", url: "#{S3_BASE_URL}specs/player-book.pdf") }
+
+    it "opens the first book in the reader and counts the read", parity: true do
+      book
+      log_in(buyer)
+
+      get url_redirect_read_path(token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("title" => "Player product", "file_type" => "pdf")
+      expect(url_redirect.reload).to have_attributes(uses: 1, has_been_seen: true)
+      expect(ConsumptionEvent.last).to have_attributes(event_type: "read", product_file_id: book.id)
+    end
+
+    it "opens the requested book at the last page the buyer read", parity: true do
+      book
+      second_book
+      create(:media_location, product_file_id: second_book.id, url_redirect_id: url_redirect.id, purchase_id: purchase.id, product_id: product.id, location: 7, consumed_at: Time.current)
+      log_in(buyer)
+
+      get url_redirect_read_for_product_file_path(token, second_book.external_id)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("read_id" => second_book.external_id, "latest_media_location" => include("location" => 7, "unit" => "page_number"))
+    end
+
+    it "opens a book of the product when the requested file is not a book of the redirect", parity: true do
+      book
+      log_in(buyer)
+
+      get url_redirect_read_for_product_file_path(token, "unknown")
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("read_id" => book.external_id)
+    end
+
+    it "reads a guest purchase from the address that bought it", parity: true do
+      book
+      purchase.update_columns(purchaser_id: nil)
+
+      get url_redirect_read_path(token), headers: forwarded
+
+      expect(response).to be_successful
+    end
+
+    it "sends a buyer without a readable file to the library", parity: true do
+      create(:non_readable_document, link: product)
+      log_in(buyer)
+
+      get url_redirect_read_path(token)
+
+      expect(response).to redirect_to(library_path)
+      expect(url_redirect.reload.uses).to eq(0)
+    end
+
+    it "sends a requested file that cannot be read to the library", parity: true do
+      book
+      text = create(:non_readable_document, link: product)
+      log_in(buyer)
+
+      get url_redirect_read_for_product_file_path(token, text.external_id)
+
+      expect(response).to redirect_to(library_path)
+    end
+
+    it "hands a stamped book to Rails", parity: true do
+      book.update_columns(flags: book.flags | ProductFile.flag_mapping["flags"][:pdf_stamp_enabled])
+      log_in(buyer)
+
+      get url_redirect_read_path(token)
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "hands a book in the epub format to Rails", parity: true do
+      create(:epub_product_file, link: product, url: "#{S3_BASE_URL}specs/player-book.epub")
+      log_in(buyer)
+
+      get url_redirect_read_path(token)
 
       expect(response).to be_successful
     end

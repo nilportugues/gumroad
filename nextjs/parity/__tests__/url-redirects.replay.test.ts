@@ -44,6 +44,7 @@ Object.assign(SPEC_OBJECTS, {
   "specs/player-captions.vtt":
     "WEBVTT\n\nNOTE a note\n\nintro\n00:01.000 --> 00:02.000\nPlain cue\n\n00:03.000 --> 00:04.000 align:start\nPositioned cue\n",
   "specs/player-book.pdf": "%PDF-1.4 player spec",
+  "specs/player-book.epub": "player spec epub",
 });
 const SPEC_BUCKET = "gumroad-specs";
 // The Rails spec froze its clock at 2026-11-09 22:00 UTC; a consumption event's `consumed_at` is a constant the request carries, so

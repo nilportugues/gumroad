@@ -6,6 +6,7 @@ import { queryParam, type RailsRequest } from "../../controllers/rails-request.t
 import type { ActionContext } from "../load-page.ts";
 import type { PageSpec } from "../pages.ts";
 import { downloadPageFilters, downloadPageProps, setDownloadPageMeta } from "./download-page.ts";
+import { READ_STATE_KEY, readFilters, readPage } from "./read-page.ts";
 import { STREAM_STATE_KEY, streamFilters, streamPageProps } from "./player-pages.ts";
 import { unavailableFilters, unavailablePageProps, unavailableTitle, type UnavailablePage } from "./unavailable.ts";
 
@@ -72,11 +73,32 @@ const streamPage: PageSpec = {
   },
 };
 
+// UrlRedirectsController#read, built the same way as the stream page.
+const readPageSpec: PageSpec = {
+  component: "UrlRedirects/Read",
+  options: { filters: readFilters },
+  props: async (params, action) => {
+    const built = action.state[READ_STATE_KEY] as Record<string, unknown> | undefined;
+    const props =
+      built ??
+      (
+        await readPage(
+          safeDecode(params.id!),
+          params.product_file_id === undefined ? undefined : safeDecode(params.product_file_id),
+        )
+      ).props;
+    action.meta.set({ title: props.title as string });
+    return props;
+  },
+};
+
 export const URL_REDIRECT_PAGES: Record<string, PageSpec> = {
   "/r/:id/expired": unavailablePage("UrlRedirects/Expired", "expired"),
   "/r/:id/rental_expired": unavailablePage("UrlRedirects/RentalExpired", "rental_expired"),
   "/r/:id/membership_inactive": unavailablePage("UrlRedirects/MembershipInactive", "membership_inactive"),
   "/d/:id": downloadPage,
+  "/read/:id": readPageSpec,
+  "/read/:id/:product_file_id": readPageSpec,
   "/s/:id": streamPage,
   "/s/:id/:product_file_id": streamPage,
   "/confirm": unavailablePage("UrlRedirects/ConfirmPage", "confirm"),
