@@ -5,7 +5,7 @@
 // __fixtures__/purchase-affiliate-balance.golden.json (scripts/golden/purchase-affiliate-balance.rb), run by the real class.
 //
 // Everything that decides whether the shape is served happens before the first write, so the caller can hand the order back:
-// a collaborator's credit, a direct affiliate, a presentment and a purchase with no merchant account are refused with
+// a presentment, a purchase with no merchant account and the affiliate shapes no recording holds are refused with
 // NotPortedError. Past the first write nothing here refuses; a failure there is a Rails failure too and propagates the same way.
 import { Prisma } from "@prisma/client";
 
@@ -20,7 +20,7 @@ import {
 import { defaultCheckoutEffects } from "./checkout-effects.ts";
 import { loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
 import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
-import { incrementAffiliatesBalanceBang } from "./purchase-affiliate-credit.ts";
+import { hasDirectAffiliateId, incrementAffiliatesBalanceBang } from "./purchase-affiliate-credit.ts";
 import { chargedUsingGumroadMerchantAccount, type ChargeMerchantAccount } from "./purchase-charge-facts.ts";
 import { Purchases, type PurchaseContext, type PurchaseRecord } from "./purchase-create.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
@@ -68,9 +68,10 @@ export async function incrementSellersBalanceBang(
 ): Promise<void> {
   if (record.get("price_cents") === 0) return;
 
-  // direct_affiliate_id lives in json_data (attr_json_data_accessor)
-  if (String(record.get("json_data") ?? "").includes("direct_affiliate_id")) throw notPorted("a direct affiliate");
   const creditsAffiliate = (record.get("affiliate_credit_cents") ?? 0) > 0;
+  // A direct affiliate is served only beside a collaborator that is credited (purchase-affiliate-credit.ts); with no credit Ruby
+  // still reads the affiliates, a shape no recording holds.
+  if (!creditsAffiliate && hasDirectAffiliateId(record)) throw notPorted("a direct affiliate and no affiliate credit");
   const merchantAccountRow = async () =>
     facts.merchantAccount ??
     ((await loadBelongsTo(record, MERCHANT_ACCOUNT, {
