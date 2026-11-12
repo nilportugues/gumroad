@@ -20,7 +20,7 @@ The brief counted 97 + 14 (WS-10), 29 + 4 (WS-11) and 2 (WS-14) unregistered and
 - **Ported.** `GET /oauth/token/info`, the Notion `GET /notion/oauth2/authorize` alias, the signed-in `GET /oauth/authorize` and alias
   hand-backs (a hand-back is registered, so the replay proves it reaches Rails whole), `GET|POST /users/unsubscribe_feature_announcements/:token`
   (the POST one-click write), `GET|POST /users/auth/failure`, `GET /oauth/mobile_pre_authorization/{new,switch_account}`,
-  `POST /save_to_library` and `GET /integrations/circle/{communities,space_groups,communities_and_space_groups}`. Each has a `parity: true`
+  `POST /save_to_library` (a `user` hash now creates the account in Node) and `GET /integrations/circle/{communities,space_groups,communities_and_space_groups}`. Each has a `parity: true`
   Rails request spec, recorded fixtures and a replay, with a "hands ..." example for every branch Node does not prove.
 
 Share served natively by the static check: 715 of 953 routes (75.0%) on the `nextjs-rewrite` tip before this branch, 767 of 978 (78.4%)
@@ -59,9 +59,9 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 
 | Workstream | Route | Controller | Reason |
 | --- | --- | --- | --- |
-| WS-10 | `POST /oauth/device/code` | `oauth/device_codes#create` | `oauth_device_code/ip` (rack_attack.rb); also issues a random device code |
-| WS-10 | `GET /oauth/device` | `oauth/device_authorizations#new` | `oauth_device_authorization_lookup/ip` |
-| WS-10 | `POST /oauth/device` | `oauth/device_authorizations#create` | `oauth_device_authorization_decision/ip` |
+| WS-10 | `POST /oauth/device/code` | `oauth/device_codes#create` | `oauth_device_code/ip` (rack_attack.rb); also issues a random device code; now served by Node (WS-10 rest 4, `parity-debt.md`), the rows below it are the branches that still hand back |
+| WS-10 | `GET /oauth/device` | `oauth/device_authorizations#new` | `oauth_device_authorization_lookup/ip`; now served by Node (WS-10 rest 4, `parity-debt.md`), the rows below it are the branches that still hand back |
+| WS-10 | `POST /oauth/device` | `oauth/device_authorizations#create` | `oauth_device_authorization_decision/ip`; now served by Node (WS-10 rest 4, `parity-debt.md`), the rows below it are the branches that still hand back |
 | WS-11 | `GET /` | `home#about` | `throttle_by_ip path: "/"` (60 per 30s); the page also depends on the request host (custom domain, subdomain or main) |
 | WS-14 | `GET /discover` | `discover#index` | `throttle_by_ip path: "/discover"`; the page is also an Elasticsearch listing |
 | WS-10 | `POST /mobile/forgot_password` | `user/passwords#create` | `password_reset/ip` and `password_reset/email`; sends the reset mail |
@@ -72,8 +72,8 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 | WS-10 | `GET /signup` | `signup#new` | `throttle_by_ip path: "/signup"` (every method) |
 | WS-10 | `POST /signup` | `signup#create` | `throttle_by_ip path: "/signup"` (every method) |
 | WS-10 | `POST /login` | `logins#create` | `throttle_by_ip path: "/login"` (POST); sets the session |
-| WS-10 | `POST /login/passkey/options` | `logins/passkeys#options` | `/ip:/login/passkey/options:POST`; WebAuthn challenge |
-| WS-10 | `POST /login/passkey` | `logins/passkeys#create` | `/ip:/login/passkey:POST`; WebAuthn assertion |
+| WS-10 | `POST /login/passkey/options` | `logins/passkeys#options` | `/ip:/login/passkey/options:POST`; WebAuthn challenge; now served by Node (WS-10 rest 4, `parity-debt.md`), the rows below it are the branches that still hand back |
+| WS-10 | `POST /login/passkey` | `logins/passkeys#create` | `/ip:/login/passkey:POST`; WebAuthn assertion; now served by Node (WS-10 rest 4, `parity-debt.md`), the rows below it are the branches that still hand back |
 | WS-10 | `POST /sellers/brand_accounts` | `sellers/brand_accounts#create` | `throttle_by_ip path: "/sellers/brand_accounts"` (POST); confirmation mail |
 | WS-10 | `POST /settings/totp/confirm` | `settings/totp#confirm` | `throttle_by_params path: "/settings/totp/confirm"` |
 | WS-10 | `POST /settings/passkeys` | `settings/passkeys#create` | `/params:/settings/passkeys:POST` |
@@ -93,7 +93,7 @@ excluding rows would only hide work that exists. The one wildcard row, `GET /(*p
 | WS-10 | `GET /landing/products` | `users#landing_products` | `throttle_by_ip_and_params` on `%r{\A/(?:[^/]+/)?landing/products\z}`; custom-domain host |
 | WS-10 | `GET /` | `users#show` | `throttle_by_ip path: "/"` (60 per 30s); the page also depends on the request host (custom domain, subdomain or main) |
 | WS-10 | `POST /users/forgot_password` | `user/passwords#create` | `password_reset/ip` and `password_reset/email`; sends the reset mail |
-| WS-10 | `POST /oauth/token` | `oauth/tokens#create` | `oauth_token/ip` (+ `oauth_device_token/ip/device_code`); issues a random access token |
+| WS-10 | `POST /oauth/token` | `oauth/tokens#create` | `oauth_token/ip` (+ `oauth_device_token/ip/device_code`); issues a random access token; now served by Node (WS-10 rest 4, `parity-debt.md`), the rows below it are the branches that still hand back |
 
 ### ERB layout page (21)
 
