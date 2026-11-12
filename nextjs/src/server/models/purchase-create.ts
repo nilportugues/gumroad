@@ -28,8 +28,10 @@ import {
   isValidEmailFormat,
   mailAddressDomain,
   MAX_PRICE_USD_CENTS_UNLESS_VERIFIED,
+  jsonDataForAttr as userJsonDataForAttr,
   NotPortedError,
   strippedFieldWith,
+  Users,
 } from "./user.ts";
 
 export type PurchaseRecord = ModelRecord<Purchase>;
@@ -885,6 +887,32 @@ const updateSamePurchaserSubscriptionPurchaseDocuments: Callback<Purchase> = {
   },
 };
 
+// User::HIGH_VOLUME_FEE_THRESHOLD_CENTS
+const HIGH_VOLUME_FEE_THRESHOLD_CENTS = 2_000_000;
+
+// after_commit :refresh_high_volume_fee_eligibility, if: stripe_refunded_previously_changed? (User#refresh_high_volume_fee_eligibility!).
+// A seller whose eligibility month would change is not served: Ruby saves the user there, and this commit hook has no way to
+// hand back, so the refund that gets here must have checked `high_volume_fee_month` before it wrote.
+const refreshHighVolumeFeeEligibilityAfterRefund: Callback<Purchase> = {
+  name: "refresh_high_volume_fee_eligibility",
+  async run(record, ctx) {
+    if (record.savedChanges.stripe_refunded === undefined) return;
+    const seller = Users.load(contextOf(record).seller);
+    await Users.reload(seller);
+    await Users.withLock(seller, async () => {
+      const startOfMonth = new Date(ctx.now?.() ?? new Date());
+      startOfMonth.setUTCDate(1);
+      startOfMonth.setUTCHours(0, 0, 0, 0);
+      const [row] = await selectRows(
+        Prisma.sql`SELECT SUM(${column(PURCHASES, "price_cents")}) FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "seller_id")} = ${seller.get("id")} AND ${column(PURCHASES, "purchase_state")} = 'successful' AND (purchases.price_cents > 0) AND (stripe_refunded is null OR stripe_refunded = 0) AND (purchases.created_at >= ${startOfMonth})`,
+      );
+      const eligible = Number(Object.values(row ?? {})[0] ?? 0) >= HIGH_VOLUME_FEE_THRESHOLD_CENTS;
+      if (eligible || userJsonDataForAttr(seller, "high_volume_fee_month") !== null)
+        throw notPorted("a seller whose high-volume fee month changes with a refund");
+    });
+  },
+};
+
 const sendToElasticsearchOnUpdate: Callback<Purchase> = {
   name: "send_to_elasticsearch(update)",
   on: "update",
@@ -903,6 +931,23 @@ const markCreatedThisSave: Callback<Purchase> = {
   name: "previously_new_record?",
   run(record) {
     record.ivars.createdThisSave = true;
+  },
+};
+
+// before_save :schedule_product_search_refresh_after_refund: a refund that flips stripe_refunded to or from true reindexes the product's
+// recommendability after the commit.
+const scheduleProductSearchRefreshAfterRefund: Callback<Purchase> = {
+  name: "schedule_product_search_refresh_after_refund",
+  async run(record) {
+    // untracked: reading an attribute must not change the order PaperTrail serializes them in
+    const change = record.untracked(() =>
+      record.attributeChanged("stripe_refunded") ? record.changes().stripe_refunded! : null,
+    );
+    if (change === null || (change[0] === true) === (change[1] === true)) return;
+    const linkId = record.get("link_id");
+    await afterCommitEverywhere(async () => {
+      await performAsync("SendToElasticsearchWorker", [linkId, "update", ["is_recommendable"]] as never);
+    });
   },
 };
 
@@ -974,6 +1019,7 @@ export const Purchases = defineModel<Purchase>({
     },
     truncateReferrer,
     snapshotInventoryPreSaveState,
+    scheduleProductSearchRefreshAfterRefund,
   ],
   beforeCreate: [
     productIsSellable,
@@ -1067,6 +1113,7 @@ export const Purchases = defineModel<Purchase>({
     updateSamePurchaserSubscriptionPurchaseDocuments,
     enqueueUpdateSalesRelatedProductsInfos,
     refreshHighVolumeFeeEligibility,
+    refreshHighVolumeFeeEligibilityAfterRefund,
     recordOrderChargeOutcome,
     syncInventoryCountersOnCreate,
     syncInventoryCounterCacheForStateChange,

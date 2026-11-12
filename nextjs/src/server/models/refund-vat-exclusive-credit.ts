@@ -14,10 +14,11 @@ import {
 } from "./credit.ts";
 import { gumroadMerchantAccountFor } from "./merchant-account.ts";
 import { STRIPE_PROCESSOR } from "./purchase-charge-facts.ts";
-import type { PurchaseContext, PurchaseRecord } from "./purchase-create.ts";
+import type { PurchaseRecord } from "./purchase-create.ts";
+import { sellerOf } from "./purchase-reloaded-associations.ts";
 import type { RefundRecord } from "./refund.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
-import { NotPortedError, Users } from "./user.ts";
+import { NotPortedError } from "./user.ts";
 
 const USD = "usd";
 const BALANCE = { name: "balance", foreignKey: "balance_id", targetTable: "balances", targetModel: "Balance" } as const;
@@ -69,7 +70,7 @@ export async function createForVatExclusiveRefundBang(
       "app/models/credit.rb:175",
     );
 
-  const seller = Users.load((purchase.ivars.context as PurchaseContext).seller);
+  const seller = await sellerOf(purchase);
   const credit = Credits.build({});
   assignCreditUser(credit, seller);
   const merchantAccount = await gumroadMerchantAccountFor(STRIPE_PROCESSOR);
