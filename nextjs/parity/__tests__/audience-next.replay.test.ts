@@ -119,6 +119,15 @@ const COMPARE = {
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",
+    // Next.js owns the per-response random values of an Inertia page (the cancel page).
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
+    "response.json.props.csp_nonce",
+    "response.json.props.authenticity_token",
+    "response.json.props._inertia_meta.2.content",
+    "response.json.props._inertia_meta.1.content",
   ],
 };
 
@@ -197,6 +206,7 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
@@ -254,6 +264,12 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
         const [name, file, index] = cases.find(([name]) => name.startsWith(spec)) ?? cases[0]!;
         const { file: _file, ...options } = replayOptions(file, name);
         await replayFixtureExchange(file, index, options).catch(() => undefined);
+      }
+      // The X-Inertia handler (/gr-inertia) compiles on its own.
+      const inertia = cases.find(([name]) => name.includes("inertia-visit"));
+      if (inertia) {
+        const { file: _file, ...options } = replayOptions(inertia[1], inertia[0]);
+        await replayFixtureExchange(inertia[1], inertia[2], options).catch(() => undefined);
       }
     },
     FIRST_COMPILE_TIMEOUT_MS,

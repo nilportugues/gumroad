@@ -61,12 +61,58 @@ describe "Follower cancel and follow page links", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a cancel page request to Rails", parity: true do
+    it "removes the follower and renders the cancel page", parity: true do
       follower = follow("page@example.com")
 
       get cancel_follow_path(follower.external_id)
 
       expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Followers/Cancel")
+      expect(follower.reload.deleted_at).to be_present
+    end
+
+    it "removes a follower who never confirmed and renders the cancel page", parity: true do
+      follower = follow("page-unconfirmed@example.com", confirmed_at: nil)
+
+      get cancel_follow_path(follower.external_id)
+
+      expect(response.body).to include("Followers/Cancel")
+      expect(follower.reload).to have_attributes(confirmed_at: nil, deleted_at: be_present)
+    end
+
+    it "removes a follower who was already removed and renders the cancel page", parity: true do
+      follower = follow("page-again@example.com", confirmed_at: nil, deleted_at: Time.utc(2025, 2, 5, 12))
+
+      get cancel_follow_path(follower.external_id)
+
+      expect(response.body).to include("Followers/Cancel")
+      expect(follower.reload.deleted_at).to be > Time.utc(2025, 2, 5, 12)
+    end
+
+    it "keeps the other followers of the seller when it renders the cancel page", parity: true do
+      follower = follow("page-first@example.com")
+      follow("page-second@example.com", confirmed_at: Time.utc(2025, 1, 3, 12))
+
+      get cancel_follow_path(follower.external_id)
+
+      expect(Follower.alive.where(followed_id: seller.id).pluck(:email)).to eq(["page-second@example.com"])
+    end
+
+    it "hands a cancel page of a follower under a newsletter cutover to Rails", parity: true do
+      follower = follow("page-newsletter@example.com")
+      FeatureAnnouncementNewsletterCutover.create!(seller:, state: "migrated", cutoff_at: Time.utc(2025, 1, 1, 12))
+
+      get cancel_follow_path(follower.external_id)
+
+      expect(follower.reload.deleted_at).to be_present
+    end
+
+    it "answers an Inertia visit with the page object after the write", parity: true do
+      follower = follow("page-inertia@example.com")
+
+      get cancel_follow_path(follower.external_id), headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest", "Accept" => "text/html, application/xhtml+xml" }
+
+      expect(response.parsed_body["component"]).to eq("Followers/Cancel")
       expect(follower.reload.deleted_at).to be_present
     end
 
