@@ -51,6 +51,16 @@ class JobMarker
 end
 Sidekiq.configure_client { |config| config.client_middleware { |chain| chain.add JobMarker } }
 
+# Every Flipper read, in the order it happened (the flags themselves live in the lane's scratch Redis).
+module FlipperRecorder
+  def active?(feature_name, actor = nil)
+    result = super
+    RailsRecorder.log << { "flipper" => feature_name.to_s, "actor" => actor && "#{actor.class.name};#{actor.id}", "result" => result } if RailsRecorder.log
+    result
+  end
+end
+Feature.singleton_class.prepend(FlipperRecorder)
+
 capture_elasticsearch!
 capture_http!
 

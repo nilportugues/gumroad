@@ -76,10 +76,6 @@ cases << run_case("a sale already booked and linked saves nothing", seed: sale {
   purchase.update_columns(purchase_success_balance_id: balance.id)
 })
 cases << run_case("a sale with a balance transaction not yet applied books a second one", seed: sale { |purchase, seller, ma| booked(purchase, seller, ma) })
-cases << run_case("a sale with an affiliate credit", seed: sale { |purchase, seller, _|
-  affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user, created_at: SEEDED_AT, updated_at: SEEDED_AT), created_at: SEEDED_AT, updated_at: SEEDED_AT)
-  purchase.update_columns(affiliate_id: affiliate.id, affiliate_credit_cents: 50)
-})
 cases << run_case("a sale with a buyer-currency presentment", seed: sale { |purchase, _, _|
   purchase.update_columns(total_transaction_cents: 470)
   PurchasePresentment.new(purchase:, processor: "stripe", presentment_currency: "eur", presentment_price_cents: 460, presentment_total_cents: 460, presentment_gumroad_amount_cents: 100).save!(validate: false)

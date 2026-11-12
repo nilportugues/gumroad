@@ -1,10 +1,12 @@
-// Purchase#increment_sellers_balance! for a sale with no affiliate credit and no buyer-currency presentment: the seller's
-// BalanceTransaction (and the day's Balance it lands on) and the purchase's `purchase_success_balance_id`.
-// Golden: __fixtures__/purchase-seller-balance.golden.json (scripts/golden/purchase-seller-balance.rb), run by the real class.
+// Purchase#increment_sellers_balance! for a sale with no buyer-currency presentment: the affiliate's credit first when the sale
+// has one (purchase-affiliate-credit.ts), then the seller's BalanceTransaction (and the day's Balance it lands on) and the
+// purchase's `purchase_success_balance_id`.
+// Goldens: __fixtures__/purchase-seller-balance.golden.json (scripts/golden/purchase-seller-balance.rb) and
+// __fixtures__/purchase-affiliate-balance.golden.json (scripts/golden/purchase-affiliate-balance.rb), run by the real class.
 //
 // Everything that decides whether the shape is served happens before the first write, so the caller can hand the order back:
-// an affiliate or collaborator credit, a presentment and a purchase with no merchant account are refused with NotPortedError.
-// Past the first write nothing here refuses; a failure there is a Rails failure too and propagates the same way.
+// a collaborator's credit, a direct affiliate, a presentment and a purchase with no merchant account are refused with
+// NotPortedError. Past the first write nothing here refuses; a failure there is a Rails failure too and propagates the same way.
 import { Prisma } from "@prisma/client";
 
 import { balanceTransactionAmountsForSale } from "./balance-transaction-amounts.ts";
@@ -15,8 +17,10 @@ import {
   createBalanceTransactionBang,
   type BalanceTransactionRecord,
 } from "./balance-transaction.ts";
+import { defaultCheckoutEffects } from "./checkout-effects.ts";
 import { loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
 import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
+import { incrementAffiliatesBalanceBang } from "./purchase-affiliate-credit.ts";
 import { chargedUsingGumroadMerchantAccount, type ChargeMerchantAccount } from "./purchase-charge-facts.ts";
 import { Purchases, type PurchaseContext, type PurchaseRecord } from "./purchase-create.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
@@ -61,14 +65,34 @@ export async function incrementSellersBalanceBang(
 ): Promise<void> {
   if (record.get("price_cents") === 0) return;
 
-  // increment_affiliates_balance! is a no-op only without a credit
   // direct_affiliate_id lives in json_data (attr_json_data_accessor)
   if (String(record.get("json_data") ?? "").includes("direct_affiliate_id")) throw notPorted("a direct affiliate");
-  if ((record.get("affiliate_credit_cents") ?? 0) !== 0) throw notPorted("an affiliate credit");
+  const creditsAffiliate = (record.get("affiliate_credit_cents") ?? 0) > 0;
+  const merchantAccountRow = async () =>
+    (await loadBelongsTo(record, MERCHANT_ACCOUNT, {
+      tx: (await connection()) as never,
+    })) as ChargeMerchantAccount | null;
 
-  const accountRow = (await loadBelongsTo(record, MERCHANT_ACCOUNT, {
-    tx: (await connection()) as never,
-  })) as ChargeMerchantAccount | null;
+  if (creditsAffiliate) {
+    // Ruby credits the affiliate before it reads anything the seller's share could be refused for, so those are read first:
+    // the checks that need no query, and the presentment (the one SELECT the replay moves ahead of the affiliate's).
+    if (record.get("merchant_account_id") == null) throw notPorted("no merchant account");
+    if (record.get("fee_cents") == null) throw notPorted("no fee");
+    if (record.get("succeeded_at") == null) throw notPorted("no succeeded_at");
+    if (await hasPresentment(record)) throw notPorted("a buyer-currency presentment");
+    const context = record.ivars.context as PurchaseContext;
+    await incrementAffiliatesBalanceBang(
+      record,
+      {
+        effects: context.effects ?? defaultCheckoutEffects,
+        chargedUsingGumroad: async () =>
+          chargedUsingGumroadMerchantAccount(await merchantAccountRow(), record.get("charge_processor_id")),
+      },
+      options,
+    );
+  }
+
+  const accountRow = await merchantAccountRow();
   if (!chargedUsingGumroadMerchantAccount(accountRow, record.get("charge_processor_id"))) return;
   if (accountRow === null) throw notPorted("no merchant account");
 
@@ -83,7 +107,7 @@ export async function incrementSellersBalanceBang(
 
   if (record.get("fee_cents") == null) throw notPorted("no fee");
   if (record.get("succeeded_at") == null) throw notPorted("no succeeded_at");
-  if (await hasPresentment(record)) throw notPorted("a buyer-currency presentment");
+  if (!creditsAffiliate && (await hasPresentment(record))) throw notPorted("a buyer-currency presentment");
 
   const issuedNetCents =
     (record.get("price_cents") ?? 0) - record.get("fee_cents")! - (record.get("affiliate_credit_cents") ?? 0);
