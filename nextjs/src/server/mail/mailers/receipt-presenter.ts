@@ -14,9 +14,11 @@ import {
   knownCurrency,
 } from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { RECURRENCE_LONG_INDICATOR } from "../../models/purchase-json.ts";
+import { SubscriptionFlags } from "../../models/subscription.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
-import { localizeTime, pluralize, truncate } from "../view-helpers.ts";
-import { h, MailViewNotPortedError } from "../views.ts";
+import { linkTo, localizeTime, pluralize, truncate } from "../view-helpers.ts";
+import { h, mailerUrl, MailViewNotPortedError } from "../views.ts";
 
 import type { TaxLine } from "./receipt-tax.ts";
 
@@ -117,6 +119,28 @@ export type ReceiptData = {
   refundPolicy: ReceiptRefundPolicy | null;
   // Purchase#gift_given for a gift the buyer sent, Purchase#gift_received for one the buyer got
   gift: ReceiptGift | null;
+  // Purchase#subscription, read for a membership
+  subscription: ReceiptSubscription | null;
+  // Purchase#price_for_recurrence: the recurrence of the purchase's price row, which suffixes the product price
+  priceRecurrence: string | null;
+};
+
+export type ReceiptSubscriptionRow = {
+  id: Id;
+  flags: Id | null;
+  charge_occurrence_count: number | null;
+  free_trial_ends_at: Date | null;
+};
+
+export type ReceiptSubscription = {
+  row: ReceiptSubscriptionRow;
+  externalId: string;
+  // Subscription#recurrence
+  recurrence: string | null;
+  // The first charge after this receipt: PaymentInfo#upcoming_price_attribute
+  nextPayment: { cents: number; date: Date } | null;
+  // Whether the membership's original purchase was a gift the buyer sent
+  gift: boolean;
 };
 
 export type ReceiptGift = {
@@ -136,26 +160,17 @@ const linkFlag = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>
 
 const NOT_PORTED_PURCHASE_FLAGS = [
   "is_preorder_authorization",
-  "is_free_trial_purchase",
   "is_upgrade_purchase",
   "is_bundle_purchase",
   "is_bundle_product_purchase",
   "is_commission_deposit_purchase",
   "is_commission_completion_purchase",
   "is_installment_payment",
-  "is_original_subscription_purchase",
   "is_part_of_combined_charge",
   "is_multiseat_license",
 ] as const;
 
-const NOT_PORTED_LINK_FLAGS = [
-  "is_recurring_billing",
-  "is_in_preorder_state",
-  "is_bundle",
-  "free_trial_enabled",
-  "is_tiered_membership",
-  "is_multiseat_license",
-] as const;
+const NOT_PORTED_LINK_FLAGS = ["is_in_preorder_state", "is_bundle", "is_multiseat_license"] as const;
 // Link::NATIVE_TYPES whose thumbnail, wording and attributes are the plain product ones; a physical product is a digital one with is_physical.
 const SUPPORTED_NATIVE_TYPES = [
   "digital",
@@ -166,7 +181,35 @@ const SUPPORTED_NATIVE_TYPES = [
   "audiobook",
   "physical",
   "coffee",
+  "membership",
 ];
+
+// The first receipt of a membership, or of its free trial. A renewal, an upgrade, a fixed-length membership, an
+// installment plan and a gifted membership render other sections.
+function assertSupportedMembership(data: ReceiptData): void {
+  const { purchase, link, subscription } = data;
+  const refuse = (reason: string): never => {
+    throw new MailViewNotPortedError(`receipt for ${reason}`);
+  };
+  if (subscription === null) return refuse("a membership without a subscription");
+  if (!purchaseFlag(purchase, "is_original_subscription_purchase")) refuse("a renewal of a membership");
+  if (purchase.price_id === null) refuse("a membership purchase without a price");
+  if (purchaseFlag(purchase, "is_gift_sender_purchase") || purchaseFlag(purchase, "is_gift_receiver_purchase"))
+    refuse("a gifted membership");
+  const { row } = subscription;
+  if (row.charge_occurrence_count !== null) refuse("a fixed-length membership");
+  const subscriptionFlags = row.flags ?? 0;
+  if (
+    SubscriptionFlags.isSet(subscriptionFlags, "is_installment_plan") ||
+    SubscriptionFlags.isSet(subscriptionFlags, "is_test_subscription")
+  )
+    refuse("an installment plan or a test subscription");
+  if (purchaseFlag(purchase, "is_free_trial_purchase") && row.free_trial_ends_at === null)
+    refuse("a trial without an end");
+  // The next charge is priced in the purchase's currency, which only a dollar product leaves unconverted.
+  if (link.price_currency_type !== "usd" || purchase.displayed_price_currency_type !== "usd")
+    refuse("a membership priced in another currency");
+}
 
 // The receipts below render exactly as Rails does; the rest go back to Rails.
 export function assertSupported(data: ReceiptData): void {
@@ -175,8 +218,21 @@ export function assertSupported(data: ReceiptData): void {
     throw new MailViewNotPortedError(`receipt for ${reason}`);
   };
   const giftReceived = purchaseFlag(purchase, "is_gift_receiver_purchase");
-  if (purchase.purchase_state !== (giftReceived ? "gift_receiver_purchase_successful" : "successful"))
-    refuse(`a purchase in state ${String(purchase.purchase_state)}`);
+  const membership = linkFlag(link, "is_recurring_billing");
+  const trial = purchaseFlag(purchase, "is_free_trial_purchase");
+  // A trial is recorded without a charge: the one receipt of a purchase that is not successful.
+  const expectedState = giftReceived ? "gift_receiver_purchase_successful" : trial ? "not_charged" : "successful";
+  if (purchase.purchase_state !== expectedState) refuse(`a purchase in state ${String(purchase.purchase_state)}`);
+  if (membership !== (link.native_type === "membership")) refuse("a recurring product that is not a membership");
+  if (
+    !membership &&
+    (trial ||
+      purchaseFlag(purchase, "is_original_subscription_purchase") ||
+      linkFlag(link, "is_tiered_membership") ||
+      linkFlag(link, "free_trial_enabled"))
+  )
+    refuse("a subscription purchase");
+  if (membership) assertSupportedMembership(data);
   for (const flag of NOT_PORTED_PURCHASE_FLAGS) if (purchaseFlag(purchase, flag)) refuse(`a purchase with ${flag}`);
   for (const flag of NOT_PORTED_LINK_FLAGS) if (linkFlag(link, flag)) refuse(`a product with ${flag}`);
   if (purchaseFlag(purchase, "is_gift_sender_purchase")) {
@@ -204,7 +260,8 @@ export function assertSupported(data: ReceiptData): void {
       refuse("a gift receiver with a price");
     if (linkFlag(link, "is_physical") || purchaseFlag(purchase, "is_rental")) refuse("a physical or rented gift");
   }
-  if (purchase.subscription_id !== null || purchase.price_id !== null) refuse("a subscription purchase");
+  if (!membership && (purchase.subscription_id !== null || purchase.price_id !== null))
+    refuse("a subscription purchase");
   if (purchase.preorder_id !== null) refuse("a preorder");
   // Footer: the "test purchase" warning for a seller buying their own product.
   if (purchase.purchaser_id !== null && BigInt(purchase.purchaser_id) === BigInt(link.user_id))
@@ -279,6 +336,8 @@ export function mailSubject(data: ReceiptData): string {
       : `${gifterEmail} bought ${link.name} for you!`;
   }
   if (purchaseFlag(purchase, "is_gift_sender_purchase")) return `You bought ${data.gift!.giftee_email} ${link.name}!`;
+  // Only a membership's first charge gets here, so it is never "Recurring charge".
+  if (linkFlag(link, "is_recurring_billing")) return `You've subscribed to ${link.name}!`;
   if (purchaseFlag(purchase, "is_rental")) return `You rented ${link.name}!`;
   if (purchase.price_cents === 0) return `You got ${link.name}!`;
   return `You bought ${link.name}!`;
@@ -311,8 +370,9 @@ export function chargeInfo(data: ReceiptData, orderId: string) {
   return {
     orderId,
     formattedCreatedAt: formattedDateAbbrevMonth(purchase.created_at),
-    // A free trial still counts as paid, but trials are not ported.
-    free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
+    // A free trial still counts as paid: the buyer gave a card and the total explains the later charge.
+    free:
+      purchase.price_cents === 0 && purchase.shipping_cents === 0 && !purchaseFlag(purchase, "is_free_trial_purchase"),
     formattedTotalTransactionAmount: data.presentment
       ? formatChargePresentmentAmount(data.presentment.totalCents, data.presentment.currency)
       : formattedDollarAmount(purchase.total_transaction_cents),
@@ -354,15 +414,27 @@ export function shippingInfo(data: ReceiptData): { title: string; attributes: At
 const NO_CARD_STATEMENT_TYPES = ["paypal", "link", "upi", "ideal", "bancontact", "pix", "klarna", "alipay"];
 
 export function paymentInfo(data: ReceiptData, invoiceLink: string) {
-  const { purchase, link } = data;
+  const { purchase, link, subscription } = data;
+  const trial = purchaseFlag(purchase, "is_free_trial_purchase");
+  // Purchase#free_purchase?
   const free = purchase.price_cents === 0 && purchase.shipping_cents === 0;
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
 
+  const upcoming: Attribute[] = [];
+  if (subscription?.nextPayment)
+    upcoming.push(
+      { label: "Upcoming payment", text: "" },
+      {
+        label: productLabel,
+        text: `${formattedPrice("usd", subscription.nextPayment.cents)} on ${formattedDateAbbrevMonth(subscription.nextPayment.date)}`,
+      },
+    );
   const today: Attribute[] = [];
-  if (!free)
+  if (upcoming.length > 0) today.push({ label: "Today's payment", text: "" });
+  if (!free || trial)
     today.push({
       label: productLabel,
-      text: todayAmount(data, data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents),
+      text: todayAmount(data, trial ? 0 : data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents),
     });
   const moved = (purchase.total_transaction_cents ?? 0) !== 0;
   if (purchase.shipping_cents > 0)
@@ -380,7 +452,8 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
         !moved ? 0 : data.presentment ? data.presentment.totalCents : purchase.total_transaction_cents!,
       ),
     });
-  if (!free) today.push({ label: null, html: invoiceLink });
+  // Purchase#has_invoice?
+  if (subscription ? !trial : !free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
   if (!data.presentment)
@@ -392,7 +465,7 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   }
 
   let paymentMethod: Attribute | null = null;
-  if (!(isBlank(purchase.card_type) && isBlank(purchase.card_visual))) {
+  if (!trial && !(isBlank(purchase.card_type) && isBlank(purchase.card_visual))) {
     const visual = isBlank(purchase.card_visual) ? null : purchase.card_visual!.replaceAll("*", "").replaceAll(" ", "");
     paymentMethod = {
       label: "Payment method",
@@ -401,11 +474,11 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   }
 
   return {
-    present: today.length > 0,
+    present: today.length > 0 || upcoming.length > 0,
     title: "Payment info",
     notes,
     todayPaymentAttributes: today,
-    upcomingPaymentAttributes: [] as Attribute[],
+    upcomingPaymentAttributes: upcoming,
     paymentMethodAttribute: paymentMethod,
   };
 }
@@ -416,6 +489,7 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
   const { purchase, link } = data;
   const coffee = link.native_type === "coffee";
   const notes: string[] = [];
+  if (purchaseFlag(purchase, "is_free_trial_purchase")) notes.push("Your free trial has begun!");
   if (linkFlag(link, "is_physical"))
     notes.push("Your order will ship shortly. The creator will notify you when your package is on its way.");
   if (purchaseFlag(purchase, "is_rental"))
@@ -437,7 +511,9 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
           Math.trunc(purchase.displayed_price_cents / purchase.quantity) - (data.tipValueCents ?? 0),
           purchase.displayed_price_currency_type!,
         );
-    general.push({ label: coffee ? "Donation" : "Product price", text: perUnit });
+    // Purchase#format_price_in_cents appends the cadence of a membership's price.
+    const cadence = data.priceRecurrence === null ? "" : ` ${recurrenceLongIndicator(data.priceRecurrence)}`;
+    general.push({ label: coffee ? "Donation" : "Product price", text: `${perUnit}${cadence}` });
   }
   if (data.tipValueCents !== null) {
     general.push({
@@ -472,7 +548,26 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
     showDownloadButton: data.urlRedirectToken !== null && !coffee && !giftSent,
     downloadCta: downloadCta(data),
     generalAttributes: general,
+    manageSubscriptionNote: data.subscription === null ? null : manageMembershipNote(data.subscription),
   };
+}
+
+// ItemInfo#manage_membership_note for a membership that renews until cancelled.
+function manageMembershipNote(subscription: ReceiptSubscription): string {
+  const href = mailerUrl(`/subscriptions/${subscription.externalId}/manage`);
+  return `You will be charged once ${recurrenceLongIndicator(subscription.recurrence)}. If you would like to manage your membership you can visit ${linkTo("subscription settings", href, { target: "_blank" })}.`;
+}
+
+function recurrenceLongIndicator(recurrence: string | null): string {
+  const indicator = recurrence === null ? undefined : RECURRENCE_LONG_INDICATOR[recurrence];
+  if (indicator === undefined) throw new MailViewNotPortedError(`recurrence ${String(recurrence)}`);
+  return indicator;
+}
+
+// FooterInfo: the cadence and the link that replace the unsubscribe link of a membership's receipt.
+export function manageSubscriptionFooter(subscription: ReceiptSubscription): string {
+  const href = mailerUrl(`/subscriptions/${subscription.externalId}/manage`);
+  return `${h(`You'll be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`)}\n    ${linkTo("Manage membership", href)}`;
 }
 
 // shared/_download_button: a rental redirect gets "Watch" when the product has a video file and no button at all otherwise.
@@ -480,10 +575,5 @@ function downloadCta(data: ReceiptData): { label: string | null; path: string } 
   if (!data.urlRedirectIsRental) return { label: null, path: `/d/${data.urlRedirectToken}` };
   return data.linkStreamable ? { label: "Watch", path: `/s/${data.urlRedirectToken}` } : null;
 }
-
-// --- FooterInfo ----------------------------------------------------------------------------------------
-
-// can_manage_subscription? is false for everything ported: the product is not recurring.
-export const canManageSubscription = () => false;
 
 export { truncate };

@@ -168,7 +168,7 @@ const EPICS: Epic[] = [
     title: "Audience, emails, workflows and the receipt mailer (WS-13/15)",
     files: /mail|receipt|workflow|installment|post-|audience|follower|export|customers|analytics/u,
     fallback: /marketing|\bposts?[-.]|imported-customer|events-mutations|test-ping/u,
-    state: "partial (gift receiver, free-trial, subscription receipts, preorders hand back; export variants hand back)",
+    state: "partial (renewal receipts, fixed-length, installment and gifted membership receipts hand back; export variants hand back)",
     blocker: "Mailer templates with files that have thumbnails.",
     scope: "Remaining receipt shapes, workflow emails with thumbnails, purchases export families (several variants, gifts, preorders, subscriptions, PayPal, Connect).",
   },

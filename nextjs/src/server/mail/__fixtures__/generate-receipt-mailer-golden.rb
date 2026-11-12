@@ -82,7 +82,7 @@ require File.join(ROOT, "nextjs/scripts/golden/support/sidekiq_executor")
 # Recommended products search Elasticsearch: a proxy keeps the exact requests and answers, against a scratch index.
 require File.join(ROOT, "nextjs/src/server/search/__fixtures__/es_recording_proxy")
 connect_recording_client!
-Link.index_name("ws85-link")
+Link.index_name(ENV.fetch("RECEIPT_GOLDEN_ES_INDEX", "ws85-link"))
 
 # Message-IDs embed the host name; pin it so goldens don't record the machine they ran on.
 require "socket"
@@ -236,7 +236,7 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses payment_options].freeze
+            customer_email_infos purchase_offer_code_discounts offer_codes_products email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses payment_options].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
@@ -757,14 +757,67 @@ gift_receiver("licensed", link: { flags: LICENSED }, extra: -> { insert_license(
 gift_receiver("physical", link: PHYSICAL.merge(require_shipping: true), redirect: false, purchase: SHIPPING, into: refused)
 gift_receiver("custom_receipt_text", link: { json_data: { "custom_receipt_text" => "Thanks for gifting!" } })
 gift_receiver("variant", extra: -> { insert_variant(id: 701, link_id: 301, name: "Large"); attach_variant(401, 701) })
-# The first receipt of a monthly membership: Rails renders it (subscription, price and payment-option reads, a manage
-# link instead of the unsubscribe link, an upcoming-payment section), and the port hands it back.
+# The first receipt of a membership (Purchase flag 3, is_original_subscription_purchase): a manage link and the
+# charging cadence in the footer, a manage note on the item and an upcoming-payment section. The subscription
+# is 501 and its only price row is the payment option's (701).
 ORIGINAL_SUBSCRIPTION = Purchase.flag_mapping["flags"][:is_original_subscription_purchase]
-setup(link: { flags: 2, native_type: "membership" }, purchase: PRICE.merge(flags: ORIGINAL_SUBSCRIPTION, subscription_id: 501, price_id: 701))
-insert_price(link_id: 301, price_cents: 500, recurrence: "monthly", id: 701)
-Subscription.insert!({ id: 501, link_id: 301, user_id: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
-PaymentOption.insert!({ subscription_id: 501, price_id: 701, created_at: FIXED_NOW, updated_at: FIXED_NOW })
-refused << record_message("receipt_membership_first_charge", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+FREE_TRIAL_PURCHASE = Purchase.flag_mapping["flags"][:is_free_trial_purchase]
+MEMBERSHIP = { flags: Link.flag_mapping["flags"][:is_recurring_billing], native_type: "membership" }.freeze
+TIERED_MEMBERSHIP = MEMBERSHIP.merge(flags: MEMBERSHIP[:flags] | Link.flag_mapping["flags"][:is_tiered_membership]).freeze
+TRIAL_MEMBERSHIP = MEMBERSHIP.merge(flags: MEMBERSHIP[:flags] | Link.flag_mapping["flags"][:free_trial_enabled], free_trial_duration_amount: 1, free_trial_duration_unit: 0).freeze
+TRIAL = { purchase_state: "not_charged", price_cents: 0, total_transaction_cents: 0, succeeded_at: nil }.freeze
+TRIAL_FLAGS = ORIGINAL_SUBSCRIPTION | FREE_TRIAL_PURCHASE
+
+def membership(name, recurrence: "monthly", link: MEMBERSHIP, purchase: {}, subscription: {}, price: {}, into: nil, redirect: true, extra: nil)
+  setup(link:, purchase: PRICE.merge(flags: ORIGINAL_SUBSCRIPTION, subscription_id: 501, price_id: 701).merge(purchase), redirect:)
+  insert_price(link_id: 301, price_cents: 500, recurrence:, id: 701, **price)
+  Subscription.insert!({ id: 501, link_id: 301, user_id: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW, **subscription })
+  PaymentOption.insert!({ subscription_id: 501, price_id: 701, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  extra&.call
+  (into || $messages) << record_message("receipt_membership_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+
+def sign_in_buyer = insert_user(id: 202, email: "buyer@example.com", username: "buyer")
+
+membership("first_charge")
+membership("quarterly", recurrence: "quarterly")
+membership("biannually", recurrence: "biannually")
+membership("yearly", recurrence: "yearly")
+membership("every_two_years", recurrence: "every_two_years")
+membership("tier", link: TIERED_MEMBERSHIP, extra: -> { insert_variant(id: 702, link_id: 301, name: "Gold"); attach_variant(401, 702) })
+membership("untitled_tier", link: TIERED_MEMBERSHIP, extra: -> { insert_variant(id: 702, link_id: 301, name: "Untitled"); attach_variant(401, 702) })
+membership("signed_in_buyer", purchase: { purchaser_id: 202 }, subscription: { user_id: 202 }, extra: -> { sign_in_buyer })
+membership("last_payment_option", extra: -> { Subscription.where(id: 501).update_all(last_payment_option_id: PaymentOption.where(subscription_id: 501).pick(:id)) })
+membership("card", purchase: { card_type: "visa", card_visual: "**** **** **** 4242" })
+membership("quantity", purchase: { quantity: 2, price_cents: 1000, total_transaction_cents: 1000, displayed_price_cents: 1000 })
+membership("free_price", purchase: { price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0 })
+membership("without_url_redirect", redirect: false)
+membership("custom_receipt_text", link: MEMBERSHIP.merge(json_data: { "custom_receipt_text" => "Welcome aboard!" }))
+membership("old_purchase", purchase: { created_at: Time.utc(2025, 3, 5, 9, 30), updated_at: Time.utc(2025, 3, 5, 9, 30) })
+membership("tax_excluded", purchase: { flags: ORIGINAL_SUBSCRIPTION | TAXABLE | TAX_EXCLUDED, tax_cents: 50, total_transaction_cents: 550 },
+           extra: -> { insert_zip_tax_rate(id: 901, country: "US", combined_rate: 0.1); Purchase.where(id: 401).update_all(zip_tax_rate_id: 901) })
+membership("tax_vat", purchase: { flags: ORIGINAL_SUBSCRIPTION | TAXABLE | TAX_EXCLUDED, tax_cents: 0, gumroad_tax_cents: 95, total_transaction_cents: 595 },
+           extra: -> { insert_zip_tax_rate(id: 901, country: "DE", combined_rate: 0.19); Purchase.where(id: 401).update_all(zip_tax_rate_id: 901) })
+# A permanent discount: the next charge repeats the discounted price the buyer paid.
+membership("offer_code", purchase: { price_cents: 400, total_transaction_cents: 400, displayed_price_cents: 400 }, extra: -> {
+  OfferCode.insert!({ id: 801, user_id: 201, name: "twenty", code: "twenty", amount_percentage: 20, universal: false, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  ActiveRecord::Base.connection.execute("INSERT INTO offer_codes_products (offer_code_id, product_id) VALUES (801, 301)")
+  PurchaseOfferCodeDiscount.insert!({ purchase_id: 401, offer_code_id: 801, offer_code_amount: 20, offer_code_is_percent: true, pre_discount_minimum_price_cents: 500, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  Purchase.where(id: 401).update_all(offer_code_id: 801)
+})
+# A free trial: nothing is charged now, the first charge is scheduled for the end of the trial.
+membership("free_trial", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS), subscription: { free_trial_ends_at: FIXED_NOW + 7.days })
+membership("free_trial_yearly", recurrence: "yearly", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS), subscription: { free_trial_ends_at: FIXED_NOW + 30.days })
+membership("free_trial_signed_in_buyer", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS, purchaser_id: 202), subscription: { free_trial_ends_at: FIXED_NOW + 7.days, user_id: 202 }, extra: -> { sign_in_buyer })
+membership("free_trial_card", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS, card_type: "visa", card_visual: "**** 4242"), subscription: { free_trial_ends_at: FIXED_NOW + 7.days })
+# Shapes the port hands back.
+membership("fixed_length", subscription: { charge_occurrence_count: 12 }, into: refused)
+membership("without_subscription_row", into: refused, extra: -> { Purchase.where(id: 401).update_all(subscription_id: nil) })
+membership("another_currency", link: MEMBERSHIP.merge(price_currency_type: "eur"), purchase: { displayed_price_currency_type: "eur", displayed_price_cents: 450, rate_converted_to_usd: "0.9" }, into: refused)
+membership("gift_sender", purchase: { flags: ORIGINAL_SUBSCRIPTION | 64 }, into: refused, extra: -> {
+  Gift.insert!({ gifter_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "friend@example.com", gifter_email: "buyer@example.com", gift_note: "Enjoy!", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+})
+membership("upgrade", purchase: { flags: ORIGINAL_SUBSCRIPTION | Purchase.flag_mapping["flags"][:is_upgrade_purchase] }, into: refused)
 
 # Errors.
 reset!
