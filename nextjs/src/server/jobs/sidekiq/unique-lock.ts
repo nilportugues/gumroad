@@ -5,16 +5,15 @@ import { createHash } from "node:crypto";
 
 import type { Redis } from "ioredis";
 
-import { rubyFloatToS } from "./ruby-json.ts";
 import { scheduledAtToS, type SidekiqItem, UNIQUE_JOBS } from "./item.ts";
-import { LOCK_LUA, QUEUE_LUA, UNLOCK_LUA } from "./unique-jobs-lua.generated.ts";
+import { rubyFloatToS } from "./ruby-json.ts";
+import { DELETE_LUA, LOCK_LUA, QUEUE_LUA, UNLOCK_LUA } from "./unique-jobs-lua.generated.ts";
 
-const SCRIPTS = { queue: QUEUE_LUA, lock: LOCK_LUA, unlock: UNLOCK_LUA } as const;
+const SCRIPTS = { queue: QUEUE_LUA, lock: LOCK_LUA, unlock: UNLOCK_LUA, delete: DELETE_LUA } as const;
 type ScriptName = keyof typeof SCRIPTS;
-const SHAS = Object.fromEntries(Object.entries(SCRIPTS).map(([name, source]) => [name, createHash("sha1").update(source).digest("hex")])) as Record<
-  ScriptName,
-  string
->;
+const SHAS = Object.fromEntries(
+  Object.entries(SCRIPTS).map(([name, source]) => [name, createHash("sha1").update(source).digest("hex")]),
+) as Record<ScriptName, string>;
 
 // Locksmith::CLOCK_DRIFT_FACTOR
 const CLOCK_DRIFT_FACTOR = 0.01;
@@ -36,7 +35,7 @@ const redisVersions = new WeakMap<Redis, Promise<string>>();
 function redisVersion(redis: Redis): Promise<string> {
   let version = redisVersions.get(redis);
   if (!version) {
-    version = redis.info("server").then((info) => info.match(/^redis_version:(\S+)/mu)?.[1] ?? "0.0.0");
+    version = redis.info("server").then((info) => /^redis_version:(\S+)/mu.exec(info)?.[1] ?? "0.0.0");
     redisVersions.set(redis, version);
   }
   return version;
@@ -127,7 +126,9 @@ async function lockBang(redis: Redis, item: SidekiqItem, now: number, mode: PopM
   const primed =
     wait === undefined
       ? await redis.lmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT")
-      : await withBlockingConnection(redis, (connection) => connection.blmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT", wait));
+      : await withBlockingConnection(redis, (connection) =>
+          connection.blmove(`${digest}:QUEUED`, `${digest}:PRIMED`, "RIGHT", "LEFT", wait),
+        );
   if (primed !== jid && primed !== "1") return false;
 
   return (await callScript(redis, "lock", item, now)) !== null;
@@ -147,7 +148,12 @@ export function relock(redis: Redis, item: SidekiqItem, now: number, wait: numbe
 // Locksmith#execute: takes the lock (blocking up to lock_timeout), runs `body` and, as every
 // lock's execute block does in its `ensure`, unlocks afterwards. False when the lock was not
 // taken, so the caller applies the server on_conflict strategy.
-export async function executeLocked(redis: Redis, item: SidekiqItem, now: () => number, body: () => Promise<void>): Promise<boolean> {
+export async function executeLocked(
+  redis: Redis,
+  item: SidekiqItem,
+  now: () => number,
+  body: () => Promise<void>,
+): Promise<boolean> {
   if (!(await lockBang(redis, item, now(), { primed: "async" }))) return false;
   try {
     await body();
@@ -155,6 +161,12 @@ export async function executeLocked(redis: Redis, item: SidekiqItem, now: () => 
     await releaseLock(redis, item, now());
   }
   return true;
+}
+
+// Unlockable.delete!: delete.lua removes the digest's keys whatever holds them, and logs the number it removed in the changelog (an
+// entry even when it removed none). `item` needs the `lock_digest` Job.add_digest would set. True when it removed any.
+export async function deleteLockBang(redis: Redis, item: SidekiqItem, now: number): Promise<boolean> {
+  return Number(await callScript(redis, "delete", item, now)) > 0;
 }
 
 // Locksmith#unlock, for the Node worker running a job whose lock was taken on enqueue.

@@ -192,7 +192,7 @@ end
 
 # The Lua the gem loads, rendered once so Node runs byte-identical scripts.
 lua_root = Pathname.new(Gem.loaded_specs["sidekiq-unique-jobs"].full_gem_path).join("lib/sidekiq_unique_jobs/lua")
-scripts = %w[queue lock unlock].to_h do |name|
+scripts = %w[queue lock unlock delete].to_h do |name|
   [name, SidekiqUniqueJobs::Script::Template.new(lua_root).render(lua_root.join("#{name}.lua"))]
 end
 File.write(
