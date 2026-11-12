@@ -118,8 +118,10 @@ function amountToCollect(tax: unknown): number | null {
 }
 
 // TAXJAR_ENDPOINT (config/initializers/taxjar.rb) is the live host in production only; the override lets a replay stand in for TaxJar.
-export const taxjarEndpoint = (): string =>
-  `${process.env.TAXJAR_ENDPOINT?.trim() || (railsEnv() === "production" ? "https://api.taxjar.com" : "https://api.sandbox.taxjar.com")}/v2/taxes`;
+export const taxjarBaseUrl = (): string =>
+  process.env.TAXJAR_ENDPOINT?.trim() || (railsEnv() === "production" ? "https://api.taxjar.com" : "https://api.sandbox.taxjar.com");
+
+export const taxjarEndpoint = (): string => `${taxjarBaseUrl()}/v2/taxes`;
 
 // TaxjarApi#calculate_tax_for_order, then the dollars-to-cents step of calculate_with_taxjar.
 export async function calculateTaxForOrder(order: TaxjarOrder, deps: TaxjarDeps): Promise<TaxjarOutcome> {

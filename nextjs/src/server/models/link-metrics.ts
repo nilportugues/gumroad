@@ -60,6 +60,20 @@ export async function successfulSalesCount(product: Product): Promise<number | n
   return result.total;
 }
 
+// Link#has_successful_sales? (Product::Stats): the same search with `track_total_hits: nil` merged over `true`, so the request
+// carries no track_total_hits and the count stops at Elasticsearch's default cap, which is enough to tell zero from some.
+export async function hasSuccessfulSales(product: Pick<Link, "id">): Promise<boolean> {
+  const result = await PurchaseSearchService.process({
+    ...ACTIVE_SALES_SEARCH_OPTIONS,
+    product: { id: product.id },
+    size: 0,
+    track_total_hits: null,
+  });
+  // `nil > 0` raises in Ruby when the answer carries no total
+  if (result.total === null) throw new NoMethodError("undefined method '>' for nil");
+  return result.total > 0;
+}
+
 // Link#monthly_recurring_revenue (Product::Stats). A Float in Ruby.
 export async function monthlyRecurringRevenue(product: Product): Promise<number> {
   const result = await PurchaseSearchService.process({

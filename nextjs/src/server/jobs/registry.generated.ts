@@ -820,7 +820,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteProductRichContentWorker": {
     "file": "app/sidekiq/delete_product_rich_content_worker.rb",
@@ -3690,7 +3690,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateTaxonomyStatsJob": {
     "file": "app/sidekiq/update_taxonomy_stats_job.rb",

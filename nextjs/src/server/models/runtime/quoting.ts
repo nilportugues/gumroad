@@ -17,7 +17,11 @@ export function quote(value: unknown): string {
   if (value === true) return "TRUE";
   if (value === false) return "FALSE";
   if (typeof value === "number" || typeof value === "bigint") return String(value);
-  if (Prisma.Decimal.isDecimal(value)) return (value as Prisma.Decimal).toString();
+  if (Prisma.Decimal.isDecimal(value)) {
+    // quoted_decimal is `to_s("F")`: plain digits and always a fraction (1 is 1.0).
+    const text = (value as Prisma.Decimal).toFixed();
+    return text.includes(".") ? text : `${text}.0`;
+  }
   if (value instanceof Date) return `'${formatTime(value)}'`;
   if (typeof value === "string") {
     const escaped = value.replace(/[\0\n\r\\'"\x1a]/gu, (c) => ({ "\0": "\\0", "\n": "\\n", "\r": "\\r", "\\": "\\\\", "'": "\\'", '"': '\\"', "\x1a": "\\Z" })[c]!);
