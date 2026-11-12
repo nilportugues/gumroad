@@ -99,6 +99,27 @@ describe "Home static pages", type: :request do
       expect(response.headers["Cache-Control"]).to include("s-maxage=300")
     end
 
+    it "stays edge cacheable with a hash nested more than one level deep", parity: true do
+      get "/terms?filter[kind][deep]=x&tags[a][]=b"
+
+      expect(response).to be_successful
+      expect(set_cookies).to be_empty
+      expect(response.headers["Cache-Control"]).to include("s-maxage=300")
+    end
+
+    it "takes the normal path for a utm_ parameter nested more than one level deep", parity: true do
+      get "/terms?utm_source[a][b]=1"
+
+      expect(response).to be_successful
+      expect(set_cookies).to include("_gumroad_guid")
+    end
+
+    it "makes the body transparent for an as_embed nested more than one level deep", parity: true do
+      get "/terms?as_embed[a][b]=1"
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
     it "takes the normal path for a utm_ parameter that is a hash", parity: true do
       get "/terms?utm_source[a]=1"
 
@@ -145,6 +166,38 @@ describe "Home static pages", type: :request do
       get "/terms"
 
       expect(response.body).to include('id="flash-toast"')
+    end
+
+    it "renders the toast of an alert flash", parity: true do
+      get "/users/confirmation", params: { confirmation_token: "superseded-token" }
+      expect(response).to redirect_to(root_path)
+
+      get "/terms"
+
+      expect(response.body).to include('id="flash-toast"')
+      expect(response.body).to include("This confirmation link is no longer valid")
+    end
+
+    it "renders the toast of a notice flash", parity: true do
+      get "/users/unsubscribe/#{create(:user).secure_external_id(scope: "email_unsubscribe", expires_at: 2.days.from_now)}", params: { email_type: "notify" }
+      expect(response).to redirect_to(root_path)
+
+      get "/terms"
+
+      expect(response.body).to include("You have been unsubscribed from purchase notifications.")
+    end
+
+    it "renders the Dashboard link to an admin impersonating a seller", parity: true do
+      admin = create(:admin_user, name: "Gumlord")
+      seller = create(:named_seller)
+      log_in(admin)
+      get admin_impersonate_path(user_identifier: seller.email)
+      expect(response).to redirect_to(products_path)
+
+      get "/terms"
+
+      expect(response).to be_successful
+      expect(response.body).to include("Dashboard")
     end
 
     it "marks the body of a Mac visitor", parity: true do
