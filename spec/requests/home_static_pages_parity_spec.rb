@@ -91,6 +91,35 @@ describe "Home static pages", type: :request do
       expect(response.headers["Cache-Control"]).not_to include("public")
     end
 
+    it "stays edge cacheable with a list and a hash in the query", parity: true do
+      get "/terms?tags[]=a&tags[]=b&filter[kind]=x"
+
+      expect(response).to be_successful
+      expect(set_cookies).to be_empty
+      expect(response.headers["Cache-Control"]).to include("s-maxage=300")
+    end
+
+    it "takes the normal path for a utm_ parameter that is a hash", parity: true do
+      get "/terms?utm_source[a]=1"
+
+      expect(response).to be_successful
+      expect(set_cookies).to include("_gumroad_guid")
+    end
+
+    it "makes the body transparent for an as_embed list", parity: true do
+      get "/terms?as_embed[]=1"
+
+      expect(response.body).to include('style="background: transparent"')
+    end
+
+    it "answers a HEAD request with the headers of the GET and no body", parity: true do
+      head "/terms"
+
+      expect(response).to be_successful
+      expect(response.body).to be_empty
+      expect(response.headers["Content-Type"]).to include("text/html")
+    end
+
     it "makes the body transparent for as_embed", parity: true do
       get "/terms", params: { as_embed: "true" }
 

@@ -22,6 +22,7 @@ import type { SharedPropsPorts } from "../page-props/ports.ts";
 import { applicationMetaTags } from "../page-props/shared.ts";
 
 import { type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
+import { rackTopLevelParams } from "./rails-params.ts";
 import type { RailsRequest } from "./rails-request.ts";
 
 const GITHUB_STARS_CACHE_KEY = "github_stars_antiwork/gumroad";
@@ -43,7 +44,9 @@ async function fetchGithubStars(): Promise<number | null> {
     const json = response.ok && /json/iu.test(response.headers.get("content-type") ?? "");
     const parsed: unknown = json ? await response.json() : null;
     const stars =
-      typeof parsed === "object" && parsed !== null ? (parsed as { stargazers_count?: unknown }).stargazers_count : null;
+      typeof parsed === "object" && parsed !== null
+        ? (parsed as { stargazers_count?: unknown }).stargazers_count
+        : null;
     // A count that is not an Integer would print differently from `number_to_si`'s Integer path.
     if (stars != null && (typeof stars !== "number" || !Number.isSafeInteger(stars)))
       throw new HandBackToRails("a GitHub star count that is not an integer");
@@ -62,30 +65,18 @@ async function cachedGithubStars(): Promise<number | null> {
     () => fetchGithubStars(),
   );
   // Rails.cache.fetch answers whatever a Ruby writer stored; only an Integer prints.
-  if (stars !== null && typeof stars !== "number") throw new HandBackToRails("a GitHub star count that is not an integer");
+  if (stars !== null && typeof stars !== "number")
+    throw new HandBackToRails("a GitHub star count that is not an integer");
   return stars;
 }
 
-// `params[:as_embed]` is truthy: Rack gives `as_embed=` an empty string (truthy in Ruby) and a bare `as_embed` nil, and the last pair
-// of a name wins. A nested name (`as_embed[]`, `as_embed[a]`) is a list or hash, which also conflicts with a plain pair.
+// `params[:as_embed]` is truthy: a flat `as_embed=` is an empty string (truthy in Ruby), a bare `as_embed` is nil, and a list or hash is truthy.
 function asEmbedParam(queryString: string): boolean {
-  let present = false;
-  for (const pair of queryString.replace(/^\?/u, "").split("&")) {
-    if (pair === "") continue;
-    const index = pair.indexOf("=");
-    let name: string;
-    try {
-      name = decodeURIComponent((index === -1 ? pair : pair.slice(0, index)).replaceAll("+", " "));
-    } catch {
-      throw new HandBackToRails("a query string with an invalid percent escape");
-    }
-    if (name.startsWith("as_embed[")) throw new HandBackToRails("a nested as_embed parameter");
-    if (name === "as_embed") present = index !== -1;
-  }
-  return present;
+  const param = rackTopLevelParams(queryString).get("as_embed");
+  return param !== undefined && (param.nested || param.value !== null);
 }
 
-export type PageMeta ={ title: string; description: string; url: string };
+export type PageMeta = { title: string; description: string; url: string };
 
 // The controller's `set_meta_data`, which runs after ApplicationController's before_actions have set the defaults.
 function pageMetaTags(meta: MetaTagBuilder, { title, description, url }: PageMeta) {
