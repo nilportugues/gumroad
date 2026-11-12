@@ -172,7 +172,7 @@ function normalize(requests: Recorded[]) {
 let server: http.Server;
 let port: number;
 const recorded: Recorded[] = [];
-let script: [number, Record<string, string>, string][] = [];
+let script: [number | "drop", Record<string, string>, string][] = [];
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
