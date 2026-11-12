@@ -180,7 +180,7 @@ async function stripeRejectedPayoutFloorApplies(user: UserRecord): Promise<boole
   return false;
 }
 
-function sharedJsonDataForAccount(account: MerchantAccountRow, key: string): unknown {
+export function sharedJsonDataForAccount(account: MerchantAccountRow, key: string): unknown {
   const raw = (account as { json_data: unknown }).json_data;
   if (raw == null || (typeof raw === "string" && raw.trim() === "")) return undefined;
   const data: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -188,7 +188,7 @@ function sharedJsonDataForAccount(account: MerchantAccountRow, key: string): unk
 }
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
-async function aliveUserComplianceInfo(user: UserRecord): Promise<UserComplianceInfo | null> {
+export async function aliveUserComplianceInfo(user: UserRecord): Promise<UserComplianceInfo | null> {
   const [row] = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`user_compliance_info`.*")} FROM ${table("user_compliance_info")} WHERE ${column("user_compliance_info", "user_id")} = ${user.get("id")} AND ${column("user_compliance_info", "deleted_at")} IS NULL ORDER BY ${column("user_compliance_info", "id")} DESC LIMIT 1`,
   );
