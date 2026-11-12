@@ -1,7 +1,7 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
-// the port can prove: a plain sale of a product without variants, whose columns come from the purchase row, its buyer, its offer code, its
+// the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
 // refunds and its custom fields. A sale that needs anything else (tax labels, gifts, pre-orders, subscriptions, licenses, reviews, tips,
-// affiliates, UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, variants, a GeoIP lookup or a transliterated address)
+// affiliates, UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
 // throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
 
@@ -11,6 +11,8 @@ import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
 import { rubyInspect } from "../models/concerns/ruby-values.ts";
+import { BaseVariantFlags } from "../models/base-variant.ts";
+import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
@@ -33,7 +35,6 @@ const PURCHASE_ID_TABLES: readonly [string, string, string][] = [
   ["purchase_presentments", "purchase_id", "a buyer-currency charge"],
   ["upsell_purchases", "purchase_id", "an upsell"],
   ["utm_link_driven_sales", "purchase_id", "a UTM link"],
-  ["base_variants_purchases", "purchase_id", "a variant"],
   ["order_purchases", "purchase_id", "a cart"],
 ];
 
@@ -46,6 +47,22 @@ const flagSet = (purchase: Purchase, name: Parameters<typeof PurchaseFlags.isSet
 
 type CustomFieldRow = { purchase_id: bigint; name: string | null; value: string | null; field_type: string | null };
 type RefundRow = { purchase_id: bigint; amount_cents: number | null };
+// The one BaseVariant (a Variant or a Sku) a purchase holds in `variant_attributes`.
+type VariantRow = {
+  purchase_id: bigint;
+  id: bigint;
+  type: string | null;
+  name: string | null;
+  price_difference_cents: number | null;
+  custom_sku: string | null;
+  flags: bigint;
+};
+
+// ProductsHelper#variants_displayable of the variants that are not the default SKU.
+function variantsDisplayable(variant: VariantRow | undefined): string {
+  if (variant === undefined || BaseVariantFlags.isSet(variant.flags, "is_default_sku")) return "";
+  return variant.name === "Untitled" ? "" : `(${variant.name ?? ""})`;
+}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const dateOf = (value: Date) => `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}`;
@@ -88,11 +105,25 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
 
   const linkIds = [...new Set(purchases.map((purchase) => purchase.link_id))];
   if (linkIds.some((id) => id === null)) throw new HandBackToRails("a sale whose product is missing");
-  const links = await selectRows<{ id: bigint; name: string | null; unique_permalink: string | null }>(
-    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "unique_permalink")} FROM ${table("links")} WHERE ${column("links", "id")} IN (${Prisma.join(linkIds)})`,
+  const links = await selectRows<{ id: bigint; name: string | null; unique_permalink: string | null; flags: bigint }>(
+    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "unique_permalink")}, ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} IN (${Prisma.join(linkIds)})`,
   );
   const linkById = new Map(links.map((link) => [String(link.id), link]));
   if (linkById.size !== linkIds.length) throw new HandBackToRails("a sale whose product is missing");
+
+  // `variant_attributes` has no order of its own, so one variant per sale is proven. A tiered membership prices its variant from the
+  // subscription's recurrence, and its sale holds a subscription, which hands back below.
+  const variantRows = await selectRows<VariantRow>(
+    Prisma.sql`SELECT ${column("base_variants_purchases", "purchase_id")}, ${column("base_variants", "id")}, ${column("base_variants", "type")}, ${column("base_variants", "name")}, ${column("base_variants", "price_difference_cents")}, ${column("base_variants", "custom_sku")}, ${column("base_variants", "flags")} FROM ${table("base_variants_purchases")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+  );
+  const variantByPurchase = new Map<string, VariantRow>();
+  for (const variant of variantRows) {
+    if (variantByPurchase.has(String(variant.purchase_id)))
+      throw new HandBackToRails("an export that holds a sale with several variants");
+    variantByPurchase.set(String(variant.purchase_id), variant);
+  }
+  if (variantRows.length > 0 && links.some((link) => LinkFlags.isSet(link.flags, "is_tiered_membership")))
+    throw new HandBackToRails("an export that holds a variant of a tiered membership");
 
   // link.custom_fields has no order of its own, so only one field per product is proven.
   const productFields = await selectRows<{ link_id: bigint; name: string | null }>(
@@ -189,7 +220,13 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     for (const name of productFieldNames.get(String(purchase.link_id)) ?? []) addCustomField(name);
 
     rows.push({
-      fields: purchaseFields(purchase, link, { purchasers, offerCodes, refundedCents, customFieldValues }),
+      fields: purchaseFields(purchase, link, {
+        purchasers,
+        offerCodes,
+        refundedCents,
+        customFieldValues,
+        variant: variantByPurchase.get(key),
+      }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
   }
@@ -215,6 +252,7 @@ function purchaseFields(
     offerCodes: Map<string, string | null>;
     refundedCents: Map<string, number>;
     customFieldValues: Map<string, string | boolean>;
+    variant: VariantRow | undefined;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [
@@ -242,6 +280,9 @@ function purchaseFields(
   if (purchase.created_at === null) throw new HandBackToRails("a sale without a creation time");
 
   const priceDollars = dollars(purchase.price_cents);
+  // Purchase#variant_extra_cost_dollars: the price differences, nil counting as nothing.
+  const variantsPriceDollars = dollars(lookups.variant?.price_difference_cents ?? 0);
+  const sku = lookups.variant?.type === "Sku" ? lookups.variant : undefined;
   const buyer = purchase.purchaser_id === null ? undefined : lookups.purchasers.get(String(purchase.purchaser_id));
   const refunded = flagSetColumn(purchase.stripe_refunded);
   const partiallyRefunded = flagSetColumn(purchase.stripe_partially_refunded);
@@ -280,7 +321,7 @@ function purchaseFields(
     "Disputed?": purchase.chargeback_date === null ? 0 : 1,
     "Dispute Won?": flagSet(purchase, "chargeback_reversed") ? 1 : 0,
     "Access Revoked?": flagSet(purchase, "is_access_revoked") ? 1 : 0,
-    Variants: "",
+    Variants: variantsDisplayable(lookups.variant),
     "Discount Code": offerCode,
     "Recurring Charge?": 0,
     "Free trial purchase?": flagSet(purchase, "is_free_trial_purchase") ? 1 : 0,
@@ -289,10 +330,11 @@ function purchaseFields(
     "Order Number": encryptNumeric(Number(purchase.id)),
     "Pre-order authorization time (UTC timezone)": null,
     "Custom Fields": hashInspect(lookups.customFieldValues),
-    "Item Price ($)": new RubyFloat(priceDollars.value - 0),
-    "Variants Price ($)": new RubyFloat(0),
+    "Item Price ($)": new RubyFloat(priceDollars.value - variantsPriceDollars.value),
+    "Variants Price ($)": variantsPriceDollars,
     "Giftee Email": null,
-    "SKU ID": null,
+    // Sku#custom_name_or_external_id
+    "SKU ID": sku === undefined ? null : presence(sku.custom_sku) ?? encrypt(sku.id),
     Quantity: purchase.quantity,
     Recurrence: null,
     Affiliate: null,

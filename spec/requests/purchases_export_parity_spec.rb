@@ -190,9 +190,43 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a sale with a variant to Rails", parity: true do
-    variant_product = create(:product_with_digital_versions, user: seller, name: "Versioned")
-    sell(of: variant_product).tap { |row| row.variant_attributes << variant_product.alive_variants.first }
+  it "writes the variant, its extra cost and the item price without it", parity: true do
+    category = create(:variant_category, link: product, title: "Size")
+    large = create(:variant, variant_category: category, name: "Large", price_difference_cents: 150)
+    small = create(:variant, variant_category: category, name: "Small", price_difference_cents: 0)
+    untitled = create(:variant, variant_category: category, name: "Untitled", price_difference_cents: nil)
+    sell(price_cents: 650).variant_attributes << large
+    sell(price_cents: 500).variant_attributes << small
+    sell(price_cents: 500).variant_attributes << untitled
+    sell(price_cents: 500)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Variants")] }).to include("(Large)", "(Small)")
+  end
+
+  it "writes a SKU's custom name or its external id in the SKU column", parity: true do
+    product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:skus_enabled])
+    custom = create(:sku, link: product, name: "Red - Large", custom_sku: "RED-L", price_difference_cents: 200)
+    plain = create(:sku, link: product, name: "Blue - Small", price_difference_cents: 0)
+    default = create(:sku, link: product, name: "Default", price_difference_cents: 0)
+    default.update_columns(flags: default.flags | BaseVariant.flag_mapping["flags"][:is_default_sku])
+    sell(price_cents: 700).variant_attributes << custom
+    sell(price_cents: 500).variant_attributes << plain
+    sell(price_cents: 500).variant_attributes << default
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("SKU ID")] }).to include("RED-L")
+  end
+
+  it "hands a sale with several variants to Rails", parity: true do
+    category = create(:variant_category, link: product, title: "Size")
+    first = create(:variant, variant_category: category, name: "Large", price_difference_cents: 100)
+    second = create(:variant, variant_category: create(:variant_category, link: product, title: "Color"), name: "Red", price_difference_cents: 50)
+    sell.variant_attributes.push(first, second)
 
     export
 
