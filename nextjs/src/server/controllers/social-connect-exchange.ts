@@ -354,26 +354,38 @@ function verifyIdToken(token: string, audience: string | undefined, now: Date): 
     throw new StrategyFailure("Signature nbf has not been reached");
 }
 
-// The `credentials` and `extra` blocks of GoogleOauth2 (tokeninfo, the ID token, user info), which `auth_hash` evaluates in that order.
-// The connect action reads none of what they return; they matter as calls that can end the callback.
-async function googleAuthHash(token: AccessToken, idToken: unknown, now: Date): Promise<void> {
+// What the gem's `auth_hash` collects from Google, in the order it asks for it: `credentials` (tokeninfo, for the scope), then `extra` (the
+// ID token's claims, then `raw_info`, the userinfo answer, which `uid` and `info` read from the same cached call).
+export type GoogleAuth = { scope: unknown; idInfo: Hash | null; rawInfo: unknown };
+
+function jwtClaims(token: string): Hash | null {
+  const payload = token.split(".")[1];
+  const parsed = payload === undefined ? null : (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as unknown);
+  return isHash(parsed) ? parsed : null;
+}
+
+async function googleAuthHash(token: AccessToken, idToken: unknown, now: Date): Promise<GoogleAuth> {
   const info = await oauthRequest(
     `https://www.googleapis.com/oauth2/v3/tokeninfo?${faradayQuery({ access_token: token.token })}`,
     { method: "GET" },
   );
-  oauthParsed(info.contentType, info.text);
+  const tokenInfo = oauthParsed(info.contentType, info.text);
   const jwt = typeof idToken === "string" && idToken !== "" ? idToken : token.token;
   verifyIdToken(jwt, getConfig("GOOGLE_CLIENT_ID"), now);
   const user = await oauthRequest("https://www.googleapis.com/oauth2/v3/userinfo", {
     method: "GET",
     headers: bearer(token.token),
   });
-  oauthParsed(user.contentType, user.text);
+  return {
+    scope: isHash(tokenInfo) ? (tokenInfo.scope ?? null) : null,
+    idInfo: jwt === "" ? null : jwtClaims(jwt),
+    rawInfo: oauthParsed(user.contentType, user.text),
+  };
 }
 
 // --- The exchange as the strategy runs it ------------------------------------------------------------------------------------------------
 
-export type Exchanged = { ok: true; token: string; uid: unknown } | { ok: false; type: string };
+export type Exchanged = { ok: true; token: string; uid: unknown; google: GoogleAuth | null } | { ok: false; type: string };
 
 // OmniAuth::Strategies::OAuth2#callback_phase from `build_access_token` on. A failure is the type the failure action receives.
 export async function exchangeCode(
@@ -384,14 +396,14 @@ export async function exchangeCode(
 ): Promise<Exchanged> {
   try {
     const token = await exchange(STRATEGIES[provider](), code, callbackUrl, now);
-    if (provider === "youtube") await googleAuthHash(token, token.params.id_token, now);
+    const google = provider === "youtube" ? await googleAuthHash(token, token.params.id_token, now) : null;
     const uid =
       provider === "instagram"
         ? (token.params.user_id ?? null)
         : provider === "tiktok"
           ? (token.params.open_id ?? null)
           : null;
-    return { ok: true, token: token.token, uid };
+    return { ok: true, token: token.token, uid, google };
   } catch (error) {
     if (error instanceof OAuth2Error) return { ok: false, type: "invalid_credentials" };
     if (error instanceof StrategyFailure) return { ok: false, type: error.type };
