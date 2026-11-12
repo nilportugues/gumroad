@@ -128,6 +128,12 @@ const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
   ["serves-the-page-after-a-page-key", "2026-11-11T01:01:59Z"],
   ["-sale-trigger-after-a-time", "2026-11-10T21:00:00Z"],
   ["-sale-trigger-before-a-time", "2026-11-10T21:00:00Z"],
+  ["-reports-sales-totals-by-day", "2026-11-12T05:00:00Z"],
+  ["-reports-sales-totals-by-week", "2026-11-12T05:00:00Z"],
+  ["-reports-sales-totals-by-month", "2026-11-12T05:00:00Z"],
+  ["-sales-totals-by-country-reports-sales-totals-by-country", "2026-11-12T05:00:00Z"],
+  ["-list-sales-", "2026-11-12T05:00:00Z"],
+  ["-list-products-", "2026-11-12T06:00:00Z"],
   ["-reports-sales-totals-", "2026-11-10T16:45:00Z"],
   ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
 ];

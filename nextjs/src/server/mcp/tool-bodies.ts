@@ -10,13 +10,18 @@ import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { findByName } from "../models/compliance-countries.ts";
 import {
   instantInTimeZoneIso8601,
   InvalidTimeZoneError,
   startOfDayIso8601,
+  utcOffsetAt,
 } from "../models/concerns/rails-time-zone.ts";
 import { domainConfig } from "../page-props/domain.ts";
+import { longUrl } from "../presenters/product.ts";
+import type { LinkRow, UserRow } from "../presenters/product-reads.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+import { SubscriptionFlags } from "../models/subscription.ts";
 
 const INVALID_PARAMS = -32602;
 const MICROSECONDS_PER_SECOND = 1_000_000n;
@@ -92,11 +97,84 @@ export type CustomerReader = {
 
 export type ProductTotalsQuery = { sellerId: bigint; productId: bigint | null; from: string; until: string };
 export type ProductTotalsRow = { link_id: bigint; revenue_cents: number; units: number };
+export type CountryTotalsRow = { country: string | null; revenue_cents: number; units: number };
+// One constant-offset stretch of the range; `from` is inclusive, `until` exclusive, both UTC datetimes.
+export type OffsetSegment = { from: string; until: string; offsetSeconds: number };
+export type PeriodTotalsRow = { key: string; revenue_cents: number; units: number };
 export type SalesTotalsReader = {
   byProduct: (query: ProductTotalsQuery) => Promise<ProductTotalsRow[]>;
+  // The raw `COALESCE(NULLIF(TRIM(country), ''), ip_country)` groups; naming them is the caller's.
+  byCountry: (query: ProductTotalsQuery) => Promise<CountryTotalsRow[]>;
+  // Local-date buckets (`YYYY-MM-DD`: the day, the Monday of its week or the first of its month) of each segment.
+  byPeriod: (
+    query: Omit<ProductTotalsQuery, "from" | "until"> & { segments: OffsetSegment[]; period: "day" | "week" | "month" },
+  ) => Promise<PeriodTotalsRow[]>;
   productNames: (ids: bigint[]) => Promise<Map<bigint, string>>;
   // user.links.find_by_external_id, then unique_permalink, then custom_permalink; a deleted product is not found.
   findProductId: (userId: bigint, id: string) => Promise<bigint | null>;
+};
+
+export type SaleRow = {
+  id: bigint;
+  email: string | null;
+  link_id: bigint | null;
+  product_name: string | null;
+  price_cents: number | null;
+  fee_cents: number | null;
+  affiliate_credit_cents: number | null;
+  created_at: Date;
+  stripe_refunded: boolean;
+  chargeback_date: Date | null;
+  subscription_id: bigint | null;
+  subscription_flags: bigint | null;
+  country: string | null;
+  ip_country: string | null;
+  offer_code: string | null;
+  referrer: string | null;
+  utm_driven_count: number;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_term: string | null;
+  utm_content: string | null;
+};
+export type SalesQuery = {
+  sellerId: bigint;
+  email: string | null;
+  productId: bigint | null;
+  // UTC datetimes: `after` inclusive, `before` exclusive.
+  after: string | null;
+  before: string | null;
+  payment: "paid" | "free" | null;
+  kind: "subscription" | "one_time" | null;
+  cursor: { at: string; id: bigint } | null;
+  limit: number;
+};
+export type SalesReader = {
+  list: (query: SalesQuery) => Promise<SaleRow[]>;
+  findProductId: SalesTotalsReader["findProductId"];
+};
+
+export type ProductListRow = {
+  id: bigint;
+  created_at: Date;
+  name: string | null;
+  // Product::Prices#price_cents reads the default Price row, not the column: the alive buy prices in the product's currency.
+  buy_price_count: number;
+  buy_price_cents: number | null;
+  purchase_type: number | null;
+  price_currency_type: string | null;
+  customizable_price: boolean | null;
+  suggested_price_cents: number | null;
+  purchase_disabled_at: Date | null;
+  draft: boolean | null;
+  flags: bigint | null;
+  unique_permalink: string | null;
+  custom_permalink: string | null;
+};
+export type ProductsReader = {
+  // `user.products.visible`, newest first, strictly after `after` when given, at most `limit` rows.
+  list: (userId: bigint, limit: number, after: { at: string; id: bigint } | null) => Promise<ProductListRow[]>;
 };
 
 export type ToolContext = {
@@ -105,6 +183,8 @@ export type ToolContext = {
   payouts?: PayoutReader;
   customers?: CustomerReader;
   salesTotals?: SalesTotalsReader;
+  sales?: SalesReader;
+  products?: ProductsReader;
   now?: () => Date;
 };
 
@@ -235,23 +315,30 @@ export const readCustomers: CustomerReader = {
   },
 };
 
+// The revenue definition of the report: kept, not refunded or charged back, not a bundle member, not a gift receiver's row.
+function keptSalesConditions(sellerId: bigint, productId: bigint | null, from: string, until: string): Prisma.Sql[] {
+  const conditions = [
+    Prisma.sql`purchases.seller_id = ${sellerId}`,
+    Prisma.sql`purchases.purchase_state IN (${Prisma.join(KEPT_SUCCESS_STATES)})`,
+    Prisma.sql`(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)`,
+    Prisma.sql`(purchases.chargeback_date IS NULL OR purchases.flags & ${String(PurchaseFlags.bit("chargeback_reversed"))} != 0)`,
+    flagSql("is_gift_receiver_purchase", false),
+    flagSql("is_bundle_product_purchase", false),
+    Prisma.sql`purchases.created_at >= ${from}`,
+    Prisma.sql`purchases.created_at < ${until}`,
+  ];
+  if (productId !== null) conditions.push(Prisma.sql`purchases.link_id = ${productId}`);
+  return conditions;
+}
+// A commission completion is a second payment on the order: it adds revenue but not a unit.
+const unitsSql = () =>
+  Prisma.sql`SUM(CASE WHEN ${flagSql("is_commission_completion_purchase", false)} THEN 1 ELSE 0 END)`;
+
 export const readSalesTotals: SalesTotalsReader = {
   async byProduct(query) {
-    const conditions = [
-      Prisma.sql`purchases.seller_id = ${query.sellerId}`,
-      Prisma.sql`purchases.purchase_state IN (${Prisma.join(KEPT_SUCCESS_STATES)})`,
-      Prisma.sql`(purchases.stripe_refunded IS NULL OR purchases.stripe_refunded = 0)`,
-      Prisma.sql`(purchases.chargeback_date IS NULL OR purchases.flags & ${String(PurchaseFlags.bit("chargeback_reversed"))} != 0)`,
-      flagSql("is_gift_receiver_purchase", false),
-      flagSql("is_bundle_product_purchase", false),
-      Prisma.sql`purchases.created_at >= ${query.from}`,
-      Prisma.sql`purchases.created_at < ${query.until}`,
-    ];
-    if (query.productId !== null) conditions.push(Prisma.sql`purchases.link_id = ${query.productId}`);
-    // A commission completion is a second payment on the order: it adds revenue but not a unit.
+    const conditions = keptSalesConditions(query.sellerId, query.productId, query.from, query.until);
     const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT purchases.link_id AS link_id,
-        SUM(purchases.price_cents) AS revenue_cents,
-        SUM(CASE WHEN ${flagSql("is_commission_completion_purchase", false)} THEN 1 ELSE 0 END) AS units
+        SUM(purchases.price_cents) AS revenue_cents, ${unitsSql()} AS units
       FROM purchases WHERE ${Prisma.join(conditions, " AND ")} GROUP BY purchases.link_id ORDER BY purchases.link_id`;
     return rows.map((row) => ({
       link_id: BigInt(row.link_id as bigint),
@@ -259,25 +346,114 @@ export const readSalesTotals: SalesTotalsReader = {
       units: num(row.units),
     }));
   },
+  async byCountry(query) {
+    const conditions = keptSalesConditions(query.sellerId, query.productId, query.from, query.until);
+    const key = Prisma.raw("COALESCE(NULLIF(TRIM(purchases.country), ''), purchases.ip_country)");
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT ${key} AS country,
+        SUM(purchases.price_cents) AS revenue_cents, ${unitsSql()} AS units
+      FROM purchases WHERE ${Prisma.join(conditions, " AND ")} GROUP BY ${key}`;
+    return rows.map((row) => ({
+      country: row.country as string | null,
+      revenue_cents: num(row.revenue_cents),
+      units: num(row.units),
+    }));
+  },
+  async byPeriod(query) {
+    const out: PeriodTotalsRow[] = [];
+    for (const segment of query.segments) {
+      const conditions = keptSalesConditions(query.sellerId, query.productId, segment.from, segment.until);
+      const local = `DATE(DATE_ADD(purchases.created_at, INTERVAL ${Math.trunc(segment.offsetSeconds)} SECOND))`;
+      const bucket =
+        query.period === "day"
+          ? local
+          : query.period === "week"
+            ? `DATE_SUB(${local}, INTERVAL WEEKDAY(${local}) DAY)`
+            : `DATE_FORMAT(${local}, '%Y-%m-01')`;
+      const expression = Prisma.raw(`DATE_FORMAT(${bucket}, '%Y-%m-%d')`);
+      const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT ${expression} AS bucket,
+          SUM(purchases.price_cents) AS revenue_cents, ${unitsSql()} AS units
+        FROM purchases WHERE ${Prisma.join(conditions, " AND ")} GROUP BY ${expression}`;
+      for (const row of rows)
+        out.push({ key: String(row.bucket), revenue_cents: num(row.revenue_cents), units: num(row.units) });
+    }
+    return out;
+  },
   async productNames(ids) {
     const links = await db.link.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
     return new Map(links.map((link) => [link.id, link.name]));
   },
-  async findProductId(userId, id) {
-    const decrypted = decrypt(id);
-    const attempts = [
-      ...(decrypted === null ? [] : [{ id: BigInt(decrypted) }]),
-      { unique_permalink: id },
-      { custom_permalink: id },
+  findProductId: (userId, id) => findSellerProductId(userId, id),
+};
+
+// Mcp::Server#find_product!'s lookup: user.links.find_by_external_id, then unique_permalink, then custom_permalink.
+// A deleted product is not found.
+async function findSellerProductId(userId: bigint, id: string): Promise<bigint | null> {
+  const decrypted = decrypt(id);
+  const attempts = [
+    ...(decrypted === null ? [] : [{ id: BigInt(decrypted) }]),
+    { unique_permalink: id },
+    { custom_permalink: id },
+  ];
+  for (const where of attempts) {
+    const link = await db.link.findFirst({
+      where: { user_id: userId, ...where },
+      select: { id: true, deleted_at: true },
+    });
+    if (link !== null) return link.deleted_at === null ? link.id : null;
+  }
+  return null;
+}
+
+export const readSales: SalesReader = {
+  findProductId: (userId, id) => findSellerProductId(userId, id),
+  async list(query) {
+    const conditions = [
+      Prisma.sql`purchases.seller_id = ${query.sellerId}`,
+      Prisma.sql`purchases.purchase_state IN (${Prisma.join(CHARGED_SUCCESS_STATES)})`,
     ];
-    for (const where of attempts) {
-      const link = await db.link.findFirst({
-        where: { user_id: userId, ...where },
-        select: { id: true, deleted_at: true },
-      });
-      if (link !== null) return link.deleted_at === null ? link.id : null;
+    if (query.email !== null) conditions.push(Prisma.sql`purchases.email = ${query.email}`);
+    if (query.productId !== null) conditions.push(Prisma.sql`purchases.link_id = ${query.productId}`);
+    if (query.after !== null) conditions.push(Prisma.sql`purchases.created_at >= ${query.after}`);
+    if (query.before !== null) conditions.push(Prisma.sql`purchases.created_at < ${query.before}`);
+    if (query.payment !== null)
+      conditions.push(
+        query.payment === "paid" ? Prisma.sql`purchases.price_cents > 0` : Prisma.sql`purchases.price_cents = 0`,
+      );
+    if (query.kind !== null) {
+      const membership = Prisma.sql`purchases.subscription_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM subscriptions WHERE subscriptions.id = purchases.subscription_id AND subscriptions.flags & ${String(SubscriptionFlags.bit("is_installment_plan"))} != 0)`;
+      conditions.push(query.kind === "subscription" ? membership : Prisma.sql`NOT (${membership})`);
     }
-    return null;
+    if (query.cursor !== null)
+      conditions.push(
+        Prisma.sql`(purchases.created_at < ${query.cursor.at} OR (purchases.created_at = ${query.cursor.at} AND purchases.id < ${query.cursor.id}))`,
+      );
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT purchases.id AS id, purchases.email AS email,
+        purchases.link_id AS link_id, links.name AS product_name, purchases.price_cents AS price_cents,
+        purchases.fee_cents AS fee_cents, purchases.affiliate_credit_cents AS affiliate_credit_cents,
+        purchases.created_at AS created_at, purchases.stripe_refunded AS stripe_refunded,
+        purchases.chargeback_date AS chargeback_date, purchases.subscription_id AS subscription_id,
+        subscriptions.flags AS subscription_flags, purchases.country AS country, purchases.ip_country AS ip_country,
+        offer_codes.code AS offer_code, purchases.referrer AS referrer,
+        (SELECT COUNT(*) FROM utm_link_driven_sales counted WHERE counted.purchase_id = purchases.id) AS utm_driven_count,
+        utm_links.utm_source AS utm_source, utm_links.utm_medium AS utm_medium, utm_links.utm_campaign AS utm_campaign,
+        utm_links.utm_term AS utm_term, utm_links.utm_content AS utm_content
+      FROM purchases
+      LEFT JOIN links ON links.id = purchases.link_id
+      LEFT JOIN offer_codes ON offer_codes.id = purchases.offer_code_id
+      LEFT JOIN subscriptions ON subscriptions.id = purchases.subscription_id
+      LEFT JOIN utm_link_driven_sales ON utm_link_driven_sales.purchase_id = purchases.id
+      LEFT JOIN utm_links ON utm_links.id = utm_link_driven_sales.utm_link_id
+      WHERE ${Prisma.join(conditions, " AND ")}
+      ORDER BY purchases.created_at DESC, purchases.id DESC LIMIT ${query.limit}`;
+    return rows.map((row) => ({
+      ...(row as unknown as SaleRow),
+      id: BigInt(row.id as bigint),
+      link_id: row.link_id === null ? null : BigInt(row.link_id as bigint),
+      subscription_id: row.subscription_id === null ? null : BigInt(row.subscription_id as bigint),
+      subscription_flags: row.subscription_flags === null ? null : BigInt(row.subscription_flags as bigint),
+      stripe_refunded: Boolean(row.stripe_refunded),
+      utm_driven_count: num(row.utm_driven_count),
+    }));
   },
 };
 
@@ -389,12 +565,36 @@ const salesMetrics = (revenue: number, units: number) => ({
   average_order_value_cents: units > 0 ? Math.round(revenue / units) : null,
 });
 
-// tool_get_sales_totals, for breakdown=product.
+const TRANSITION_SCAN_MS = 6 * 3_600_000;
+
+// Mcp::Server#local_offset_segments: the range cut at each change of the zone's UTC offset. A transition is found by
+// scanning for a change of offset and bisecting to the second.
+function offsetSegments(zone: string, startMs: number, endMs: number): OffsetSegment[] {
+  const cuts = [startMs];
+  for (let at = startMs; at < endMs; at += TRANSITION_SCAN_MS) {
+    const next = Math.min(at + TRANSITION_SCAN_MS, endMs);
+    if (utcOffsetAt(zone, at) === utcOffsetAt(zone, next)) continue;
+    let low = at;
+    let high = next;
+    while (high - low > 1000) {
+      const mid = low + Math.floor((high - low) / 2000) * 1000;
+      if (utcOffsetAt(zone, mid) === utcOffsetAt(zone, low)) low = mid;
+      else high = mid;
+    }
+    if (high < endMs) cuts.push(high);
+  }
+  cuts.push(endMs);
+  return cuts.slice(0, -1).map((from, index) => ({
+    from: utc(new Date(from)),
+    until: utc(new Date(cuts[index + 1]!)),
+    offsetSeconds: utcOffsetAt(zone, from),
+  }));
+}
+
+// tool_get_sales_totals
 async function getSalesTotals(args: Hash, context: ToolContext): Promise<Hash> {
   const zone = context.user.timezone;
   const breakdown = "breakdown" in args ? args.breakdown : "product";
-  if (breakdown !== "product")
-    throw new HandBackToRails("a sales totals breakdown that needs zone transitions or country names");
   let today: CalendarDate;
   try {
     today = parseDate(instantInTimeZoneIso8601(zone, (context.now ?? (() => new Date()))()).slice(0, 10), "today");
@@ -421,29 +621,256 @@ async function getSalesTotals(args: Hash, context: ToolContext): Promise<Hash> {
     productId = await readers.findProductId(sellerId, args.product_id);
     if (productId === null) throw new ToolError("The product was not found.");
   }
-  const rows = await readers.byProduct({
-    sellerId,
-    productId,
-    from: dayStartUtc(zone, start),
-    until: dayStartUtc(zone, fromMs(dateMs(end) + DAY_MS)),
-  });
+  const from = dayStartUtc(zone, start);
+  const until = dayStartUtc(zone, fromMs(dateMs(end) + DAY_MS));
+  const base = { start_date: isoDate(start), end_date: isoDate(end), time_zone: zone, currency: USD, breakdown };
+
+  if (breakdown === "country") {
+    const grouped = new Map<string | null, [number, number]>();
+    for (const row of await readers.byCountry({ sellerId, productId, from, until })) {
+      const named = row.country === null ? null : findByName(row.country);
+      // A spelling the country list does not know stays as written, and MySQL's collation picks which spelling a group carries.
+      if (row.country !== null && named === null)
+        throw new HandBackToRails("a sales totals country that is not in the country list");
+      const key = named === null ? null : named.common_name;
+      const bucket = grouped.get(key) ?? [0, 0];
+      grouped.set(key, [bucket[0] + row.revenue_cents, bucket[1] + row.units]);
+    }
+    const entries = [...grouped];
+    const revenues = entries.map(([, [revenue]]) => revenue);
+    // Ruby's sort_by is not stable: rows with equal revenue come out in an order this port cannot promise.
+    if (new Set(revenues).size !== revenues.length)
+      throw new HandBackToRails("a sales totals by country with equal revenue rows");
+    const rows = entries
+      .map(([country, [revenue, units]]) => ({ country, ...salesMetrics(revenue, units) }))
+      .sort((a, b) => b.revenue_cents - a.revenue_cents)
+      .slice(0, TOTALS_MAX_ROWS);
+    return { ...base, totals: totalsOf(grouped.values()), rows };
+  }
+
+  if (breakdown === "day" || breakdown === "week" || breakdown === "month") {
+    let segments: OffsetSegment[];
+    try {
+      segments = offsetSegments(
+        zone,
+        Date.parse(`${from.replace(" ", "T")}Z`),
+        Date.parse(`${until.replace(" ", "T")}Z`),
+      );
+    } catch (error) {
+      if (error instanceof InvalidTimeZoneError)
+        throw new HandBackToRails("an MCP tool for a seller with an unknown time zone");
+      throw error;
+    }
+    const grouped = new Map<string, [number, number]>();
+    for (const row of await readers.byPeriod({ sellerId, productId, segments, period: breakdown })) {
+      const bucket = grouped.get(row.key) ?? [0, 0];
+      grouped.set(row.key, [bucket[0] + row.revenue_cents, bucket[1] + row.units]);
+    }
+    const rows = [...grouped]
+      .map(([date, [revenue, units]]) => ({ date, ...salesMetrics(revenue, units) }))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    return { ...base, totals: totalsOf(grouped.values()), rows };
+  }
+
+  const rows = await readers.byProduct({ sellerId, productId, from, until });
   const top = rows.toSorted((a, b) => b.revenue_cents - a.revenue_cents).slice(0, TOTALS_MAX_ROWS);
   const names = await readers.productNames(top.map((row) => row.link_id));
   return {
-    start_date: isoDate(start),
-    end_date: isoDate(end),
-    time_zone: zone,
-    currency: USD,
-    breakdown,
-    totals: salesMetrics(
-      rows.reduce((sum, row) => sum + row.revenue_cents, 0),
-      rows.reduce((sum, row) => sum + row.units, 0),
-    ),
+    ...base,
+    totals: totalsOf(rows.map((row) => [row.revenue_cents, row.units] as [number, number])),
     rows: top.map((row) => ({
       product_id: encrypt(row.link_id),
       product_name: names.get(row.link_id) ?? null,
       ...salesMetrics(row.revenue_cents, row.units),
     })),
+  };
+}
+
+function totalsOf(buckets: Iterable<[number, number]>) {
+  let revenue = 0;
+  let units = 0;
+  for (const [r, u] of buckets) {
+    revenue += r;
+    units += u;
+  }
+  return salesMetrics(revenue, units);
+}
+
+export const readProducts: ProductsReader = {
+  async list(userId, limit, after) {
+    const cursor =
+      after === null
+        ? Prisma.empty
+        : Prisma.sql`AND (links.created_at < ${after.at} OR (links.created_at = ${after.at} AND links.id < ${after.id}))`;
+    const buyPrices = Prisma.sql`FROM prices WHERE prices.link_id = links.id AND prices.deleted_at IS NULL
+        AND prices.currency = links.price_currency_type AND COALESCE(prices.flags & 1, 0) = 0`;
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT id, created_at, name,
+        (SELECT COUNT(*) ${buyPrices}) AS buy_price_count,
+        (SELECT prices.price_cents ${buyPrices} ORDER BY prices.id DESC LIMIT 1) AS buy_price_cents,
+        purchase_type, price_currency_type, customizable_price, suggested_price_cents, purchase_disabled_at, draft, flags,
+        unique_permalink, custom_permalink
+      FROM links WHERE user_id = ${userId} AND deleted_at IS NULL ${cursor}
+      ORDER BY created_at DESC, id DESC LIMIT ${limit}`;
+    return rows.map((row) => ({
+      ...(row as unknown as ProductListRow),
+      id: BigInt(row.id as bigint),
+      flags: row.flags === null ? null : BigInt(row.flags as bigint),
+      buy_price_count: num(row.buy_price_count),
+      customizable_price: row.customizable_price === null ? null : Boolean(row.customizable_price),
+      draft: row.draft === null ? null : Boolean(row.draft),
+    }));
+  },
+};
+
+const IS_RECURRING_BILLING_BIT = 2n;
+const IS_TIERED_MEMBERSHIP_BIT = 19n;
+const BUY_ONLY = 0;
+const IS_BUNDLE_BIT = 26n;
+const flagOn = (flags: bigint | null, position: bigint) => (((flags ?? 0n) >> (position - 1n)) & 1n) === 1n;
+
+// tool_list_products and product_payload, for products that are not tiered memberships. A tier carries its own prices,
+// recurrences and closing rules (pricing_payload), which are Rails's to read.
+async function listProducts(args: Hash, context: ToolContext): Promise<Hash> {
+  const limit = limitFor(args, 25);
+  const rows = await (context.products ?? readProducts).list(BigInt(context.user.id), limit + 1, parseCursor(args));
+  const page = rows.slice(0, limit);
+  const products = page.map((product) => {
+    if (flagOn(product.flags, IS_TIERED_MEMBERSHIP_BIT))
+      throw new HandBackToRails("a tiered membership in list_products");
+    // Rentals, recurring prices and several competing buy prices pick their default price by rules Rails owns.
+    if (
+      product.purchase_type !== BUY_ONLY ||
+      flagOn(product.flags, IS_RECURRING_BILLING_BIT) ||
+      product.buy_price_count > 1
+    )
+      throw new HandBackToRails("a product in list_products whose default price is not a single buy price");
+    const payWhatYouWant = product.customizable_price === true;
+    return {
+      id: encrypt(product.id),
+      name: product.name,
+      price_cents: product.buy_price_cents,
+      currency: product.price_currency_type,
+      pay_what_you_want: payWhatYouWant,
+      suggested_price_cents: payWhatYouWant ? product.suggested_price_cents : null,
+      published: product.purchase_disabled_at === null && product.draft !== true,
+      is_bundle: flagOn(product.flags, IS_BUNDLE_BIT),
+      url: longUrl(product as unknown as LinkRow, context.user as unknown as UserRow),
+      permalink: product.unique_permalink,
+    };
+  });
+  const last = page[page.length - 1];
+  return {
+    products,
+    ...(rows.length > limit && last !== undefined
+      ? { next_cursor: `${BigInt(last.created_at.getTime()) * 1000n}_${last.id}` }
+      : {}),
+  };
+}
+
+const ISO_TIME = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}):(\d{2})(Z|[+-]\d{2}:\d{2})?)?$/u;
+
+// Mcp::Server#parse_time! (Time.zone.parse in UTC) for the two forms an agent sends: a date, or a whole-second ISO 8601
+// time. Any other spelling Ruby's parser might accept is Rails's to read. Returns a UTC datetime.
+function parseTimeArgument(value: string): string {
+  const match = ISO_TIME.exec(value);
+  if (match === null)
+    throw new HandBackToRails("an MCP time argument that is not YYYY-MM-DD or a whole-second ISO 8601 time");
+  const [year, month, day, hour, minute, second] = match
+    .slice(1, 7)
+    .map((part) => (part === undefined ? 0 : Number(part)));
+  const zone = match[7];
+  const instant = new Date(Date.UTC(2000, month! - 1, day!, hour!, minute!, second!));
+  instant.setUTCFullYear(year!);
+  const valid =
+    year! >= 1000 &&
+    year! <= MAX_SUPPORTED_YEAR &&
+    month! >= 1 &&
+    month! <= 12 &&
+    instant.getUTCMonth() === month! - 1 &&
+    instant.getUTCDate() === day! &&
+    hour! < 24 &&
+    minute! < 60 &&
+    second! < 60;
+  if (!valid) throw new HandBackToRails("an MCP time argument that is not a valid calendar time");
+  let ms = instant.getTime();
+  if (zone !== undefined && zone !== "Z") {
+    const sign = zone.startsWith("-") ? -1 : 1;
+    ms -= sign * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4, 6))) * 60_000;
+  }
+  const shifted = new Date(ms);
+  if (shifted.getUTCFullYear() < 1000 || shifted.getUTCFullYear() > MAX_SUPPORTED_YEAR)
+    throw new HandBackToRails("an MCP time argument outside the supported years");
+  return utc(shifted);
+}
+
+// tool_list_sales and sale_payload, with `paginate` over (created_at, id).
+async function listSales(args: Hash, context: ToolContext): Promise<Hash> {
+  const readers = context.sales ?? readSales;
+  const sellerId = BigInt(context.user.id);
+  const email = isPresent(args.email) ? args.email.replace(/^[ \t\n\v\f\r\0]+|[ \t\n\v\f\r\0]+$/gu, "") : null;
+  let productId: bigint | null = null;
+  if (isPresent(args.product_id)) {
+    productId = await readers.findProductId(sellerId, args.product_id);
+    if (productId === null) throw new ToolError("The product was not found.");
+  }
+  const after = isPresent(args.after) ? parseTimeArgument(args.after) : null;
+  const before = isPresent(args.before) ? parseTimeArgument(args.before) : null;
+  const limit = limitFor(args, 25);
+  const cursor = parseCursor(args);
+  const rows = await readers.list({
+    sellerId,
+    email,
+    productId,
+    after,
+    before,
+    // Ruby tests `args["payment"]` for truthiness, so an empty string would count as free; the schema enum rules it out.
+    payment: "payment" in args ? (args.payment === "paid" ? "paid" : "free") : null,
+    kind: "kind" in args ? (args.kind === "subscription" ? "subscription" : "one_time") : null,
+    cursor,
+    limit: limit + 1,
+  });
+  const page = rows.slice(0, limit);
+  const seen = new Set<bigint>();
+  const sales = page.map((sale) => {
+    // The sale's UTM link comes from its first driven-sale row; a purchase with several has no single answer here.
+    if (sale.utm_driven_count > 1 || sale.link_id === null || sale.price_cents === null || seen.has(sale.id))
+      throw new HandBackToRails("a sale that has several UTM links, no product or no price");
+    seen.add(sale.id);
+    const fee = sale.fee_cents ?? 0;
+    const affiliate = sale.affiliate_credit_cents ?? 0;
+    const country = isPresent(sale.country) ? sale.country : sale.ip_country;
+    return {
+      id: encrypt(sale.id),
+      email: sale.email,
+      product_id: encrypt(sale.link_id),
+      product_name: sale.product_name,
+      price_cents: sale.price_cents,
+      fee_cents: fee,
+      affiliate_commission_cents: affiliate,
+      net_cents: sale.price_cents - fee - affiliate,
+      currency: USD,
+      created_at: iso8601(sale.created_at),
+      refunded: sale.stripe_refunded,
+      chargedback: sale.chargeback_date !== null,
+      subscription:
+        sale.subscription_id !== null &&
+        ((sale.subscription_flags ?? 0n) & BigInt(SubscriptionFlags.bit("is_installment_plan"))) === 0n,
+      country,
+      discount_code: sale.offer_code,
+      referrer: isPresent(sale.referrer) ? sale.referrer : null,
+      utm_source: sale.utm_source,
+      utm_medium: sale.utm_medium,
+      utm_campaign: sale.utm_campaign,
+      utm_term: sale.utm_term,
+      utm_content: sale.utm_content,
+    };
+  });
+  const last = page[page.length - 1];
+  return {
+    sales,
+    ...(rows.length > limit && last !== undefined
+      ? { next_cursor: `${BigInt(last.created_at.getTime()) * 1000n}_${last.id}` }
+      : {}),
   };
 }
 
@@ -499,6 +926,12 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "get_sales_totals":
       requireScopes(context.token, ["view_sales", "account"]);
       return getSalesTotals(args, context);
+    case "list_products":
+      requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
+      return listProducts(args, context);
+    case "list_sales":
+      requireScopes(context.token, ["view_sales", "account"]);
+      return listSales(args, context);
     default:
       return undefined;
   }
