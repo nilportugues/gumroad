@@ -39,6 +39,9 @@ class CaptureServer
         @responses.shift || [500, {}, "no scripted response"]
       end
       status, response_headers, response_body = response
+      # A scripted `[:drop]` closes the connection without answering, as a peer that goes away mid-request.
+      break if status == :drop
+
       sleep(response_headers.delete("x-test-delay").to_f) if response_headers.key?("x-test-delay")
       head = ["HTTP/1.1 #{status} X", "Content-Length: #{response_body.bytesize}", "Connection: keep-alive"]
       response_headers.each { |name, value| head << "#{name}: #{value}" }

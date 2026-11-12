@@ -386,7 +386,7 @@ export const nodeTransport: Transport = (original) =>
             `Failed to open TCP connection to ${hostPort} (getaddrinfo: Name or service not known)`,
           ),
         );
-      } else if (code === "ECONNRESET") {
+      } else if (code === "ECONNRESET" && error.message !== "socket hang up") {
         reject(new NetworkError("connection", "Connection reset by peer"));
       } else if (code.startsWith("ERR_TLS") || code.startsWith("CERT_") || code.includes("SSL")) {
         reject(new NetworkError("ssl", error.message));
