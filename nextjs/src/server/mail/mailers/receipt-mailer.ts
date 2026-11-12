@@ -5,16 +5,19 @@
 // Rails reads in the order the view asks; this reads in that order too, so the first occurrence of each distinct
 // statement lands in the same place (repeats are query-cache hits in both).
 import { Prisma } from "@prisma/client";
-import type { Charge, Purchase } from "@prisma/client";
+import type { Charge, Purchase, Subscription } from "@prisma/client";
 
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
 import { domainConfig } from "../../infra/domain.ts";
 import { ArgumentError, chargeOfPurchase, findChargeOrNil } from "../../models/charge.ts";
 import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
+import { advance } from "../../models/concerns/ruby-time.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { findById } from "../../models/row-reads.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { column, columnIn, inList, selectRows, table } from "../../models/sql.ts";
+import { defaultSubscriptionDeps, purchaseFlagScope, SubscriptionRecord } from "../../models/subscription.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { applicationMail, findRow, type MailerDeps, RecordNotFoundError } from "../application-mailer.ts";
@@ -44,6 +47,7 @@ import {
   isGifterHidden,
   itemInfo,
   mailSubject,
+  manageSubscriptionFooter,
   paymentInfo,
   type ReceiptCustomField,
   type ReceiptData,
@@ -82,7 +86,8 @@ const byPurchase = (tableName: string, purchaseId: Id, limit1: boolean, extra: P
 // fine: the delivery goes back to Rails, nothing has been written.
 async function loadReceiptData(
   purchase: ReceiptPurchaseRow & Record<string, unknown>,
-): Promise<{ data: ReceiptData; supportEmails: (string | null)[] }> {
+  deps: MailerDeps,
+): Promise<{ data: ReceiptData; supportEmails: (string | null)[]; subscription: SubscriptionRecord | null }> {
   const seller = (await findRow<ReceiptSellerRow>("users", purchase.seller_id))!;
   // `@chargeable.support_email`, ahead of the subject
   const supportEmails = await selectRows<{ support_email: string | null }>(
@@ -114,7 +119,21 @@ async function loadReceiptData(
     customFields: [],
     refundPolicy: null,
     gift: null,
+    subscription: null,
+    priceRecurrence: null,
   };
+  // MailSubject: `purchase.is_recurring_subscription_charge` loads the subscription of a membership's purchase.
+  let subscription: SubscriptionRecord | null = null;
+  if (linkFlagSet(link, "is_recurring_billing") && purchase.subscription_id !== null) {
+    const row = await findById<Subscription>("Subscription", purchase.subscription_id);
+    if (row) {
+      const externalId = obfuscateId(row.id);
+      if (!/^[A-Za-z0-9_=-]+$/u.test(externalId))
+        throw new MailViewNotPortedError("subscription external id that needs URL escaping");
+      subscription = new SubscriptionRecord(row, { ...defaultSubscriptionDeps, now: deps.now ?? (() => new Date()) });
+      data.subscription = { row, externalId, recurrence: null, nextPayment: null, gift: false };
+    }
+  }
   // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent, and `gifter_email` reads
   // `gift_received` for one the buyer got.
   const giftSent = PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase");
@@ -131,7 +150,7 @@ async function loadReceiptData(
         gifter_purchase_id: (gift.gifter_purchase_id as Id | null) ?? null,
       };
   }
-  return { data, supportEmails: supportEmails.map((row) => row.support_email) };
+  return { data, supportEmails: supportEmails.map((row) => row.support_email), subscription };
 }
 
 // Chargeable#support_email
@@ -182,6 +201,12 @@ async function loadItemData(data: ReceiptData): Promise<void> {
   }
   const [tip] = await byPurchase("tips", purchase.id, true);
   if (tip) data.tipValueCents = Number(tip.value_cents);
+  // `price_for_recurrence`, read by the product price a free membership does not show
+  if (data.subscription !== null && (purchase.price_cents !== 0 || purchase.shipping_cents !== 0)) {
+    const price = await findRow<{ recurrence: string | null }>("prices", purchase.price_id!);
+    if (!price) throw new MailViewNotPortedError("membership whose price row is missing");
+    data.priceRecurrence = price.recurrence;
+  }
   data.customFields = (await byPurchase("purchase_custom_fields", purchase.id, false)).map(
     (row): ReceiptCustomField => {
       const type = String(row.field_type);
@@ -212,6 +237,35 @@ async function loadItemData(data: ReceiptData): Promise<void> {
     Prisma.sql`SELECT ${star("thumbnails")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${data.link.id} AND ${column("thumbnails", "deleted_at")} IS NULL LIMIT 1`,
   );
   if (thumbnail) throw new MailViewNotPortedError("product with a thumbnail");
+}
+
+// ItemInfo#manage_membership_note: `subscription.gift?` reads the original purchase, then the cadence comes from the
+// price of the subscription's payment option.
+async function loadMembershipItemData(data: ReceiptData, record: SubscriptionRecord): Promise<void> {
+  const [original] = await rows(
+    Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} = ${record.id} AND ${purchaseFlagScope("is_original_subscription_purchase", true)} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`,
+  );
+  if (!original) throw new MailViewNotPortedError("membership without an original purchase");
+  if (PurchaseFlags.isSet(Number(original.flags ?? 0), "is_gift_sender_purchase"))
+    throw new MailViewNotPortedError("gifted membership");
+  data.subscription!.recurrence = await record.recurrence();
+}
+
+// PaymentInfo#upcoming_price_attribute: the next charge repeats this one's amount, so only a membership whose renewal
+// price still equals the purchase's (no change, same discount) is rendered; the rest recompute the sales tax.
+async function loadNextPayment(data: ReceiptData, record: SubscriptionRecord): Promise<void> {
+  const { purchase } = data;
+  const subscription = data.subscription!;
+  const renewalCents = await record.currentSubscriptionPriceCents();
+  if (renewalCents === null || renewalCents !== purchase.displayed_price_cents)
+    throw new MailViewNotPortedError("membership whose next charge differs from this one");
+  const tax = (purchase.gumroad_tax_cents ?? 0) > 0 ? purchase.gumroad_tax_cents : purchase.tax_cents;
+  if (tax === null) throw new MailViewNotPortedError("membership purchase without a tax amount");
+  const trial = PurchaseFlags.isSet(purchase.flags ?? 0, "is_free_trial_purchase");
+  subscription.nextPayment = {
+    cents: renewalCents + purchase.shipping_cents + tax,
+    date: trial ? subscription.row.free_trial_ends_at! : advance(purchase.created_at, await record.period()),
+  };
 }
 
 // ---- views --------------------------------------------------------------------------------------------
@@ -298,7 +352,7 @@ ${item.licenseKey === null ? "" : `    <h4>License key</h4>\n    <pre style="tex
 ${download}
   ${attributesPartial(item.giftAttributes)}
   ${attributesPartial(item.generalAttributes)}
-</div>
+${item.manageSubscriptionNote === null ? "" : `    <div>\n      ${item.manageSubscriptionNote}\n    </div>\n`}</div>
 `;
 }
 
@@ -459,7 +513,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
     Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 1`,
   );
 
-  const { data, supportEmails } = await loadReceiptData(purchase);
+  const { data, supportEmails, subscription } = await loadReceiptData(purchase, deps);
   assertSupported(data);
   data.displayedPriceUsdCents = await getUsdCents(
     purchase.displayed_price_currency_type!,
@@ -507,6 +561,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
     Prisma.sql`SELECT ${star("active_storage_attachments")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_id")} = ${seller.id} AND ${column("active_storage_attachments", "record_type")} = ${"User"} AND ${column("active_storage_attachments", "name")} = ${"avatar"} LIMIT 1`,
   );
   if (attachment) throw new MailViewNotPortedError("seller with an uploaded avatar");
+  if (subscription !== null) await loadMembershipItemData(data, subscription);
   // shared/_download_button for a rental redirect: `link.streamable?` is `alive_product_files.map(&:filegroup).include?("video")`.
   // Position recorded by receipt_rental_watch.
   if (data.urlRedirectIsRental && data.urlRedirectToken !== null && data.link.native_type !== "coffee") {
@@ -554,6 +609,8 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
     "Generate invoice",
     mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }),
   );
+  // PaymentInfo reads the next charge before it reads the tax of this one.
+  if (subscription !== null) await loadNextPayment(data, subscription);
   data.taxLines = await taxLines(purchase, data.presentment);
   const payment = paymentInfo(data, invoiceLink);
 
@@ -634,14 +691,22 @@ ${info.productQuestionsNote === null ? "" : `    <div>\n      ${info.productQues
   ${recommendedSection(recommended)}
 `;
 
-  // The footer renders last: the unsubscribe link encrypts the purchase id with a fresh IV.
-  const unsubscribeToken = secureExternalId(
-    "Purchase",
-    purchase.id as bigint | number,
-    "unsubscribe",
-    deps.randomIv ? { randomIv: deps.randomIv } : {},
-  );
-  const footer = `<p>\n    ${linkTo("Unsubscribe", mailerUrl(`/purchases/${unsubscribeToken}/unsubscribe`))}\n</p>\n`;
+  // The footer renders last: the unsubscribe link encrypts the purchase id with a fresh IV, which a membership's
+  // manage link does not draw.
+  const footer =
+    data.subscription !== null
+      ? `<p>\n    ${manageSubscriptionFooter(data.subscription)}\n</p>\n`
+      : `<p>\n    ${linkTo(
+          "Unsubscribe",
+          mailerUrl(
+            `/purchases/${secureExternalId(
+              "Purchase",
+              purchase.id as bigint | number,
+              "unsubscribe",
+              deps.randomIv ? { randomIv: deps.randomIv } : {},
+            )}/unsubscribe`,
+          ),
+        )}\n</p>\n`;
 
   const html = emailLayout(`${receiptPartial}\n`, { footer });
   const options = await customersDeliveryOptions(seller as unknown as UserRow, purchase.email, deps);

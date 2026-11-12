@@ -273,7 +273,7 @@ Each epic owns the hand-back sites and recorded shapes whose file path matches i
 | E09 | Product pages, profiles and custom HTML (WS-11/12) | 205 | 48 | in progress (covers, nav done; Interpolator wiring and custom HTML pages being ported) |
 | E10 | Public/v2 API and mobile API (WS-17) | 367 | 200 | in progress (v2 create/update done for plain digital products; mobile sales/library shapes left) |
 | E11 | MCP and AI (WS-19) | 83 | 48 | in progress (read tools done; write tools, OAuth client registration, ProductFileIngest left) |
-| E12 | Audience, emails, workflows and the receipt mailer (WS-13/15) | 221 | 32 | partial (gift receiver, free-trial, subscription receipts, preorders hand back; export variants hand back) |
+| E12 | Audience, emails, workflows and the receipt mailer (WS-13/15) | 221 | 32 | partial (renewal receipts, fixed-length, installment and gifted membership receipts hand back; export variants hand back) |
 | E13 | Subscriptions, preorders and memberships | 20 | 9 | partial (cancellations done; charges and plan changes hand back) |
 | E14 | Settings, team and admin (WS-10/18) | 179 | 71 | mostly done; brand accounts that copy a payout setup and the admin web UIs (Flipper, Sidekiq web) left |
 | E15 | Sidekiq jobs and cron (WS-30) | 28 | 0 | in progress (two agents on it; 187 of 296 classes run in Node, many with prefix hand-backs) |
@@ -354,7 +354,7 @@ Each epic owns the hand-back sites and recorded shapes whose file path matches i
 
 - Scope: Remaining receipt shapes, workflow emails with thumbnails, purchases export families (several variants, gifts, preorders, subscriptions, PayPal, Connect).
 - Blocker: Mailer templates with files that have thumbnails.
-- State: partial (gift receiver, free-trial, subscription receipts, preorders hand back; export variants hand back)
+- State: partial (renewal receipts, fixed-length, installment and gifted membership receipts hand back; export variants hand back)
 
 ### E13 Subscriptions, preorders and memberships
 

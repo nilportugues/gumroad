@@ -90,6 +90,8 @@ const data = (
   customFields: [],
   refundPolicy: null,
   gift: null,
+  subscription: null,
+  priceRecurrence: null,
 });
 
 describe("assertSupported", () => {
@@ -280,5 +282,66 @@ describe("gift the buyer received", () => {
     expect(() => assertSupported(received({}, { price_cents: 500 }))).toThrow(MailViewNotPortedError);
     expect(() => assertSupported(received({}, { purchase_state: "successful" }))).toThrow(MailViewNotPortedError);
     expect(() => assertSupported(received({}, { flags: (1 << 5) | (1 << 6) }))).toThrow(MailViewNotPortedError);
+  });
+});
+
+describe("a membership's first receipt", () => {
+  const ORIGINAL = 1 << 2;
+  const TRIAL = 1 << 18;
+  const member = (
+    purchase: Partial<ReceiptData["purchase"]> = {},
+    subscription: Partial<NonNullable<ReceiptData["subscription"]>["row"]> = {},
+    link: Partial<ReceiptData["link"]> = {},
+  ): ReceiptData => ({
+    ...data(
+      { flags: ORIGINAL, subscription_id: 501, price_id: 701, ...purchase },
+      { flags: 1 << 1, native_type: "membership", ...link },
+    ),
+    subscription: {
+      row: { id: 501, flags: 0, charge_occurrence_count: null, free_trial_ends_at: null, ...subscription },
+      externalId: "EuU5qDog1TrOQS8nm-BKsA==",
+      recurrence: "monthly",
+      nextPayment: { cents: 500, date: new Date("2026-11-30T12:00:00Z") },
+      gift: false,
+    },
+    priceRecurrence: "monthly",
+  });
+
+  it("accepts a monthly membership and its free trial", () => {
+    expect(() => assertSupported(member())).not.toThrow();
+    const trial = member(
+      { flags: ORIGINAL | TRIAL, purchase_state: "not_charged", price_cents: 0 },
+      { free_trial_ends_at: new Date("2026-11-07T12:00:00Z") },
+    );
+    expect(() => assertSupported(trial)).not.toThrow();
+    expect(mailSubject(trial)).toBe("You've subscribed to Guide!");
+  });
+
+  it("refuses what renders other sections", () => {
+    const refusals = [
+      member({}, { charge_occurrence_count: 12 }),
+      member({}, { flags: 1 << 6 }),
+      member({}, { flags: 1 << 0 }),
+      member({ flags: 0 }),
+      member({ price_id: null }),
+      member({ flags: ORIGINAL | (1 << 6) }),
+      member({ flags: ORIGINAL | (1 << 5), purchase_state: "gift_receiver_purchase_successful" }),
+      member({ flags: ORIGINAL | TRIAL }),
+      member({ flags: ORIGINAL | TRIAL, purchase_state: "not_charged" }),
+      member({ displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" }),
+      member({}, {}, { price_currency_type: "eur" }),
+      { ...member(), subscription: null },
+    ];
+    for (const refusal of refusals) expect(() => assertSupported(refusal)).toThrow(MailViewNotPortedError);
+  });
+
+  it("states the cadence on the price and the note, and a trial is not free", () => {
+    const item = itemInfo(member(), null);
+    expect(item.generalAttributes).toContainEqual({ label: "Product price", text: "$5 a month" });
+    expect(item.manageSubscriptionNote).toContain("You will be charged once a month.");
+    const trial = member({ flags: ORIGINAL | TRIAL, purchase_state: "not_charged", price_cents: 0 });
+    expect(itemInfo(trial, null).notes).toEqual(["Your free trial has begun!"]);
+    expect(chargeInfo(trial, "x").free).toBe(false);
+    expect(chargeInfo(member({ price_cents: 0 }), "x").free).toBe(true);
   });
 });
