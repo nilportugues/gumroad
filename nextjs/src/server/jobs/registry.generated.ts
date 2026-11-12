@@ -1499,7 +1499,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleNewBankAccountWorker": {
     "file": "app/sidekiq/handle_new_bank_account_worker.rb",
@@ -1523,7 +1523,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandlePayoutReversedWorker": {
     "file": "app/sidekiq/handle_payout_reversed_worker.rb",
@@ -1595,7 +1595,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleStripeAutodebitForNegativeBalance": {
     "file": "app/sidekiq/handle_stripe_autodebit_for_negative_balance.rb",
@@ -1730,7 +1730,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ModerateProductsJob": {
     "file": "app/sidekiq/moderate_products_job.rb",
@@ -1742,7 +1742,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "NotifyFailedRefundExceptionJob": {
     "file": "app/sidekiq/notify_failed_refund_exception_job.rb",
@@ -1881,7 +1881,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ProcessEarlyFraudWarningJob": {
     "file": "app/sidekiq/process_early_fraud_warning_job.rb",
@@ -2093,7 +2093,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecoverAusBacktaxFromStripeAccountJob": {
     "file": "app/sidekiq/recover_aus_backtax_from_stripe_account_job.rb",
@@ -2254,7 +2254,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefreshMerchantAccountProductsRecommendationEligibilityJob": {
     "file": "app/sidekiq/refresh_merchant_account_products_recommendation_eligibility_job.rb",
@@ -2389,7 +2389,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RegenerateSalesRelatedProductsInfosJob": {
     "file": "app/sidekiq/regenerate_sales_related_products_infos_job.rb",
@@ -2463,7 +2463,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReissueSslCertificateForUpdatedCustomDomains": {
     "file": "app/sidekiq/reissue_ssl_certificate_for_updated_custom_domains.rb",

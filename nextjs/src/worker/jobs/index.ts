@@ -44,7 +44,10 @@ import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
 import { generateUsernameJob } from "./generate-username-job.ts";
+import { handleGrmcCallbackJob } from "./handle-grmc-callback-job.ts";
+import { handleNewUserComplianceInfoWorker } from "./handle-new-user-compliance-info-worker.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
+import { handleSnsMediaconvertEventWorker } from "./handle-sns-mediaconvert-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
 import { internalNotificationWorker } from "./internal-notification-worker.ts";
 import { invalidateProductCacheWorker } from "./invalidate-product-cache-worker.ts";
@@ -56,6 +59,8 @@ import {
 } from "./lift-platform-stripe-pause-job.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
+import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
+import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import {
   executeScheduledPayoutsJob,
@@ -72,7 +77,7 @@ import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-w
 import { renameProductFileWorker } from "./rename-product-file-worker.ts";
 import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
 import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
-import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
+import { processAssetPreviewRetinaWorker } from "./process-asset-preview-retina-worker.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
 import {
   refreshMerchantAccountProductsRecommendationEligibilityJob,
@@ -95,10 +100,12 @@ import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-v
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
+import { recordSocialScoreShadowEvaluationsJob } from "./record-social-score-shadow-evaluations-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
 import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
+import { refreshMerchantAccountPaymentMethodAvailabilityWorker } from "./refresh-merchant-account-payment-method-availability-worker.ts";
 import {
   createMissingDisputeEvidenceJob,
   dispatchPendingFailedRefundExceptionsJob,
@@ -113,6 +120,7 @@ import {
   refundPurchaseWorker,
   updateUserBalanceStatsCacheWorker,
 } from "./refund-payout-guard-jobs.ts";
+import { regenerateCreatorAnalyticsCacheWorker } from "./regenerate-creator-analytics-cache-worker.ts";
 import { regenerateSalesRelatedProductsInfosJob } from "./regenerate-sales-related-products-infos-job.ts";
 import {
   reindexSellerOfferCodesJob,
@@ -121,6 +129,7 @@ import {
   reindexSellerOfferCodesRecoveryJobRetriesExhausted,
 } from "./reindex-seller-offer-codes-job.ts";
 import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
+import { reindexUserElasticsearchDataWorker } from "./reindex-user-elasticsearch-data-worker.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
@@ -195,6 +204,16 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteProductFilesWorker: deleteProductFilesWorker,
   RenameProductFileWorker: renameProductFileWorker,
   ChargeSuccessfulPreordersWorker: chargeSuccessfulPreordersWorker,
+  ProcessAssetPreviewRetinaWorker: processAssetPreviewRetinaWorker,
+  RefreshMerchantAccountPaymentMethodAvailabilityWorker: refreshMerchantAccountPaymentMethodAvailabilityWorker,
+  HandleGrmcCallbackJob: handleGrmcCallbackJob,
+  HandleSnsMediaconvertEventWorker: handleSnsMediaconvertEventWorker,
+  HandleNewUserComplianceInfoWorker: handleNewUserComplianceInfoWorker,
+  RegenerateCreatorAnalyticsCacheWorker: regenerateCreatorAnalyticsCacheWorker,
+  ReindexUserElasticsearchDataWorker: reindexUserElasticsearchDataWorker,
+  ModerateProductsJob: moderateProductsJob,
+  RecordSocialScoreShadowEvaluationsJob: recordSocialScoreShadowEvaluationsJob,
+  MillionDollarMilestoneCheckWorker: millionDollarMilestoneCheckWorker,
   RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
   ProcessPaymentWorker: processPaymentWorker,
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
@@ -343,7 +362,6 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReleaseChargebackRatePayoutPauseForSellerJob: releaseChargebackRatePayoutPauseForSellerJob,
   RetryStripeJpAddressResyncForSellerJob: retryStripeJpAddressResyncForSellerJob,
   GenerateUsernameJob: generateUsernameJob,
-  CancelSubscriptionsForProductWorker: cancelSubscriptionsForProductWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
