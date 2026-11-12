@@ -233,7 +233,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillMerchantAccountRecommendationEligibilityJob": {
     "file": "app/sidekiq/backfill_merchant_account_recommendation_eligibility_job.rb",
@@ -952,7 +952,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ElasticsearchIndexerWorker": {
     "file": "app/sidekiq/elasticsearch_indexer_worker.rb",
@@ -1356,7 +1356,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 900,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateFinancialReportsForPreviousQuarterJob": {
     "file": "app/sidekiq/generate_financial_reports_for_previous_quarter_job.rb",
@@ -1372,7 +1372,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 900,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateLargeSellersAnalyticsCacheWorker": {
     "file": "app/sidekiq/generate_large_sellers_analytics_cache_worker.rb",
@@ -1399,7 +1399,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateProductFilesArchivesJob": {
     "file": "app/sidekiq/generate_product_files_archives_job.rb",
@@ -3353,7 +3353,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SyncStripeBusinessProfileUrlJob": {
     "file": "app/sidekiq/sync_stripe_business_profile_url_job.rb",
@@ -3504,7 +3504,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UnsubscribeAndFailWorker": {
     "file": "app/sidekiq/unsubscribe_and_fail_worker.rb",

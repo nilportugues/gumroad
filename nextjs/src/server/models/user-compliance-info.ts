@@ -4,17 +4,19 @@
 // UserComplianceInfo is immutable and every edit goes through Rails.
 import { Prisma, type UserComplianceInfo } from "@prisma/client";
 
-import { db } from "../../lib/db.ts";
 import { isBlank as rubyBlank } from "./compliance-countries.ts";
 import { alpha2ByName } from "./compliance-countries.ts";
 import { isPossiblePoBoxMatch, POSSIBLE_MATCH_SQL_HINT } from "./po-box-address.ts";
-import { selectRows } from "./sql.ts";
+import { castRow, column, selectRows, table } from "./sql.ts";
 import { isStrongboxBlank, strongboxDecrypt } from "./strongbox.ts";
 import { getConfig } from "../infra/config.ts";
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
-export function aliveUserComplianceInfoRow(userId: bigint): Promise<UserComplianceInfo | null> {
-  return db.userComplianceInfo.findFirst({ where: { user_id: Number(userId), deleted_at: null }, orderBy: { id: "desc" } });
+export async function aliveUserComplianceInfoRow(userId: bigint): Promise<UserComplianceInfo | null> {
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`user_compliance_info`.*")} FROM ${table("user_compliance_info")} WHERE ${column("user_compliance_info", "user_id")} = ${userId} AND ${column("user_compliance_info", "deleted_at")} IS NULL ORDER BY ${column("user_compliance_info", "id")} DESC LIMIT 1`,
+  );
+  return row ? castRow<UserComplianceInfo>("UserComplianceInfo", row) : null;
 }
 
 // `user.po_box_in_address_history?`: every revision, deleted ones included, as the association has no scope.

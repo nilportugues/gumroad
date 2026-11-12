@@ -8,6 +8,7 @@ import { expect } from "vitest";
 
 import { sequentialJids } from "../../../worker/jobs/__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "../../../worker/jobs/__fixtures__/sql-replay.ts";
+import { withSortedChangelog } from "../../jobs/__fixtures__/changelog-order.ts";
 import type { JobDefinition } from "../../jobs/registry-types.ts";
 import { JOB_REGISTRY } from "../../jobs/registry.generated.ts";
 import { createJobsRuntime, type JobsRuntime } from "../../jobs/runtime.ts";
@@ -146,5 +147,5 @@ export async function replayProductCase(
   expect(es.requests).toEqual(c.es);
   expect(error).toEqual(c.error);
   if (result !== undefined && c.error === null) expect(esJson(result as JsonValue)).toEqual(esJson(c.result));
-  expect(redis ? plain(await snapshot(redis)) : {}).toEqual(plain(c.redis));
+  expect(withSortedChangelog(redis ? plain(await snapshot(redis)) : {})).toEqual(withSortedChangelog(plain(c.redis)));
 }

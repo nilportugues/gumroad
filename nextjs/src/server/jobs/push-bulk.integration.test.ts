@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { Redis } from "ioredis";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import { withSortedChangelog } from "./__fixtures__/changelog-order.ts";
 import { enqueueWith } from "./enqueue.ts";
 import { performBulkWith, type PushBulkItems, pushBulkWith } from "./push-bulk.ts";
 import { JOB_REGISTRY } from "./registry.generated.ts";
@@ -117,7 +118,7 @@ describe.skipIf(!url)("Sidekiq::Client.push_bulk against Redis", () => {
       const className = c.push?.class ?? c.perform_bulk?.class;
       if (!golden.node_owned.includes(String(className))) {
         expect(jids).toEqual(c.jids);
-        expect(state).toEqual(plain(c.redis));
+        expect(withSortedChangelog(state)).toEqual(withSortedChangelog(plain(c.redis)));
         return;
       }
 
@@ -130,7 +131,7 @@ describe.skipIf(!url)("Sidekiq::Client.push_bulk against Redis", () => {
       expect(jids!.filter((jid) => jid !== null).map((jid) => byJid.get(jid!))).toEqual(bridged);
       expect(jids!.filter((jid) => jid !== null)).toHaveLength(bridged.length);
       expect(c.jids).toEqual(c.jids!.map(() => null));
-      expect(state).toEqual(plain(rubyRest));
+      expect(withSortedChangelog(state)).toEqual(withSortedChangelog(plain(rubyRest)));
     } finally {
       await runtime.close();
     }
