@@ -315,14 +315,16 @@ describe "Checkout page arrivals", type: :request do
       expect(payment["fallback_reason"]).to eq("stripe_payment_element_flag_disabled")
     end
 
-    it "hands a seller without a username to Rails", parity: true do
-      nameless = create(:user)
+    it "names a seller without a username by their external id", parity: true do
+      nameless = create(:user, name: nil)
       nameless.update_columns(username: nil)
       stray = create(:product, user: nameless, name: "Stray", created_at: Time.utc(2025, 1, 3))
 
       get checkout_path(product: stray.unique_permalink)
 
-      expect(added.sole["product"]["creator"]["profile_url"]).to be_present
+      creator = added.sole["product"]["creator"]
+      expect(creator["name"]).to eq(nameless.external_id)
+      expect(creator["profile_url"]).to include(nameless.external_id)
     end
 
     it "hands a seller on the client-confirm payment element to Rails", parity: true do

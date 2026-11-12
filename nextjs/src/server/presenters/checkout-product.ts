@@ -53,7 +53,13 @@ import {
   type PriceRow,
   type UserRow,
 } from "./product-reads.ts";
-import { buyerCurrencyDisplayProps, defaultBuyerCurrencyProps, longUrl, profileUrl } from "./product.ts";
+import {
+  buyerCurrencyDisplayProps,
+  defaultBuyerCurrencyProps,
+  effectiveUsername,
+  longUrl,
+  profileUrl,
+} from "./product.ts";
 // PaypalMerchantAccountManager::COUNTRY_CODES_NOT_SUPPORTED_BY_PCP
 const PCP_UNSUPPORTED_COUNTRY_CODES = ["DZ", "BR", "CN", "EG", "IN", "IL", "JP", "FM", "MA", "TR"];
 // PaypalMerchantAccountManager::COUNTRY_CODES_WITH_GRANDFATHERED_PCP
@@ -132,7 +138,9 @@ async function payWithPaypalEnabled(seller: UserRow): Promise<boolean> {
 const ratedAsAdult = (row: LinkRow, seller: UserRow) =>
   flag(row, "is_adult") ||
   sellerFlag(seller, "all_adult_products") ||
-  [row.name, row.description, seller.name, seller.username, seller.bio as string | null].some((text) => isAdult(text));
+  [row.name, row.description, seller.name, effectiveUsername(seller), seller.bio as string | null].some((text) =>
+    isAdult(text),
+  );
 
 // CheckoutPresenter#supports_paypal
 async function supportsPaypal(row: LinkRow, seller: UserRow): Promise<"native" | "braintree" | null> {
@@ -536,7 +544,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
   const options = await linkOptions(row);
   const item = await cartItem(row, seller, options, cartParams);
   const [creatorAvatar, thumbnail] = [
-    present(seller.username) ? await avatarUrl(seller as unknown as User) : null,
+    present(effectiveUsername(seller)) ? await avatarUrl(seller as unknown as User) : null,
     await thumbnailUrl(row.id),
   ];
   const currency = String(row.price_currency_type);
@@ -551,9 +559,9 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
   const common = {
     permalink: row.unique_permalink,
     name: row.name,
-    creator: present(seller.username)
+    creator: present(effectiveUsername(seller))
       ? {
-          name: seller.name ?? seller.username,
+          name: seller.name ?? effectiveUsername(seller),
           profile_url: profileUrlWithReferrer,
           avatar_url: creatorAvatar,
           id: seller.external_id,
