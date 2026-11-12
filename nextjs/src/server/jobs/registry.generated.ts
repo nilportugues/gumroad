@@ -1718,7 +1718,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "MillionDollarMilestoneCheckWorker": {
     "file": "app/sidekiq/million_dollar_milestone_check_worker.rb",

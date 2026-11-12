@@ -230,6 +230,7 @@ import { analyzeFileWorker } from "./analyze-file-worker.ts";
 import { transferDropboxFileToS3Worker } from "./transfer-dropbox-file-to-s3-worker.ts";
 import { generateVideoPosterWorker } from "./generate-video-poster-worker.ts";
 import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
+import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -442,6 +443,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   TransferDropboxFileToS3Worker: transferDropboxFileToS3Worker,
   GenerateVideoPosterWorker: generateVideoPosterWorker,
   ResizeOversizedAssetPreviewWorker: resizeOversizedAssetPreviewWorker,
+  MassRefundForFraudJob: massRefundForFraudJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
