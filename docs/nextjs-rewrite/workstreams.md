@@ -319,3 +319,5 @@ captured, and the Gemfile.
 **WS-10 sign-in providers (`nextjs/ws10-omniauth-7`, lane 15):** the YouTube, Instagram and TikTok connect callbacks run in Node whatever code, redirect URI or XHR header they carry, and a passkey registers in Node (`registration_options` and `create`) when its attestation is the `none` format with an ES256 key, proven by 55 recorded examples, a mutation check, and Rails decoding Node's session cookie and accepting an attestation for its challenge. The Stripe Connect callback, the POST callbacks, signed attestation formats and non-ES256 keys stay in Rails; the reasons are in parity-debt.md.
 
 **WS-18 affiliates 1 (`nextjs/ws18-affiliates-1`, lane 29):** `parity_mail_jobs` records `deliver_later` and replays compare the mail job (`parity/src/active-job.ts`); `DELETE /affiliates/:id` runs in Node with its removal mail proven; the rest of E16 is untouched (see [parity-debt.md](parity-debt.md)).
+
+**WS-18 affiliates 1, second slice (lane 29):** `DELETE /products/affiliated/:id` runs in Node with its mail to the seller proven (see [parity-debt.md](parity-debt.md)).
