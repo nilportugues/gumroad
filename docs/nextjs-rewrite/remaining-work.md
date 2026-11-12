@@ -12,7 +12,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | Routes weighted by difficulty (counted routes, estimated weights) | 1744 | 1857 | 93.9% |
 | Same, registered in routes.json (upper bound) | 1752 | 1857 | 94.3% |
 | Rails Inertia pages with Node props (counted, string match) | 105 | 114 | 92.1% |
-| Sidekiq job classes running in Node (counted) | 176 | 296 | 59.5% |
+| Sidekiq job classes running in Node (counted) | 177 | 296 | 59.8% |
 
 ## Method
 
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 145,330 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 145,933 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 314 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
