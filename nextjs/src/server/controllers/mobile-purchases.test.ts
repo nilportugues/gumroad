@@ -12,6 +12,9 @@ const {
   db,
   preloadProductUpdatesData,
   purchaseJsonDataForMobile,
+  setLibraryFlag,
+  loadLibraryPurchase,
+  urlRedirectMobileData,
 } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
@@ -23,9 +26,13 @@ const {
     purchase: { findFirst: vi.fn() },
     link: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
+    urlRedirect: { findMany: vi.fn() },
   },
   preloadProductUpdatesData: vi.fn(),
   purchaseJsonDataForMobile: vi.fn(),
+  setLibraryFlag: vi.fn(),
+  loadLibraryPurchase: vi.fn(),
+  urlRedirectMobileData: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -39,9 +46,11 @@ vi.mock("../models/sql.ts", async (original) => ({
 vi.mock("../presenters/product-reads.ts", () => ({ findLink }));
 vi.mock("../presenters/product-props.ts", () => ({ linkOptions }));
 vi.mock("../../lib/db.ts", () => ({ db }));
+vi.mock("../models/purchase-library-writes.ts", () => ({ setLibraryFlag, loadLibraryPurchase }));
 vi.mock("../models/purchase-product-updates.ts", () => ({ preloadProductUpdatesData }));
 vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
+vi.mock("../presenters/mobile-url-redirect.ts", () => ({ urlRedirectMobileData }));
 vi.mock("../presenters/mobile-serializers.ts", () => ({ purchaseJsonDataForMobile }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({
   creatorAppPurchasesJson,
@@ -74,6 +83,11 @@ beforeEach(() => {
   db.user.findUnique.mockReset();
   preloadProductUpdatesData.mockReset();
   purchaseJsonDataForMobile.mockReset();
+  setLibraryFlag.mockReset();
+  loadLibraryPurchase.mockReset();
+  urlRedirectMobileData.mockReset();
+  db.urlRedirect.findMany.mockReset();
+  db.urlRedirect.findMany.mockResolvedValue([]);
 });
 
 describe("registration", () => {
@@ -149,20 +163,64 @@ describe("GET /mobile/purchases/search", () => {
 });
 
 describe("purchase member actions", () => {
-  it.each([
-    ["POST", "/mobile/purchases/:id/archive"],
-    ["POST", "/mobile/purchases/:id/unarchive"],
-    ["DELETE", "/mobile/purchases/:id"],
-  ])("%s %s answers 404 for a purchase that is not the buyer's", async (method, pattern) => {
-    selectRows.mockResolvedValue([]);
+  const writes = [
+    ["POST", "/mobile/purchases/:id/archive", "is_archived", true],
+    ["POST", "/mobile/purchases/:id/unarchive", "is_archived", false],
+    ["DELETE", "/mobile/purchases/:id", "is_deleted_by_buyer", true],
+  ] as const;
+  const row = {
+    id: 12n,
+    purchaser_id: 7n,
+    seller_id: 9n,
+    link_id: 2n,
+    purchase_state: "successful",
+    stripe_refunded: null,
+    chargeback_date: null,
+    subscription_id: null,
+    preorder_id: null,
+  };
+
+  function stubPlain(rows: unknown[][] = [[], [], []]) {
+    db.purchase.findFirst.mockResolvedValue(row);
+    db.link.findUnique.mockResolvedValue({ id: 2n, user_id: 9n });
+    db.user.findUnique.mockResolvedValue({ id: 9n, username: "seller", timezone: "Tokyo" });
+    for (const result of rows) selectRows.mockResolvedValueOnce(result);
+    preloadProductUpdatesData.mockResolvedValue(new Map([[12n, []]]));
+    const record = { attributes: { ...row, flags: 1n } };
+    loadLibraryPurchase.mockReturnValue(record);
+    purchaseJsonDataForMobile.mockReturnValue({ name: "Product" });
+    return record;
+  }
+
+  it.each(writes)("%s %s answers 404 for a purchase that is not the buyer's", async (method, pattern) => {
+    db.purchase.findFirst.mockResolvedValue(null);
     const result = await find(method, pattern).run(input({ id: "12" }), authFor());
     expect(status(result)).toBe(404);
     expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
+    expect(setLibraryFlag).not.toHaveBeenCalled();
   });
 
-  it("hands a purchase that exists to Rails", async () => {
-    selectRows.mockResolvedValue([{ "1": 1 }]);
+  it.each(writes)(
+    "%s %s sets the flag on the seller's time zone and renders the row it left",
+    async (method, pattern, flag, value) => {
+      const record = stubPlain();
+      const result = await find(method, pattern).run(input({ id: "12" }), authFor());
+      expect(body(result)).toEqual({ success: true, product: { name: "Product" } });
+      expect(loadLibraryPurchase).toHaveBeenCalledWith(row, "Tokyo");
+      expect(setLibraryFlag).toHaveBeenCalledWith(record, flag, value);
+      expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({ purchase: record.attributes });
+    },
+  );
+
+  it.each([
+    ["a membership purchase", { subscription_id: 3n }, []],
+    ["a preorder purchase", { preorder_id: 3n }, []],
+    ["a purchase with refunds", {}, [[{ "1": 1 }]]],
+  ])("hands %s to Rails before writing", async (_name, extra, rows) => {
+    stubPlain(rows);
+    db.purchase.findFirst.mockResolvedValue({ ...row, ...extra });
     await expect(find("POST", "/mobile/purchases/:id/archive").run(input({ id: "12" }), authFor())).rejects.toThrow();
+    expect(setLibraryFlag).not.toHaveBeenCalled();
   });
 
   it("answers 404 for an id that does not decrypt, without querying", async () => {
@@ -189,8 +247,8 @@ describe("GET /mobile/purchases/purchase_attributes/:id", () => {
   const link = { id: 2n, user_id: 9n };
   const creator = { id: 9n, username: "seller" };
 
-  // The statements in order: url redirect, refunds, product review, asset previews.
-  function stub({ purchaseRow = purchase() as object | null, rows = [[], [], [], []] as unknown[][] } = {}) {
+  // The statements in order: refunds, product review, asset previews.
+  function stub({ purchaseRow = purchase() as object | null, rows = [[], [], []] as unknown[][] } = {}) {
     db.purchase.findFirst.mockResolvedValue(purchaseRow);
     db.link.findUnique.mockResolvedValue(link);
     db.user.findUnique.mockResolvedValue(creator);
@@ -213,9 +271,25 @@ describe("GET /mobile/purchases/purchase_attributes/:id", () => {
   });
 
   it("tells the serializer when the product has asset previews", async () => {
-    stub({ rows: [[], [], [], [{ "1": 1 }]] });
+    stub({ rows: [[], [], [{ "1": 1 }]] });
     await run(input({ id: "12" }), authFor());
     expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({ link: { hasAlivePreviews: true } });
+  });
+
+  it("adds the url redirect's keys and files when the purchase has one", async () => {
+    stub();
+    const redirect = { id: 5n, purchase_id: 12n };
+    db.urlRedirect.findMany.mockResolvedValue([redirect]);
+    urlRedirectMobileData.mockResolvedValue({ urlRedirectExternalId: "x", urlRedirectToken: "t", fileData: [] });
+    await run(input({ id: "12" }), authFor());
+    expect(urlRedirectMobileData.mock.calls[0]![0]).toMatchObject({ redirect, product: { id: 2n } });
+    expect(purchaseJsonDataForMobile.mock.calls[0]![0]).toMatchObject({ urlRedirect: { urlRedirectToken: "t" } });
+  });
+
+  it("hands a purchase with several url redirects to Rails", async () => {
+    stub();
+    db.urlRedirect.findMany.mockResolvedValue([{ id: 5n }, { id: 6n }]);
+    await expect(run(input({ id: "12" }), authFor())).rejects.toThrow();
   });
 
   it("refuses an unconfirmed account", async () => {
@@ -243,7 +317,6 @@ describe("GET /mobile/purchases/purchase_attributes/:id", () => {
   it.each([
     ["a membership purchase", { subscription_id: 3n }, []],
     ["a preorder purchase", { preorder_id: 3n }, []],
-    ["a purchase with a url redirect", {}, [[{ "1": 1 }]]],
   ])("hands %s to Rails", async (_name, extra, rows) => {
     stub({ purchaseRow: purchase(extra), rows });
     await expect(run(input({ id: "12" }), authFor())).rejects.toThrow();
@@ -251,8 +324,8 @@ describe("GET /mobile/purchases/purchase_attributes/:id", () => {
   });
 
   it.each([
-    ["refunds", [[], [{ "1": 1 }]]],
-    ["a review", [[], [], [{ "1": 1 }]]],
+    ["refunds", [[{ "1": 1 }]]],
+    ["a review", [[], [{ "1": 1 }]]],
   ])("hands a purchase with %s to Rails", async (_name, rows) => {
     stub({ rows });
     await expect(run(input({ id: "12" }), authFor())).rejects.toThrow();

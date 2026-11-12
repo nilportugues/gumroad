@@ -29,6 +29,7 @@ const SPECS = [
   "mobile_api_parity_spec",
   "mobile_accounts_parity_spec",
   "mobile_hand_backs_parity_spec",
+  "mobile_library_writes_parity_spec",
   "mobile_purchases_sales_parity_spec",
   "mobile_sales_access_parity_spec",
   "mobile_sales_actions_parity_spec",

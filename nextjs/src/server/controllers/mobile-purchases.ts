@@ -2,13 +2,14 @@
 //
 // Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, sales#index rows
 // whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence), and
-// purchase_attributes of a plain purchase (no url redirect, preorder, subscription, refund or review) whose seller and product have no
-// post. Everything else (the rest of purchase_attributes, a non-empty library page, sales#show, archive, unarchive, destroy) goes to Rails whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the posts of
+// purchase_attributes, archive, unarchive and destroy of a plain purchase (no url redirect, preorder, subscription, refund or review) whose seller and product have no
+// post. Everything else (the rest of those, a non-empty library page, sales#show) goes to Rails whole, because UrlRedirect#product_json_data, Preorder#mobile_json_data and the posts of
 // the product-updates preloader are not ported.
-import { Prisma } from "@prisma/client";
+import { Prisma, type Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { type LibraryFlag, loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
@@ -16,6 +17,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { creatorAppPurchasesJson, thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
 import { purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
+import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { linkOptions } from "../presenters/product-props.ts";
 import { findLink } from "../presenters/product-reads.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
@@ -112,22 +114,6 @@ async function search(input: MobileInput, auth: MobileAuth | null) {
   });
 }
 
-// before_action :fetch_purchase for purchase_attributes, archive, unarchive and destroy. A purchase that is the caller's goes to Rails:
-// whether it is `successful_and_not_reversed?` or has a subscription, and its JSON, are not ported.
-const purchaseAction = (verb: string) => async (input: MobileInput, auth: MobileAuth | null) => {
-  const refused = requireConfirmedUser(auth);
-  if (refused) return refused;
-  const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
-  const rows =
-    id === null
-      ? []
-      : await selectRows(
-          Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${BigInt(id)} AND ${column("purchases", "purchaser_id")} = ${libraryOwner(auth).id} LIMIT 1`,
-        );
-  if (rows.length === 0) return fetchError("Could not find purchase");
-  throw new HandBackToRails(`${verb} of a purchase that exists`);
-};
-
 const hasRows = async (tableName: string, columnName: string, id: bigint): Promise<boolean> =>
   (
     await selectRows(
@@ -135,16 +121,13 @@ const hasRows = async (tableName: string, columnName: string, id: bigint): Promi
     )
   ).length > 0;
 
-// PurchasesController#purchase_attributes: fetch_purchase, then Purchase#json_data_for_mobile
-async function purchaseAttributes(input: MobileInput, auth: MobileAuth | null) {
-  const refused = requireConfirmedUser(auth);
-  if (refused) return refused;
+// before_action :fetch_purchase: the caller's purchase, or null for the 404 (`successful_and_not_reversed? || subscription`).
+async function fetchPurchase(input: MobileInput, auth: MobileAuth | null): Promise<Purchase | null> {
   const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
   const purchase =
     id === null
       ? null
       : await db.purchase.findFirst({ where: { id: BigInt(id), purchaser_id: libraryOwner(auth).id } });
-  // successful_and_not_reversed? || subscription
   if (
     purchase === null ||
     (purchase.subscription_id === null &&
@@ -152,11 +135,15 @@ async function purchaseAttributes(input: MobileInput, auth: MobileAuth | null) {
         purchase.chargeback_date !== null ||
         !NON_GIFT_SUCCESS_STATES.includes(purchase.purchase_state ?? "")))
   )
-    return fetchError("Could not find purchase");
+    return null;
+  return purchase;
+}
+
+// What Purchase#json_data_for_mobile needs for a plain purchase, loaded and checked before any write, so a purchase Node
+// cannot serialize hands back (or throws NotPortedError) unchanged. `render` takes the row as the action leaves it.
+async function plainPurchaseJson(purchase: Purchase, auth: MobileAuth | null) {
   if (purchase.subscription_id !== null) throw new HandBackToRails("the subscription_data of a membership purchase");
   if (purchase.preorder_id !== null) throw new HandBackToRails("Preorder#mobile_json_data");
-  if (await hasRows("url_redirects", "purchase_id", purchase.id))
-    throw new HandBackToRails("UrlRedirect#product_json_data");
   if (await hasRows("refunds", "purchase_id", purchase.id)) throw new NotPortedError("Purchase#amount_refunded_cents");
   if (await hasRows("product_reviews", "purchase_id", purchase.id))
     throw new NotPortedError("Purchase#original_product_review");
@@ -167,32 +154,72 @@ async function purchaseAttributes(input: MobileInput, auth: MobileAuth | null) {
   if (!link || !creator || !seller) throw new NotPortedError("a purchase whose product or seller row is missing");
   if (creator.username === null || creator.username.trim() === "")
     throw new NotPortedError("User#profile_url for a creator without a username");
+  const redirects = await db.urlRedirect.findMany({ where: { purchase_id: purchase.id }, take: 2 });
+  // has_one :url_redirect reads an arbitrary row when there are several
+  if (redirects.length > 1) throw new HandBackToRails("a purchase with several url redirects");
+  const urlRedirect =
+    redirects[0] === undefined
+      ? undefined
+      : await urlRedirectMobileData({
+          redirect: redirects[0],
+          purchase,
+          purchaser: libraryOwner(auth),
+          subscription: null,
+          product: link,
+          seller,
+        });
   const productUpdates = (await preloadProductUpdatesData([purchase])).get(purchase.id)!;
 
   const [previews] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${link.id} AND ${column("asset_previews", "deleted_at")} IS NULL LIMIT 1`,
   );
   const thumbnails = await thumbnailUrlsByProduct([link.id]);
-  return renderJson({
-    success: true,
-    product: purchaseJsonDataForMobile({
-      purchase,
-      link: {
-        link,
-        creator,
-        creatorAvatarUrl: await avatarUrl(creator),
-        creatorProfileUrl: profileUrl(creator),
-        thumbnailOrCoverUrl: thumbnails.get(link.id) ?? null,
-        hasAlivePreviews: previews !== undefined,
-      },
-      seller,
-      purchaser: libraryOwner(auth),
-      productRating: null,
-      amountRefundedCents: 0,
-      productUpdatesData: productUpdates,
-    }),
-  });
+  const linkInput = {
+    link,
+    creator,
+    creatorAvatarUrl: await avatarUrl(creator),
+    creatorProfileUrl: profileUrl(creator),
+    thumbnailOrCoverUrl: thumbnails.get(link.id) ?? null,
+    hasAlivePreviews: previews !== undefined,
+  };
+  return {
+    seller,
+    render: (row: Purchase) =>
+      purchaseJsonDataForMobile({
+        purchase: row,
+        link: linkInput,
+        seller,
+        purchaser: libraryOwner(auth),
+        productRating: null,
+        amountRefundedCents: 0,
+        productUpdatesData: productUpdates,
+        urlRedirect,
+      }),
+  };
 }
+
+// PurchasesController#purchase_attributes: fetch_purchase, then Purchase#json_data_for_mobile
+async function purchaseAttributes(input: MobileInput, auth: MobileAuth | null) {
+  const refused = requireConfirmedUser(auth);
+  if (refused) return refused;
+  const purchase = await fetchPurchase(input, auth);
+  if (purchase === null) return fetchError("Could not find purchase");
+  const plain = await plainPurchaseJson(purchase, auth);
+  return renderJson({ success: true, product: plain.render(purchase) });
+}
+
+// #archive, #unarchive and #destroy: `save!` / `update!` of one flag (the library's write), then the purchase's JSON.
+const libraryFlagAction =
+  (flag: LibraryFlag, value: boolean) => async (input: MobileInput, auth: MobileAuth | null) => {
+    const refused = requireConfirmedUser(auth);
+    if (refused) return refused;
+    const purchase = await fetchPurchase(input, auth);
+    if (purchase === null) return fetchError("Could not find purchase");
+    const plain = await plainPurchaseJson(purchase, auth);
+    const record = loadLibraryPurchase(purchase, plain.seller.timezone);
+    await setLibraryFlag(record, flag, value);
+    return renderJson({ success: true, product: plain.render(record.attributes) });
+  };
 
 // SalesController#index. A row the creator-app serializer does not reproduce throws NotPortedError, which hands the request to Rails.
 async function salesIndex(input: MobileInput, auth: MobileAuth | null) {
@@ -265,15 +292,20 @@ registerMobile(
     method: "POST",
     pattern: "/mobile/purchases/:id/archive",
     scopes: MOBILE_API_SCOPES,
-    run: purchaseAction("an archive"),
+    run: libraryFlagAction("is_archived", true),
   },
   {
     method: "POST",
     pattern: "/mobile/purchases/:id/unarchive",
     scopes: MOBILE_API_SCOPES,
-    run: purchaseAction("an unarchive"),
+    run: libraryFlagAction("is_archived", false),
   },
-  { method: "DELETE", pattern: "/mobile/purchases/:id", scopes: MOBILE_API_SCOPES, run: purchaseAction("a delete") },
+  {
+    method: "DELETE",
+    pattern: "/mobile/purchases/:id",
+    scopes: MOBILE_API_SCOPES,
+    run: libraryFlagAction("is_deleted_by_buyer", true),
+  },
   { method: "GET", pattern: "/mobile/sales", scopes: MOBILE_API_SCOPES, run: salesIndex },
   { method: "GET", pattern: "/mobile/sales/:id", scopes: MOBILE_API_SCOPES, run: salesShow },
   { method: "GET", pattern: "/mobile/sales/:id/options", scopes: MOBILE_API_SCOPES, run: salesOptions },

@@ -172,7 +172,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /mobile/purchases/search` | `Api::Mobile::PurchasesController#search` | native | `nextjs_mobile_purchases` | y |
 | `GET /mobile/purchases/purchase_attributes/:id` | `Api::Mobile::PurchasesController#purchase_attributes` | native | `nextjs_mobile_purchases` | y |
 | `POST /mobile/purchases/:id/archive` | `Api::Mobile::PurchasesController#archive` | native | `nextjs_mobile_purchases` | y |
-| `POST /mobile/purchases/:id/unarchive` | `Api::Mobile::PurchasesController#unarchive` | native | `nextjs_mobile_purchases` | n |
+| `POST /mobile/purchases/:id/unarchive` | `Api::Mobile::PurchasesController#unarchive` | native | `nextjs_mobile_purchases` | y |
 | `DELETE /mobile/purchases/:id` | `Api::Mobile::PurchasesController#destroy` | native | `nextjs_mobile_purchases` | y |
 | `GET /mobile/url_redirects/get_url_redirect_attributes/:id` | `Api::Mobile::UrlRedirectsController#url_redirect_attributes` | native | `nextjs_mobile_url_redirects` | y |
 | `GET /mobile/url_redirects/fetch_placeholder_products` | `Api::Mobile::UrlRedirectsController#fetch_placeholder_products` | native | `nextjs_mobile_url_redirects` | n |
