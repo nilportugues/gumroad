@@ -218,4 +218,6 @@ export const PORTED_JOBS: readonly string[] = [
   "SendStripeBalanceSummariesReportJob",
   "SendDailyFinanceLedgerReportJob",
   "TaxFormTransactionReportJob",
+  "HandleNewBankAccountWorker",
+  "DeleteGuardianStripePersonJob",
 ];

@@ -724,7 +724,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteOldPingDeliveriesJob": {
     "file": "app/sidekiq/delete_old_ping_deliveries_job.rb",
@@ -1511,7 +1511,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "HandleNewUserComplianceInfoWorker": {
     "file": "app/sidekiq/handle_new_user_compliance_info_worker.rb",

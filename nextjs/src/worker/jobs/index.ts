@@ -257,6 +257,12 @@ import {
   taxFormTransactionReportJob,
   taxFormTransactionReportJobRetriesExhausted,
 } from "./tax-form-transaction-report-job.ts";
+import {
+  deleteGuardianStripePersonJob,
+  deleteGuardianStripePersonJobRetriesExhausted,
+  handleNewBankAccountWorker,
+  handleNewBankAccountWorkerRetriesExhausted,
+} from "./payout-note-retries-exhausted-jobs.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -482,6 +488,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SendStripeBalanceSummariesReportJob: sendStripeBalanceSummariesReportJob,
   SendDailyFinanceLedgerReportJob: sendDailyFinanceLedgerReportJob,
   TaxFormTransactionReportJob: taxFormTransactionReportJob,
+  HandleNewBankAccountWorker: handleNewBankAccountWorker,
+  DeleteGuardianStripePersonJob: deleteGuardianStripePersonJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
@@ -503,4 +511,6 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   SendStripeBalanceSummariesReportJob: sendStripeBalanceSummariesReportJobRetriesExhausted,
   SendDailyFinanceLedgerReportJob: sendDailyFinanceLedgerReportJobRetriesExhausted,
   TaxFormTransactionReportJob: taxFormTransactionReportJobRetriesExhausted,
+  HandleNewBankAccountWorker: handleNewBankAccountWorkerRetriesExhausted,
+  DeleteGuardianStripePersonJob: deleteGuardianStripePersonJobRetriesExhausted,
 };
