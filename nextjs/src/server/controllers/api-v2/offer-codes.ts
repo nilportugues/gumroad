@@ -270,8 +270,9 @@ async function create(input: ApiV2Input) {
   const { params, request } = input;
   const product: Link = input.state.product;
   const universal = trueParam(params.universal);
-  if (trueParam(params.auto_apply)) notPorted("a code applied automatically");
   const name = params.name;
+  const label = params.sale_label;
+  if (label !== undefined && label !== null && typeof label !== "string") notPorted("a sale label that is not text");
   if (name !== undefined && name !== null && typeof name !== "string") notPorted("a name that is not text");
   for (const key of ["amount_off", "amount_cents", "max_purchase_count", "minimum_amount_cents"])
     if (isHash(params[key]) || Array.isArray(params[key])) notPorted("an amount that is a list or a hash");
@@ -280,8 +281,8 @@ async function create(input: ApiV2Input) {
     code: (name as string | null | undefined) ?? null,
     universal,
     max_purchase_count: castInteger(params.max_purchase_count),
-    auto_apply: false,
-    sale_label: null,
+    auto_apply: trueParam(params.auto_apply),
+    sale_label: (label as string | null | undefined) ?? null,
     minimum_amount_cents: present(params.minimum_amount_cents) ? castInteger(params.minimum_amount_cents) : null,
     user_id: Number(product.user_id),
     ...validityPeriodOf(params),
@@ -328,11 +329,11 @@ async function update(input: ApiV2Input) {
     if (!(key in params)) continue;
     const value = params[key];
     if (isHash(value) || Array.isArray(value)) notPorted("a parameter that is a list or a hash");
-    if (key === "auto_apply") {
-      if (trueParam(value)) notPorted("a code applied automatically");
-      attributes.auto_apply = false;
-    } else if (key === "sale_label") attributes.sale_label = typeof value === "string" ? value : null;
-    else attributes[key] = castInteger(value);
+    if (key === "auto_apply") attributes.auto_apply = trueParam(value);
+    else if (key === "sale_label") {
+      if (value !== null && typeof value !== "string") notPorted("a sale label that is not text");
+      attributes.sale_label = value as string | null;
+    } else attributes[key] = castInteger(value);
   }
   Object.assign(attributes, validityPeriodOf(params));
   await assertPlainProducts(products);

@@ -68,6 +68,7 @@ const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 // The order is the Ruby map's: it decides the order of the fields in the enqueued job.
 const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
   name: ["name", "rated_as_adult"],
+  description: ["description", "rated_as_adult"],
   purchase_disabled_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   deleted_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
@@ -82,6 +83,7 @@ const PORTED_CHANGES = [
   "flags",
   "deleted_at",
   "name",
+  "description",
   "draft",
   "first_published_at",
 ];
@@ -634,9 +636,8 @@ const validations: Callback<Link>[] = [
     },
   },
   {
-    // Runs when name or description change; a ported update changes the name only.
     name: "content_has_no_adult_keywords",
-    if: (link) => link.attributeChanged("name"),
+    if: (link) => link.attributeChanged("description") || link.attributeChanged("name"),
     run(link) {
       if (isAdult(link.get("description")) || isAdult(link.get("name")))
         link.errors.add("base", "Adult keywords are not allowed");
@@ -726,7 +727,8 @@ const validations: Callback<Link>[] = [
   {
     // Runs while publishing, or when the name or description of a published product change; the moderation service is Ruby's.
     name: "content_moderation_check",
-    if: (link) => !link.newRecord && isPublished(link) && link.attributeChanged("name"),
+    if: (link) =>
+      !link.newRecord && isPublished(link) && (link.attributeChanged("name") || link.attributeChanged("description")),
     run() {
       throw new NotPortedError("ContentModeration::ModerateRecordService.check", "app/models/link.rb:2385");
     },

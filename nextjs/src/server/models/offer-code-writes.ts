@@ -1,5 +1,5 @@
 // Write side of app/models/offer_code.rb, for what Api::V2::OfferCodesController#create, #update and #destroy save: a plain code, meaning
-// no automatic application, cancellation or upsell role, customer limits, duration tiers, excluded products or option scope, on products
+// no cancellation or upsell role, customer limits, duration tiers, excluded products or option scope (it may be applied automatically), on products
 // that are neither memberships nor have options (`assertPlainCode`, `assertPlainProducts`). Both guards are meant to run before the first
 // statement, so a code outside them goes to Rails with nothing written; the validations and callbacks they leave out are the ones that
 // cannot fire for a plain code (each is named below where its Ruby declaration sits). The read side is offer-code.ts.
@@ -18,6 +18,7 @@ import { type Callback, defineModel } from "./runtime/define-model.ts";
 import { type ModelRecord } from "./runtime/record.ts";
 import {
   isBlank,
+  rubyLength,
   validatesAssociatedPresence,
   validatesFormatOf,
   validatesPresenceOf,
@@ -28,6 +29,8 @@ import { NotPortedError, rubyStrip, strippedField } from "./user.ts";
 
 export const MAX_PURCHASE_COUNT_RANGE = { min: 0, max: 10_000_000 } as const;
 const OFFER_CODES = "offer_codes";
+// OfferCode::MAX_SALE_LABEL_LENGTH
+const MAX_SALE_LABEL_LENGTH = 32;
 // Columns whose change makes a code applicable to different products (OfferCode#note_column_applicability_changes).
 const APPLICABILITY_COLUMNS = ["universal", "currency_type", "deleted_at", "code", "new_customers_only"];
 // validates :code, format: ... (Latin-1 letters included)
@@ -101,7 +104,6 @@ export async function assertPlainProducts(products: Link[]): Promise<void> {
 // A saved code outside the plain shape.
 export async function assertPlainCode(row: OfferCode): Promise<void> {
   if (OfferCodeFlags.isSet(row.flags, "is_cancellation_discount")) notPorted("a cancellation discount");
-  if (row.auto_apply) notPorted("a code applied automatically");
   if (row.existing_customers_only || row.new_customers_only) notPorted("a code limited to existing or new customers");
   if (row.duration_in_months != null) notPorted("a code with a duration in billing cycles");
   const tiers = row.ownership_duration_tiers;
@@ -198,6 +200,34 @@ async function notUsedAsDefaultDiscount(record: OfferCodeWrite): Promise<void> {
     );
 }
 
+// OfferCode#validate_auto_apply. A plain code is never a cancellation discount, an upsell or limited to new customers
+// (assertPlainCode), so only the "all products" rule and the one-code-per-seller rule can fire.
+async function autoApplyIsValid(record: OfferCodeWrite): Promise<void> {
+  if (!record.get("auto_apply") || record.get("deleted_at") != null) return;
+  if (!record.get("universal"))
+    record.errors.add("base", "Only a discount that applies to all products can be applied automatically.");
+  const userId = record.get("user_id");
+  if (userId == null) return;
+  // A saved code locks the other rows it reads (a current read); a new one does not.
+  const [other] = await selectRows<{ code: string | null }>(
+    Prisma.sql`SELECT ${column(OFFER_CODES, "code")} FROM ${table(OFFER_CODES)} WHERE ${column(OFFER_CODES, "deleted_at")} IS NULL AND ${column(OFFER_CODES, "user_id")} = ${userId} AND ${column(OFFER_CODES, "auto_apply")} = TRUE${record.persisted ? Prisma.sql` AND ${column(OFFER_CODES, "id")} != ${record.get("id")}` : Prisma.empty} ORDER BY ${column(OFFER_CODES, "id")} ASC LIMIT 1${record.persisted ? Prisma.raw(" FOR UPDATE") : Prisma.empty}`,
+  );
+  if (other !== undefined)
+    record.errors.add(
+      "base",
+      `Another discount (${other.code ?? ""}) is already applied automatically. Turn it off first.`,
+    );
+}
+
+// OfferCode#validate_sale_label
+function saleLabelIsValid(record: OfferCodeWrite): void {
+  const label = record.get("sale_label");
+  if (isBlank(label)) return;
+  if (rubyLength(label) > MAX_SALE_LABEL_LENGTH)
+    record.errors.add("base", `The sale label can be at most ${MAX_SALE_LABEL_LENGTH} characters.`);
+  else if (/[<>]/u.test(label!)) record.errors.add("base", "The sale label must be plain text.");
+}
+
 // OfferCode#code_validation: no other code of the product or universal code that applies to it has the same code.
 async function codeIsUnique(record: OfferCodeWrite): Promise<void> {
   if (record.get("deleted_at") != null || record.get("universal")) return;
@@ -256,7 +286,7 @@ export const OfferCodes = defineModel<OfferCode>({
     },
     { name: "stripped_fields :code", run: (record) => record.set("code", strippedField(record.get("code"))) },
     {
-      // A label belongs to the auto-applied sale; assertPlainCode keeps auto_apply off, so it is always cleared.
+      // A label belongs to the auto-applied sale and is cleared from any other code.
       name: "normalize_sale_label",
       run(record) {
         const label = record.get("sale_label");
@@ -266,7 +296,14 @@ export const OfferCodes = defineModel<OfferCode>({
     {
       name: "lock_seller_for_auto_apply",
       if: (record) => record.get("auto_apply"),
-      run: () => notPorted("a code applied automatically"),
+      // `User.where(id: user_id).lock.pick(:id)`: a locking read of the seller, so concurrent saves for one seller serialize.
+      async run(record) {
+        const userId = record.get("user_id");
+        if (userId == null || record.get("deleted_at") != null) return;
+        await selectRows(
+          Prisma.sql`SELECT ${column("users", "id")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1 FOR UPDATE`,
+        );
+      },
     },
     {
       name: "auto_apply = false if nil",
@@ -288,8 +325,10 @@ export const OfferCodes = defineModel<OfferCode>({
     { name: "price_validation", run: priceValidation },
     { name: "validate_not_used_as_default_discount", run: notUsedAsDefaultDiscount },
     // validate_cancellation_discount_*, validate_existing_customer_settings, validate_new_customer_settings, validate_ownership_duration_tiers,
-    // validate_excluded_products, validate_option_scope, validate_auto_apply and validate_sale_label return at once for a plain code.
+    // validate_excluded_products and validate_option_scope return at once for a plain code.
     // validate_default_discount_remains_applicable has nothing to detach: the API never changes a code's currency or product list.
+    { name: "validate_auto_apply", run: autoApplyIsValid },
+    { name: "validate_sale_label", run: saleLabelIsValid },
     validatesUniquenessOf<OfferCode>(OFFER_CODES, ["code"], {
       scope: ["user_id", "deleted_at"],
       if: (record) => record.get("universal"),
