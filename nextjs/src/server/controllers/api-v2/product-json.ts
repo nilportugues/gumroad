@@ -4,6 +4,8 @@
 import type { Link, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
+import { signedDownloadUrlForS3KeyAndFilename } from "../../infra/signed-urls.ts";
+import { filenameWithExtension, isStreamOnly, isStreamable, s3Fields } from "../../models/product-file.ts";
 import { defaultPriceCents, LinkFlags, Links } from "../../models/link.ts";
 import { UserFlags } from "../../models/user.ts";
 import {
@@ -70,8 +72,6 @@ export async function assertProductJsonSupported(links: Link[], { owner, scopes 
   if (ids.length === 0) return;
   if ((await db.assetPreview.count({ where: { link_id: { in: ids }, deleted_at: null } })) > 0)
     throw new HandBackToRails("a product with covers");
-  if ((await db.productFile.count({ where: { link_id: { in: ids }, deleted_at: null } })) > 0)
-    throw new HandBackToRails("a product with files");
   if ((await db.preorderLink.count({ where: { link_id: { in: ids } } })) > 0) throw new HandBackToRails("a preorder");
 }
 
@@ -214,6 +214,42 @@ export async function productSectionsJson(link: Link) {
   });
 }
 
+// `ordered_alive_product_files` as the API lists them: alive, by position.
+async function filesJson(link: Link, ownerExternalId: string | null): Promise<Record<string, unknown>[]> {
+  const files = await db.productFile.findMany({
+    where: { link_id: link.id, deleted_at: null },
+    orderBy: [{ position: "asc" }, { id: "asc" }],
+  });
+  const result: Record<string, unknown>[] = [];
+  for (const file of files) {
+    let url: string | null;
+    if (file.filetype === "link") url = file.url;
+    else {
+      const fields = s3Fields(file.url, ownerExternalId);
+      if (fields === null) throw new HandBackToRails("a product file outside the bucket");
+      try {
+        url = await signedDownloadUrlForS3KeyAndFilename(fields.key, filenameWithExtension(file, fields), {
+          isVideo: isStreamable(file),
+        });
+      } catch (error) {
+        // ProductFile#signed_url answers nil for an object that is gone.
+        if ((error as { name?: string }).name !== "NotFound") throw error;
+        url = null;
+      }
+    }
+    result.push({
+      id: externalId(file.id),
+      name: file.display_name,
+      size: file.size === null ? null : Number(file.size),
+      url,
+      filetype: file.filetype,
+      filegroup: file.filegroup,
+      stream_only: isStreamOnly(file),
+    });
+  }
+  return result;
+}
+
 export async function productsApiJson(links: Link[], options: ProductJsonOptions): Promise<Record<string, unknown>[]> {
   await assertProductJsonSupported(links, options);
   const { owner, slim } = options;
@@ -275,7 +311,7 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
         has_same_rich_content_for_all_variants: flag(link, "has_same_rich_content_for_all_variants"),
         main_section_index: (jsonData.main_section_index as number | undefined) || 0,
         sections: await productSectionsJson(link),
-        files: [],
+        files: await filesJson(link, seller?.external_id ?? null),
       });
     }
     result.push(json);

@@ -277,6 +277,43 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.created_via_cli).to be true
   end
 
+  def upload(name = "guide.pdf", body: "pdf bytes")
+    key = "attachments/#{seller.external_id}/#{SecureRandom.hex}/original/#{name}"
+    Aws::S3::Resource.new.bucket(S3_BUCKET).object(key).put(body:)
+    "#{S3_BASE_URL}#{key}"
+  end
+
+  describe "files" do
+    it "creates a product with an uploaded file", parity: true, parity_timeline: true do
+      create_product({ name: "Guide", price: 500, files: [{ url: upload, display_name: "The guide", description: "Read me first" }] })
+
+      expect(response.parsed_body).to include("success" => true)
+      expect(created.product_files.alive.count).to eq(1)
+      expect(created.product_files.first).to have_attributes(display_name: "The guide", filetype: "pdf", filegroup: "document")
+    end
+
+    it "creates a draft with two files in the order they were sent", parity: true, parity_timeline: true do
+      create_product({ name: "Course", price: 500, draft: true, files: [{ url: upload("lesson.mp4"), position: 2, stream_only: true }, { url: upload("notes.txt"), position: 1 }] })
+
+      expect(response.parsed_body).to include("success" => true)
+      expect(created.product_files.alive.in_order.pluck(:filetype)).to eq(%w[txt mp4])
+    end
+
+    it "refuses a file the seller never uploaded", parity: true do
+      create_product({ name: "Guide", price: 500, files: [{ url: "#{S3_BASE_URL}attachments/someone-else/#{SecureRandom.hex}/original/guide.pdf" }] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "refuses a file that is missing from storage", parity: true do
+      create_product({ name: "Guide", price: 500, files: [{ url: "#{S3_BASE_URL}attachments/#{seller.external_id}/#{SecureRandom.hex}/original/missing.pdf" }] })
+
+      expect(response).to have_http_status(:bad_request)
+      expect(Link.count).to eq(0)
+    end
+  end
+
   it "creates a product when the upload fields are blank", parity: true do
     create_product({ name: "Book", price: 100, file: "", preview: {}, thumbnail: [] })
 

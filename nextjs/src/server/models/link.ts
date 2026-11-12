@@ -80,6 +80,7 @@ const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
   banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   max_purchase_count: ["is_recommendable"],
   taxonomy_id: ["taxonomy_id", "taxonomy_attribute_filters", "is_recommendable"],
+  content_updated_at: ["content_updated_at"],
   archived: ["is_recommendable", "is_alive_on_profile"],
   display_product_reviews: ["display_product_reviews", "is_recommendable"],
   is_adult: ["rated_as_adult"],
@@ -100,6 +101,7 @@ const PORTED_CHANGES = [
   "max_purchase_count",
   "taxonomy_id",
   "custom_receipt",
+  "content_updated_at",
 ];
 // The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index, :custom_summary`, and the inferred taxonomy values.
 const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index", "custom_summary", "inferred_taxonomy_attribute_values"];

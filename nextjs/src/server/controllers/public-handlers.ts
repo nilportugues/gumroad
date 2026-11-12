@@ -42,7 +42,7 @@ import { internalResponse } from "./internal-api.ts";
 import { mobileResponse } from "./mobile-api.ts";
 import { computeDiscount } from "./offer-codes.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
-import { profile as thirdPartyAnalyticsProfile } from "./third-party-analytics.ts";
+import { index as thirdPartyAnalyticsIndex, profile as thirdPartyAnalyticsProfile } from "./third-party-analytics.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
@@ -313,6 +313,11 @@ const HANDLERS: Record<string, Handler> = {
   third_party_analytics_profile: {
     options: { optOutOfCsp: true, skipSession: true },
     run: (_request, url, action) => thirdPartyAnalyticsProfile(decodeURIComponent(url.pathname.split("/").at(-1) ?? ""), action),
+  },
+  third_party_analytics_index: {
+    options: { optOutOfCsp: true, skipSession: true },
+    run: (_request, url, action) =>
+      thirdPartyAnalyticsIndex(decodeURIComponent(url.pathname.split("/").at(-1) ?? ""), url, action),
   },
   features_md: {
     options: { bare: true },

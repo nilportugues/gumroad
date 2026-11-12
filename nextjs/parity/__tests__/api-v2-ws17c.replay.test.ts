@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
+import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
@@ -171,6 +172,33 @@ const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
   ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
 ];
 
+// A file attached to a new product must exist in the bucket. The recording uploaded its objects first; the replay uploads the ones the request
+// names, except an object named "missing..." (the request that attaches a file never uploaded).
+const SPEC_BUCKET = "gumroad-specs";
+async function uploadNamedFiles(exchange: Exchange) {
+  const urls: string[] = [];
+  try {
+    const files = (JSON.parse(exchange.request.body ?? "") as { files?: unknown }).files;
+    if (Array.isArray(files)) for (const file of files as { url?: unknown }[]) if (typeof file?.url === "string") urls.push(file.url);
+  } catch {
+    // not a JSON body
+  }
+  for (const row of exchange.seed?.tables?.product_files?.rows ?? []) if (typeof row.url === "string") urls.push(row.url);
+  const s3 = new S3Client({
+    region: "us-east-1",
+    endpoint: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+    forcePathStyle: true,
+    credentials: { accessKeyId: testEnv("AWS_ACCESS_KEY_ID") ?? "", secretAccessKey: testEnv("AWS_SECRET_ACCESS_KEY") ?? "" },
+  });
+  for (const url of urls) {
+    if (!url.startsWith(`http://localhost:9010/${SPEC_BUCKET}/`)) continue;
+    const key = new URL(url).pathname.replace(new RegExp(`^/${SPEC_BUCKET}/`, "u"), "");
+    if (key.split("/").at(-1)!.startsWith("missing")) continue;
+    await s3.send(new PutObjectCommand({ Bucket: SPEC_BUCKET, Key: key, Body: "uploaded bytes" }));
+  }
+  s3.destroy();
+}
+
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
@@ -248,6 +276,8 @@ const COMPARE = {
     "db.offer_codes.updated.*.changes.updated_at",
     "db.base_variants.updated.*.changes.updated_at",
     "db.links.updated.*.changes.updated_at",
+    // A presigned link carries the second it was signed in; the test compares everything else about it.
+    "response.json.product.files.*.url",
     "db.licenses.updated.*.changes.updated_at",
     // The first request to a route compiles it, and a delete stamps the replay's clock plus that compile.
     "db.installments.updated.*.changes.deleted_at",
@@ -381,6 +411,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     warmed.add(route);
     seedClock = undefined;
     afterRedisReset = undefined;
+    await uploadNamedFiles(loadFixture(file).exchanges[index]!);
     await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
     handedBack.length = 0;
   }
@@ -394,6 +425,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         afterRedisReset = undefined;
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
+        await uploadNamedFiles(expected);
         expected.jobs = [...(expected.jobs ?? [])]
           .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
           .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
@@ -470,6 +502,16 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         );
         reconcilePermalink(result.exchanges[0]!, replayOptions().compare);
         assertParity(result);
+        if ((expected.response.json as { product?: { files?: unknown } } | undefined)?.product?.files !== undefined) {
+          const signed = (result.exchanges[0]!.actual.response.json as { product?: { files?: { url: string }[] } })
+            .product?.files;
+          const wanted = (expected.response.json as { product?: { files?: { url: string }[] } }).product?.files;
+          const withoutSignature = (link: string | null) =>
+            link?.replace(/X-Amz-Date=[^&]*|X-Amz-Signature=[^&]*|%2F\d{8}%2F/gu, "");
+          expect((signed ?? []).map((file) => withoutSignature(file.url))).toEqual(
+            (wanted ?? []).map((file) => withoutSignature(file.url)),
+          );
+        }
         if (validity) {
           const offerCode = (result.exchanges[0]!.actual.response.json as { offer_code: Record<string, unknown> })
             .offer_code;

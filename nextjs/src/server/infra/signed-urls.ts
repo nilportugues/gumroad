@@ -278,6 +278,17 @@ const isNotFound = (error: unknown) =>
   (error as { name?: string }).name === "NotFound" ||
   (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
 
+// `Aws::S3::Bucket#object(key).exists?`: a HEAD, false for a missing object; any other failure propagates.
+export async function s3ObjectExists(key: string, config: StorageConfig = storageConfig()): Promise<boolean> {
+  try {
+    await getS3Client(config).send(new HeadObjectCommand({ Bucket: config.s3Bucket, Key: key }));
+    return true;
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+}
+
 // S3KeyUnicodeNormalization.variants: the NFD and NFC forms of a key other than the key itself.
 export function s3KeyVariants(s3Key: string): string[] {
   return (["NFD", "NFC"] as const).map((form) => s3Key.normalize(form)).filter((variant) => variant !== s3Key);
