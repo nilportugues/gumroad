@@ -23,6 +23,7 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const DIR = path.join("parity/fixtures/requests", "affiliates_destroy_parity_spec");
 const ROUTE_FLAGS = "nextjs_affiliates_guards";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+const SEED_SETTLE_MS = 1100;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
@@ -115,6 +116,8 @@ describe.skipIf(!url)("AffiliatesController destroy", () => {
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
+    // The rows are seeded as of this second: an UPDATE inside it would leave updated_at as it was, which Rails' recording never shows.
+    beforeRequest: () => new Promise<void>((resolve) => setTimeout(resolve, SEED_SETTLE_MS)),
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobsChannel(redis),

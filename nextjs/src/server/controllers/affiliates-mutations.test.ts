@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   removalBlocker: vi.fn(),
   markDeletedBang: vi.fn(),
   deliverLater: vi.fn(),
+  creationBlocker: vi.fn(),
+  createDirectAffiliate: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -36,6 +38,12 @@ vi.mock("../models/direct-affiliate-removal.ts", () => ({
   removalBlocker: mocks.removalBlocker,
   markDeletedBang: mocks.markDeletedBang,
   loadAffiliate: (row: unknown) => row,
+}));
+vi.mock("../models/direct-affiliate-create.ts", () => ({
+  creationBlocker: mocks.creationBlocker,
+  createDirectAffiliate: mocks.createDirectAffiliate,
+  // The Ruby to_i itself is pinned by its golden in direct-affiliate-create.test.ts.
+  rubyToI: (value: unknown) => Number.parseInt(String(value ?? 0), 10) || 0,
 }));
 vi.mock("../mail/active-job.ts", () => ({ deliverLater: mocks.deliverLater }));
 vi.mock("../mail/delivery.ts", () => ({ mailRoute: () => "ruby" }));
@@ -94,6 +102,8 @@ beforeEach(() => {
   mocks.isSet.mockReturnValue(false);
   mocks.findDirectAffiliate.mockResolvedValue({ id: 5 });
   mocks.selectRows.mockResolvedValueOnce([{ id: 11 }]).mockResolvedValue([]);
+  mocks.creationBlocker.mockResolvedValue(null);
+  mocks.findFirst.mockResolvedValue({ id: 9n, flags: 0n, email: "ada@example.com" });
 });
 
 describe("POST /affiliates", () => {
@@ -153,8 +163,38 @@ describe("POST /affiliates", () => {
     expect(await call(create, affiliate())).toEqual(refusal("/affiliates/new", "This affiliate already exists."));
   });
 
-  it("hands a valid affiliate to Rails", async () => {
+  it("saves a valid affiliate and redirects with the notice", async () => {
+    expect(await call(create, affiliate())).toEqual({
+      status: 303,
+      location: "/affiliates",
+      flash: { notice: "Affiliate created successfully" },
+    });
+    expect(mocks.createDirectAffiliate).toHaveBeenCalledWith({
+      sellerId: 3,
+      affiliateUserId: 9,
+      affiliateUserEmail: "ada@example.com",
+      basisPoints: 1000,
+      productId: 11,
+      productBasisPoints: 1000,
+    });
+  });
+
+  it("takes the affiliate's fee from the top-level percentage, and the product's from its own", async () => {
+    await call(create, affiliate({ fee_percent: "25" }));
+    expect(mocks.createDirectAffiliate).toHaveBeenCalledWith(
+      expect.objectContaining({ basisPoints: 2500, productBasisPoints: 1000 }),
+    );
+  });
+
+  it("reads a fee the way Ruby's to_i does", async () => {
+    await call(create, affiliate({ products: [{ ...product, fee_percent: "12abc" }] }));
+    expect(mocks.createDirectAffiliate).toHaveBeenCalledWith(expect.objectContaining({ basisPoints: 1200 }));
+  });
+
+  it("hands a shape the model cannot prove to Rails before saving", async () => {
+    mocks.creationBlocker.mockResolvedValue("an affiliate with several products");
     await expect(call(create, affiliate())).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.createDirectAffiliate).not.toHaveBeenCalled();
   });
 
   it("hands a seller's missing product to Rails, which raises on it", async () => {
