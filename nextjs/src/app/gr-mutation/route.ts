@@ -87,6 +87,7 @@ import "@/server/controllers/profile-products";
 import "@/server/controllers/wishlist-products-index";
 import "@/server/controllers/checkout-upsell-products";
 import "@/server/controllers/offer-codes-selection";
+import "@/server/controllers/purchases-export";
 import "@/server/controllers/purchases-search";
 import "@/server/controllers/purchases-product";
 import "@/server/controllers/marketing-actions";
