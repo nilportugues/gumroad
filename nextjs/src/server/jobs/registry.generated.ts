@@ -25,7 +25,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnBlockedEstablishedBuyersJob": {
     "file": "app/sidekiq/alert_on_blocked_established_buyers_job.rb",
@@ -688,7 +688,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteExpiredOauthDeviceAuthorizationsJob": {
     "file": "app/sidekiq/delete_expired_oauth_device_authorizations_job.rb",
@@ -1387,7 +1387,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 2700,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateMerchantCenterFeedWorker": {
     "file": "app/sidekiq/generate_merchant_center_feed_worker.rb",
@@ -1414,7 +1414,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "GenerateSalesReportJob": {
     "file": "app/sidekiq/generate_sales_report_job.rb",
@@ -2551,7 +2551,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RepairOrderChargeOutcomesJob": {
     "file": "app/sidekiq/repair_order_charge_outcomes_job.rb",
@@ -2986,7 +2986,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPostBlastEmailsJob": {
     "file": "app/sidekiq/send_post_blast_emails_job.rb",
@@ -3071,7 +3071,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendStripeBalanceCheckNotificationJob": {
     "file": "app/sidekiq/send_stripe_balance_check_notification_job.rb",
@@ -3578,7 +3578,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateLargeSellersSalesCountJob": {
     "file": "app/sidekiq/update_large_sellers_sales_count_job.rb",
