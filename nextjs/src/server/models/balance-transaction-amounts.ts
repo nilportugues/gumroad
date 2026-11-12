@@ -32,6 +32,16 @@ export function issuedAmountForSeller(facts: {
   return toAmount(gross.currency, gross.cents, facts.issuedNetCents);
 }
 
+// The issued and holding amounts Purchase#increment_sellers_balance! books for a sale.
+export function balanceTransactionAmountsForSale(facts: {
+  flowOfFunds: SellerFlowOfFunds;
+  issuedNetCents: number;
+  canonicalIssuedAmount: FlowAmount | null;
+  gumroadHeld: boolean;
+}): { issued: Amount; holding: Amount } {
+  return { issued: issuedAmountForSeller(facts), holding: holdingAmountForSeller(facts) };
+}
+
 // create_holding_amount_for_seller. `gumroadHeld` is `merchant_account.holder_of_funds == HolderOfFunds::GUMROAD`, false when the
 // caller has no merchant account.
 export function holdingAmountForSeller(facts: {
