@@ -65,6 +65,8 @@ export type Rendered = {
   headers?: Record<string, string>;
   rescued?: boolean;
   paramsRead?: boolean;
+  // The `csp_nonce` the body embeds (SecureHeaders.content_security_policy_script_nonce): the Content-Security-Policy header must carry it too.
+  cspNonce?: string;
 };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
@@ -307,7 +309,7 @@ export function redirectLocation(request: RailsRequest, location: string): strin
   return url.replace(/[\0\r\n]/gu, "");
 }
 
-type ControllerResponse = { status: number; headers: Headers; body: string | Uint8Array };
+type ControllerResponse = { status: number; headers: Headers; body: string | Uint8Array; cspNonce?: string };
 
 export type Chain = {
   request: RailsRequest;
@@ -633,7 +635,12 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     request.headers.get("x-inertia") !== null &&
     ["PUT", "PATCH", "DELETE"].includes(request.method) &&
     [301, 302].includes(result.status);
-  return { status: inertiaRedirect ? 303 : result.status, headers, body: "location" in result ? "" : result.body };
+  return {
+    status: inertiaRedirect ? 303 : result.status,
+    headers,
+    body: "location" in result ? "" : result.body,
+    ...("cspNonce" in result && result.cspNonce !== undefined ? { cspNonce: result.cspNonce } : {}),
+  };
 }
 
 // PromotesDashboardNavItems#promote_visited_nav_item
@@ -696,7 +703,7 @@ function applyEtag(request: RailsRequest, response: ControllerResponse): void {
 }
 
 // SecureHeaders::Middleware under config/initializers/secure_headers.rb: flag cookies, then add headers.
-function applySecureHeaders(request: RailsRequest, headers: Headers, options: ActionOptions = {}): void {
+function applySecureHeaders(request: RailsRequest, headers: Headers, options: ActionOptions = {}, cspNonce?: string): void {
   const https = domainConfig(process.env).protocol === "https";
   const requestIsHttps = request.protocol === "https://";
   const cookies = headers.getSetCookie();
@@ -716,7 +723,7 @@ function applySecureHeaders(request: RailsRequest, headers: Headers, options: Ac
       headers.append("set-cookie", line);
     }
   }
-  for (const [name, value] of Object.entries(secureHeaders({ optOutOfCsp: options.optOutOfCsp })))
+  for (const [name, value] of Object.entries(secureHeaders({ optOutOfCsp: options.optOutOfCsp, scriptNonce: cspNonce, styleNonce: cspNonce })))
     headers.set(name, value);
 }
 
@@ -870,7 +877,7 @@ export async function processAction(
     const page = publicException(request, status);
     response = { status, headers: page.headers, body: page.body };
   }
-  applySecureHeaders(request, response.headers, options);
+  applySecureHeaders(request, response.headers, options, response.cspNonce);
   applyCorsVary(response.headers);
   // Rack::Head
   const body = request.method === "HEAD" || response.body === "" ? null : response.body;

@@ -2,11 +2,15 @@
 // produce the `_inertia_meta` prop the shared MetaTags component renders into <head>.
 import { createHash } from "node:crypto";
 
+import { type Attributes, contentTag, escapeHtml, html, SafeString, tagOptions } from "../erb/html.ts";
+
 type TagData = Record<string, unknown>;
 export type SerializedMetaTag = Record<string, unknown> & { tagName: string; headKey: string };
 
 const LD_JSON_TYPE = "application/ld+json";
 const DEFAULT_SCRIPT_TYPE = "text/plain";
+// ActionView::Helpers::TagHelper::TagBuilder::UNARY_TAGS (Rails 8)
+const UNARY_TAGS = new Set("area base br col embed hr img input keygen link meta source track wbr".split(" "));
 const GENERATABLE_HEAD_KEY_PROPERTIES = ["name", "property", "http_equiv"] as const;
 
 // ActiveSupport's String#parameterize with default options.
@@ -37,7 +41,13 @@ export class MetaTag {
   private readonly tagData: TagData;
   private readonly tagType: unknown;
 
-  constructor({ tag_name, head_key, allow_duplicates = false, type, ...tagData }: TagData & { tag_name?: string; head_key?: string; allow_duplicates?: boolean; type?: unknown }) {
+  constructor({
+    tag_name,
+    head_key,
+    allow_duplicates = false,
+    type,
+    ...tagData
+  }: TagData & { tag_name?: string; head_key?: string; allow_duplicates?: boolean; type?: unknown }) {
     if (tag_name === undefined && Object.keys(tagData).length === 1 && "title" in tagData) {
       this.tagName = "title";
       this.tagData = { inner_content: tagData.title };
@@ -63,11 +73,34 @@ export class MetaTag {
     return result as SerializedMetaTag;
   }
 
+  // InertiaRails::MetaTag#to_tag: the tag as `erb_meta_tags` writes it, tagged with its head key for the client to dedupe by.
+  // A string `inner_content` is escaped unless it is a SafeString (the seller's compiled `custom_styles` are html_safe).
+  toTag(): SafeString {
+    const { inner_content: inner, ...rest } = this.tagData;
+    const attributes: Attributes = {};
+    for (const [key, value] of Object.entries({ ...rest, type: this.tagType, inertia: this.headKey }))
+      attributes[key.replaceAll("_", "-")] = value as Attributes[string];
+    if (UNARY_TAGS.has(this.tagName)) return new SafeString(`<${this.tagName} ${tagOptions(attributes)}>`);
+    let content: string | SafeString =
+      inner === undefined || inner === null ? "" : inner instanceof SafeString ? inner : String(inner);
+    if (this.tagName === "script" && inner !== null && typeof inner === "object" && !(inner instanceof SafeString))
+      content = new SafeString(
+        JSON.stringify(inner).replace(
+          /[<>&\u2028\u2029]/gu,
+          (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+        ),
+      );
+    return contentTag(this.tagName, content, attributes);
+  }
+
   private digest(): string {
     // Ruby: tag_data.sort.map { "#{k}=#{v}" }.join("&"), keys being symbols sorted by name.
     const signature = Object.keys(this.tagData)
       .sort()
-      .map((key) => `${key}=${this.tagData[key] === null || this.tagData[key] === undefined ? "" : String(this.tagData[key])}`)
+      .map(
+        (key) =>
+          `${key}=${this.tagData[key] === null || this.tagData[key] === undefined ? "" : String(this.tagData[key])}`,
+      )
       .join("&");
     return createHash("md5").update(signature).digest("hex").slice(0, 8);
   }
@@ -77,7 +110,9 @@ export class MetaTag {
       if ("charset" in this.tagData) return "meta-charset";
       for (const key of GENERATABLE_HEAD_KEY_PROPERTIES) {
         if (!(key in this.tagData)) continue;
-        return ["meta", key, parameterize(String(this.tagData[key])), allowDuplicates ? this.digest() : null].filter((part) => part !== null).join("-");
+        return ["meta", key, parameterize(String(this.tagData[key])), allowDuplicates ? this.digest() : null]
+          .filter((part) => part !== null)
+          .join("-");
       }
     }
     return `${this.tagName}-${this.digest()}`;
@@ -121,6 +156,11 @@ export class MetaTagBuilder {
 
   toJSON(): SerializedMetaTag[] {
     return [...this.tags.values()].map((tag) => tag.toJSON());
+  }
+
+  // PageMeta::Base#erb_meta_tags
+  toErb(): SafeString {
+    return new SafeString([...this.tags.values()].map((tag) => html(tag.toTag())).join("\n"));
   }
 }
 
