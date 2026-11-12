@@ -199,17 +199,107 @@ describe "Sign in with Apple", type: :request do
       expect(flash[:alert]).to start_with("Could not authenticate you from Apple because")
     end
 
-    it "hands the first sign-in with Apple to Rails", parity: true do
+    def new_apple_callback(sub: "001234.newuser.0001", email: "new.apple@example.com", name: { firstName: "New", lastName: "Visitor" }, **claims)
+      begin_flow
+      stub_token
+      params = name ? { user: { name: }.to_json } : {}
+      callback(token: id_token(sub:, email:, **claims), **params)
+    end
+
+    it "creates an account for the first sign-in with Apple", parity: true do
+      new_apple_callback
+
+      expect(response).to redirect_to("/dashboard")
+      created = User.find_by!(email: "new.apple@example.com")
+      expect(created).to have_attributes(name: "New Visitor", provider: "apple", sign_in_count: 1)
+      expect(created).to be_confirmed
+      expect(created.user_external_authentications.pluck(:provider, :uid)).to eq([["apple", "001234.newuser.0001"]])
+      expect(AttachPastPurchasesToUserWorker.jobs.size).to eq(1)
+    end
+
+    it "sends the first sign-in back to the page it started from", parity: true do
+      begin_flow(referer: "/library")
+      stub_token
+
+      callback(token: id_token(sub: "001234.newuser.0002", email: "second.apple@example.com"))
+
+      expect(response).to redirect_to("/library")
+      expect(User.find_by!(email: "second.apple@example.com").name).to be_nil
+    end
+
+    it "creates an account with no address when Apple sent none", parity: true do
+      new_apple_callback(sub: "001234.noemail.0003", email: nil)
+
+      expect(response).to redirect_to("/dashboard")
+      created = User.find_by!(name: "New Visitor")
+      expect(created.email).to be_blank
+      expect(created.user_external_authentications.pluck(:uid)).to eq(["001234.noemail.0003"])
+    end
+
+    it "creates an account for the private relay address with the colon of a name removed", parity: true do
+      new_apple_callback(sub: "001234.relay.0004", email: "relay.new@privaterelay.appleid.com", name: { firstName: "Re:lay", lastName: "New" },
+                         claims: { is_private_email: "true" })
+
+      expect(response).to redirect_to("/dashboard")
+      expect(User.find_by!(email: "relay.new@privaterelay.appleid.com").name).to eq("Relay New")
+    end
+
+    it "sends a first sign-in with an address Apple has not verified to the signup page", parity: true do
+      new_apple_callback(sub: "001234.unverified.0005", email: "unverified.apple@example.com", email_verified: "false")
+
+      expect(response).to redirect_to("/signup")
+      expect(flash[:alert]).to eq("Sorry, something went wrong. Please try again.")
+      expect(User.where(email: "unverified.apple@example.com")).to be_empty
+    end
+
+    it "sends a first sign-in the account rules refuse to the signup page", parity: true do
+      new_apple_callback(sub: "001234.disposable.0006", email: "visitor@mailinator.com")
+
+      expect(response).to redirect_to("/signup")
+      expect(flash[:alert]).to eq("Sorry, something went wrong. Please try again.")
+      expect(UserExternalAuthentication.where(uid: "001234.disposable.0006")).to be_empty
+    end
+
+    it "links the Apple identity to the confirmed account that has the same address", parity: true do
+      user.update_columns(updated_at: 1.hour.ago)
+      old_digest = user.reload.encrypted_password
       begin_flow
       stub_token
 
-      callback(token: id_token(sub: "001234.newuser.0001", email: "new.apple@example.com"), user: { name: { firstName: "New", lastName: "Visitor" } }.to_json)
+      callback
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload.encrypted_password).not_to eq(old_digest)
+      expect(user.last_active_sessions_invalidated_at).to be_present
+      expect(user.user_external_authentications.pluck(:provider, :uid)).to eq([["apple", apple_sub]])
     end
 
-    it "hands a sign-in that matches an account by its email to Rails", parity: true do
-      user
+    it "links the Apple identity to an account that signed up with another provider", parity: true do
+      user.update_columns(provider: "google_oauth2", updated_at: 1.hour.ago)
+      begin_flow
+      stub_token
+
+      callback
+
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload.provider).to eq("google_oauth2")
+      expect(user.last_active_sessions_invalidated_at).to be_nil
+      expect(user.user_external_authentications.pluck(:uid)).to eq([apple_sub])
+    end
+
+    it "does not let in a deleted account that has the same address", parity: true do
+      user.update_columns(deleted_at: Time.current, updated_at: 1.hour.ago)
+      begin_flow
+      stub_token
+
+      callback
+
+      expect(response).to redirect_to("/login")
+      expect(flash[:alert]).to eq(User::DELETED_ACCOUNT_LOGIN_ERROR)
+    end
+
+    it "hands a sign-in that would adopt an unconfirmed account to Rails", parity: true do
+      user.update_columns(confirmed_at: nil, confirmation_token: "pending-token")
       begin_flow
       stub_token
 
@@ -218,7 +308,14 @@ describe "Sign in with Apple", type: :request do
       expect(response).to have_http_status(:found)
     end
 
-    it "hands a sign-in of a user with no name to Rails", parity: true do
+    it "hands a first sign-in whose address has guest purchases to Rails", parity: true do
+      build(:purchase, email: "new.apple@example.com", purchaser: nil, purchase_state: "successful").save!(validate: false)
+      new_apple_callback
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "gives a user with no name the name Apple sent", parity: true do
       link_apple_identity
       user.update_columns(name: nil)
       begin_flow
@@ -226,11 +323,22 @@ describe "Sign in with Apple", type: :request do
 
       callback(user: { name: { firstName: "Apple", lastName: "Visitor" } }.to_json)
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/dashboard")
       expect(user.reload.name).to eq("Apple Visitor")
     end
 
-    it "hands a sign-in of a user with a pending email change to Rails", parity: true do
+    it "keeps a user's name when Apple sends another", parity: true do
+      link_apple_identity
+      begin_flow
+      stub_token
+
+      callback(user: { name: { firstName: "Someone", lastName: "Else" } }.to_json)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload.name).to eq("Apple Visitor")
+    end
+
+    it "signs in a user with a pending email change without confirming it", parity: true do
       link_apple_identity
       user.update_columns(unconfirmed_email: "changed@example.com")
       begin_flow
@@ -238,7 +346,21 @@ describe "Sign in with Apple", type: :request do
 
       callback
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload.unconfirmed_email).to eq("changed@example.com")
+    end
+
+    it "confirms a user who has not confirmed the address yet", parity: true do
+      link_apple_identity
+      user.update_columns(confirmed_at: nil, confirmation_token: "pending-token", reset_password_token: "stale", reset_password_sent_at: 1.day.ago)
+      begin_flow
+      stub_token
+
+      callback
+
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload).to be_confirmed
+      expect(user.reset_password_token).to be_nil
     end
 
     it "hands a callback without an id_token to Rails", parity: true do
