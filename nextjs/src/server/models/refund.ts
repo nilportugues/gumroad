@@ -12,7 +12,7 @@ import { jsonDataForAttr as storedJsonAttr, mergeJsonDataWithCurrentRow, setJson
 import type { YamlValue } from "./concerns/psych.ts";
 import { belongsToRequired, loadBelongsTo, validatesUniqueness, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
-import type { ModelRecord } from "./runtime/record.ts";
+import type { ModelRecord, Row } from "./runtime/record.ts";
 import { transaction } from "./runtime/transaction.ts";
 import { isBlank } from "./runtime/validators.ts";
 import { column, connection, selectRows, table } from "./sql.ts";
@@ -119,8 +119,8 @@ export function assignRefundAttribute(refund: RefundRecord, name: string, value:
 
 // `purchase.refunds << refund` for a persisted purchase: the refund is saved with validations inside a transaction, and one that is not
 // valid rolls the transaction back (ActiveRecord::Rollback, swallowed) and answers nil instead of raising.
-export function appendRefund(
-  purchase: ModelRecord<{ id: bigint | number }>,
+export function appendRefund<P extends Row>(
+  purchase: ModelRecord<P>,
   refund: RefundRecord,
   options: SaveOptions = {},
 ): Promise<boolean> {

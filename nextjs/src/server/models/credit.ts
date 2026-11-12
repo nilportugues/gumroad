@@ -9,6 +9,7 @@ import { assignBelongsTo, readBelongsTo } from "./concerns/belongs-to-record.ts"
 import { validatesAssociationPresence, type BelongsTo } from "./concerns/rails-validations.ts";
 import { rubyJsonParse } from "./concerns/serialized-columns.ts";
 import { Comments } from "./comment.ts";
+import { purchaseOf, Refunds, type RefundRecord } from "./refund.ts";
 import { Payments, type PaymentRecord } from "./payment.ts";
 import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
 import { defineModel } from "./runtime/define-model.ts";
@@ -23,14 +24,14 @@ export const CREDIT_USER = assoc("user", "users", "User");
 export const CREDIT_MERCHANT_ACCOUNT = assoc("merchant_account", "merchant_accounts", "MerchantAccount");
 export const CREDIT_CREDITING_USER = assoc("crediting_user", "users", "User");
 export const CREDIT_RETURNED_PAYMENT = assoc("returned_payment", "payments", "Payment");
+export const CREDIT_REFUND = assoc("refund", "refunds", "Refund");
+export const CREDIT_FEE_RETENTION_REFUND = assoc("fee_retention_refund", "refunds", "Refund");
 
 // The belongs_to associations validate_associated_entity and add_comment look at, in the order
-// they are read. Only crediting_user is ported; the others' models are not.
+// they are read. Ported: crediting_user, returned_payment, refund and fee_retention_refund; the others' models are not.
 const UNPORTED_ENTITIES = [
   ["chargebacked_purchase_id", "chargebacked_purchase"],
-  ["refund_id", "refund"],
   ["financing_paydown_purchase_id", "financing_paydown_purchase"],
-  ["fee_retention_refund_id", "fee_retention_refund"],
   ["backtax_agreement_id", "backtax_agreement"],
 ] as const satisfies readonly (readonly [keyof Credit, string])[];
 
@@ -44,6 +45,10 @@ const refuseUnportedEntity = (credit: CreditRecord, upTo: string) => {
 export const creditUser = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_USER, Users);
 export const creditMerchantAccount = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_MERCHANT_ACCOUNT, MerchantAccounts);
 export const creditCreditingUser = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_CREDITING_USER, Users);
+export const creditRefund = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_REFUND, Refunds);
+export const creditFeeRetentionRefund = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_FEE_RETENTION_REFUND, Refunds);
+export const assignCreditRefund = (credit: CreditRecord, refund: RefundRecord | null) => assignBelongsTo(credit, CREDIT_REFUND, refund);
+export const assignCreditFeeRetentionRefund = (credit: CreditRecord, refund: RefundRecord | null) => assignBelongsTo(credit, CREDIT_FEE_RETENTION_REFUND, refund);
 export const assignCreditUser = (credit: CreditRecord, user: UserRecord | null) => assignBelongsTo(credit, CREDIT_USER, user);
 export const assignCreditMerchantAccount = (credit: CreditRecord, account: MerchantAccountRecord | null) => assignBelongsTo(credit, CREDIT_MERCHANT_ACCOUNT, account);
 export const creditReturnedPayment = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_RETURNED_PAYMENT, Payments);
@@ -73,8 +78,8 @@ export function capitalDeductionDate(credit: CreditRecord): null {
 }
 
 async function addComment(credit: CreditRecord, ctx: { now?: () => Date }): Promise<void> {
-  // fee_retention_refund.present?
-  if (credit.get("fee_retention_refund_id") != null) throw new NotPortedError("Credit#fee_retention_refund", "app/models/credit.rb:523 add_comment");
+  // return if fee_retention_refund.present?
+  if (await creditFeeRetentionRefund(credit)) return;
   const reason = credit.get("reason");
   const attrs: Partial<Comment> = {
     content: `issued ${formattedDollarAmount(credit.get("amount_cents") as number)} credit${isBlank(reason) ? "" : ` — ${reason}`}.`,
@@ -89,7 +94,11 @@ async function addComment(credit: CreditRecord, ctx: { now?: () => Date }): Prom
       attrs.author_name = `AutoCredit Returned Payment (${String(returnedPayment.get("id"))})`;
       attrs.content = `issued adjustment due to currency conversion differences when payment ${String(returnedPayment.get("id"))} returned.`;
     } else {
-      refuseUnportedEntity(credit, "refund");
+      const refund = await creditRefund(credit);
+      if (refund) {
+        const purchase = await purchaseOf(refund);
+        attrs.author_name = `AutoCredit PayPal Connect VAT refund (${String(purchase!.id)})`;
+      }
     }
   }
   const user = await creditUser(credit);
@@ -111,6 +120,9 @@ export const Credits = defineModel<Credit>({
         if (await creditCreditingUser(credit)) return;
         refuseUnportedEntity(credit, "chargebacked_purchase");
         if (await creditReturnedPayment(credit)) return;
+        if (await creditRefund(credit)) return;
+        refuseUnportedEntity(credit, "financing_paydown_purchase");
+        if (await creditFeeRetentionRefund(credit)) return;
         refuseUnportedEntity(credit, "backtax_agreement");
         if (isAutomaticCapitalDeduction(credit)) return;
         credit.errors.add(

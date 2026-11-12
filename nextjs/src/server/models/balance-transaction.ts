@@ -1,15 +1,16 @@
-// Port of app/models/balance_transaction.rb for credits and purchases: BalanceTransaction.create!,
+// Port of app/models/balance_transaction.rb for credits, purchases and refunds: BalanceTransaction.create!,
 // update_balance! (the balance lock, the retry on an invalid balance) and find_or_create_balance.
-// Balance transactions for refunds and disputes are refused with NotPortedError: their models are
-// not ported. Goldens: worker/jobs/__fixtures__/money-jobs.golden.json (credits),
-// __fixtures__/purchase-seller-balance.golden.json (purchases).
+// A balance transaction for a dispute is refused with NotPortedError: its model is not ported. Goldens:
+// worker/jobs/__fixtures__/money-jobs.golden.json (credits), __fixtures__/purchase-seller-balance.golden.json (purchases),
+// __fixtures__/refund-seller-balance.golden.json (the seller's refund), __fixtures__/refund-fee-retention-credit.golden.json (a retained fee).
 import { Prisma, type BalanceTransaction, type Balance } from "@prisma/client";
 
 import { Balances, createBalanceBang, type BalanceRecord } from "./balance.ts";
 import { assignBelongsTo, readBelongsTo } from "./concerns/belongs-to-record.ts";
 import { belongsToRequired, loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
-import { capitalDeductionDate, Credits, type CreditRecord } from "./credit.ts";
+import { capitalDeductionDate, creditFeeRetentionRefund, Credits, type CreditRecord } from "./credit.ts";
 import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
+import { purchaseOf, Refunds, type RefundRecord } from "./refund.ts";
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import type { ModelRecord } from "./runtime/record.ts";
@@ -41,6 +42,7 @@ const PURCHASE: BelongsTo = {
   targetTable: "purchases",
   targetModel: "Purchase",
 };
+const REFUND: BelongsTo = { name: "refund", foreignKey: "refund_id", targetTable: "refunds", targetModel: "Refund" };
 const BALANCE: BelongsTo = {
   name: "balance",
   foreignKey: "balance_id",
@@ -52,6 +54,7 @@ export const balanceTransactionUser = (bt: BalanceTransactionRecord) => readBelo
 export const balanceTransactionMerchantAccount = (bt: BalanceTransactionRecord) =>
   readBelongsTo(bt, MERCHANT_ACCOUNT, MerchantAccounts);
 export const balanceTransactionCredit = (bt: BalanceTransactionRecord) => readBelongsTo(bt, CREDIT, Credits);
+export const balanceTransactionRefund = (bt: BalanceTransactionRecord) => readBelongsTo(bt, REFUND, Refunds);
 export const balanceTransactionBalance = (bt: BalanceTransactionRecord) => readBelongsTo(bt, BALANCE, Balances);
 
 // Immutable: only these attributes may change after the insert (`attr_mutable`).
@@ -73,15 +76,10 @@ export class BalanceCouldNotBeFoundOrCreated extends Error {
   }
 }
 
-// dispute.present? and refund.present? are always false for the entities this port books
-function refuseOtherEntities(bt: BalanceTransactionRecord, what: string): void {
-  for (const [column_, name] of [
-    ["dispute_id", "dispute"],
-    ["refund_id", "refund"],
-  ] as const) {
-    if (bt.get(column_) != null)
-      throw new NotPortedError(`BalanceTransaction ${what} for a ${name}`, "app/models/balance_transaction.rb");
-  }
+// dispute.present? is always false for the entities this port books
+function refuseDispute(bt: BalanceTransactionRecord, what: string): void {
+  if (bt.get("dispute_id") != null)
+    throw new NotPortedError(`BalanceTransaction ${what} for a dispute`, "app/models/balance_transaction.rb");
 }
 
 export const BalanceTransactions = defineModel<BalanceTransaction>({
@@ -94,11 +92,12 @@ export const BalanceTransactions = defineModel<BalanceTransaction>({
     {
       name: "validate_exactly_one_of_purchase_dispute_refund_credit_is_present",
       async run(bt, ctx) {
-        refuseOtherEntities(bt, "validation");
-        // purchase.present? ^ dispute.present? ^ refund.present? ^ credit.present?
+        refuseDispute(bt, "validation");
+        // purchase.present? ^ dispute.present? ^ refund.present? ^ credit.present?, read in that order
         const purchase = (await loadBelongsTo(bt, PURCHASE, ctx)) !== null;
+        const refund = (await loadBelongsTo(bt, REFUND, ctx)) !== null;
         const credit = (await balanceTransactionCredit(bt)) !== null;
-        if (purchase === credit) {
+        if (!(purchase !== refund !== credit)) {
           bt.errors.add("base", "can only have one of: purchase, dispute, refund, credit");
         }
       },
@@ -134,9 +133,13 @@ export async function findOrCreateBalance(
     return row ? Balances.load(castRow<Balance>("Balance", row)) : null;
   };
 
-  refuseOtherEntities(bt, "balance selection");
+  // a `date` column compares against the day alone
+  const onDayOf = (day: Date) => Prisma.sql` AND ${column("balances", "date")} = ${day.toISOString().slice(0, 10)}`;
+
+  refuseDispute(bt, "balance selection");
   // if purchase: the balance of the day the sale succeeded
   const purchase = await loadBelongsTo(bt, PURCHASE, { tx: (await connection()) as never });
+  const refund = purchase ? null : await balanceTransactionRefund(bt);
   if (purchase) {
     const succeededAt = purchase.succeeded_at as Date | null;
     if (succeededAt === null) throw new TypeError("undefined method 'to_date' for nil");
@@ -164,18 +167,43 @@ export async function findOrCreateBalance(
     if (balance === null) throw new BalanceCouldNotBeFoundOrCreated(bt.get("id"));
     return balance;
   }
+  if (refund) {
+    // The sale's day, else the oldest open balance. A refund's purchase can have no succeeded_at: the charge went through while the
+    // purchase was never marked successful.
+    const succeededAt = (await purchaseOf(refund))?.succeeded_at as Date | null | undefined;
+    let balance = succeededAt ? await first(onDayOf(toDate(succeededAt))) : null;
+    balance ??= await first();
+    if (balance === null) {
+      const occurredAt = toDate(refund.get("created_at") as Date);
+      try {
+        balance = await createBalanceBang(
+          {
+            user,
+            merchantAccount,
+            currency: currency as string,
+            holdingCurrency: holdingCurrency as string,
+            date: occurredAt,
+          },
+          options,
+        );
+      } catch (error) {
+        if (!(error instanceof RecordInvalid || isRecordNotUnique(error))) throw error;
+        balance = await first(onDayOf(occurredAt));
+      }
+    }
+    if (balance === null) throw new BalanceCouldNotBeFoundOrCreated(bt.get("id"));
+    return balance;
+  }
   const credit = await balanceTransactionCredit(bt);
-  // credit&.financing_paydown_purchase, credit&.fee_retention_refund
-  if (
-    credit &&
-    (credit.get("financing_paydown_purchase_id") != null || credit.get("fee_retention_refund_id") != null)
-  ) {
+  // credit&.financing_paydown_purchase
+  if (credit && credit.get("financing_paydown_purchase_id") != null) {
     throw new NotPortedError(
-      "BalanceTransaction balance selection for a financing paydown or fee retention credit",
+      "BalanceTransaction balance selection for a financing paydown credit",
       "app/models/balance_transaction.rb:177",
     );
   }
-  // elsif credit
+  // credit&.fee_retention_refund and a plain credit both take the oldest open balance; the first only loads the refund.
+  if (credit && credit.get("fee_retention_refund_id") != null) await creditFeeRetentionRefund(credit);
   let balance = credit ? await first() : null;
 
   if (balance === null) {
@@ -268,14 +296,16 @@ export async function createBalanceTransactionBang(
   attributes: {
     user: UserRecord;
     merchantAccount: MerchantAccountRecord;
-    // exactly one of the two
+    // exactly one of the three
     credit?: CreditRecord;
     purchase?: PurchaseOwner;
+    refund?: RefundRecord;
     issuedAmount: Amount;
     holdingAmount: Amount;
     updateUserBalance?: boolean;
   },
   options: SaveOptions = {},
+  retryDeps: { sleep?: (seconds: number) => Promise<void> } = {},
 ): Promise<BalanceTransactionRecord> {
   const bt = BalanceTransactions.build({
     issued_amount_currency: attributes.issuedAmount.currency,
@@ -288,10 +318,11 @@ export async function createBalanceTransactionBang(
   assignBelongsTo(bt, USER, attributes.user);
   assignBelongsTo(bt, MERCHANT_ACCOUNT, attributes.merchantAccount);
   if (attributes.purchase) assignBelongsTo(bt, PURCHASE, attributes.purchase);
+  if (attributes.refund) assignBelongsTo(bt, REFUND, attributes.refund);
   if (attributes.credit) assignBelongsTo(bt, CREDIT, attributes.credit);
   await BalanceTransactions.saveBang(bt, options);
   // The balances are updated outside of the save, so that selecting and locking them is not part
   // of a transaction that may implicitly lock other records.
-  if (attributes.updateUserBalance !== false) await updateBalanceBang(bt, options);
+  if (attributes.updateUserBalance !== false) await updateBalanceBang(bt, options, null, retryDeps);
   return bt;
 }
