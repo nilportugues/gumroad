@@ -28,6 +28,7 @@ const FIXTURES = "parity/fixtures/requests";
 const SPECS = [
   "purchases_refund_parity_spec",
   "instant_payouts_parity_spec",
+  "instant_payouts_failures_parity_spec",
   "settings_payments_stripe_account_parity_spec",
 ];
 const ROUTE_FLAGS = ["nextjs_purchases_seller_guards", "nextjs_payouts_guards", "nextjs_settings_payments_guards"].join(
@@ -238,6 +239,46 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     ]);
   });
 
+  // The post-call branches of StripePayoutProcessor.perform_payment: a dropped connection is retried by the Stripe gem under one key
+  // and then recorded as an unknown outcome (balances back to unpaid, the seller held), a 429 is not retried, and a Gumroad-held
+  // balance is transferred before the payout and reversed after its failure.
+  it("records the failures of an instant payout in the order Rails wrote them", () => {
+    const named = (needle: string) => {
+      const [, file, index] = cases.find(([name]) => name.includes(needle))!;
+      return loadFixture(file).exchanges[index]!;
+    };
+    const paths = (exchange: ReturnType<typeof named>) =>
+      exchange.http.map((call) => `${call.method} ${new URL(call.url).pathname}`);
+
+    const dropped = named("the-connection-drops-a-039d4a76");
+    expect(paths(dropped).slice(2)).toEqual(Array<string>(4).fill("POST /v1/payouts"));
+    expect(dropped.http.slice(2).every((call) => call.response.dropped === true)).toBe(true);
+    expect(new Set(dropped.http.slice(2).map((call) => call.headers!["idempotency-key"])).size).toBe(1);
+    expect(timelineSegments(dropped.timeline!).at(-1)).toEqual(["balances", "comments", "payments", "users"]);
+
+    const rateLimited = named("stripe-answers-a-rate-1fa02d00");
+    expect(paths(rateLimited).slice(2)).toEqual(["POST /v1/payouts"]);
+    expect(rateLimited.http[2]!.response.status).toBe(429);
+
+    const staleBank = named("stripe-answers-a-bank-238b951b");
+    expect(timelineSegments(staleBank.timeline!).at(-1)).toEqual(["balances", "bank_accounts", "comments", "payments"]);
+
+    const reversed = named("the-bank-payout-fails-a-73fcf293");
+    expect(
+      paths(reversed)
+        .slice(2)
+        .map((p) => p.replace(/\/(tr|py|txn)_\w+/gu, "/$1")),
+    ).toEqual([
+      "POST /v1/transfers",
+      "GET /v1/charges/py",
+      "POST /v1/payouts",
+      "GET /v1/transfers/tr",
+      "POST /v1/transfers/tr/reversals",
+      "GET /v1/charges/py",
+      "GET /v1/balance_transactions/txn",
+    ]);
+  });
+
   // The account row is inserted before the processor is called and filled in after.
   it("records Rails inserting the merchant account before it creates the Stripe account", () => {
     const [, file, index] = cases.find(([, file]) => file.includes("settings_payments_stripe_account_parity_spec"))!;
@@ -259,7 +300,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         handedBack.length = 0;
         stripe.arm(expected.http);
-        if (/hands-a-/u.test(name)) {
+        if (/hands-an?-/u.test(name)) {
           // Rails calls Stripe here; Node must not, and must not write: the request goes to Rails whole.
           const handed = await replayFixtureExchange(fixture, index, replayOptions(name));
           const request = expected.request;

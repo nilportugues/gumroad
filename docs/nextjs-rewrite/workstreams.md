@@ -294,3 +294,5 @@ baseline migration taken from the current schema, delete Rails, Ruby specs whose
 captured, and the Gemfile.
 
 **Payments hand-backs (fifth pass, `nextjs/ws-payments-1`):** refund success, instant payout and Stripe account creation remain handed back; the failure paths after the first Stripe call are unrecorded, so none can be ported without a throw or a hand-back after a call. The blockers are listed in parity-debt.md.
+
+**Payments hand-backs (sixth pass, `nextjs/ws-payments-2`):** the instant payout's post-Stripe failure branches are now recorded (`instant_payouts_failures_parity_spec.rb`, 17 examples: every failure reason, a dropped connection, the bank-account deletion, the internal-transfer reversal and the payout hold) and the stand-in can drop a connection. The Node port is not done: `Payouts.create_payments`, the `Payment` state machine, the write paths the failures use and a retrying Stripe client are still missing (listed in parity-debt.md). Full refund and Stripe account creation are untouched.

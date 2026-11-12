@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { SqlExecutor } from "../src/db";
 import type { Exchange } from "../src/fixture";
 import { interceptFetch, keptHttpHeaders } from "../src/http";
-import { standInDifferences, timelineSegments, type StandInCall } from "../src/stand-in";
+import { standInDifferences, startStandIn, timelineSegments, type StandInCall } from "../src/stand-in";
 
 const now = new Date("2026-11-11T12:00:00Z");
 const digest = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex").slice(0, 16)}`;
@@ -152,5 +153,32 @@ describe("standInDifferences", () => {
     expect(standInDifferences(exchange, { calls: [], writtenAfter: ["refunds"] })[0]).toContain(
       "Rails made 1, Node made 0",
     );
+  });
+});
+
+describe("startStandIn", () => {
+  it("drops the connection for a recorded dropped call and answers the next one", async () => {
+    const reader = {
+      query: async () => [],
+      execute: async () => {},
+      pinned: (fn: (r: SqlExecutor) => unknown) => fn(reader),
+    };
+    const standIn = await startStandIn(reader as unknown as SqlExecutor);
+    try {
+      standIn.arm([
+        { method: "POST", url: "https://api.stripe.com/v1/payouts", response: { dropped: true } },
+        { method: "POST", url: "https://api.stripe.com/v1/payouts", response: { status: 200, body: "{}" } },
+      ]);
+      const send = () =>
+        fetch(standIn.url, {
+          method: "POST",
+          headers: { "x-parity-original-url": "https://api.stripe.com/v1/payouts" },
+        });
+      await expect(send()).rejects.toThrow();
+      expect((await send()).status).toBe(200);
+      expect((await standIn.finish()).calls).toHaveLength(2);
+    } finally {
+      await standIn.close();
+    }
   });
 });

@@ -61,7 +61,8 @@ export type CapturedHttp = {
   // The Authorization header of an OAuth 1.0a call, which a replay compares.
   authorization?: string;
   // Served back to the port during replay; not compared. `bodyBase64` is a body that is not text (an image).
-  response: { status?: number; contentType?: string; body?: string; bodyBase64?: string };
+  // `dropped`: the recording dropped the connection before any answer.
+  response: { status?: number; contentType?: string; body?: string; bodyBase64?: string; dropped?: boolean };
 };
 
 export type SeedTable = {
