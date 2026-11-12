@@ -339,8 +339,19 @@ const financialTransactionValidation: Callback<Purchase> = {
   if: (record) => record.get("purchase_state") === "successful",
   run(record) {
     const price = record.get("price_cents");
-    if (price !== null && price > 0) throw notPorted("a priced purchase's transaction check");
+    // A charged purchase: the processor's trace, with `merchant_account` already assigned to the instance that was charged
+    // (a nonzero id here stands for `merchant_account.present?`, which would be the one SELECT of a purchase loaded by `find`).
     if (
+      price !== null &&
+      price > 0 &&
+      record.get("stripe_transaction_id") &&
+      record.get("merchant_account_id") != null &&
+      (record.get("stripe_fingerprint") || record.get("paypal_order_id") != null) &&
+      record.get("charge_processor_id")
+    )
+      return;
+    if (
+      (price === 0 || price === null) &&
       !record.get("stripe_transaction_id") &&
       !record.get("stripe_fingerprint") &&
       record.get("charge_processor_id") == null &&

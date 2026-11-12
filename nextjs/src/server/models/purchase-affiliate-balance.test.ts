@@ -41,10 +41,15 @@ function nodeOrder(span: Entry[]): Entry[] {
   return [span[index]!, ...span.slice(0, index), ...span.slice(index + 1)];
 }
 
-const COLLABORATOR = "a collaborator's credit";
+// A direct affiliate credited beside a collaborator is recorded (the second credit row, its fee taken from what the collaborator's
+// cut leaves) but not ported: Node hands it back before the first write.
+const DIRECT_ON_COLLABORATOR = new Set([
+  "a collaborator and a direct affiliate on one sale",
+  "a collaborator and a direct affiliate that is not on all products",
+]);
 
 describe("Purchase#increment_sellers_balance! with an affiliate", () => {
-  for (const c of golden.cases.filter((candidate) => candidate.name !== COLLABORATOR)) {
+  for (const c of golden.cases.filter((candidate) => !DIRECT_ON_COLLABORATOR.has(candidate.name))) {
     it(`sends the statements, Flipper reads and jobs of ${c.name}`, async () => {
       const { span, purchase } = setupSale(c, "increment");
       const ordered = nodeOrder(span).filter((entry) => !("marker" in entry));
@@ -71,17 +76,19 @@ describe("Purchase#increment_sellers_balance! with an affiliate", () => {
     });
   }
 
-  it("hands back a collaborator's credit before it sends a write", async () => {
-    const c = golden.cases.find((candidate) => candidate.name === COLLABORATOR)!;
-    const { span, purchase } = setupSale(c, "increment");
-    const sql = sqlReplay(nodeOrder(span).filter(isSql));
+  for (const name of DIRECT_ON_COLLABORATOR) {
+    it(`hands back ${name} before it sends a write`, async () => {
+      const c = golden.cases.find((candidate) => candidate.name === name)!;
+      const { span, purchase } = setupSale(c, "increment");
+      const sql = sqlReplay(nodeOrder(span).filter(isSql));
 
-    const error = await withExecutor(() =>
-      incrementSellersBalanceBang(purchase, { flowOfFunds: flowOf(c) }, { now: () => golden.now }),
-    ).catch((caught: unknown) => caught);
+      const error = await withExecutor(() =>
+        incrementSellersBalanceBang(purchase, { flowOfFunds: flowOf(c) }, { now: () => golden.now }),
+      ).catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(NotPortedError);
-    expect((error as Error).message).toContain("Collaborator");
-    expect(sql.log.filter((statement) => !statement.startsWith("SELECT"))).toEqual([]);
-  });
+      expect(error).toBeInstanceOf(NotPortedError);
+      expect((error as Error).message).toContain("a direct affiliate");
+      expect(sql.log).toEqual([]);
+    });
+  }
 });
