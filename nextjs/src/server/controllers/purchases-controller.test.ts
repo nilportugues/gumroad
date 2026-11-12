@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, selectRows, loadSellerContext, decryptSecureExternalId, readEncryptedCookie } = vi.hoisted(() => ({
-  specs: [] as MutationSpec[],
-  selectRows: vi.fn(),
-  loadSellerContext: vi.fn(),
-  decryptSecureExternalId: vi.fn(),
-  readEncryptedCookie: vi.fn(),
-}));
+const { specs, selectRows, loadSellerContext, decryptSecureExternalId, readEncryptedCookie, resendReceipt } =
+  vi.hoisted(() => ({
+    resendReceipt: vi.fn(),
+    specs: [] as MutationSpec[],
+    selectRows: vi.fn(),
+    loadSellerContext: vi.fn(),
+    decryptSecureExternalId: vi.fn(),
+    readEncryptedCookie: vi.fn(),
+  }));
 
 vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void specs.push(...registered),
@@ -26,6 +28,7 @@ vi.mock("../policies/seller-context.ts", async (original) => ({
   ...(await original<typeof import("../policies/seller-context.ts")>()),
   loadSellerContext,
 }));
+vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
 vi.mock("../auth/rails-cookies.ts", () => ({ readEncryptedCookie }));
 vi.mock("../auth/rails-session-config.ts", () => ({ railsCookieSecrets: () => ({}) }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
@@ -61,6 +64,7 @@ beforeEach(() => {
   selectRows.mockReset();
   decryptSecureExternalId.mockReset();
   readEncryptedCookie.mockReset();
+  resendReceipt.mockReset();
   loadSellerContext.mockReset();
   loadSellerContext.mockResolvedValue({ user: seller, seller, memberships: [] });
 });
@@ -116,7 +120,6 @@ describe.each([
   ["GET", "/purchases/:id/confirm_receipt_email"],
   ["GET", "/purchases/:id/subscribe"],
   ["POST", "/purchases/:id/subscribe"],
-  ["POST", "/purchases/:id/resend_receipt"],
 ])("%s %s", (method, pattern) => {
   const action = find(method, pattern);
 
@@ -128,6 +131,34 @@ describe.each([
   it("hands an existing purchase back to Rails", async () => {
     selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
     await expect(action.run(input("5", false))).rejects.toThrow(/^a |^the /u);
+  });
+});
+
+describe("POST /purchases/:id/resend_receipt", () => {
+  const action = find("POST", "/purchases/:id/resend_receipt");
+
+  it("raises a routing error for a purchase that does not exist", async () => {
+    selectRows.mockResolvedValueOnce([]);
+    await expect(action.run(input("5", false))).rejects.toThrow("Not Found");
+    expect(resendReceipt).not.toHaveBeenCalled();
+  });
+
+  it("answers 204 once the receipt is enqueued", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    resendReceipt.mockResolvedValue("sent");
+    expect(status(await action.run(input("5", false)))).toBe(204);
+  });
+
+  it("raises a routing error for a purchase with no email", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    resendReceipt.mockResolvedValue("missing");
+    await expect(action.run(input("5", false))).rejects.toThrow("Not Found");
+  });
+
+  it("answers 503 when the enqueue fails", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    resendReceipt.mockResolvedValue("unavailable");
+    expect(status(await action.run(input("5", false)))).toBe(503);
   });
 });
 

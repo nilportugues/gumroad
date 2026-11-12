@@ -5,7 +5,9 @@ import { PurchaseFlags } from "../search/flags.ts";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, eligibleToSendEmails } = vi.hoisted(() => ({
+const { actions, selectRows, eligibleToSendEmails, resendReceipt, setPurchase } = vi.hoisted(() => ({
+  resendReceipt: vi.fn(),
+  setPurchase: vi.fn(),
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   eligibleToSendEmails: vi.fn(),
@@ -19,6 +21,8 @@ vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
   selectRows,
 }));
+vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
+vi.mock("./purchase-access-writes.ts", () => ({ setPurchase }));
 vi.mock("../models/user-email-eligibility.ts", () => ({ eligibleToSendEmails }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
   decrypt: (value: string) => (/^\d+$/u.test(value) ? Number(value) : null),
@@ -75,13 +79,43 @@ describe("member actions", () => {
     expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
   });
 
-  it.each(["resend_receipt", "change_can_contact", "mark_as_shipped", "resend_ping"])(
+  it.each(["change_can_contact", "mark_as_shipped", "resend_ping"])(
     "hands %s of a sale that exists to Rails",
     async (name) => {
       selectRows.mockResolvedValueOnce([sale()]);
       await handedBack(run("POST", `/mobile/sales/:id/${name}`, {}));
     },
   );
+});
+
+describe("POST /mobile/sales/:id/resend_receipt", () => {
+  const action = "/mobile/sales/:id/resend_receipt";
+
+  beforeEach(() => {
+    resendReceipt.mockReset();
+    setPurchase.mockReset().mockResolvedValue({ id: 5n });
+  });
+
+  it("answers success once the receipt is enqueued, with no enqueue error rescued", async () => {
+    selectRows.mockResolvedValueOnce([sale()]);
+    resendReceipt.mockResolvedValue("sent");
+    expect(body(await run("POST", action, { id: "5" }))).toEqual({ success: true });
+    expect(resendReceipt).toHaveBeenCalledWith({ id: 5n }, { rescueEnqueueError: false });
+  });
+
+  it("answers 404 when there is no email to send to", async () => {
+    selectRows.mockResolvedValueOnce([sale()]);
+    resendReceipt.mockResolvedValue("missing");
+    const result = await run("POST", action, { id: "5" });
+    expect(status(result)).toBe(404);
+    expect(body(result)).toEqual({ success: false, message: "Could not find receipt" });
+  });
+
+  it("hands a receipt Node cannot enqueue to Rails", async () => {
+    selectRows.mockResolvedValueOnce([sale()]);
+    resendReceipt.mockRejectedValue(new HandBackToRails("a gift sender receipt"));
+    await handedBack(run("POST", action, { id: "5" }));
+  });
 });
 
 describe("GET /mobile/sales/:id/product_purchases", () => {

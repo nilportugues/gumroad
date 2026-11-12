@@ -17,10 +17,12 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { setPurchase } from "./purchase-access-writes.ts";
 import { refundPurchase } from "./purchase-refund.ts";
-import { authorizeJson, notFoundJson } from "./seller-json.ts";
+import { resendReceipt } from "./purchase-resend-receipt.ts";
+import { authorizeJson, noContent, notFoundJson } from "./seller-json.ts";
 
 const UNSUBSCRIBE_SCOPE = "unsubscribe";
 const CONFIRM_SCOPE = "confirm";
+const SERVICE_UNAVAILABLE = 503;
 
 async function rowExists(tableName: string, id: bigint | number | string | null): Promise<boolean> {
   if (id === null) return false;
@@ -60,12 +62,19 @@ function sellerPurchaseAction(query: Policy, reason: string) {
 
 // ----- the buyer's and the visitor's actions
 
-// receipt, confirm_receipt_email, subscribe and resend_receipt: `Purchase.find_by_external_id(params[:id]) || e404`.
+// receipt, confirm_receipt_email and subscribe: `Purchase.find_by_external_id(params[:id]) || e404`.
 function publicPurchaseAction(reason: string) {
   return async (input: MutationInput): Promise<ActionResult> => {
     await setPurchase(input.routeParams.id!);
     throw new HandBackToRails(reason);
   };
+}
+
+// `resend_receipt`: a receipt with no email to send to is a 404; a failed enqueue is "try again" (503), not a claim it was sent.
+async function resendReceiptAction(input: MutationInput): Promise<ActionResult> {
+  const outcome = await resendReceipt(await setPurchase(input.routeParams.id!), { rescueEnqueueError: true });
+  if (outcome === "missing") throw new RoutingError("Not Found");
+  return outcome === "sent" ? noContent() : { ...noContent(), status: SERVICE_UNAVAILABLE };
 }
 
 async function unsubscribe(input: MutationInput): Promise<ActionResult> {
@@ -145,7 +154,7 @@ registerMutations(
     pattern: "/purchases/:id/subscribe",
     run: publicPurchaseAction("a resubscribe, which writes every purchase of the buyer"),
   },
-  { method: "POST", pattern: "/purchases/:id/resend_receipt", json: true, run: publicPurchaseAction("a receipt mail") },
+  { method: "POST", pattern: "/purchases/:id/resend_receipt", json: true, run: resendReceiptAction },
   { method: "GET", pattern: "/purchases/:id/unsubscribe", skipForgeryProtection: true, run: unsubscribe },
   { method: "POST", pattern: "/purchases/:id/confirm", json: true, run: confirm },
   { method: "POST", pattern: "/preorders/:id/charge_preorder", json: true, run: chargePreorder },

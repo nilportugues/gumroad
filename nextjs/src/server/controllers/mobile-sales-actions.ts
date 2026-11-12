@@ -4,7 +4,7 @@
 // (before any write) once it gets past them. Served here: the 404 of `fetch_purchase` for every member action,
 // `product_purchases` of a sale that is not a bundle, `missed_posts` of a customer who cannot be contacted or a seller with nothing
 // published, `blob_url`'s 404, `update`'s two gift 422s, `variant`'s 404s, `send_post`'s 401/404/422 and `update_review_response`'s 404.
-// Handed back: refund (moves money), resend_receipt and mark_as_shipped (mail), resend_ping (webhook), change_can_contact and
+// Handed back: refund (moves money), mark_as_shipped (mail), the resend_receipt of a charge, a preorder authorization or a gift sender, resend_ping (webhook), change_can_contact and
 // update's saves (Purchase callbacks that mirror the opt-out into the newsletter cutover and the audience), a variant swap, a post
 // email, a review reply, and blob_url's success (a CDN URL for the blob's storage service).
 import { Prisma } from "@prisma/client";
@@ -26,6 +26,8 @@ import {
   type MobileAuth,
   type MobileInput,
 } from "./mobile-api.ts";
+import { setPurchase } from "./purchase-access-writes.ts";
+import { resendReceipt } from "./purchase-resend-receipt.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 const SKUS_ENABLED_FLAG = 1n << 9n;
@@ -65,6 +67,12 @@ const handBack = (what: string) =>
   memberAction(() => {
     throw new HandBackToRails(what);
   });
+
+// SalesController#resend_receipt: a sale with no email to send to is `Could not find receipt`; the enqueue is the only write.
+const resendSaleReceipt = memberAction(async (_sale, input) => {
+  const outcome = await resendReceipt(await setPurchase(input.params.id as string), { rescueEnqueueError: false });
+  return outcome === "missing" ? fetchError("Could not find receipt") : renderJson({ success: true });
+});
 
 const rowExists = async (statement: Prisma.Sql) => (await selectRows(statement)).length > 0;
 
@@ -221,7 +229,7 @@ registerMobile(
     method: "POST",
     pattern: "/mobile/sales/:id/resend_receipt",
     scopes: MOBILE_API_SCOPES,
-    run: handBack("a receipt email"),
+    run: resendSaleReceipt,
   },
   {
     method: "POST",

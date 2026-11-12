@@ -209,7 +209,34 @@ describe "Purchases controller guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the resend to Rails", parity: true do
+    it "enqueues the receipt of a plain purchase", parity: true do
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    end
+
+    it "answers 404 for a purchase with no email to send to", parity: true do
+      purchase.update_columns(email: "")
+
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:not_found)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "hands the receipt of a preorder authorization to Rails", parity: true do
+      preordered, = preorder_purchase
+      preordered.update_attribute(:is_preorder_authorization, true)
+
+      send_json(:post, "/purchases/#{preordered.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "hands the receipt of a gift sender to Rails", parity: true do
+      purchase.update_attribute(:is_gift_sender_purchase, true)
+
       send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
 
       expect(response).to have_http_status(:no_content)
