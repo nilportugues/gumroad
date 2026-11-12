@@ -173,7 +173,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AnnualPayoutExportWorker": {
     "file": "app/sidekiq/annual_payout_export_worker.rb",

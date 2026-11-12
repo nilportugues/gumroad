@@ -226,6 +226,7 @@ import { utmLinkSaleAttributionJob } from "./utm-link-sale-attribution-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { processEarlyFraudWarningJob } from "./process-early-fraud-warning-job.ts";
 import { createStripeMerchantAccountWorker } from "./create-stripe-merchant-account-worker.ts";
+import { analyzeFileWorker } from "./analyze-file-worker.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -434,6 +435,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   GenerateUsernameJob: generateUsernameJob,
   ProcessEarlyFraudWarningJob: processEarlyFraudWarningJob,
   CreateStripeMerchantAccountWorker: createStripeMerchantAccountWorker,
+  AnalyzeFileWorker: analyzeFileWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
