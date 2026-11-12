@@ -16,7 +16,8 @@ import { assertParity, httpTransport, replayFixtureExchange } from "../src/repla
 import { reencryptCookies, redisSeeder } from "../src/session";
 import { standInDifferences, startStandIn, timelineSegments, uncommittedReader, type StandIn } from "../src/stand-in";
 
-// Replays the requests that reach a payment processor: PUT /purchases/:id/refund (spec/requests/purchases_refund_parity_spec.rb), POST
+// Replays the requests that reach a payment processor: PUT /purchases/:id/refund (spec/requests/purchases_refund_parity_spec.rb and
+// purchases_refund_failures_parity_spec.rb, which records every branch after Stripe was called), POST
 // /instant_payouts (instant_payouts_parity_spec.rb) and the settings save that creates a Stripe account
 // (settings_payments_stripe_account_parity_spec.rb). Stripe is a stand-in (OUTBOUND_HTTP_STAND_IN) that
 // answers the calls the fixture recorded and reports which tables had been written when each one arrived. A refusal Rails makes before
@@ -27,6 +28,7 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = [
   "purchases_refund_parity_spec",
+  "purchases_refund_failures_parity_spec",
   "instant_payouts_parity_spec",
   "instant_payouts_failures_parity_spec",
   "settings_payments_stripe_account_parity_spec",
@@ -277,6 +279,83 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       "GET /v1/charges/py",
       "GET /v1/balance_transactions/txn",
     ]);
+  });
+
+  // Every branch of the refund after Stripe was called (purchases_refund_failures_parity_spec.rb). What a port is held to: which call
+  // fails, how often the gem sends it (4 attempts on a 500 or a dropped connection, 1 on a 429 or a 4xx, all under one key), and that
+  // a refusal writes nothing while a success books the ledger only after the last read.
+  it("records the branches of a refund after the first Stripe call in the order Rails ran them", () => {
+    const named = (example: string) => {
+      for (const [, file, index] of cases) {
+        if (!file.includes("purchases_refund_failures_parity_spec")) continue;
+        const fixture = loadFixture(file);
+        if (fixture.example.includes(example)) return fixture.exchanges[index]!;
+      }
+      throw new Error(`no fixture for ${example}`);
+    };
+    const calls = (exchange: ReturnType<typeof named>) =>
+      exchange.http.map(
+        (call) =>
+          `${call.method} ${new URL(call.url).pathname.replace(/_\w+$/u, "")}${call.response.dropped ? " dropped" : ` ${call.response.status}`}`,
+      );
+    const keys = (exchange: ReturnType<typeof named>, method: string) =>
+      new Set(exchange.http.filter((call) => call.method === method).map((call) => call.headers!["idempotency-key"]));
+    const writtenAfterFirstCall = (exchange: ReturnType<typeof named>) =>
+      timelineSegments(exchange.timeline!).slice(1).flat();
+
+    const alreadyRefunded = named("reports the charge as already refunded");
+    expect(calls(alreadyRefunded)).toEqual(["GET /v1/charges/ch 200", "POST /v1/refunds 400"]);
+    expect(writtenAfterFirstCall(alreadyRefunded)).toEqual([]);
+    expect(calls(named("answers insufficient balance"))).toEqual(["GET /v1/charges/ch 200", "POST /v1/refunds 400"]);
+    expect(calls(named("cannot find the charge"))).toEqual(["GET /v1/charges/ch 404"]);
+
+    const serverError = named("answers a server error");
+    expect(calls(serverError)).toEqual(["GET /v1/charges/ch 200", ...Array<string>(4).fill("POST /v1/refunds 500")]);
+    expect(keys(serverError, "POST").size).toBe(1);
+    expect(writtenAfterFirstCall(serverError)).toEqual([]);
+
+    const dropped = named("the connection drops on the refund request");
+    expect(calls(dropped)).toEqual(["GET /v1/charges/ch 200", ...Array<string>(4).fill("POST /v1/refunds dropped")]);
+    expect(keys(dropped, "POST").size).toBe(1);
+
+    // A 429 is not rescued by refund_and_save!, so Rails answers 500; nothing is booked.
+    const rateLimited = named("rate limits the refund request");
+    expect(calls(rateLimited)).toEqual(["GET /v1/charges/ch 200", "POST /v1/refunds 429"]);
+    expect(rateLimited.response.status).toBe(500);
+    expect(writtenAfterFirstCall(rateLimited)).toEqual([]);
+
+    // The refund exists at Stripe, the read back fails, and Rails books nothing: the money has moved with no local record.
+    const unreadable = named("fails to return the refund");
+    expect(calls(unreadable)).toEqual([
+      "GET /v1/charges/ch 200",
+      "POST /v1/refunds 200",
+      ...Array<string>(4).fill("GET /v1/refunds/re 500"),
+    ]);
+    expect(writtenAfterFirstCall(unreadable)).toEqual([]);
+    const unreadableRateLimit = named("rate limits the refund read and the money has moved");
+    expect(unreadableRateLimit.response.status).toBe(500);
+    expect(writtenAfterFirstCall(unreadableRateLimit)).toEqual([]);
+
+    // The seller's own Stripe account: every call carries Stripe-Account, and a refused one is repeated against Gumroad's account.
+    const fallback = named("falls back to Gumroad's Stripe account");
+    expect(calls(fallback).filter((call) => call.endsWith("403"))).toHaveLength(3);
+    expect(
+      fallback.http.filter((call) => call.headers?.["stripe-account"]).map((call) => call.response.status),
+    ).toEqual([403, 403, 403]);
+
+    // A destination charge reads the transfer and the destination payment before the first write.
+    const destination = named("hands a refund of a destination charge to Rails and books the fee reversal");
+    expect(calls(destination)).toEqual([
+      "GET /v1/charges/ch 200",
+      "POST /v1/refunds 200",
+      "GET /v1/refunds/re 200",
+      "GET /v1/charges/ch 200",
+      "GET /v1/transfers/tr 200",
+      "GET /v1/charges/py 200",
+    ]);
+    const segments = timelineSegments(destination.timeline!);
+    expect(segments.slice(0, 6)).toEqual(Array<string[]>(6).fill([]));
+    expect(segments[6]).toEqual(expect.arrayContaining(["balance_transactions", "balances", "purchases", "refunds"]));
   });
 
   // The account row is inserted before the processor is called and filled in after.
