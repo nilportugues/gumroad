@@ -25,7 +25,7 @@ import {
 import { type CheckoutEffects } from "./checkout-effects.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
 import { setJsonDataForAttr } from "./concerns/json-data.ts";
-import { belongsToRequired, setAssociation, type BelongsTo } from "./concerns/rails-validations.ts";
+import { associationCache, belongsToRequired, setAssociation, type BelongsTo } from "./concerns/rails-validations.ts";
 import { MerchantAccounts } from "./merchant-account.ts";
 import type { PurchaseRecord } from "./purchase-create.ts";
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
@@ -69,7 +69,7 @@ const belongsTo = (name: string, targetTable: string, targetModel: BelongsTo["ta
   targetTable,
   targetModel,
 });
-const AFFILIATE_USER: BelongsTo = { ...belongsTo("affiliate_user", "users", "User") };
+export const AFFILIATE_USER: BelongsTo = { ...belongsTo("affiliate_user", "users", "User") };
 const SELLER = belongsTo("seller", "users", "User");
 const PURCHASE = belongsTo("purchase", "purchases", "Purchase");
 
@@ -92,8 +92,15 @@ export const AffiliateCredits = defineModel<AffiliateCredit>({
     },
     {
       name: "affiliate_or_oauth_application_present",
-      run(credit) {
-        if (credit.get("affiliate_id") == null && credit.get("oauth_application_id") == null)
+      async run(credit) {
+        // `affiliate.present?`: a credit loaded from the database reads its affiliate, one built at checkout has it assigned
+        const affiliateId = credit.get("affiliate_id");
+        const cached = associationCache(credit).get("affiliate");
+        if (affiliateId != null && !(cached && cached.foreignKey === affiliateId)) {
+          const affiliate = await readAffiliate(affiliateId);
+          setAssociation(credit, "affiliate", affiliateId, affiliate);
+        }
+        if (associationCache(credit).get("affiliate")?.row == null && credit.get("oauth_application_id") == null)
           credit.errors.add("base", "Either affiliate or oauth_application should be set on AffiliateCredit");
       },
     },
@@ -125,7 +132,7 @@ async function selectOne<T extends Row>(model: Prisma.ModelName, sql: Prisma.Sql
 }
 
 // `purchase.affiliate`: the Affiliate model reads an explicit column list
-async function readAffiliate(id: bigint | number): Promise<Affiliate | null> {
+export async function readAffiliate(id: bigint | number): Promise<Affiliate | null> {
   const columns = AFFILIATE_COLUMNS.map((name) => column(AFFILIATES, name));
   return selectOne<Affiliate>(
     "Affiliate",
@@ -146,7 +153,7 @@ async function basisPoints(affiliate: Affiliate, productId: bigint | number | nu
 }
 
 // `DirectAffiliate.find_by(id: direct_affiliate_id)`
-async function readDirectAffiliate(id: bigint | number): Promise<Affiliate | null> {
+export async function readDirectAffiliate(id: bigint | number): Promise<Affiliate | null> {
   const columns = AFFILIATE_COLUMNS.map((name) => column(AFFILIATES, name));
   return selectOne<Affiliate>(
     "Affiliate",
@@ -155,7 +162,7 @@ async function readDirectAffiliate(id: bigint | number): Promise<Affiliate | nul
 }
 
 // The JsonData concern keeps the direct affiliate's accessors in the purchase's json_data
-function jsonDataOf(record: PurchaseRecord): Record<string, unknown> {
+export function jsonDataOf(record: PurchaseRecord): Record<string, unknown> {
   const raw = record.get("json_data");
   return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
 }
@@ -282,6 +289,7 @@ async function postAffiliateCredit(record: PurchaseRecord, facts: Facts, options
   const context = reader(record);
   setAssociation(credit, "seller", record.get("seller_id"), context.seller as never);
   setAssociation(credit, "affiliate_user", affiliateUser.id, affiliateUser as never);
+  setAssociation(credit, "affiliate", affiliate.id, affiliate as never);
   setAssociation(credit, "purchase", record.get("id"), record.attributes as never);
   await AffiliateCredits.saveBang(credit, options);
 }

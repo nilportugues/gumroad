@@ -12,11 +12,12 @@ import { createBalanceTransactionBang } from "./balance-transaction.ts";
 import { loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
 import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
 import { chargedUsingGumroadMerchantAccount, type ChargeMerchantAccount } from "./purchase-charge-facts.ts";
-import { Purchases, type PurchaseContext, type PurchaseRecord } from "./purchase-create.ts";
+import { Purchases, type PurchaseRecord } from "./purchase-create.ts";
+import { loadLinkAssociations, sellerOf } from "./purchase-reloaded-associations.ts";
 import type { RefundRecord } from "./refund.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
 import { castRow, column, connection, selectRows, table } from "./sql.ts";
-import { NotPortedError, Users } from "./user.ts";
+import { NotPortedError } from "./user.ts";
 
 const MERCHANT_ACCOUNT: BelongsTo = {
   name: "merchant_account",
@@ -32,7 +33,7 @@ const notPorted = (what: string) =>
   );
 
 // `purchase_presentment.present?` (has_one): the first read loads it
-async function hasPresentment(record: PurchaseRecord): Promise<boolean> {
+export async function hasPresentment(record: PurchaseRecord): Promise<boolean> {
   const rows = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`purchase_presentments`.*")} FROM ${table("purchase_presentments")} WHERE ${column("purchase_presentments", "purchase_id")} = ${record.get("id")} LIMIT 1`,
   );
@@ -68,10 +69,9 @@ export async function processRefundForPurchaseBalanceBang(
     canonicalIssuedAmount: null,
     gumroadHeld: false,
   });
-  const context = record.ivars.context as PurchaseContext;
   const bt = await createBalanceTransactionBang(
     {
-      user: Users.load(context.seller),
+      user: await sellerOf(record),
       merchantAccount: MerchantAccounts.load(castRow("MerchantAccount", accountRow as never)) as MerchantAccountRecord,
       refund,
       issuedAmount: amounts.issued,
@@ -80,5 +80,6 @@ export async function processRefundForPurchaseBalanceBang(
     options,
   );
   record.set("purchase_refund_balance_id", bt.get("balance_id") as never);
+  await loadLinkAssociations(record);
   await Purchases.saveBang(record, options);
 }

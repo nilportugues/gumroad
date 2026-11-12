@@ -31,12 +31,13 @@ import {
   STRIPE_PROCESSOR,
   type ChargeMerchantAccount,
 } from "./purchase-charge-facts.ts";
-import type { PurchaseContext, PurchaseRecord } from "./purchase-create.ts";
+import type { PurchaseRecord } from "./purchase-create.ts";
+import { sellerOf } from "./purchase-reloaded-associations.ts";
 import { refundFeeRetention } from "./refund-fee-retention.ts";
 import { assignRefundAttribute, Refunds, type RefundRecord } from "./refund.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
 import { castRow, connection } from "./sql.ts";
-import { NotPortedError, Users } from "./user.ts";
+import { NotPortedError } from "./user.ts";
 
 const MERCHANT_ACCOUNT: BelongsTo = {
   name: "merchant_account",
@@ -71,7 +72,7 @@ export async function createForRefundFeeRetentionBang(
     tx: (await connection()) as never,
   })) as ChargeMerchantAccount | null;
   const charged = chargedUsingGumroadMerchantAccount(accountRow, purchase.get("charge_processor_id"));
-  const seller = Users.load((purchase.ivars.context as PurchaseContext).seller);
+  const seller = await sellerOf(purchase);
   const sale = {
     priceCents: purchase.get("price_cents")!,
     processorFeeCents: purchase.get("processor_fee_cents") ?? null,
