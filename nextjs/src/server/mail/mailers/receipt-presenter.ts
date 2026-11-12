@@ -120,8 +120,6 @@ export type ReceiptData = {
 };
 
 export type ReceiptGift = { giftee_email: string | null; gift_note: string | null; flags: number | bigint | null };
-// Set giftSender false once `receipt_gift_sender` is recorded from Ruby and the replay passes; until then a gift sender's receipt goes back to Rails.
-export const unproven = { giftSender: true };
 const GIFT_IS_RECIPIENT_HIDDEN = 1;
 
 const purchaseFlag = (purchase: ReceiptPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) =>
@@ -174,7 +172,6 @@ export function assertSupported(data: ReceiptData): void {
   for (const flag of NOT_PORTED_PURCHASE_FLAGS) if (purchaseFlag(purchase, flag)) refuse(`a purchase with ${flag}`);
   for (const flag of NOT_PORTED_LINK_FLAGS) if (linkFlag(link, flag)) refuse(`a product with ${flag}`);
   if (purchaseFlag(purchase, "is_gift_sender_purchase")) {
-    if (unproven.giftSender) refuse("a gift the buyer sent");
     // A hidden recipient is named from their account; a physical gift adds shipping wording; a licensed one its key rules.
     const { gift } = data;
     if (gift === null || (Number(gift.flags ?? 0) & GIFT_IS_RECIPIENT_HIDDEN) !== 0)
@@ -205,8 +202,11 @@ export function assertSupported(data: ReceiptData): void {
 
 // What `auto_link(text, html: { target: "_blank" })` returns unchanged apart from sanitizing: plain ASCII with
 // no markup, links, addresses or entities. Everything else (rails_autolink and the HTML sanitizer) is not ported.
+// A text that is one plain address, which rails_autolink wraps whole in a mailto link.
+const PLAIN_EMAIL = /^[A-Za-z0-9]+(?:[._+-][A-Za-z0-9]+)*@[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*(?:\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)*\.[A-Za-z]{2,}$/u;
 const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥₩]*$/u;
 export function autoLinkText(text: string): string {
+  if (PLAIN_EMAIL.test(text)) return `<a href="mailto:${text}" target="_blank">${text}</a>`;
   if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text))
     throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
   return h(text);

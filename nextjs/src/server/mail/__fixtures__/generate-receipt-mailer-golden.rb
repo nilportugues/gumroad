@@ -410,8 +410,7 @@ PRICE = { price_cents: 500, total_transaction_cents: 500, displayed_price_cents:
 setup(purchase: PRICE.merge(flags: 16384))
 messages << record_message("receipt_rental", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 # A rental redirect (UrlRedirect flag 3) is what checkout creates. "Watch" only when the product has a video file; with
-# none, the download button partial renders nothing. Not yet recorded from Ruby: the Node port of these two is unproven
-# until this script is run against the real application and the golden regenerated.
+# none, the download button partial renders nothing.
 RENTAL = PRICE.merge(flags: 16384)
 setup(purchase: RENTAL, redirect: false)
 insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
@@ -420,8 +419,7 @@ setup(purchase: RENTAL, redirect: false)
 insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
 ProductFile.insert!({ link_id: 301, url: "https://example.com/a.mp4", filetype: "mp4", filegroup: "video", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 messages << record_message("receipt_rental_watch", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
-# A gift the buyer sent (Purchase flag 7, is_gift_sender_purchase). Not yet recorded from Ruby: the Node port is
-# unproven (`unproven.giftSender` in receipt-presenter.ts) until this script is run and the golden regenerated.
+# A gift the buyer sent (Purchase flag 7, is_gift_sender_purchase).
 setup(purchase: PRICE.merge(flags: 64, quantity: 2), redirect: false)
 Gift.insert!({ gifter_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "friend@example.com", gifter_email: "buyer@example.com", gift_note: "  Enjoy!\n", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 messages << record_message("receipt_gift_sender", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
