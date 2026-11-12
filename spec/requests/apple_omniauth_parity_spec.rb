@@ -298,14 +298,93 @@ describe "Sign in with Apple", type: :request do
       expect(flash[:alert]).to eq(User::DELETED_ACCOUNT_LOGIN_ERROR)
     end
 
-    it "hands a sign-in that would adopt an unconfirmed account to Rails", parity: true do
-      user.update_columns(confirmed_at: nil, confirmation_token: "pending-token")
+    # Rows older than the replay's "<now>" tolerance, so only the writes of the adoption show in the diff.
+    def age(*records)
+      records.flatten.each { _1.update_columns(updated_at: 1.hour.ago) if _1.has_attribute?(:updated_at) }
+    end
+
+    def set_up_unconfirmed_account
+      created = create(:unconfirmed_user, name: "Apple Visitor", email: "apple.user@example.com", password: "signup-password-1")
+      created.update!(notification_endpoint: "https://ping.example.com/sales", payment_address: "paypal-payouts@example.com",
+                      invalidated_paypal_payout_address: "refused-payouts@example.com", twitter_user_id: "9876543210",
+                      twitter_handle: "signup", twitter_oauth_token: "token", twitter_oauth_secret: "secret", check_merchant_account_is_linked: true)
+      created.update_columns(confirmation_token: "pending-token", unconfirmed_email: "other@example.com", updated_at: 1.hour.ago)
+      created
+    end
+
+    it "adopts an unconfirmed account and removes every other way in its creator set up", parity: true do
+      created = set_up_unconfirmed_account
+      third_party_token = create("doorkeeper/access_token", resource_owner_id: created.id, scopes: "edit_products")
+      mobile_app = create(:oauth_application, uid: OauthApplication::MOBILE_API_OAUTH_APPLICATION_UID)
+      mobile_token = create("doorkeeper/access_token", application: mobile_app, resource_owner_id: created.id, scopes: "mobile_api")
+      grant = Doorkeeper::AccessGrant.create!(resource_owner_id: created.id, application: mobile_app, token: "adoption-grant-token", expires_in: 600,
+                                              redirect_uri: "urn:ietf:wg:oauth:2.0:oob", scopes: "mobile_api")
+      device_authorization = create(:oauth_device_authorization, oauth_application: mobile_app, resource_owner_id: created.id, status: "approved", approved_at: 1.minute.ago)
+      subscription = create(:resource_subscription, user: created)
+      passkey = created.webauthn_credentials.create!(webauthn_id: "signup-passkey", public_key: "public-key", sign_count: 0, nickname: "Passkey")
+      created.create_totp_credential!(confirmed_at: Time.current)
+      devices = [create(:device, user: created), create(:device, user: created, token: "second-device-token")]
+      stripe_account = create(:merchant_account, user: created)
+      connect_account = create(:merchant_account_stripe_connect, user: created)
+      paypal_account = create(:merchant_account_paypal, user: created)
+      earlier_account = create(:merchant_account, user: created).tap(&:delete_charge_processor_account!)
+      bank = create(:ach_account, user: created)
+      memberships = [create(:team_membership, seller: created), create(:team_membership, user: created)]
+      invitation = create(:team_invitation, seller: created, email: "invited-before-adoption@example.com")
+      accepted = create(:team_invitation, seller: created, email: "accepted-before-adoption@example.com").tap { _1.update_columns(accepted_at: 1.day.ago) }
+      age(devices, [device_authorization, third_party_token, mobile_token, grant, subscription, passkey, stripe_account, connect_account, paypal_account, earlier_account, bank, memberships, invitation, accepted])
       begin_flow
       stub_token
 
       callback
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/dashboard")
+      created.reload
+      expect(created).to be_confirmed
+      expect(created.notification_endpoint).to be_nil
+      expect(created.payment_address).to be_blank
+      expect(created.webauthn_credentials).to be_empty
+      expect(created.totp_credential).to be_nil
+      expect(created.devices).to be_empty
+      expect([third_party_token, mobile_token, grant].map { _1.reload.revoked? }).to eq([true, true, true])
+      expect(device_authorization.reload.status).to eq("denied")
+      expect(subscription.reload).to be_deleted
+      expect([stripe_account, connect_account, paypal_account, bank].map { _1.reload.alive? }).to eq([false, false, false, false])
+      expect([stripe_account, connect_account, paypal_account, earlier_account].map { _1.reload.retired_by_adoption_at }).to all(be_present)
+      expect(memberships.map { _1.reload.deleted? } + [invitation.reload.deleted?, accepted.reload.deleted?]).to eq([true, true, true, false])
+    end
+
+    it "adopts an unconfirmed account whose payout rows no longer pass validation", parity: true do
+      created = set_up_unconfirmed_account
+      invalid_invitation = create(:team_invitation, seller: created, email: "invited-before-adoption@example.com")
+      invalid_invitation.update_column(:email, "not an address")
+      merchant_account = create(:merchant_account, user: created)
+      create(:merchant_account).update_column(:charge_processor_merchant_id, merchant_account.charge_processor_merchant_id)
+      bank = create(:ach_account, user: created)
+      bank.update_column(:account_holder_full_name, nil)
+      earlier_account = create(:merchant_account, user: created).tap(&:delete_charge_processor_account!)
+      earlier_account.update_column(:json_data, '"not a hash"')
+      age(invalid_invitation, merchant_account, bank, earlier_account)
+      begin_flow
+      stub_token
+
+      callback
+
+      expect(response).to redirect_to("/dashboard")
+      expect(invalid_invitation.reload).to be_deleted
+      expect([merchant_account, bank].map { _1.reload.alive? }).to eq([false, false])
+      expect(earlier_account.reload.retired_by_adoption_at).to be_present
+    end
+
+    it "adopts an unconfirmed account that has nothing else set up", parity: true do
+      create(:unconfirmed_user, name: "Apple Visitor", email: "apple.user@example.com", password: "signup-password-1").update_columns(updated_at: 1.hour.ago)
+      begin_flow
+      stub_token
+
+      callback
+
+      expect(response).to redirect_to("/dashboard")
+      expect(User.find_by!(email: "apple.user@example.com")).to be_confirmed
     end
 
     def guest_purchase(**attrs)

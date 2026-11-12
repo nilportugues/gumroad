@@ -1,6 +1,5 @@
 // User.find_or_create_for_apple_oauth (app/models/concerns/user/social_apple.rb), split in two so the callback can judge every case before it
-// spends Apple's single-use code: `planAppleSignIn` reads, and hands back what this port does not write (guest purchases to attach,
-// the adoption of an unconfirmed row); `applyAppleSignIn` runs after the exchange and performs the writes in Rails' order.
+// spends Apple's single-use code: `planAppleSignIn` reads, and hands back what this port does not write (guest purchases to attach); `applyAppleSignIn` runs after the exchange and performs the writes in Rails' order.
 import { Prisma } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
@@ -13,6 +12,7 @@ import { performAsync } from "./concerns/job-runtime.ts";
 import { changePurchaser } from "./purchase-delivery-writes.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import { execute, column, selectRows, table } from "./sql.ts";
+import { revokeUnprovenAccess } from "./user-adoption.ts";
 import { invalidateActiveSessions } from "./user-risk.ts";
 import {
   findUser,
@@ -95,6 +95,24 @@ async function attachGuestPurchases(user: UserRecord, now: () => Date): Promise<
   }
 }
 
+// `revoke_unproven_access!` rewrites the json_data of each merchant account. One that holds a Hash which is not valid JSON would fail
+// half way through the second transaction, after the first one committed; Rails reads such a column as an error as well.
+async function assertRetirable(userId: unknown): Promise<void> {
+  const rows = await selectRows<{ json_data: string | null }>(
+    Prisma.sql`SELECT ${column("merchant_accounts", "json_data")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId}`,
+  );
+  for (const { json_data: raw } of rows) {
+    if (raw == null || !/^\s*\{/u.test(raw)) continue;
+    try {
+      JSON.parse(raw);
+    } catch {
+      throw new HandBackToRails(
+        "a merchant account whose json_data is not valid JSON, on an unconfirmed account being adopted",
+      );
+    }
+  }
+}
+
 export async function planAppleSignIn(data: AppleData, identityUser: UserRecord | null): Promise<ApplePlan> {
   let user = identityUser;
   let isNew = false;
@@ -117,8 +135,7 @@ export async function planAppleSignIn(data: AppleData, identityUser: UserRecord 
     }
   }
   const adopting = !isNew && isBlank(user.get("provider")) && !(await hasAppleIdentity(user.get("id")));
-  if (adopting && !isConfirmed(user))
-    throw new HandBackToRails("the adoption of an unconfirmed account, which revokes its unproven access");
+  if (adopting && !isConfirmed(user)) await assertRetirable(user.get("id"));
   return { kind: "user", user, uid: data.uid, name: data.name, email, isNew, adopting };
 }
 
@@ -151,6 +168,7 @@ export async function applyAppleSignIn(
     if (plan.adopting) {
       await setPassword(user, await randomPassword());
       await invalidateActiveSessions(user, now);
+      if (!isConfirmed(user)) await revokeUnprovenAccess(user, now);
     }
     user.ivars.skip_confirmation_notification = true;
     await Users.saveBang(user, { now });

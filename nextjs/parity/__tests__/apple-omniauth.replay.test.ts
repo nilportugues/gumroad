@@ -63,21 +63,56 @@ function cookieExpiry(value: unknown): number | null {
   }
 }
 
+// `retired_by_adoption_at` is `Time.current.iso8601` inside a json_data string, so the diff cannot see it is a time. Each side's stamp is
+// checked to be the moment of the sign-in and then masked, which leaves the rest of the document compared as it is.
+const RETIRED_AT = /("retired_by_adoption_at":")([^"]+)(")/gu;
+type UpdatedRows = Record<string, { updated?: { changes: Record<string, unknown[]> }[] }>;
+function maskRetirementTimes(exchange: { expected: { db: unknown }; actual: { db: unknown } }): void {
+  const masked = [exchange.expected, exchange.actual].map((side) =>
+    ((side.db as UpdatedRows).merchant_accounts?.updated ?? []).map((row) => {
+      const change = row.changes.json_data;
+      return (change ?? []).map((value) =>
+        typeof value !== "string"
+          ? value
+          : value.replace(RETIRED_AT, (_match, open: string, stamp: string, close: string) => {
+              if (side === exchange.actual)
+                expect(Math.abs(Date.parse(stamp) - Date.now())).toBeLessThan(SIGN_IN_SPREAD_SECONDS * 1000);
+              return `${open}<now>${close}`;
+            }),
+      );
+    }),
+  );
+  expect(masked[1]).toEqual(masked[0]);
+}
+
 const TIME_TOKEN = /<now(?:[+-]\d+[smh])?>/gu;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item. The product reindexes a user save triggers ask Elasticsearch for documents the
 // replay does not hold, and Node then queues the fallback job Rails never needed.
 // GenerateSubscribePreviewJob: Rails' factories took its until_executed lock before the request; Node takes it as production does.
+// A job with an `until_executing` lock is pushed once however often Rails enqueues it: the recording's test adapter has no lock, Node's queue has.
+const LOCKED_JOBS = new Set(["RefreshMerchantAccountProductsRecommendationEligibilityJob"]);
+const withoutLockedDuplicates = (jobs: { class: string; args: unknown }[]) =>
+  jobs.filter(
+    (job, at) => !LOCKED_JOBS.has(job.class) || jobs.findIndex((other) => jobKey(other) === jobKey(job)) === at,
+  );
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker", "GenerateSubscribePreviewJob"]);
 // Redis does not keep the order jobs were enqueued in: the ones a new account makes are put in the order Rails enqueues them (after commit, then after confirmation).
-const ENQUEUE_ORDER = ["GenerateUsernameJob", "AttachPastPurchasesToUserWorker"];
+// The adoption of an unconfirmed account commits its sign-in changes (a reindex of the subscriptions' email) before its payout changes.
+const ENQUEUE_ORDER = [
+  "ReindexSubscriptionCurrentEmailWorker",
+  "RefreshMerchantAccountProductsRecommendationEligibilityJob",
+  "RefreshUserProductsRecommendationEligibilityJob",
+  "GenerateUsernameJob",
+  "AttachPastPurchasesToUserWorker",
+];
 const rank = (job: { class: string }) =>
   ENQUEUE_ORDER.includes(job.class) ? ENQUEUE_ORDER.indexOf(job.class) : ENQUEUE_ORDER.length;
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
-// A delayed job (the Elasticsearch update of an attached purchase, `perform_in(4.seconds)`) carries `at`. The fixture holds it as "<now>", so it is
-// reported as of the drain: the request's latency would otherwise move a 4 second delay across the 5 second tolerance.
+// A delayed job (the Elasticsearch update of an attached purchase, `perform_in(4.seconds)`, a reindex 10 seconds out) carries `at`. The fixture holds it
+// as "<now+4s>" or "<now+10s>", so it is reported as that delay from the drain, snapped to the even second the request's latency took it off.
 function redisJobs(redis: Redis): JobsChannel {
   return {
     async reset() {},
@@ -99,7 +134,9 @@ function redisJobs(redis: Redis): JobsChannel {
           class: item.class,
           args: item.args,
           queue: item.queue,
-          ...(item.at === undefined ? {} : { at: new Date() }),
+          ...(item.at === undefined
+            ? {}
+            : { at: new Date(Date.now() + Math.round(Math.max(0, item.at * 1000 - Date.now()) / 2000) * 2000) }),
         });
       }
       // Jobs still in Ruby are pushed in Sidekiq's own format.
@@ -135,6 +172,8 @@ const COMPARE = {
     "response.body",
     `response.cookies.${COOKIE}.value`,
     "http",
+    // The time `mark_retired_by_adoption!` stamps inside the document: masked and compared by maskRetirementTimes.
+    "db.merchant_accounts.updated.*.changes.json_data",
   ],
 };
 
@@ -437,6 +476,7 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
       try {
         const fixture = loadFixture(file);
         const exchange = fixture.exchanges[index]!;
+        exchange.jobs = withoutLockedDuplicates(exchange.jobs);
         const isPwned = (call: CapturedHttp) => call.url.startsWith(PWNED_ORIGIN);
         recorded = exchange.http.filter((call) => !isPwned(call));
         pwnedPrefixes.length = 0;
@@ -459,6 +499,7 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
           return;
         }
         const replayed = await replayFixtureExchange(fixture, index, replayOptions());
+        maskRetirementTimes(replayed.exchanges[0]!);
         assertParity(replayed);
         // A password Node set for an account it created or adopted is a bcrypt digest of the cost Rails used, and an adopted account's differs.
         const digests = (await client.user.findMany({ select: { id: true, encrypted_password: true } })).map(
