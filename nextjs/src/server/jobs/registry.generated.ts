@@ -3438,7 +3438,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "TranscodeVideoForStreamingWorker": {
     "file": "app/sidekiq/transcode_video_for_streaming_worker.rb",
