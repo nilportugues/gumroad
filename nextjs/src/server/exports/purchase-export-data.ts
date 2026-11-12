@@ -1,7 +1,7 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
 // the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
 // refunds and its custom fields. A sale that needs anything else (gifts, pre-orders, subscriptions, licenses, reviews, tips,
-// affiliates, UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
+// UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
 // throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
 
@@ -201,6 +201,20 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       taxCountries.set(String(row.id), row.country);
   }
 
+  // purchase.affiliate&.affiliate_user&.form_email
+  const affiliateIds = [
+    ...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id): id is bigint => id !== null)),
+  ];
+  const affiliateEmails = new Map<string, string | null>();
+  if (affiliateIds.length > 0) {
+    for (const row of await selectRows<{ id: bigint; unconfirmed_email: string | null; email: string | null }>(
+      Prisma.sql`SELECT ${column("affiliates", "id")}, ${column("users", "unconfirmed_email")}, ${column("users", "email")} FROM ${table("affiliates")} INNER JOIN ${table("users")} ON ${column("users", "id")} = ${column("affiliates", "affiliate_user_id")} WHERE ${column("affiliates", "id")} IN (${Prisma.join(affiliateIds)})`,
+    ))
+      affiliateEmails.set(String(row.id), presence(row.unconfirmed_email) ?? presence(row.email));
+    // An affiliate whose row or user is gone reads as no affiliate in Rails; not proven here.
+    if (affiliateEmails.size !== affiliateIds.length) throw new HandBackToRails("a sale whose affiliate or its user is missing");
+  }
+
   // charged_using_stripe_connect_account?: the merchant account belongs to a seller.
   const merchantAccountIds = [
     ...new Set(purchases.map((purchase) => purchase.merchant_account_id).filter((id): id is bigint => id !== null)),
@@ -246,6 +260,7 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         customFieldValues,
         variant: variantByPurchase.get(key),
         taxCountries,
+        affiliateEmails,
       }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
@@ -274,6 +289,7 @@ function purchaseFields(
     customFieldValues: Map<string, string | boolean>;
     variant: VariantRow | undefined;
     taxCountries: Map<string, string | null>;
+    affiliateEmails: Map<string, string | null>;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [
@@ -284,7 +300,6 @@ function purchaseFields(
     if (flagSet(purchase, name)) throw new HandBackToRails(`an export that holds ${reason}`);
   if (purchase.preorder_id !== null) throw new HandBackToRails("an export that holds a pre-order");
   if (purchase.subscription_id !== null) throw new HandBackToRails("an export that holds a subscription charge");
-  if (purchase.affiliate_id !== null) throw new HandBackToRails("an export that holds an affiliate sale");
   if (purchase.paypal_order_id !== null) throw new HandBackToRails("an export that holds a PayPal sale");
   if (
     purchase.price_cents === null ||
@@ -370,7 +385,7 @@ function purchaseFields(
     "SKU ID": sku === undefined ? null : presence(sku.custom_sku) ?? encrypt(sku.id),
     Quantity: purchase.quantity,
     Recurrence: null,
-    Affiliate: null,
+    Affiliate: purchase.affiliate_id === null ? null : (lookups.affiliateEmails.get(String(purchase.affiliate_id)) ?? null),
     "Affiliate commission ($)":
       purchase.affiliate_credit_cents === null ? null : dollars(purchase.affiliate_credit_cents),
     "Discover?": flagSet(purchase, "was_product_recommended") ? 1 : 0,

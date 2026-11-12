@@ -251,6 +251,23 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("Tax Type")] }).to include("Sales tax", "VAT")
   end
 
+  it "writes the affiliate's email and the commission", parity: true do
+    affiliate_user = create(:user, email: "partner@example.com")
+    affiliate = create(:direct_affiliate, seller:, affiliate_user:, affiliate_basis_points: 2500)
+    commissioned = sell(price_cents: 1000, fee_cents: 100, affiliate:, affiliate_credit_cents: 250)
+    commissioned.update_columns(affiliate_credit_cents: 250)
+    pending_email = create(:user, email: "pending@example.com")
+    pending_email.update_columns(unconfirmed_email: "new-address@example.com")
+    other = create(:direct_affiliate, seller:, affiliate_user: pending_email)
+    sell(price_cents: 600, affiliate: other)
+    sell(price_cents: 500)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Affiliate")] }).to include("partner@example.com", "new-address@example.com")
+  end
+
   it "hands a sale with a non-ASCII address to Rails", parity: true do
     sell(street_address: "1 Marktstraße")
 
