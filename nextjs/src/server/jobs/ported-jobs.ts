@@ -192,4 +192,5 @@ export const PORTED_JOBS: readonly string[] = [
   "ResendConfirmationEmailJob",
   "PdfUnstampableNotifierJob",
   "GenerateProductFilesArchivesJob",
+  "ActivateIntegrationsWorker",
 ];
