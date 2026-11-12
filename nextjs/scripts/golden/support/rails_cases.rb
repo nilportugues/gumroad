@@ -66,6 +66,10 @@ module HttpCapture
 
     attr_writer :responses
 
+    # A case that has to answer by request (Stripe, which sees a different call each time) sets a callable taking
+    # (request, entry): it returns {status:, body:, headers:}, or nil to fall back to `responses`, or raises to drop the connection.
+    attr_accessor :responder
+
     def next_response = (@responses&.shift || {})
 
     def start
@@ -73,8 +77,9 @@ module HttpCapture
       WebMock.enable!
       WebMock.disable_net_connect!(allow: [/127\.0\.0\.1/, /elasticsearch/, /dynamodb/, /minio/, /redis/])
       WebMock.stub_request(:any, /./).to_return do |request|
-        requests << { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
-        answer = next_response
+        entry = { "method" => request.method.to_s.upcase, "url" => request.uri.to_s, "headers" => request.headers.to_h.sort.to_h, "body" => request.body }
+        requests << entry
+        answer = responder&.call(request, entry) || next_response
         { status: answer[:status] || 200, body: answer[:body] || "{}", headers: answer[:headers] || {} }
       end
     end
