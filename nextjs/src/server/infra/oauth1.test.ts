@@ -8,7 +8,10 @@ const TWITTER_EXAMPLE = {
   url: new URL("https://api.twitter.com/1.1/statuses/update.json?include_entities=true"),
   consumerKey: "xvz1evFS4wEEPTGEFPHBog",
   consumerSecret: "kAcSOqF21Fu85e7zjz7ZN2U4ZRhfV3WpwPAoE3Z7kBw",
-  token: { token: "370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb", secret: "LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE" },
+  token: {
+    token: "370773112-GmHxMAgYyLbNEtIKZeRNFsMKPR9EyMZeS9weJAEb",
+    secret: "LswwdoUaIvS8ltyTt5jkRh4J50vUPVVHtR2YPi5kE",
+  },
   formParams: [["status", "Hello Ladies + Gentlemen, a signed OAuth request!"]] as [string, string][],
   now: new Date(1_318_622_958_000),
 };
@@ -50,7 +53,9 @@ describe("oauth1", () => {
       now: new Date(0),
     });
 
-    expect(header).toMatch(/^OAuth oauth_callback="https%3A%2F%2Fexample\.com%2Fcb%3Fstate%3Da%20b", oauth_consumer_key="key", oauth_nonce="n", oauth_signature="/u);
+    expect(header).toMatch(
+      /^OAuth oauth_callback="https%3A%2F%2Fexample\.com%2Fcb%3Fstate%3Da%20b", oauth_consumer_key="key", oauth_nonce="n", oauth_signature="/u,
+    );
     expect(header).not.toContain("oauth_token");
   });
 
@@ -62,7 +67,10 @@ describe("oauth1", () => {
   });
 
   it("parses a token answer by its first values", () => {
-    expect(parseTokenAnswer("oauth_token=a%20b&oauth_token_secret=c&oauth_token=d")).toEqual({ oauth_token: "a b", oauth_token_secret: "c" });
+    expect(parseTokenAnswer("oauth_token=a%20b&oauth_token_secret=c&oauth_token=d")).toEqual({
+      oauth_token: "a b",
+      oauth_token_secret: "c",
+    });
   });
 
   it("sends the header, the user agent and the form of a request token call", async () => {
@@ -70,11 +78,18 @@ describe("oauth1", () => {
     const fetchMock = vi.fn(() => Promise.resolve(new Response("oauth_token=t", { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
 
-    const answer = await signedRequest({ ...TWITTER_EXAMPLE, formParams: undefined, form: [["x_auth_access_type", "read"]] });
+    const answer = await signedRequest({
+      ...TWITTER_EXAMPLE,
+      formParams: undefined,
+      form: [["x_auth_access_type", "read"]],
+    });
 
     expect(answer).toMatchObject({ status: 200, text: "oauth_token=t" });
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.body).toBe("x_auth_access_type=read");
-    expect(init.headers).toMatchObject({ "User-Agent": "OAuth gem v1.1.0", "Content-Type": "application/x-www-form-urlencoded" });
+    expect(init.headers).toMatchObject({
+      "User-Agent": "OAuth gem v1.1.0",
+      "Content-Type": "application/x-www-form-urlencoded",
+    });
   });
 });

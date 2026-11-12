@@ -217,7 +217,8 @@ export async function record(
       { uid, superseded_at: null, last_verified_at: now(), ...attributes },
       { now },
     );
-    if (recordFunnelConnected) await recordSocialConnectEvent({ userId, stage: "connected", provider: platform, surface: "omniauth", now });
+    if (recordFunnelConnected)
+      await recordSocialConnectEvent({ userId, stage: "connected", provider: platform, surface: "omniauth", now });
     return verification;
   });
 }

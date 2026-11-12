@@ -525,7 +525,11 @@ function callbackPhase(strategy: Strategy) {
   };
 }
 
-export const BARE: ActionOptions = { bare: true, metal: true, skip: ["redirect_to_custom_subdomain", "check_suspended"] };
+export const BARE: ActionOptions = {
+  bare: true,
+  metal: true,
+  skip: ["redirect_to_custom_subdomain", "check_suspended"],
+};
 
 registerMutations(
   ...PASSTHRU_PROVIDERS.map((name) => ({
