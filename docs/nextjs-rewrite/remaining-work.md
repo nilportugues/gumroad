@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 154,961 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 326 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 155,216 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 327 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -407,7 +407,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 - WS-13 receipt mailer: gift receiver, free-trial and subscription receipts and preorders hand back; posts and workflow emails with files that have thumbnails throw `NotPortedError`.
 - WS-15 purchases export (`nextjs_purchases_export`, `GET|POST /purchases/export`): signed-out requests, the mobile `access_token` form, `in_seller_time_zone`, `variant_ids`, dates that are not `YYYY-MM-DD` and any result holding a sale with several variants, a variant of a tiered membership or of a licensed product, a gift, pre-order, subscription charge, cart, buyer-currency or PayPal charge, a seller's own Stripe Connect account, a GeoIP-derived state or country, a non-ASCII address or a product with several custom fields hand back whole. Plain sales and sales with one variant or SKU, tax, an affiliate, a tip, a review, a license key, a UTM link or an upsell run in Node.
 - WS-12 `GET /bundles/create_from_email` (`nextjs_bundles_create_from_email`): the policy refusal, a bundle type the marketing email never sends and a price under the currency minimum answer in Node; creating the bundle (Link, Price and bundle product rows) and a link with no whole-number price hand back.
-- WS-11 third-party analytics host: `GET /profile/:username` (`nextjs_third_party_analytics_profile`) runs in Node; `GET /:link_id` (`ThirdPartyAnalyticsController#index`) is not registered. `GET /users/confirmation/new` (Devise's view inside the application layout) and `GET /_/test/outgoing_traffic` (a probe that reads one S3 object to prove the Rails process has outbound traffic) stay in Rails.
+- WS-11 third-party analytics host: `GET /profile/:username` (`nextjs_third_party_analytics_profile`) and `GET /:link_id` (`nextjs_third_party_analytics_index`; a request with a `purchase_id` stays in Rails) run in Node. `GET /users/confirmation/new` (Devise's view inside the application layout) and `GET /_/test/outgoing_traffic` (a probe that reads one S3 object to prove the Rails process has outbound traffic) stay in Rails.
 - WS-30 jobs: most Node jobs hand individual runs back to Ruby, so the job count above is an upper bound on finished jobs.
 
 ## Frontend and pages
