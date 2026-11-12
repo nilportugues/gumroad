@@ -1,14 +1,16 @@
 // Port of Payouts.create_payments (app/business/payments/payouts/payouts.rb) for the Stripe processor, one slice at a time. This
-// slice: `mark_balances_processing` up to the claim. Golden: scripts/golden/payouts-create-payments.rb.
+// slice: `mark_balances_processing`, with the per-balance claim. Golden: scripts/golden/payouts-create-payments.rb.
 //
 // Refused with NotPortedError before any write, from what the lock and the reads already returned: a seller whose payouts a
 // chargeback-rate hold may pay at 75% (the reserve), and everything payout-reads.ts refuses.
+import { Balances, fireBalanceEventBang, type BalanceRecord } from "./balance.ts";
 import {
   minimumPayoutAmountCents,
   payableBalancesForProcessor,
   unpaidBalancesUpTo,
   type HeldBalance,
 } from "./payout-reads.ts";
+import type { SaveOptions } from "./runtime/define-model.ts";
 import { isFlagSet, jsonDataForAttr, NotPortedError, Users, type UserRecord } from "./user.ts";
 
 export const PAYOUT_TYPE_STANDARD = "standard";
@@ -18,7 +20,7 @@ export const MINIMUM_INSTANT_PAYOUT_AMOUNT_CENTS = 1_00;
 const PAYOUT_PAUSE_SOURCE_SYSTEM = "system";
 
 export type PayoutType = typeof PAYOUT_TYPE_STANDARD | typeof PAYOUT_TYPE_INSTANT;
-export type Claim = { balances: HeldBalance[]; underReserve: boolean };
+export type Claim = { balances: BalanceRecord[]; underReserve: boolean };
 
 // `payout_minimum_cents`
 export const payoutMinimumCents = (user: UserRecord, payoutType: PayoutType) =>
@@ -43,16 +45,25 @@ function refuseChargebackRateReserve(user: UserRecord, payoutType: PayoutType): 
 const isPaused = (user: UserRecord) =>
   isFlagSet(user, "payouts_paused_internally") || isFlagSet(user, "payouts_paused_by_user");
 
-// `select_and_claim_payable_balances`, up to the claim: which balances are payable and the minimum they are judged against.
-export async function selectPayableBalances(
+// `select_and_claim_payable_balances`: each payable balance is locked, and claimed only if it is still unpaid.
+export async function selectAndClaimPayableBalances(
   user: UserRecord,
   date: Date,
   payoutType: PayoutType,
-): Promise<HeldBalance[]> {
+  options: SaveOptions,
+): Promise<BalanceRecord[]> {
   const unpaid = await unpaidBalancesUpTo(user, date);
-  const payable = await payableBalancesForProcessor(user, unpaid);
+  const payable: HeldBalance[] = await payableBalancesForProcessor(user, unpaid);
   await payoutMinimumCents(user, payoutType);
-  return payable;
+  const claimed: BalanceRecord[] = [];
+  for (const { balance } of payable) {
+    await Balances.withLock(balance, async () => {
+      if (balance.get("state") !== "unpaid") return;
+      await fireBalanceEventBang(balance, "mark_processing", options);
+      claimed.push(balance);
+    });
+  }
+  return claimed;
 }
 
 // `mark_balances_processing`, decided under the seller lock.
@@ -60,10 +71,11 @@ export function markBalancesProcessing(
   user: UserRecord,
   date: Date,
   payoutType: PayoutType = PAYOUT_TYPE_STANDARD,
+  options: SaveOptions = {},
 ): Promise<Claim> {
   return Users.withLock(user, async () => {
     refuseChargebackRateReserve(user, payoutType);
     if (isPaused(user)) return { balances: [], underReserve: false };
-    return { balances: await selectPayableBalances(user, date, payoutType), underReserve: false };
+    return { balances: await selectAndClaimPayableBalances(user, date, payoutType, options), underReserve: false };
   });
 }

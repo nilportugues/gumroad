@@ -14,7 +14,7 @@ import { esRecorder } from "../search/__fixtures__/job-harness.ts";
 import { withJobsRuntime } from "./concerns/job-runtime.ts";
 import { resetLinkCollaborators, setLinkCollaborators } from "./link.ts";
 import { resetPayoutReadCollaborators, setPayoutReadCollaborators } from "./payout-reads.ts";
-import { markBalancesProcessing, PAYOUT_TYPE_STANDARD } from "./payouts.ts";
+import { markBalancesProcessing, PAYOUT_TYPE_INSTANT, PAYOUT_TYPE_STANDARD } from "./payouts.ts";
 import { setSellerProfileCacheForTesting } from "./seller-profile.ts";
 import { findUserBang, resetUserCollaborators, setUserCollaborators } from "./user.ts";
 
@@ -95,6 +95,37 @@ describe("mark_balances_processing reads", () => {
       const { sql, error } = await run(c, c.statements, action);
       expect(sql.log).toEqual(sql.expected);
       expect(error).toBeNull();
+    });
+  }
+});
+
+// The statements up to the last claim of a balance, closed with the COMMIT the seller lock's transaction ends with.
+const claimPrefix = (c: Case): Statement[] => {
+  const last = c.statements
+    .map((s) => s.sql)
+    .findLastIndex((sql) => sql.startsWith("UPDATE `balances` SET `balances`.`state` = 'processing'"));
+  return [...c.statements.slice(0, last + 1), { sql: "COMMIT", result: { affected: 0 } }];
+};
+
+describe("mark_balances_processing claim", () => {
+  const claim = (type: string) => async () =>
+    markBalancesProcessing(await seller(), PAYOUT_DATE, type as never, { now });
+  const CLAIMS: Record<string, [Action, number[]]> = {
+    "one payable Stripe-held balance becomes one processing payment": [claim(PAYOUT_TYPE_STANDARD), [1]],
+    "two balances share one payment": [claim(PAYOUT_TYPE_STANDARD), [1, 2]],
+    "a balance dated after the payout date is not claimed": [claim(PAYOUT_TYPE_STANDARD), [1]],
+    "an instant payout records its payout type": [claim(PAYOUT_TYPE_INSTANT), [1]],
+    "Gumroad-held balances join the seller's own group": [claim(PAYOUT_TYPE_STANDARD), [2, 1]],
+  };
+  for (const [name, [action, ids]] of Object.entries(CLAIMS)) {
+    it(name, async () => {
+      const c = byName(name);
+      const { sql, error, result } = await run(c, claimPrefix(c), action);
+      expect(sql.log).toEqual(sql.expected);
+      expect(error).toBeNull();
+      expect(
+        (result as { balances: { get(name: string): unknown }[] }).balances.map((b) => Number(b.get("id"))),
+      ).toEqual(ids);
     });
   }
 });
