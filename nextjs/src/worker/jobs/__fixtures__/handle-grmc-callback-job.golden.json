@@ -1,0 +1,878 @@
+{
+  "now": 1793795445.0,
+  "cases": [
+    {
+      "name": "a notification for no known job",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'nope' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "nope",
+          "status": "success"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification for a job in flight",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                "job1",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job1",
+          "status": "success"
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "an error notification for a job in flight",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                "job1",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job1",
+          "status": "error"
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "a notification for a job that completed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job1",
+          "status": "success"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification for a job that failed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job1",
+          "status": "success"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification for a deleted video in flight",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                "job1",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job1",
+          "status": "success"
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "two videos of the same source",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job2' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                2,
+                null,
+                "original/s.mp4",
+                "transcoded/2/",
+                "job2",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job2",
+          "status": "success"
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "a job id the table does not hold among several videos",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job9' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "job9"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id of an empty string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = '' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": ""
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id with a quote",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'a\\'b' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "a'b"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id with a multibyte letter",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'jöb1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                "jöb1",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": "jöb1"
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "a notification without a job id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                null,
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "status": "success"
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "a notification without a job id and no video",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "status": "success"
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": null
+        }
+      ],
+      "processed": []
+    },
+    {
+      "name": "a job id given as an integer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = '1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                "1",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": 1
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "a job id given as an array",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` = 'job1' LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "original/1.mp4",
+                "transcoded/1/",
+                "job1",
+                "processing",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        {
+          "job_id": [
+            "job1"
+          ]
+        }
+      ],
+      "processed": [
+        "sweep"
+      ]
+    },
+    {
+      "name": "a notification that is a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `transcoded_videos`.`id`, `transcoded_videos`.`link_id`, `transcoded_videos`.`original_video_key`, `transcoded_videos`.`transcoded_video_key`, `transcoded_videos`.`job_id`, `transcoded_videos`.`state`, `transcoded_videos`.`created_at`, `transcoded_videos`.`updated_at`, `transcoded_videos`.`flags`, `transcoded_videos`.`deleted_from_cdn_at`, `transcoded_videos`.`deleted_at`, `transcoded_videos`.`last_accessed_at`, `transcoded_videos`.`streamable_type`, `transcoded_videos`.`streamable_id` FROM `transcoded_videos` WHERE `transcoded_videos`.`state` = 'processing' AND `transcoded_videos`.`job_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "original_video_key",
+              "transcoded_video_key",
+              "job_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "flags",
+              "deleted_from_cdn_at",
+              "deleted_at",
+              "last_accessed_at",
+              "streamable_type",
+              "streamable_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        "job1"
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification that is nil",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method '[]' for nil"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        null
+      ],
+      "processed": []
+    },
+    {
+      "name": "a notification that is an array",
+      "error": {
+        "class": "TypeError",
+        "message": "no implicit conversion of String into Integer"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "HandleGrmcCallbackJob",
+      "args": [
+        [
+          "job_id"
+        ]
+      ],
+      "processed": []
+    }
+  ]
+}
