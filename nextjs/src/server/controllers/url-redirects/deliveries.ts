@@ -36,7 +36,7 @@ import {
   triggerFilesLifecycleEvents,
   type DeliveryFile,
 } from "./files.ts";
-import { downloadSubtitleFile, hlsPlaylistAction, smil } from "./streaming.ts";
+import { downloadSubtitleFile, hlsPlaylistAction, smil, subtitleFileVtt } from "./streaming.ts";
 
 const FOUND = 302;
 const NOT_FOUND = 404;
@@ -236,6 +236,14 @@ export async function urlRedirectsAction(action: ActionContext): Promise<ActionR
     const match = route.pattern.exec(path);
     if (match) return route.run(decodeURIComponent(match[1]!), decodeURIComponent(match[2]!), action);
   }
+  const vtt = /^\/r\/([^/.]+)\/([^/.]+)\/([^/.]+)\/captions\.vtt$/u.exec(path);
+  if (vtt)
+    return subtitleFileVtt(
+      decodeURIComponent(vtt[1]!),
+      decodeURIComponent(vtt[2]!),
+      decodeURIComponent(vtt[3]!),
+      action,
+    );
   const subtitle = /^\/r\/([^/.]+)\/([^/.]+)\/([^/.]+)$/u.exec(path);
   if (subtitle)
     return downloadSubtitleFile(

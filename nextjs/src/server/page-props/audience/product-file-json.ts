@@ -71,7 +71,7 @@ async function idsWithRows(
   return new Set(rows.map((row) => BigInt(row.id)));
 }
 
-const s3DisplayName = (fields: S3Fields | null) =>
+export const s3DisplayName = (fields: S3Fields | null) =>
   fields === null
     ? null
     : fields.extension.length > 0

@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(),
   hasRichContent: vi.fn(),
   createEventBang: vi.fn(),
+  contentItems: vi.fn(),
 }));
 
 vi.mock("../../../lib/db.ts", () => ({ db: mocks.db }));
@@ -30,6 +31,8 @@ vi.mock("./unavailable.ts", async (importOriginal) => ({
   hasRichContent: mocks.hasRichContent,
   layoutProps: () => ({ token: "tok123" }),
 }));
+// The files a content page lists are covered by the recorded url_redirect_player_pages_spec examples.
+vi.mock("./download-files.ts", () => ({ contentItems: mocks.contentItems }));
 vi.mock("../../models/consumption-event.ts", () => ({ createEventBang: mocks.createEventBang }));
 vi.mock("../../auth/rails-session-config.ts", async () => {
   const { deriveRailsCookieSecrets } = await import("../../auth/rails-cookies.ts");
@@ -80,6 +83,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.load.mockResolvedValue(loaded());
   mocks.hasRichContent.mockResolvedValue(false);
+  mocks.contentItems.mockResolvedValue([]);
   mocks.db.user.findUnique.mockResolvedValue({
     id: 2n,
     google_analytics_id: null,
@@ -159,7 +163,10 @@ describe("downloadPageFilters", () => {
 
   describe("shapes Rails renders", () => {
     it.each([
-      ["product files", () => mocks.db.productFile.count.mockResolvedValue(1)],
+      [
+        "files Node does not list",
+        () => mocks.contentItems.mockRejectedValue(new HandBackToRails("a file with a thumbnail")),
+      ],
       ["integrations", () => mocks.db.productIntegration.count.mockResolvedValue(1)],
       ["third-party analytics", () => mocks.db.thirdPartyAnalytic.count.mockResolvedValue(1)],
       ["posts", () => mocks.db.installment.count.mockResolvedValue(1)],

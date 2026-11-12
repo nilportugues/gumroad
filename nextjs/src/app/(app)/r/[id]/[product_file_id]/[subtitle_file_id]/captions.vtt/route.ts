@@ -1,4 +1,4 @@
-// UrlRedirectsController#subtitle_file_vtt: the access gate only (server/page-props/url-redirects/delivery.ts); a request past it goes to Rails.
+// UrlRedirectsController#subtitle_file_vtt (served in server/controllers/url-redirects/streaming.ts; the gate in server/page-props/url-redirects/delivery.ts)
 import { deliveryResponse } from "@/server/page-props/url-redirects/delivery";
 
 export const GET = (request: Request) => deliveryResponse(request, "subtitle_file_vtt");

@@ -1,8 +1,8 @@
 // Port of UrlRedirectsController#download_page (GET /d/:id): the before_actions that gate it, the
 // props UrlRedirectPresenter#download_page_with_content_props builds, and the after_actions that record
-// the visit. Only a purchase whose content page has nothing to list is rendered here: files (including
-// files on a purchased variant), rich content, licenses, posts, integrations, communities and third-party
-// analytics hand back to Rails, as do the polls, the mobile app token sign-in and bundle redirects. A saved
+// the visit. Only a content page that lists the product's own files (download-files.ts) is rendered here: files on a purchased
+// variant, rich content, licenses, posts, integrations, communities and third-party analytics hand back to Rails, as do
+// the polls, the mobile app token sign-in and bundle redirects. A saved
 // content page is echoed as last_content_page_id; a coffee product redirects to the seller's coffee page.
 import { Prisma, type Link, type User } from "@prisma/client";
 
@@ -35,6 +35,7 @@ import { domainConfig, type DomainConfig } from "../domain.ts";
 import type { MetaTagBuilder } from "../meta-tags.ts";
 import { setFaviconMetaTags } from "../storefront/post.ts";
 
+import { contentItems } from "./download-files.ts";
 import { decideAccess, type GateInput } from "./download-gate.ts";
 import { claimBySeller, hasRichContent, layoutProps, load, present, type Loaded } from "./unavailable.ts";
 
@@ -82,8 +83,6 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
 
   if (purchase && (await purchasedVariantHasFiles(purchase.id, product.id)))
     throw new HandBackToRails("a purchased variant with files");
-  if ((await db.productFile.count({ where: { link_id: product.id, deleted_at: null } })) > 0)
-    throw new HandBackToRails("product files");
   if (await hasRichContent(loaded)) throw new HandBackToRails("rich content");
   if ((await db.productIntegration.count({ where: { product_id: product.id, deleted_at: null } })) > 0)
     throw new HandBackToRails("integrations");
@@ -204,7 +203,7 @@ export async function downloadPageProps(
   return {
     content: {
       license: null,
-      content_items: [],
+      content_items: await contentItems(loaded, loggedInUser),
       bundle_products: [],
       rich_content_pages: null,
       last_content_page_id: purchase ? lastContentPageId(purchase.json_data) : null,
@@ -252,6 +251,11 @@ async function recordVisit(loaded: Loaded, chain: Chain): Promise<void> {
     consumed_at: truncateToSeconds(chain.now),
     ip_address: remoteIp(chain.request.headers) ?? "127.0.0.1",
   });
+  await registerDownload(redirect, chain);
+}
+
+// #register_that_user_has_downloaded_product: the use count, the seen flag and the confirmation cookie.
+export async function registerDownload(redirect: Loaded["redirect"], chain: Chain): Promise<void> {
   // increment! leaves updated_at alone; mark_as_seen ORs the bit in so it keeps a concurrent flag write.
   await db.$executeRaw(Prisma.sql`UPDATE url_redirects SET uses = COALESCE(uses, 0) + 1 WHERE id = ${redirect.id}`);
   await db.$executeRaw(

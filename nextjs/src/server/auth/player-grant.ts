@@ -1,7 +1,7 @@
 // ProductBuild.verified_player_grant (app/models/product_build.rb): an ActiveSupport::MessageEncryptor message (AES-256-GCM, url-safe
 // Base64 of `data--iv--tag`) under the key `Rails.application.key_generator.generate_key("product_build_player_grant", 32)`, whose
 // plaintext is the JSON envelope Rails wraps a purposed, expiring value in.
-import { createDecipheriv, pbkdf2Sync } from "node:crypto";
+import { createCipheriv, createDecipheriv, pbkdf2Sync, randomBytes } from "node:crypto";
 
 import { getConfig } from "../infra/config.ts";
 import { NotPortedError } from "../models/user.ts";
@@ -19,6 +19,9 @@ const SEPARATOR = "--";
 const IV_LENGTH = 16;
 const TAG_LENGTH_UNPADDED = 22;
 const TAG_LENGTH_PADDED = 24;
+
+// ProductBuild::PLAYER_GRANT_VALID_FOR
+export const PLAYER_GRANT_VALID_FOR_MS = 12 * 60 * 60 * 1000;
 
 export type PlayerGrant = Record<string, unknown>;
 
@@ -54,7 +57,7 @@ function decryptWith(digest: "sha256" | "sha1", message: string): string | null 
   }
 }
 
-function openEnvelope(grant: string): Envelope["_rails"] | null {
+export function openEnvelope(grant: string): Envelope["_rails"] | null {
   const plain = decryptWith("sha256", grant) ?? decryptWith("sha1", grant);
   if (plain === null) return null;
   try {
@@ -98,4 +101,20 @@ export function verifiedPlayerGrantUnchecked(grant: string): string | null {
   const data = openEnvelope(grant)?.data;
   const prefix = typeof data === "object" && data !== null ? (data as PlayerGrant).site_prefix : undefined;
   return typeof prefix === "string" ? prefix : null;
+}
+
+// ProductBuild#player_grant: `encrypt_and_sign(data, purpose:, expires_in:)` under the SHA-256 key the app's grants are made with. The
+// envelope is `{"_rails":{"data":...,"exp":<ISO 8601, ms>,"pur":...}}` and each part is unpadded url-safe Base64.
+export function issuePlayerGrant(
+  data: PlayerGrant,
+  { purpose = PLAYER_GRANT_PURPOSE, validForMs = PLAYER_GRANT_VALID_FOR_MS, now = new Date() } = {},
+): string {
+  const secret = getConfig("SECRET_KEY_BASE");
+  if (secret === undefined || secret === "")
+    throw new NotPortedError("ProductBuild#player_grant", "SECRET_KEY_BASE is not set");
+  const envelope = { _rails: { data, exp: new Date(now.getTime() + validForMs).toISOString(), pur: purpose } };
+  const iv = randomBytes(GCM_IV_BYTES);
+  const cipher = createCipheriv("aes-256-gcm", pbkdf2Sync(secret, SALT, KEY_ITERATIONS, KEY_BYTES, "sha256"), iv);
+  const encrypted = Buffer.concat([cipher.update(JSON.stringify(envelope), "utf8"), cipher.final()]);
+  return [encrypted, iv, cipher.getAuthTag()].map((part) => part.toString("base64url")).join(SEPARATOR);
 }

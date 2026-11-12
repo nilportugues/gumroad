@@ -25,7 +25,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["url_redirects_parity_spec"];
+const SPECS = ["url_redirects_parity_spec", "url_redirect_player_pages_spec"];
 // The objects the spec's files point at (SPEC_OBJECTS in the spec), in the bucket the server signs for.
 const SPEC_OBJECTS: Record<string, string> = {
   "specs/billion-dollar-company-chapter-0.pdf": "%PDF-1.4 delivery spec",
@@ -35,6 +35,17 @@ const SPEC_OBJECTS: Record<string, string> = {
   "attachments/0123456789abcdef0123456789abcdef/movie/hls/index.m3u8":
     "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000,RESOLUTION=640x360\nindex_360.m3u8\n#EXT-X-ENDLIST\n",
 };
+// PLAYER_OBJECTS in url_redirect_player_pages_spec.rb
+Object.assign(SPEC_OBJECTS, {
+  "attachments/0123456789abcdef0123456789abcdef/original/movie.mov": "player spec video",
+  "attachments/fedcba9876543210fedcba9876543210/original/second.mov": "player spec second video",
+  "specs/player-captions.srt":
+    "\uFEFF1\r\n0:00:01,5 --> 0:00:02,000\r\nHello\r\n\r\n2\r\nnot a timing line\r\nlost\r\n\r\n3\r\n00:00:03,000 --> 00:00:04,000\r\nSecond line\r\nover two lines\r\n\r\n4\r\n00:00:05,000 --> 00:00:06,000\r\n   \r\n",
+  "specs/player-captions.vtt":
+    "WEBVTT\n\nNOTE a note\n\nintro\n00:01.000 --> 00:02.000\nPlain cue\n\n00:03.000 --> 00:04.000 align:start\nPositioned cue\n",
+  "specs/player-book.pdf": "%PDF-1.4 player spec",
+  "specs/player-book.epub": "player spec epub",
+});
 const SPEC_BUCKET = "gumroad-specs";
 // The Rails spec froze its clock at 2026-11-09 22:00 UTC; a consumption event's `consumed_at` is a constant the request carries, so
 // it is recorded as an age that only holds when the replay's clock is pinned too.
@@ -129,6 +140,12 @@ const COMPARE = {
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",
+    // Next.js owns the per-response random values and the asset preloads of an Inertia page.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
+    "response.headers.x-original-headers-class",
   ],
 };
 
@@ -136,6 +153,7 @@ const COMPARE = {
 const mask = (value: unknown): unknown => {
   if (typeof value === "string")
     return value
+      .replace(/(\/play\/)[\w-]+--[\w-]+--[\w-]+\//gu, "$1<grant>/")
       .replace(/X-Amz-Date=\d{8}T\d{6}Z/gu, "X-Amz-Date=<signed-at>")
       .replace(/(X-Amz-Credential=[^&]*?)%2F\d{8}%2F/gu, "$1%2F<date>%2F")
       .replace(/X-Amz-Signature=[0-9a-f]{64}/gu, "X-Amz-Signature=<signature>")
@@ -210,6 +228,8 @@ describe.skipIf(!url)("url redirect delivery", () => {
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       SECURE_ENCRYPT_KEY: testEnv("SECURE_ENCRYPT_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      // The meta tags of an Inertia page carry the Stripe publishable key.
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
@@ -330,7 +350,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
         expect(cookie === undefined).toBe(recorded === undefined);
         if (cookie)
           expect(readEncryptedCookie(secrets, "confirmed_redirect", String(cookie.value))).toBe(
-            /^\/r\/([^/]+)/u.exec(want.request.path)?.[1] ??
+            /^\/(?:r|s|d|read)\/([^/]+)/u.exec(want.request.path)?.[1] ??
               new URLSearchParams(String(want.request.body ?? "")).get("id"),
           );
       } catch (error) {
