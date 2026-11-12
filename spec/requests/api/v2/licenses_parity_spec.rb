@@ -3,8 +3,8 @@
 require "spec_helper"
 
 # Api::V2::LicensesController through the full Rack stack, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
-# nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. A purchase the port cannot serialize (variants, offer code, gift, custom fields,
-# a recurring charge) is recorded as what Node hands back.
+# nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. A purchase the port cannot serialize (several variants, a SKU, a gift, a file
+# custom field, a recurring charge) is recorded as what Node hands back.
 describe "API v2 licenses", type: :request do
   include Parity::ApiV2Requests
   include Parity::MobileApi
@@ -333,24 +333,103 @@ describe "API v2 licenses", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a license of a purchase with variants to Rails", parity: true do
-      category = create(:variant_category, link: product)
+    it "serializes a license of a purchase with a variant", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
       sale.variant_attributes << create(:variant, variant_category: category, name: "Gold")
 
       verify(product_id: product.external_id, license_key: key)
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["purchase"]["variants"]).to eq("(Gold)")
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Gold)")
     end
 
-    it "hands a license of a purchase with an offer code to Rails", parity: true do
+    it "serializes a license of a purchase with the untitled variant", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
+      sale.variant_attributes << create(:variant, variant_category: category, name: "Untitled")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "")
+    end
+
+    it "serializes a license of a purchase with a deleted variant", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
+      sale.variant_attributes << create(:variant, variant_category: category, name: "Retired", deleted_at: 1.day.ago)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Retired)")
+    end
+
+    it "hands a license of a purchase with several variants to Rails", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
+      other = create(:variant_category, link: product, title: "Format")
+      sale.variant_attributes << create(:variant, variant_category: category, name: "Gold")
+      sale.variant_attributes << create(:variant, variant_category: other, name: "PDF")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]["variants"]).to eq("(Gold, PDF)")
+    end
+
+    it "serializes a license of a purchase with a fixed offer code", parity: true do
       offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE10", amount_cents: 100)
       sale.update_column(:offer_code_id, offer_code.id)
 
       verify(product_id: product.external_id, license_key: key)
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["purchase"]["offer_code"]).to include("code" => "SAVE10")
+      expect(response.parsed_body["purchase"]).to include("offer_code" => { "code" => "SAVE10", "displayed_amount_off" => "$1", "name" => "SAVE10" })
+    end
+
+    it "serializes a license of a purchase with a percentage offer code", parity: true do
+      product.update!(price_cents: 1000)
+      offer_code = create(:percentage_offer_code, user: seller, products: [product], code: "HALF", amount_percentage: 50)
+      sale.update_column(:offer_code_id, offer_code.id)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("offer_code" => { "code" => "HALF", "displayed_amount_off" => "50%", "name" => "HALF" })
+    end
+
+    it "serializes a license of a purchase with a fixed offer code in cents", parity: true do
+      offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE1050", amount_cents: 1050)
+      sale.update_column(:offer_code_id, offer_code.id)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["offer_code"]).to include("displayed_amount_off" => "$10.50")
+    end
+
+    it "serializes a license of a purchase with a deleted offer code", parity: true do
+      offer_code = create(:offer_code, user: seller, products: [product], code: "OLD", amount_cents: 100)
+      sale.update_column(:offer_code_id, offer_code.id)
+      offer_code.update_column(:deleted_at, 1.day.ago)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["offer_code"]).to include("code" => "OLD")
+    end
+
+    it "serializes the discount the buyer got instead of the offer code as it is now", parity: true do
+      offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE10", amount_cents: 100)
+      sale.update_column(:offer_code_id, offer_code.id)
+      PurchaseOfferCodeDiscount.create!(purchase: sale, offer_code:, offer_code_amount: 25, offer_code_is_percent: true, pre_discount_minimum_price_cents: 100)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["offer_code"]).to include("code" => "SAVE10", "displayed_amount_off" => "25%")
+    end
+
+    it "serializes a license of a purchase with an offer code on a product priced in another currency", parity: true do
+      product.update_columns(price_currency_type: "eur", price_cents: 1000)
+      offer_code = create(:offer_code, user: seller, products: [product], code: "EUROS", amount_cents: 250, currency_type: "eur")
+      sale.update_column(:offer_code_id, offer_code.id)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["offer_code"]).to include("code" => "EUROS")
     end
 
     it "hands a license of a gifted purchase to Rails", parity: true do
@@ -364,13 +443,60 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]).to include("is_gift_receiver_purchase" => true)
     end
 
-    it "hands a license of a purchase with custom fields to Rails", parity: true do
+    it "serializes a license of a purchase with custom fields", parity: true do
       PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "Company", value: "Example Inc")
+      PurchaseCustomField.create!(purchase: sale, field_type: "long_text", name: "Notes", value: "  two   words  ")
+      PurchaseCustomField.create!(purchase: sale, field_type: "checkbox", name: "Newsletter", value: true)
+      PurchaseCustomField.create!(purchase: sale, field_type: "terms", name: "Terms", value: false)
 
       verify(product_id: product.external_id, license_key: key)
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["purchase"]["Company"]).to eq("Example Inc")
+      expect(response.parsed_body["purchase"]).to include("Company" => "Example Inc", "custom_fields" => ["Company: Example Inc", "Notes: two words", "Newsletter: true", "Terms: false"])
+    end
+
+    it "serializes a custom field named like a key of the license response", parity: true do
+      PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "email", value: "other@example.com")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("email" => "other@example.com")
+    end
+
+    it "serializes a custom field with no value", parity: true do
+      PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "Optional", value: nil)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("Optional" => "", "custom_fields" => ["Optional: "])
+    end
+
+    it "hands a license of a purchase with a numeric custom field name to Rails", parity: true do
+      PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "42", value: "answer")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["42"]).to eq("answer")
+    end
+
+    it "hands a license of a purchase with a file custom field to Rails", parity: true do
+      PurchaseCustomField.create!(purchase: sale, field_type: "file", name: "Upload", value: nil)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a license of a membership purchase with custom fields to Rails", parity: true do
+      membership = create(:membership_product, user: seller, name: "Membership", unique_permalink: "member", is_licensed: true)
+      subscription = create(:subscription, link: membership, user: nil)
+      member_sale = purchase_row(link: membership, seller:, email: "member@example.com", purchase_state: "successful", subscription:, is_original_subscription_purchase: true)
+      member_license = create(:license, link: membership, purchase: member_sale, serial: "11111111-22222222-33333333-44444444")
+      PurchaseCustomField.create!(purchase: member_sale, field_type: "text", name: "Company", value: "Example Inc")
+
+      verify(product_id: membership.external_id, license_key: member_license.serial)
+
+      expect(response).to have_http_status(:ok)
     end
   end
 
@@ -448,9 +574,21 @@ describe "API v2 licenses", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a license of a purchase with variants to Rails without enabling it", parity: true do
+    it "enables a license of a purchase with a variant", parity: true do
       category = create(:variant_category, link: product)
       sale.variant_attributes << create(:variant, variant_category: category, name: "Gold")
+      license.update_column(:disabled_at, 1.day.ago)
+
+      write(:enable, product_id: product.external_id, license_key: key)
+
+      expect(response).to have_http_status(:ok)
+      expect(license.reload.disabled?).to eq(false)
+    end
+
+    it "hands a license of a purchase with a SKU to Rails without enabling it", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+      sku = Sku.create!(link: product, name: "Large", price_difference_cents: 0)
+      sale.variant_attributes << sku
       license.update_column(:disabled_at, 1.day.ago)
 
       write(:enable, product_id: product.external_id, license_key: key)
@@ -583,7 +721,7 @@ describe "API v2 licenses", type: :request do
       expect(license.reload.serial).to eq(key)
     end
 
-    it "hands a license of a purchase with an offer code to Rails without rotating it", parity: true do
+    it "gives the license of a purchase with an offer code a new key", parity: true do
       offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE10", amount_cents: 100)
       sale.update_column(:offer_code_id, offer_code.id)
 

@@ -426,7 +426,7 @@ function longFormattedDatetime(zone: string, instant: Date): string {
   return `${String(Number(day)).padStart(2, " ")} ${MONTHS[Number(month) - 1]} ${year} ${String(twelve).padStart(2, " ")}:${minute} ${Number(hour) < 12 ? "AM" : "PM"}`;
 }
 
-const castBoolean = (value: unknown): boolean | null => {
+export const castBoolean = (value: unknown): boolean | null => {
   if (value == null || value === "") return null;
   return !["0", "f", "F", "false", "FALSE", "off", "OFF", "false "].includes(String(value));
 };

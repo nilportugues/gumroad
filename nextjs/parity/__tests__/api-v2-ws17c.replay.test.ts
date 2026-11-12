@@ -444,7 +444,11 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         expected.jobs = dedupeUnique(expected.jobs);
         // successful_sales_count, total_usd_cents and get_analytics search the purchases and page view indices, which Rails
         // filled as the sales were made and the views recorded.
-        if (name.includes("-reports-the-sales-figures-") || name.includes("-get-analytics-") || name.includes("-with-the-churn-breakdown-")) {
+        if (
+          name.includes("-reports-the-sales-figures-") ||
+          name.includes("-get-analytics-") ||
+          name.includes("-with-the-churn-breakdown-")
+        ) {
           afterRedisReset = async () => {
             const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
             const suffix = process.env.ES_INDEX_SUFFIX ?? "";
@@ -489,31 +493,31 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const iftttSales = name.includes("-sale-trigger");
         if (iftttSales) handedBack.length = 0;
         // SecureRandom.alphanumeric(8) permalinks and the guid cookie Rails mints for a request without one.
-        const result = await replayFixtureExchange(
-          fixture,
-          index,
-          replayOptions(
-            validity
-              ? VALIDITY_FIELDS
-              : rotates
-                ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
-                : createsUtmLink
-                  ? [
-                      "response.json.utm_link.short_url",
-                      "db.utm_links.inserted.*.permalink",
-                      "db.utm_links.inserted.*.browser_guid",
-                    ]
-                  : paginates
-                    ? ["response.json.next_page_key", "response.json.next_page_url"]
-                    : iftttSales
-                      ? ["response.json.data.*.meta.timestamp"]
-                      : tripsThrottle
-                        ? ["response.headers.retry-after"]
-                        : [],
-          ),
+        const options = replayOptions(
+          validity
+            ? VALIDITY_FIELDS
+            : rotates
+              ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
+              : createsUtmLink
+                ? [
+                    "response.json.utm_link.short_url",
+                    "db.utm_links.inserted.*.permalink",
+                    "db.utm_links.inserted.*.browser_guid",
+                  ]
+                : paginates
+                  ? ["response.json.next_page_key", "response.json.next_page_url"]
+                  : iftttSales
+                    ? ["response.json.data.*.meta.timestamp"]
+                    : tripsThrottle
+                      ? ["response.headers.retry-after"]
+                      : [],
         );
-        reconcilePermalink(result.exchanges[0]!, replayOptions().compare, fixture.sessionCookie);
-        maskGeneratedUids(result.exchanges[0]!, replayOptions().compare);
+        const result = await replayFixtureExchange(fixture, index, options);
+        reconcilePermalink(result.exchanges[0]!, options.compare, fixture.sessionCookie);
+        maskGeneratedUids(result.exchanges[0]!, {
+          ...options.compare,
+          ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
+        });
         assertParity(result);
         if ((expected.response.json as { product?: { files?: unknown } } | undefined)?.product?.files !== undefined) {
           const signed = (result.exchanges[0]!.actual.response.json as { product?: { files?: { url: string }[] } })
