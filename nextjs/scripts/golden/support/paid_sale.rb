@@ -89,13 +89,17 @@ end
 
 # Seeds a $5 purchase sold by a seller, held by Gumroad's Stripe account unless `account:` says otherwise (:gumroad,
 # :seller_connect or :none), and yields (purchase, seller, merchant_account) to add rows. Returns the seed as table => rows.
-def sale(account: :gumroad, price_cents: 500, fee_cents: 145, succeeded_at: SEEDED_AT, **purchase_attributes)
+def sale(account: :gumroad, price_cents: 500, fee_cents: 145, succeeded_at: SEEDED_AT, managed_currency: "usd", **purchase_attributes)
   universe do
     seller = create(:user, created_at: SEEDED_AT, updated_at: SEEDED_AT)
     product = create(:product, user: seller, unique_permalink: "paid", price_cents:, created_at: SEEDED_AT, updated_at: SEEDED_AT)
     merchant_account =
       case account
       when :gumroad then MerchantAccount.create!(charge_processor_id: "stripe", charge_processor_merchant_id: "acct_platform", charge_processor_alive_at: SEEDED_AT)
+      when :seller_managed
+        # A Stripe account Gumroad manages for the seller (holder_of_funds "stripe"): it has a user but is not a Connect account.
+        MerchantAccount.create!(user: seller, charge_processor_id: "stripe", charge_processor_merchant_id: "acct_managed", charge_processor_alive_at: SEEDED_AT,
+                                country: "US", currency: managed_currency)
       when :seller_connect
         MerchantAccount.create!(user: seller, charge_processor_id: "stripe", charge_processor_merchant_id: "acct_seller", charge_processor_alive_at: SEEDED_AT,
                                 json_data: { "meta" => { "stripe_connect" => "true" } }, country: "US", currency: "usd")

@@ -175,6 +175,14 @@ export async function findMerchantAccountByProcessorMerchantId(id: string): Prom
   return row ? MerchantAccounts.load(castRow<MerchantAccount>("MerchantAccount", row)) : null;
 }
 
+// MerchantAccount.gumroad(charge_processor_id): `where(user_id: nil, charge_processor_id:).first`
+export async function gumroadMerchantAccountFor(processor: string): Promise<MerchantAccountRecord | null> {
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} = ${processor} ORDER BY ${column("merchant_accounts", "id")} ASC LIMIT 1`,
+  );
+  return row ? MerchantAccounts.load(castRow<MerchantAccount>("MerchantAccount", row)) : null;
+}
+
 // `merchant_account.user`
 export const merchantAccountUser = (account: MerchantAccountRecord) =>
   readBelongsTo(account, { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" }, Users);
