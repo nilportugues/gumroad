@@ -11,6 +11,9 @@ const mocks = vi.hoisted(() => ({
   guardRedirect: vi.fn(),
   allowed: vi.fn(),
   isSet: vi.fn(),
+  removalBlocker: vi.fn(),
+  markDeletedBang: vi.fn(),
+  deliverLater: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -29,6 +32,14 @@ vi.mock("../models/sql.ts", () => ({
 }));
 vi.mock("../models/user.ts", () => ({ UserFlags: { isSet: mocks.isSet } }));
 vi.mock("../page-props/dashboard/affiliates.ts", () => ({ findDirectAffiliate: mocks.findDirectAffiliate }));
+vi.mock("../models/direct-affiliate-removal.ts", () => ({
+  removalBlocker: mocks.removalBlocker,
+  markDeletedBang: mocks.markDeletedBang,
+  loadAffiliate: (row: unknown) => row,
+}));
+vi.mock("../mail/active-job.ts", () => ({ deliverLater: mocks.deliverLater }));
+vi.mock("../mail/delivery.ts", () => ({ mailRoute: () => "ruby" }));
+vi.mock("../models/concerns/job-runtime.ts", () => ({ currentJobsRuntime: () => ({}) }));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../policies/direct-affiliate.ts", () => ({
   directAffiliatePolicy: {
@@ -183,8 +194,30 @@ describe("DELETE /affiliates/:id", () => {
     await expect(call(destroy, undefined, "unknown")).rejects.toBeInstanceOf(RoutingError);
   });
 
-  it("hands the removal of the seller's affiliate to Rails", async () => {
+  it("hands a removal Node cannot prove to Rails before writing", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValue([{ id: 7 }]);
+    mocks.removalBlocker.mockResolvedValue("an affiliate that is already deleted");
     await expect(call(destroy, undefined)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.markDeletedBang).not.toHaveBeenCalled();
+    expect(mocks.deliverLater).not.toHaveBeenCalled();
+  });
+
+  it("soft deletes the affiliate, then queues the removal mail", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValue([{ id: 7 }]);
+    mocks.removalBlocker.mockResolvedValue(null);
+    const order: string[] = [];
+    mocks.markDeletedBang.mockImplementation(async () => void order.push("delete"));
+    mocks.deliverLater.mockImplementation(async () => void order.push("mail"));
+    const result = await call(destroy, undefined);
+    expect(order).toEqual(["delete", "mail"]);
+    expect(mocks.deliverLater.mock.calls[0]![1]).toMatchObject({
+      mailer: "AffiliateMailer",
+      method: "direct_affiliate_removal",
+      args: [7],
+    });
+    expect(result).toMatchObject({ location: "/affiliates", flash: { notice: "Affiliate deleted successfully" } });
   });
 });
 

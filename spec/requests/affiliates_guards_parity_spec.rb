@@ -225,14 +225,6 @@ describe "AffiliatesController guards", type: :request do
 
       expect(response).to redirect_to(dashboard_url)
     end
-
-    it "hands the removal to Rails", parity: true do
-      log_in(seller)
-
-      send_json(:delete, affiliate_path(direct_affiliate.external_id))
-
-      expect(response).to redirect_to(affiliates_path)
-    end
   end
 
   describe "GET /affiliates/:id/subscribe_posts" do

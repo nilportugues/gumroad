@@ -51,7 +51,8 @@ Replays that count Rack::Attack buckets (`audience-mutations.replay`) also need 
 - A request spec with `has_http_status(:found)` on an Inertia write gets `303`; the fixture records what Rails says.
 - A hand-back example must be named `hands a ...` (`hands an ...` in the mobile and auth replays): the replay then
   asserts the request reached the Rails stand-in and wrote nothing, instead of comparing a response.
-- Mail enqueued by a request spec goes through the test adapter, so fixtures hold no mail job; the replays assert it.
+- Mail enqueued by a request spec goes through the test adapter, so fixtures hold no mail job; the replays assert it. Tag the example `parity_mail_jobs: true` to record `deliver_later` as a `MailDeliveryJob` in `jobs` (Sidekiq adapter for that example), and compare it in the replay with `redisJobsChannel` from `parity/src/active-job.ts`.
+- Inside a container whose repo mount is a git worktree, an env file in the host scratchpad is not visible (`/tmp` is not shared with the Docker VM): keep it under the worktree's `tmp/`. A fresh worktree also needs `public/vite-test` and `tmp/cache/vite/last-build-test.json` copied from the main checkout, or every Inertia page fails with a missing Vite entrypoint.
 - Hour-granular relative timestamps (`<now-7296h>`) flip a date near UTC midnight: two `subscription_end_date`
 - A fixed date in a spec (a profile status of `2026-05-01T08:30Z`) recorded as `<now-4677h>` stays right only while the replay reads the recording instant, so `twitter-omniauth.replay` pins both clocks to it like the Apple replay (without that, 17 tests failed a day later). A delayed job whose `at` the replay reads off the drain (Apple, `perform_in(4.seconds)`) is reported as no delay inside the `<now>` tolerance, since the request latency otherwise pushes it to `<now+5s>`.
   examples in `api-v2-ws17b` fail between roughly 23:00 and 01:00 UTC and pass otherwise.

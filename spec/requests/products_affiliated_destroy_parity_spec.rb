@@ -4,8 +4,7 @@ require "spec_helper"
 
 # DELETE /products/affiliated/:id (Products::AffiliatedController#destroy), recorded for the Next.js port (PARITY_RECORD=1) and replayed
 # by nextjs/parity/__tests__/ws12o.replay.test.ts, which sends the last request of each example. Node answers the 404s and the policy;
-# an example named "hands a ..." is a removal that passes both, which Node leaves to Rails whole because it soft-deletes the row and
-# mails the seller.
+# the removals that pass both are in products_affiliated_removal_parity_spec.rb.
 describe "Products::AffiliatedController#destroy", type: :request do
   include Parity::AudienceSignedIn
 
@@ -79,22 +78,5 @@ describe "Products::AffiliatedController#destroy", type: :request do
     remove
 
     expect(response).to have_http_status(:unauthorized)
-  end
-
-  it "hands a removal by the affiliate to Rails", parity: true do
-    log_in(affiliate_user)
-
-    remove
-
-    expect(response).to have_http_status(:ok)
-    expect(direct_affiliate.reload.deleted_at).to be_present
-  end
-
-  it "hands a removal by an admin team member to Rails", parity: true do
-    team_member(TeamMembership::ROLE_ADMIN)
-
-    remove
-
-    expect(response).to have_http_status(:ok)
   end
 end

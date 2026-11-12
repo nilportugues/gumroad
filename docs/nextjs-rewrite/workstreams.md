@@ -322,3 +322,7 @@ captured, and the Gemfile.
 **Payments hand-backs (ninth pass, `nextjs/ws-payments-9`):** the ws-payments-7 mutation survivors are closed (golden 70 to 90 cases; one real fix: empty Stripe metadata matches a blank refund id) and the seller's refund balance transaction with its balance selection is ported against a 13-case Ruby golden (`models/refund-seller-balance.ts`, own file, `balance-transaction.ts` untouched). `PUT /purchases/:id/refund` is still handed back before any write; see parity-debt.md for what remains.
 
 **Payments hand-backs (tenth pass, `nextjs/ws-payments-8`):** `prepare_payment_and_set_amount`, `process_payments`/`perform_payment` and the reversal of a failed payout run in Node (`models/payout-prepare.ts`, `payout-perform.ts`, `payout-reversal.ts`), each replayed against a Ruby golden with Stripe call order asserted. `POST /instant_payouts` and `InstantPayoutsService` stay handed back whole; see [parity-debt.md](parity-debt.md).
+
+**WS-18 affiliates 1 (`nextjs/ws18-affiliates-1`, lane 29):** `parity_mail_jobs` records `deliver_later` and replays compare the mail job (`parity/src/active-job.ts`); `DELETE /affiliates/:id` runs in Node with its removal mail proven; the rest of E16 is untouched (see [parity-debt.md](parity-debt.md)).
+
+**WS-18 affiliates 1, second slice (lane 29):** `DELETE /products/affiliated/:id` runs in Node with its mail to the seller proven (see [parity-debt.md](parity-debt.md)).
