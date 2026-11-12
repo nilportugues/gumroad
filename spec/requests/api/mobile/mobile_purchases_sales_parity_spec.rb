@@ -66,12 +66,273 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(other.reload.is_deleted_by_buyer).to eq(false)
     end
 
-    it "hands a library with purchases to Rails", parity: true do
+    it "lists a library with one purchase", parity: true do
       library_purchase
 
       get "/mobile/purchases/index", params: auth(buyer)
 
       expect(response.parsed_body["products"].size).to eq(1)
+    end
+
+    describe "the library listing" do
+      let(:other_seller) { create(:user, name: "Other Seller") }
+      let(:alpha) { create(:product, user: seller, name: "Alpha guide") }
+      let(:beta) { create(:product, user: seller, name: "Beta 100%_pack") }
+
+      def listed(link, **attributes)
+        purchase_row(link:, seller: link.user, purchaser: buyer, email: buyer.email, purchase_state: "successful", **attributes)
+      end
+
+      def listed_ids(key = "products") = response.parsed_body[key].map { _1["purchase_id"] }
+
+      it "lists the buyer's purchases newest first and leaves out the ones the library hides", parity: true do
+        older = listed(alpha, created_at: 5.hours.ago)
+        newer = listed(beta, created_at: 2.hours.ago)
+        archived = listed(alpha, created_at: 3.hours.ago, flags: Purchase.flag_mapping["flags"][:is_archived])
+        listed(alpha, is_deleted_by_buyer: true)
+        listed(alpha, stripe_refunded: true)
+        listed(alpha, purchase_state: "failed")
+        purchase_row(link: alpha, seller:, purchase_state: "successful", email: "other@example.com")
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(listed_ids).to eq([newer, archived, older].sort_by { -_1.id }.map(&:external_id))
+        expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "items" => 100, "pages" => 1)
+      end
+
+      it "pages through the library", parity: true do
+        rows = Array.new(3) { |n| listed(alpha, created_at: (n + 1).hours.ago) }
+
+        get "/mobile/purchases/index", params: auth(buyer).merge(per_page: "2", page: "2")
+
+        expect(listed_ids).to eq([rows.min_by(&:id).external_id])
+        expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "items" => 2, "page" => 2, "pages" => 2, "prev" => 1, "next" => nil, "last" => 2)
+      end
+
+      it "lists the files of a purchase with a url redirect", parity: true do
+        purchase = listed(alpha)
+        create(:readable_document, link: alpha, position: 0)
+        create(:url_redirect, purchase:, link: alpha)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["file_data"].size).to eq(1)
+      end
+
+      it "hands a library page past the last to Rails", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/index", params: auth(buyer).merge(page: "3")
+
+        expect(response).to have_http_status(:bad_request)
+      end
+
+      it "lists a library with a membership", parity: true do
+        membership = create(:membership_product, user: seller)
+        purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer), purchaser: buyer, email: buyer.email)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].size).to eq(1)
+      end
+
+      it "hands a library with a post to show to Rails", parity: true do
+        listed(alpha)
+        create(:installment, link: alpha, published_at: Time.current, shown_on_profile: true, send_emails: false)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["product_updates_data"].size).to eq(1)
+      end
+
+      it "searches by product name, matching a percent sign and an underscore literally", parity: true do
+        listed(alpha)
+        listed(create(:product, user: seller, name: "Gamma 1009x"))
+        match = listed(beta)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(q: "100%_")
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+        expect(response.parsed_body["sellers"]).to eq([{ "id" => seller.external_id, "name" => seller.name, "purchases_count" => 1 }])
+      end
+
+      it "searches by seller name without product updates", parity: true do
+        listed(alpha)
+        other_product = create(:product, user: other_seller, name: "Gamma")
+        match = listed(other_product)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(q: "other sel")
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+        expect(response.parsed_body["purchases"].first).not_to have_key("product_updates_data")
+        expect(response.parsed_body["sellers"].first).to include("id" => other_seller.external_id, "purchases_count" => 1)
+      end
+
+      it "filters by seller", parity: true do
+        listed(alpha)
+        match = listed(create(:product, user: other_seller))
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(seller: other_seller.external_id)
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+      end
+
+      it "finds nothing for a seller that does not exist", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(seller: "nobody")
+
+        expect(response.parsed_body).to include("purchases" => [], "sellers" => [])
+      end
+
+      it "filters archived purchases", parity: true do
+        listed(alpha, created_at: 2.hours.ago)
+        archived = listed(alpha, created_at: 1.hour.ago, flags: Purchase.flag_mapping["flags"][:is_archived])
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(archived: "true")
+
+        expect(listed_ids("purchases")).to eq([archived.external_id])
+      end
+
+      it "filters active purchases when archived is a false word", parity: true do
+        active = listed(alpha, created_at: 2.hours.ago)
+        listed(alpha, created_at: 1.hour.ago, flags: Purchase.flag_mapping["flags"][:is_archived])
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(archived: "off")
+
+        expect(listed_ids("purchases")).to eq([active.external_id])
+      end
+
+      it "filters by purchase id", parity: true do
+        listed(alpha)
+        match = listed(beta)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(purchase_ids: match.external_id)
+
+        expect(listed_ids("purchases")).to eq([match.external_id])
+      end
+
+      it "finds nothing for a purchase id it cannot decode", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(purchase_ids: "garbage")
+
+        expect(response.parsed_body["purchases"]).to eq([])
+      end
+
+      it "orders by date ascending and pages with items", parity: true do
+        rows = Array.new(3) { |n| listed(alpha, created_at: (3 - n).hours.ago) }
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(order: "date-asc", items: "2", page: "2")
+
+        expect(listed_ids("purchases")).to eq([rows.last.external_id])
+        expect(response.parsed_body["meta"]["pagination"]).to include("count" => 3, "items" => 2, "page" => 2, "pages" => 2)
+      end
+
+      it "orders an unknown order by id descending", parity: true do
+        older = listed(alpha, created_at: 1.hour.ago)
+        newer = listed(alpha, created_at: 3.hours.ago)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(order: "bogus")
+
+        expect(listed_ids("purchases")).to eq([newer, older].sort_by { -_1.id }.map(&:external_id))
+      end
+
+      it "hands a search over purchases of several sellers to Rails", parity: true do
+        listed(alpha)
+        listed(create(:product, user: other_seller))
+
+        get "/mobile/purchases/search", params: auth(buyer)
+
+        expect(response.parsed_body["sellers"].size).to eq(2)
+      end
+    end
+
+    describe "memberships" do
+      let(:membership) { create(:membership_product, user: seller) }
+      let(:subscription) { create(:subscription, link: membership, user: buyer) }
+      let(:original) { purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", is_original_subscription_purchase: true, subscription:) }
+
+      def product_json = response.parsed_body["product"]
+
+      it "reads a live membership with its subscription data", parity: true do
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to eq("id" => subscription.external_id, "subscribed_at" => subscription.created_at.as_json, "ended_at" => nil, "ended_reason" => nil)
+      end
+
+      it "reports a cancelled membership as cancelled", parity: true do
+        subscription.update_columns(cancelled_at: 2.hours.ago, deactivated_at: 2.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to include("ended_reason" => "cancelled")
+        expect(product_json["subscription_data"]["ended_at"]).to be_present
+      end
+
+      it "reports a membership whose payment failed", parity: true do
+        subscription.update_columns(failed_at: 3.hours.ago, deactivated_at: 3.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to include("ended_reason" => "failed_payment")
+      end
+
+      it "reports a membership that reached its end", parity: true do
+        subscription.update_columns(ended_at: 4.hours.ago, deactivated_at: 4.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["subscription_data"]).to include("ended_reason" => "fixed_subscription_period_ended")
+      end
+
+      it "hands a membership whose cancellation is still in the future to Rails", parity: true do
+        create(:url_redirect, purchase: original, link: membership)
+        subscription.update_columns(cancelled_at: 3.days.from_now)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json).to have_key("file_data")
+      end
+
+      it "leaves file_data out for a membership that ended", parity: true do
+        create(:url_redirect, purchase: original, link: membership)
+        subscription.update_columns(ended_at: 4.hours.ago, deactivated_at: 4.hours.ago)
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("url_redirect_token" => be_present)
+        expect(product_json).not_to have_key("file_data")
+      end
+
+      it "reads the review of the original purchase from a renewal", parity: true do
+        create(:product_review, purchase: original, link: membership, rating: 3)
+        renewal = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", subscription:)
+
+        get "/mobile/purchases/purchase_attributes/#{renewal.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("product_rating" => 3, "purchase_id" => renewal.external_id)
+      end
+
+      it "reads a refunded renewal of a cancelled membership", parity: true do
+        original
+        subscription.update_columns(cancelled_at: 1.hour.ago, deactivated_at: 1.hour.ago)
+        renewal = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", subscription:, stripe_refunded: true)
+
+        get "/mobile/purchases/purchase_attributes/#{renewal.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("refunded" => true)
+      end
+
+      it "hands a live membership with files and a tier to Rails", parity: true do
+        create(:readable_document, link: membership, position: 0)
+        create(:url_redirect, purchase: original, link: membership)
+        original.variant_attributes << membership.tiers.first
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json).to have_key("file_data")
+      end
     end
 
     it "serves the buyer's own purchase with no product updates", parity: true do
@@ -81,6 +342,137 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["product"]).to include("purchase_id" => purchase.external_id, "product_updates_data" => [])
+    end
+
+    describe "refunds and reviews" do
+      let(:purchase) { purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", price_cents: 500, stripe_partially_refunded: true) }
+
+      def refund_row(amount_cents:, **attributes)
+        build(:refund, purchase:, amount_cents:, **attributes).tap { |refund| refund.save!(validate: false) }
+      end
+
+      def product_json = response.parsed_body["product"]
+
+      it "subtracts a partial refund from the refundable amount", parity: true do
+        refund_row(amount_cents: 200)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("amount_refundable_in_currency" => "3", "partially_refunded" => true, "refunded" => false)
+      end
+
+      it "sums several refunds and counts the refund with no amount as zero", parity: true do
+        refund_row(amount_cents: 100)
+        refund_row(amount_cents: 150)
+        refund_row(amount_cents: 0).update_columns(amount_cents: nil)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json["amount_refundable_in_currency"]).to eq("2.50")
+      end
+
+      it "leaves out a failed refund whose balance debits were reversed but keeps one that was not", parity: true do
+        refund_row(amount_cents: 100, status: "failed", balance_reversed_on_failure: true)
+        refund_row(amount_cents: 50, status: "canceled")
+        refund_row(amount_cents: 25, status: "failed", balance_reversed_on_failure: false)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json["amount_refundable_in_currency"]).to eq("4.25")
+      end
+
+      it "reports the rating of the purchase's review", parity: true do
+        create(:product_review, purchase:, link: product, rating: 4)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("product_rating" => 4)
+      end
+
+      it "reports a review that has no rating as null", parity: true do
+        create(:product_review, purchase:, link: product, rating: 1).update_columns(rating: nil)
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(product_json).to include("product_rating" => nil)
+      end
+
+      it "hands a refund whose balance_reversed_on_failure is not a boolean to Rails", parity: true do
+        refund_row(amount_cents: 100, status: "failed").update_columns(json_data: { balance_reversed_on_failure: "false" })
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    describe "preorders" do
+      let(:preorder_product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+      let(:preorder_link) { create(:preorder_link, link: preorder_product, release_at: Time.utc(2030, 1, 15, 12)) }
+      let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "authorization_successful") }
+      let!(:authorization) { purchase_row(:preorder_authorization_purchase, link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true) }
+
+      def charge_purchase(**attributes)
+        purchase_row(link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "successful", **attributes)
+      end
+
+      it "reads the authorization purchase of a preorder with its release date", parity: true do
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => authorization.external_id, "preorder_data" => { "external_id" => preorder.external_id, "release_at" => "2030-01-15T12:00:00Z" })
+      end
+
+      it "reads the preorder of a purchase made by a buyer with a name and an archived authorization", parity: true do
+        authorization.update_columns(flags: authorization.flags | Purchase.flag_mapping["flags"][:is_archived], full_name: "  Preorder Buyer ")
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("is_archived" => true, "full_name" => "Preorder Buyer")
+      end
+
+      it "reads a preorder whose latest purchase failed as the authorization", parity: true do
+        purchase_row(link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "failed")
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => authorization.external_id)
+        expect(response.parsed_body["product"]).to have_key("preorder_data")
+      end
+
+      it "reads the charge purchase of a preorder from the charge purchase itself", parity: true do
+        charge = charge_purchase
+
+        get "/mobile/purchases/purchase_attributes/#{charge.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id)
+        expect(response.parsed_body["product"]).not_to have_key("preorder_data")
+        expect(response.parsed_body["product"]).not_to have_key("custom_delivery_url")
+      end
+
+      it "reads the charge of a preorder from the authorization purchase when the charge has no url redirect", parity: true do
+        charge = charge_purchase
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id)
+      end
+
+      it "hands a preorder whose charge purchase has a url redirect to Rails", parity: true do
+        charge = charge_purchase
+        create(:url_redirect, purchase: charge, link: preorder_product)
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id, "url_redirect_token" => be_present)
+      end
+
+      it "hands a preorder whose seller has a post to Rails", parity: true do
+        create(:installment, link: preorder_product, published_at: Time.current, shown_on_profile: true, send_emails: false)
+
+        get "/mobile/purchases/purchase_attributes/#{authorization.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]["product_updates_data"].size).to eq(1)
+      end
     end
 
     it "does not find a refunded purchase", parity: true do

@@ -85,3 +85,54 @@ export async function creatorAppPurchasesJson(
     });
   });
 }
+
+// Refund::TERMINAL_FAILURE_STATUSES
+const TERMINAL_FAILURE_STATUSES = ["failed", "canceled"];
+
+// Purchase#amount_refunded_cents per purchase id: `refunds.effective.sum(:amount_cents)`, a failed or canceled refund counting
+// unless its balance debits were reversed. A `balance_reversed_on_failure` that is not a boolean compares differently in SQL
+// (`->>`) and in Ruby truthiness, so it is Rails'.
+export async function amountRefundedCentsByPurchase(purchaseIds: bigint[]): Promise<Map<bigint, number>> {
+  const totals = new Map<bigint, number>();
+  if (purchaseIds.length === 0) return totals;
+  const rows = await selectRows<{
+    purchase_id: bigint;
+    amount_cents: number | null;
+    status: string | null;
+    json_data: string | null;
+  }>(
+    Prisma.sql`SELECT ${column("refunds", "purchase_id")}, ${column("refunds", "amount_cents")}, ${column("refunds", "status")}, ${column("refunds", "json_data")} FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+  );
+  for (const row of rows) {
+    let data: unknown = {};
+    if (typeof row.json_data === "string" && row.json_data !== "") {
+      try {
+        data = JSON.parse(row.json_data);
+      } catch {
+        throw new NotPortedError("a refund whose json_data is not JSON");
+      }
+    }
+    if (data !== null && (typeof data !== "object" || Array.isArray(data)))
+      throw new NotPortedError("a refund whose json_data is not a hash");
+    const reversed = data === null ? undefined : (data as Record<string, unknown>).balance_reversed_on_failure;
+    if (reversed !== undefined && reversed !== null && typeof reversed !== "boolean")
+      throw new NotPortedError("a refund whose balance_reversed_on_failure is not a boolean");
+    const failed = row.status !== null && TERMINAL_FAILURE_STATUSES.includes(row.status);
+    if (failed && reversed === true) continue;
+    const id = BigInt(row.purchase_id);
+    totals.set(id, (totals.get(id) ?? 0) + Number(row.amount_cents ?? 0));
+  }
+  return totals;
+}
+
+// Purchase#original_product_review.try(:rating) for a purchase that is neither a gift sender's nor a membership's: its own review
+// (product_reviews.purchase_id is unique). A purchase without a review is absent from the map.
+export async function ratingByPurchase(purchaseIds: bigint[]): Promise<Map<bigint, number | null>> {
+  const ratings = new Map<bigint, number | null>();
+  if (purchaseIds.length === 0) return ratings;
+  const rows = await selectRows<{ purchase_id: bigint; rating: number | null }>(
+    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+  );
+  for (const row of rows) ratings.set(BigInt(row.purchase_id), row.rating === null ? null : Number(row.rating));
+  return ratings;
+}
