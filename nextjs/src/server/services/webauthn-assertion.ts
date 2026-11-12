@@ -1,8 +1,8 @@
 // WebAuthn::PublicKeyCredentialWithAssertion#verify (webauthn-ruby 3.4.3) for the passkey login: the client data, the authenticator
-// data, the ES256 signature and the counter. Anything this does not decide exactly as the gem does throws HandBackToRails, so Rails
-// answers instead: an algorithm other than ES256, authenticator data with attested credential or extension data, client data that is
+// data, the ES256, RS256 or PS256 signature and the counter. Anything this does not decide exactly as the gem does throws HandBackToRails, so Rails
+// answers instead: another algorithm, authenticator data with attested credential or extension data, client data that is
 // not a JSON object, and a signature OpenSSL would raise on rather than reject.
-import { createHash, createPublicKey, timingSafeEqual, verify } from "node:crypto";
+import { constants, createHash, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 
 import { HandBackToRails } from "../controllers/application-controller.ts";
 
@@ -20,6 +20,9 @@ const UNCOMPRESSED_POINT_LENGTH = 65;
 const UNCOMPRESSED_POINT_PREFIX = 0x04;
 const COORDINATE_LENGTH = 32;
 const COSE_KTY_EC2 = 2;
+const COSE_KTY_RSA = 3;
+const COSE_ALG_RS256 = -257;
+const COSE_ALG_PS256 = -37;
 const COSE_ALG_ES256 = -7;
 const COSE_CRV_P256 = 1;
 const DER_SEQUENCE = 0x30;
@@ -87,13 +90,28 @@ function readCbor(bytes: Buffer, offset: number): [CborValue, number] {
   }
 }
 
-// WebAuthn::PublicKey.deserialize: an uncompressed P-256 point (the format before webauthn-ruby 1.12) or a COSE_Key.
-function es256Coordinates(publicKey: Buffer): { x: Buffer; y: Buffer } {
+type StoredKey = { kind: "ec"; x: Buffer; y: Buffer } | { kind: "rsa"; n: Buffer; e: Buffer; pss: boolean };
+
+// WebAuthn::PublicKey.deserialize: an uncompressed P-256 point (the format before webauthn-ruby 1.12) or a COSE_Key, which is read
+// for the algorithm it names (ES256, RS256 or PS256 with the key type each needs).
+function storedKey(publicKey: Buffer): StoredKey {
   if (publicKey.length === UNCOMPRESSED_POINT_LENGTH && publicKey[0] === UNCOMPRESSED_POINT_PREFIX)
-    return { x: publicKey.subarray(1, 1 + COORDINATE_LENGTH), y: publicKey.subarray(1 + COORDINATE_LENGTH) };
+    return {
+      kind: "ec",
+      x: publicKey.subarray(1, 1 + COORDINATE_LENGTH),
+      y: publicKey.subarray(1 + COORDINATE_LENGTH),
+    };
   const [key, end] = readCbor(publicKey, 0);
   if (!(key instanceof Map) || end !== publicKey.length)
     throw new HandBackToRails("a stored key that is not a COSE map");
+  const algorithm = key.get(3);
+  if (key.get(1) === COSE_KTY_RSA && (algorithm === COSE_ALG_RS256 || algorithm === COSE_ALG_PS256)) {
+    const n = key.get(-1);
+    const e = key.get(-2);
+    if (!Buffer.isBuffer(n) || !Buffer.isBuffer(e) || n.length === 0 || e.length === 0)
+      throw new HandBackToRails("a stored RSA passkey with no modulus or exponent");
+    return { kind: "rsa", n, e, pss: algorithm === COSE_ALG_PS256 };
+  }
   const x = key.get(-2);
   const y = key.get(-3);
   if (
@@ -105,8 +123,30 @@ function es256Coordinates(publicKey: Buffer): { x: Buffer; y: Buffer } {
     x.length !== COORDINATE_LENGTH ||
     y.length !== COORDINATE_LENGTH
   )
-    throw new HandBackToRails("a stored passkey that is not ES256");
-  return { x, y };
+    throw new HandBackToRails("a stored passkey that is not ES256, RS256 or PS256");
+  return { kind: "ec", x, y };
+}
+
+// RS256 is OpenSSL's PKCS#1 v1.5 verify; PS256 is verify_pss with `salt_length: :auto` and SHA-256 for the mask. Both answer false for a
+// signature that does not verify, whatever its length.
+function rsaSignatureValid(key: Extract<StoredKey, { kind: "rsa" }>, signed: Buffer, signature: Buffer): boolean {
+  let publicKey;
+  try {
+    publicKey = createPublicKey({
+      key: { kty: "RSA", n: key.n.toString("base64url"), e: key.e.toString("base64url") },
+      format: "jwk",
+    });
+  } catch {
+    throw new HandBackToRails("an RSA key Node cannot load");
+  }
+  return verify(
+    "sha256",
+    signed,
+    key.pss
+      ? { key: publicKey, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: constants.RSA_PSS_SALTLEN_AUTO }
+      : { key: publicKey },
+    signature,
+  );
 }
 
 // OpenSSL parses the signature as a canonical DER ECDSA-Sig-Value and raises on anything else; only a well-formed one is judged here.
@@ -217,14 +257,18 @@ export function verifyAssertion(input: AssertionInput): AssertionAccepted | Asse
   if ((flags & (FLAG_USER_PRESENT | FLAG_USER_VERIFIED)) === 0) return refused;
   if ((flags & FLAG_USER_VERIFIED) === 0) return refused;
 
-  const { x, y } = es256Coordinates(publicKey);
-  if (!wellFormedDerSignature(input.signature)) throw new HandBackToRails("a signature OpenSSL cannot parse");
-  const key = createPublicKey({
-    key: { kty: "EC", crv: "P-256", x: x.toString("base64url"), y: y.toString("base64url") },
-    format: "jwk",
-  });
+  const stored = storedKey(publicKey);
   const signed = Buffer.concat([authenticatorData, sha256(input.clientDataJson)]);
-  if (!verify("sha256", signed, { key, dsaEncoding: "der" }, input.signature)) return refused;
+  if (stored.kind === "rsa") {
+    if (!rsaSignatureValid(stored, signed, input.signature)) return refused;
+  } else {
+    if (!wellFormedDerSignature(input.signature)) throw new HandBackToRails("a signature OpenSSL cannot parse");
+    const key = createPublicKey({
+      key: { kty: "EC", crv: "P-256", x: stored.x.toString("base64url"), y: stored.y.toString("base64url") },
+      format: "jwk",
+    });
+    if (!verify("sha256", signed, { key, dsaEncoding: "der" }, input.signature)) return refused;
+  }
 
   // #valid_sign_count?: a counter that never moved is fine, otherwise it has to grow.
   const signCount = authenticatorData.readUInt32BE(SIGN_COUNT_OFFSET);
