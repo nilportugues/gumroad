@@ -136,7 +136,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnZeroBuyerCurrencyWalletPurchasesJob": {
     "file": "app/sidekiq/alert_on_zero_buyer_currency_wallet_purchases_job.rb",
@@ -2147,7 +2147,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1500,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecurringChargeReminderWorker": {
     "file": "app/sidekiq/recurring_charge_reminder_worker.rb",
