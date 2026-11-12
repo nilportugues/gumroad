@@ -6,7 +6,17 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 
 import { railsEnv, railsRoot } from "../infra/rails-env.ts";
-import { type CacheEntry, type CacheVersion, dalliRetrieve, dalliStore, DALLI_VALUE_MAX_BYTES, dumpEntry, loadEntry, type LoadedEntry } from "./coder.ts";
+
+import {
+  type CacheEntry,
+  type CacheVersion,
+  dalliRetrieve,
+  dalliStore,
+  DALLI_VALUE_MAX_BYTES,
+  dumpEntry,
+  loadEntry,
+  type LoadedEntry,
+} from "./coder.ts";
 import { type CacheName, expandedVersion, normalizeKey, versionText } from "./keys.ts";
 import { type MarshalValue, RubyAsciiString } from "./marshal.ts";
 import { createMemcachedTransport } from "./memcached-client.ts";
@@ -29,12 +39,20 @@ export type CacheOptions = {
 };
 
 // Store::WriteOptions: what a fetch block may change before its result is written.
-export type WriteOptions = { version?: CacheOptions["version"]; expiresIn?: CacheOptions["expiresIn"]; expiresAt?: CacheOptions["expiresAt"] };
+export type WriteOptions = {
+  version?: CacheOptions["version"];
+  expiresIn?: CacheOptions["expiresIn"];
+  expiresAt?: CacheOptions["expiresAt"];
+};
 
 export type RailsCache = {
   read(name: CacheName, options?: CacheOptions): Promise<MarshalValue | undefined>;
   write(name: CacheName, value: MarshalValue, options?: CacheOptions): Promise<boolean>;
-  fetch<T extends MarshalValue>(name: CacheName, options: CacheOptions, block: (name: CacheName, options: WriteOptions) => Promise<T> | T): Promise<T>;
+  fetch<T extends MarshalValue>(
+    name: CacheName,
+    options: CacheOptions,
+    block: (name: CacheName, options: WriteOptions) => Promise<T> | T,
+  ): Promise<T>;
   delete(name: CacheName, options?: CacheOptions): Promise<boolean>;
   exist(name: CacheName, options?: CacheOptions): Promise<boolean>;
   transport: CacheTransport;
@@ -45,24 +63,32 @@ const RACE_CONDITION_TTL_PADDING = 5 * 60;
 
 type Merged = CacheOptions & { expiresIn?: number | null };
 
-export function createRailsCache(config: { transport: CacheTransport; namespace: string | null; now?: () => number; onError?: (error: unknown) => void }): RailsCache {
+export function createRailsCache(config: {
+  transport: CacheTransport;
+  namespace: string | null;
+  now?: () => number;
+  onError?: (error: unknown) => void;
+}): RailsCache {
   const { transport } = config;
   const now = config.now ?? (() => Date.now() / 1000);
   const onError = config.onError ?? ((error: unknown) => console.error("DalliError", error));
 
   // Store#merged_options. raise_on_invalid_cache_expiration_time is on (new_framework_defaults_7_1).
   const merge = (options: CacheOptions = {}): Merged => {
-    if (options.expiresIn != null && options.expiresAt !== undefined) throw new Error("Either :expires_in or :expires_at can be supplied, but not both");
+    if (options.expiresIn != null && options.expiresAt !== undefined)
+      throw new Error("Either :expires_in or :expires_at can be supplied, but not both");
     const merged: Merged = { ...options };
     if (options.expiresAt !== undefined) {
       const at = options.expiresAt instanceof Date ? options.expiresAt.getTime() / 1000 : options.expiresAt;
       merged.expiresIn = at - now();
       delete merged.expiresAt;
     }
-    if (merged.expiresIn != null && merged.expiresIn < 0) throw new Error(`Cache expiration time is invalid, cannot be negative: ${merged.expiresIn}`);
+    if (merged.expiresIn != null && merged.expiresIn < 0)
+      throw new Error(`Cache expiration time is invalid, cannot be negative: ${merged.expiresIn}`);
     return merged;
   };
-  const keyFor = (name: CacheName, options: Merged) => normalizeKey(name, "namespace" in options ? (options.namespace ?? null) : config.namespace);
+  const keyFor = (name: CacheName, options: Merged) =>
+    normalizeKey(name, "namespace" in options ? (options.namespace ?? null) : config.namespace);
   const versionFor = (name: CacheName, options: Merged): CacheVersion | null => {
     const { version } = options;
     if (version == null) return expandedVersion(name);
@@ -94,9 +120,12 @@ export function createRailsCache(config: { transport: CacheTransport; namespace:
     let expiresIn = Math.trunc(options.expiresIn ?? 0);
     if (options.raceConditionTtl !== undefined && expiresIn > 0) expiresIn += RACE_CONDITION_TTL_PADDING;
     return rescue(false, async () => {
-      if (value.length > DALLI_VALUE_MAX_BYTES) throw new Error(`Value for ${key} over max size: ${DALLI_VALUE_MAX_BYTES} <= ${value.length}`);
+      if (value.length > DALLI_VALUE_MAX_BYTES)
+        throw new Error(`Value for ${key} over max size: ${DALLI_VALUE_MAX_BYTES} <= ${value.length}`);
       const exptime = sanitizeTtl(expiresIn, now());
-      return options.unlessExist ? transport.add(key, value, flags, exptime) : transport.set(key, value, flags, exptime);
+      return options.unlessExist
+        ? transport.add(key, value, flags, exptime)
+        : transport.set(key, value, flags, exptime);
     });
   };
 
@@ -173,11 +202,29 @@ export function railsCacheNamespace(env = railsEnv()): string | null {
     return value;
   };
   if (env === "production") return required("REVISION");
-  if (env === "staging") return process.env.BRANCH_DEPLOYMENT !== undefined ? `${required("BRANCH")}-${required("REVISION")}` : required("REVISION");
+  if (env === "staging")
+    return process.env.BRANCH_DEPLOYMENT !== undefined
+      ? `${required("BRANCH")}-${required("REVISION")}`
+      : required("REVISION");
   return null;
 }
 
 let singleton: RailsCache | undefined;
+
+// The parity replays boot this process, so a spec's `Rails.cache.write` cannot reach its in-memory store: RAILS_CACHE_TEST_SEED
+// (a JSON object of key to value) writes those entries before the first read.
+function seedTestCache(cache: RailsCache): void {
+  const seed = process.env.RAILS_CACHE_TEST_SEED;
+  if (!seed) return;
+  const ready = Promise.all(
+    Object.entries(JSON.parse(seed) as Record<string, MarshalValue>).map(([key, value]) => cache.write(key, value)),
+  );
+  const get = cache.transport.get.bind(cache.transport);
+  cache.transport.get = async (key) => {
+    await ready;
+    return get(key);
+  };
+}
 
 // config.cache_store per environment: memcached in production and staging (and development
 // with tmp/caching-dev.txt), :null_store in development otherwise, and an in-memory store in
@@ -187,13 +234,15 @@ export function railsCache(): RailsCache {
   const env = railsEnv();
   let transport: CacheTransport;
   if (env === "test") transport = createMemoryTransport();
-  else if (env === "development" && !existsSync(path.join(railsRoot(), "tmp/caching-dev.txt"))) transport = createNullTransport();
+  else if (env === "development" && !existsSync(path.join(railsRoot(), "tmp/caching-dev.txt")))
+    transport = createNullTransport();
   else {
     const servers = process.env.MEMCACHE_SERVERS;
     if (servers === undefined) throw new Error('key not found: "MEMCACHE_SERVERS"');
     transport = createMemcachedTransport(servers.split(","));
   }
   singleton = createRailsCache({ transport, namespace: railsCacheNamespace(env) });
+  if (env === "test") seedTestCache(singleton);
   return singleton;
 }
 

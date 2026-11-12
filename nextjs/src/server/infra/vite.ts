@@ -31,3 +31,14 @@ export function viteAssetPath(name: string): string {
   // `path_to_asset` adds the asset host only where config.asset_host is set (staging and production).
   return `${local ? "" : (domainConfig().assetHost ?? "")}/${dir}/${entry.file}`;
 }
+
+// `vite_entrypoint_stylesheet_tag` with crossorigin: "anonymous": the stylesheet link, and the `Link: ...; rel=preload` header
+// Rails' stylesheet_link_tag adds for it.
+export function viteEntrypointStylesheet(entry: string): { tag: string; linkHeader: string } {
+  if (railsEnv() === "development") throw new NotPortedError("the Vite dev server's stylesheet tags");
+  const href = viteAssetPath(entry);
+  return {
+    tag: `<link rel="stylesheet" crossorigin="anonymous" href="${href}" />`,
+    linkHeader: `<${href}>; rel=preload; as=style; crossorigin=anonymous; nopush`,
+  };
+}

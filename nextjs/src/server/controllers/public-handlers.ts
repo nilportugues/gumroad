@@ -32,6 +32,8 @@ import {
   type Rendered,
 } from "./application-controller.ts";
 import { discordHandlers } from "./discord.ts";
+import { gumclawPage } from "./erb-pages.ts";
+import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
@@ -308,6 +310,11 @@ const HANDLERS: Record<string, Handler> = {
   features_md: {
     options: { bare: true },
     run: (request, url, action) => Promise.resolve(featuresMd(request, url, action.chain.now)),
+  },
+  gumclaw: { run: (request, _url, action) => gumclawPage(request, action) },
+  mcp_connectors_index: { run: (request, _url, action) => mcpConnectorPage(request, action, null) },
+  mcp_connectors_show: {
+    run: (request, url, action) => mcpConnectorPage(request, action, decodeURIComponent(url.pathname).replace(/^\/|\/$/gu, "")),
   },
   wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
   utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
