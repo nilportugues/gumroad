@@ -144,6 +144,10 @@ describe("a withheld ledger", () => {
   const HOLDS = [
     "a negative ledger is withheld and noted once",
     "a negative ledger already noted adds no second note",
+    "a negative ledger whose note was claimed long ago is claimed and reported again",
+    "a negative ledger whose note was claimed a moment ago is left alone",
+    "a negative ledger whose note failed to report is claimed and reported again",
+    "a negative ledger whose note was reported is left alone",
     "a group the claim leaves non-positive is released",
   ];
   for (const name of HOLDS) {

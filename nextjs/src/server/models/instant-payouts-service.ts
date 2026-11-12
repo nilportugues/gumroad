@@ -78,7 +78,7 @@ export async function performInstantPayouts(
     payoutType: PAYOUT_TYPE_INSTANT,
     ...(options.now ? { now: options.now } : {}),
     prepare: (payment, claimed, merchantAccount, payoutCurrency) =>
-      preparePaymentAndSetAmount(payment, claimed, merchantAccount, payoutCurrency, options),
+      preparePaymentAndSetAmount(payment, claimed, merchantAccount, payoutCurrency, options, true),
   });
   const outcomes: boolean[] = [];
   for (const [payment, errors] of payments) {

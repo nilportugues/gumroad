@@ -1,7 +1,7 @@
 // Replays process-payment-worker.golden.json (scripts/golden/process-payment-worker.rb): ProcessPaymentWorker run by the real app as a
 // Sidekiq job with its payout processors replaced by a recorder. Node reads the payment with the same statement, leaves every payment
-// that is not processing alone with the same Ruby error for a missing one, and hands a processing payment back before the processor
-// call (the cases where Rails reached the recorder) and an id Rails casts (a float, a word) back before any statement.
+// that is not processing alone with the same Ruby error for a missing one, and hands a processing payment of another processor back
+// before the processor call, and an id Rails casts (a float, a word) back before any statement. A Stripe payment is paid out in Node.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -63,7 +63,9 @@ describe("ProcessPaymentWorker", () => {
     });
   }
 
-  for (const c of golden.cases.filter((c) => c.processed.length > 0 && !CAST_IDS.has(c.name))) {
+  // A Stripe payment is paid out in Node: payout-users-service.golden.json replays it against the real processor.
+  const isStripe = (c: Case) => c.processed.some(([processor]) => processor === "STRIPE");
+  for (const c of golden.cases.filter((c) => c.processed.length > 0 && !CAST_IDS.has(c.name) && !isStripe(c))) {
     it(`hands ${c.name} back after reading it`, async () => {
       const { error, sql, recording } = await run(c.args, c.statements);
 

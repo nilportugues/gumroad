@@ -76,7 +76,13 @@ async function bankAccountOf(payment: PaymentRecord, user: UserRecord) {
 }
 
 // perform_payment: the errors, an empty list once the payout is requested.
-export async function performPaymentBang(payment: PaymentRecord, options: SaveOptions = {}): Promise<string[]> {
+// `progress.requested` is set once the payout request may have left, which is where a NotPortedError stops being a refusal made
+// before any write.
+export async function performPaymentBang(
+  payment: PaymentRecord,
+  options: SaveOptions = {},
+  progress: { requested: boolean } = { requested: false },
+): Promise<string[]> {
   let failed = false;
   let failureReason: string | null = null;
   let payoutRequested = false;
@@ -128,6 +134,7 @@ export async function performPaymentBang(payment: PaymentRecord, options: SaveOp
     if (payoutType != null && String(payoutType).trim() !== "") params.method = payoutType;
     // Past this point a bank payout may exist at Stripe even if the response never arrives.
     payoutRequested = true;
+    progress.requested = true;
     const stripePayout = await Payout.create(params as never, {
       stripeAccount: String(payment.get("stripe_connect_account_id")),
     });

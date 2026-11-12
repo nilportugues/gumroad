@@ -286,11 +286,16 @@ export async function holdNegativeLedger(
       state === "claimed" &&
       claimedAt != null &&
       Date.parse(String(claimedAt)) < now().getTime() - LEDGER_HOLD_FIFTEEN_MINUTES_MS;
-    if (state === "failed" || stale)
-      throw new NotPortedError(
-        "renewing a stale ledger hold note",
-        "app/business/payments/payouts/payouts.rb create_payments",
-      );
+    if (state === "failed" || stale) {
+      // Another run's report never finished: claim the note again and report it from here. Rails materialized the owner and the data first, which
+      // is the order the note's paper_trail snapshot lists them in.
+      previous.touch("commentable_id");
+      previous.touch("json_data");
+      setRecordJsonDataForAttr(previous, "ledger_hold_notification_state", "claimed");
+      setRecordJsonDataForAttr(previous, "ledger_hold_claimed_at", rubyIso8601(now()));
+      await Comments.saveBang(previous, options);
+      notify = true;
+    }
   }
   if (notify) {
     const reported = note!;
