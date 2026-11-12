@@ -1,7 +1,6 @@
 // Replays refresh-audience-member-job.golden.json (scripts/golden/refresh-audience-member-job.rb): RefreshAudienceMemberJob run by
 // the real app as a Sidekiq job. Node sends the statements Rails sent (the row lock, the sources, the save or destroy), enqueues the
-// same Elasticsearch job and fails with the same error; a purchase that could qualify and a direct affiliate are handed back before
-// any write.
+// same Elasticsearch job and fails with the same error; every source (purchase, follower, direct affiliate) is recorded for real.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -26,7 +25,6 @@ type Case = {
   error: { class: string; message: string } | null;
   statements: Statement[];
   redis: RedisSnapshot;
-  hands_back: boolean;
 };
 const golden = parseRubyJson(
   readFileSync(new URL("./__fixtures__/refresh-audience-member-job.golden.json", import.meta.url), "utf8"),
@@ -59,12 +57,7 @@ describe("RefreshAudienceMemberJob", () => {
         error = e;
       }
 
-      if (c.hands_back) {
-        expect((error as Error | null)?.name).toBe("HandBackToRuby");
-        expect(sql.log.some((statement) => /^(UPDATE|INSERT|DELETE)/u.test(statement))).toBe(false);
-      } else {
-        expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
-      }
+      expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
       expect(sql.log).toEqual(sql.expected);
       expect(recording.snapshot()).toEqual(c.redis);
     });

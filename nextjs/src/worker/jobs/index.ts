@@ -152,6 +152,7 @@ import {
   backfillMerchantAccountRecommendationEligibilityJob,
   reindexSubscriptionCurrentEmailWorker,
 } from "./search-reindex-jobs.ts";
+import { removeDeletedFilesFromS3Job } from "./remove-deleted-files-from-s3-job.ts";
 import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
@@ -349,6 +350,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RefreshAudienceMemberJob: refreshAudienceMemberJob,
   RefreshSitemapDailyWorker: refreshSitemapDailyWorker,
   RefreshSitemapMonthlyWorker: refreshSitemapMonthlyWorker,
+  RemoveDeletedFilesFromS3Job: removeDeletedFilesFromS3Job,
   RefreshWishlistSitemapDailyWorker: refreshWishlistSitemapDailyWorker,
   RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
   BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,

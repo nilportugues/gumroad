@@ -177,4 +177,5 @@ export const PORTED_JOBS: readonly string[] = [
   "RefreshSitemapDailyWorker",
   "RefreshWishlistSitemapDailyWorker",
   "RefreshSitemapMonthlyWorker",
+  "RemoveDeletedFilesFromS3Job",
 ];
