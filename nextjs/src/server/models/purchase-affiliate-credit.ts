@@ -1,6 +1,6 @@
-// Purchase#increment_affiliates_balance! / post_affiliate_credit! for a sale that credits a DirectAffiliate or a Collaborator (a
-// direct affiliate beside a collaborator on one sale is handed back by the caller): the affiliate's BalanceTransaction (and the day's Balance), then the AffiliateCredit row that
-// records it. The payout stays on Gumroad's account (`using_gumroad_merchant_account_for_affiliate_user?` is always true in Ruby), so
+// Purchase#increment_affiliates_balance! / post_affiliate_credit! for a sale that credits a DirectAffiliate, a Collaborator, or a
+// Collaborator with a DirectAffiliate beside it (the direct affiliate is posted first and the collaborator's fee is taken from what
+// its cut leaves): each affiliate's BalanceTransaction (and the day's Balance), then the AffiliateCredit row that records it. The payout stays on Gumroad's account (`using_gumroad_merchant_account_for_affiliate_user?` is always true in Ruby), so
 // no transfer and no registration mail follow.
 // Golden: __fixtures__/purchase-affiliate-balance.golden.json (scripts/golden/purchase-affiliate-balance.rb), run by the real class.
 //
@@ -24,6 +24,7 @@ import {
 } from "./balance-transaction.ts";
 import { type CheckoutEffects } from "./checkout-effects.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
+import { setJsonDataForAttr } from "./concerns/json-data.ts";
 import { belongsToRequired, setAssociation, type BelongsTo } from "./concerns/rails-validations.ts";
 import { MerchantAccounts } from "./merchant-account.ts";
 import type { PurchaseRecord } from "./purchase-create.ts";
@@ -45,6 +46,18 @@ const BASIS_POINTS_PER_UNIT = 10_000.0;
 const MAX_BASIS_POINTS = 100_00;
 // Purchase::Searchable::AffiliateCreditCallbacks: ElasticsearchIndexerWorker.perform_in(2.seconds, ...)
 const PURCHASE_INDEX_DELAY_SECONDS = 2;
+const AFFILIATE_COLUMNS = [
+  "id",
+  "seller_id",
+  "affiliate_user_id",
+  "affiliate_basis_points",
+  "created_at",
+  "updated_at",
+  "deleted_at",
+  "flags",
+  "destination_url",
+  "type",
+] as const;
 const TRACKED_COLUMNS = ["id", "affiliate_user_id", "amount_cents", "fee_cents"] as const;
 
 const notPorted = (what: string) =>
@@ -113,18 +126,7 @@ async function selectOne<T extends Row>(model: Prisma.ModelName, sql: Prisma.Sql
 
 // `purchase.affiliate`: the Affiliate model reads an explicit column list
 async function readAffiliate(id: bigint | number): Promise<Affiliate | null> {
-  const columns = [
-    "id",
-    "seller_id",
-    "affiliate_user_id",
-    "affiliate_basis_points",
-    "created_at",
-    "updated_at",
-    "deleted_at",
-    "flags",
-    "destination_url",
-    "type",
-  ].map((name) => column(AFFILIATES, name));
+  const columns = AFFILIATE_COLUMNS.map((name) => column(AFFILIATES, name));
   return selectOne<Affiliate>(
     "Affiliate",
     Prisma.sql`SELECT ${Prisma.join(columns, ", ")} FROM ${table(AFFILIATES)} WHERE ${column(AFFILIATES, "id")} = ${id} LIMIT 1`,
@@ -141,6 +143,35 @@ async function basisPoints(affiliate: Affiliate, productId: bigint | number | nu
     Prisma.sql`SELECT ${Prisma.raw("`affiliates_links`.*")} FROM ${table(PRODUCT_AFFILIATES)} WHERE ${column(PRODUCT_AFFILIATES, "affiliate_id")} = ${affiliate.id} AND ${column(PRODUCT_AFFILIATES, "link_id")} = ${productId} LIMIT 1`,
   );
   return row?.affiliate_basis_points ?? affiliate.affiliate_basis_points!;
+}
+
+// `DirectAffiliate.find_by(id: direct_affiliate_id)`
+async function readDirectAffiliate(id: bigint | number): Promise<Affiliate | null> {
+  const columns = AFFILIATE_COLUMNS.map((name) => column(AFFILIATES, name));
+  return selectOne<Affiliate>(
+    "Affiliate",
+    Prisma.sql`SELECT ${Prisma.join(columns, ", ")} FROM ${table(AFFILIATES)} WHERE ${column(AFFILIATES, "type")} = ${DIRECT_AFFILIATE} AND ${column(AFFILIATES, "id")} = ${id} LIMIT 1`,
+  );
+}
+
+// The JsonData concern keeps the direct affiliate's accessors in the purchase's json_data
+function jsonDataOf(record: PurchaseRecord): Record<string, unknown> {
+  const raw = record.get("json_data");
+  return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+}
+
+// `direct_affiliate_id.present?`
+export function hasDirectAffiliateId(record: PurchaseRecord): boolean {
+  const id = jsonDataOf(record).direct_affiliate_id;
+  return id !== undefined && id !== null && id !== "";
+}
+
+// The purchase's `affiliate_credit` / `direct_affiliate_credit` (has_one, loaded once per instance)
+async function creditRowExists(record: PurchaseRecord, direct: boolean): Promise<boolean> {
+  const [existing] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`affiliate_credits`.*")} FROM ${table(AFFILIATE_CREDITS)} WHERE ${column(AFFILIATE_CREDITS, "purchase_id")} = ${record.get("id")} AND ${column(AFFILIATE_CREDITS, "is_direct_affiliate_credit")} = ${direct ? Prisma.sql`TRUE` : Prisma.sql`FALSE`} LIMIT 1`,
+  );
+  return existing !== undefined;
 }
 
 const reader = (record: PurchaseRecord) => record.ivars.context as { seller: User; effects?: CheckoutEffects };
@@ -186,31 +217,27 @@ async function gumroadMerchantAccount(processor: string | null) {
   return row ? MerchantAccounts.load(row) : null;
 }
 
-// increment_affiliates_balance! for a purchase with `affiliate_credit_cents > 0` (the caller has checked it and the purchase's
-// merchant account). `chargedUsingGumroad` is `charged_using_gumroad_merchant_account?`, read by Ruby after the Gumroad account.
-export async function incrementAffiliatesBalanceBang(
-  record: PurchaseRecord,
-  facts: {
-    effects: Pick<CheckoutEffects, "featureActive">;
-    chargedUsingGumroad: () => Promise<boolean>;
-  },
-  options: SaveOptions = {},
-): Promise<void> {
-  const creditCents = record.get("affiliate_credit_cents") ?? 0;
-  const affiliateId = record.get("affiliate_id");
-  const affiliate = affiliateId == null ? null : await readAffiliate(affiliateId);
-  if (affiliate === null) throw notPorted("no affiliate");
-  if (affiliate.type !== DIRECT_AFFILIATE && affiliate.type !== COLLABORATOR) throw notPorted(`a ${affiliate.type}`);
-  if (affiliate.affiliate_basis_points == null || affiliate.affiliate_user_id == null)
-    throw notPorted("an affiliate without a rate or a user");
+type Facts = {
+  effects: Pick<CheckoutEffects, "featureActive">;
+  chargedUsingGumroad: () => Promise<boolean>;
+};
 
-  const feeCents = await affiliateFeeCents(record, affiliate, facts.effects);
+type CreditPost = {
+  affiliate: Affiliate;
+  amountCents: number;
+  feeCents: number;
+  // The memoized basis points of a direct affiliate or a collaborator sharing a sale; null leaves the model to look the rate up.
+  basisPoints: number | null;
+  direct: boolean;
+  // The plain path asks for an existing credit here; a sale with a direct affiliate asked while sizing the fee.
+  checkExisting: boolean;
+};
 
-  // return if affiliate_credit.present?
-  const [existing] = await selectRows(
-    Prisma.sql`SELECT ${Prisma.raw("`affiliate_credits`.*")} FROM ${table(AFFILIATE_CREDITS)} WHERE ${column(AFFILIATE_CREDITS, "purchase_id")} = ${record.get("id")} AND ${column(AFFILIATE_CREDITS, "is_direct_affiliate_credit")} = FALSE LIMIT 1`,
-  );
-  if (existing) return;
+// post_affiliate_credit!: the affiliate's BalanceTransaction (and Balance), then the AffiliateCredit row
+async function postAffiliateCredit(record: PurchaseRecord, facts: Facts, options: SaveOptions, post: CreditPost) {
+  const { affiliate } = post;
+  // return if (direct ? direct_affiliate_credit : affiliate_credit).present?
+  if (post.checkExisting && (await creditRowExists(record, post.direct))) return;
 
   const affiliateUser = await selectOne<User>(
     "User",
@@ -224,7 +251,7 @@ export async function incrementAffiliatesBalanceBang(
     if (merchantAccount === null) throw notPorted("no Gumroad merchant account");
     // update_user_balance_in_transaction_for_affiliate: only a charge on Gumroad's account is served
     if (!(await facts.chargedUsingGumroad())) throw notPorted("a seller's own Connect account");
-    const amount = affiliateAmount(creditCents);
+    const amount = affiliateAmount(post.amountCents);
     const transaction = await createBalanceTransactionBang(
       {
         user: Users.load(affiliateUser) as UserRecord,
@@ -239,12 +266,12 @@ export async function incrementAffiliatesBalanceBang(
   }
 
   // AffiliateCredit.create!: `basis_points || affiliate.basis_points(product_id: purchase.link_id)`
-  const rate = await basisPoints(affiliate, record.get("link_id"));
+  const rate = post.basisPoints ?? (await basisPoints(affiliate, record.get("link_id")));
   const credit = AffiliateCredits.build({
-    is_direct_affiliate_credit: false,
+    is_direct_affiliate_credit: post.direct,
     affiliate_id: affiliate.id,
-    amount_cents: creditCents,
-    fee_cents: BigInt(Math.ceil(feeCents)),
+    amount_cents: post.amountCents,
+    fee_cents: BigInt(Math.ceil(post.feeCents)),
     basis_points: rate,
     seller_id: record.get("seller_id") as never,
     affiliate_credit_success_balance_id: balance.id,
@@ -257,4 +284,106 @@ export async function incrementAffiliatesBalanceBang(
   setAssociation(credit, "affiliate_user", affiliateUser.id, affiliateUser as never);
   setAssociation(credit, "purchase", record.get("id"), record.attributes as never);
   await AffiliateCredits.saveBang(credit, options);
+}
+
+// `seller.bears_affiliate_fee? || Feature.active?(:sellers_bear_affiliate_fees)`, the first thing a direct affiliate's fee checks.
+// When it holds, Ruby returns a fee of 0 and leaves `direct_affiliate_basis_points` unset, then hands `AffiliateCredit.create!` a
+// blank rate. That sale is not recorded, so it is refused here, before the first write.
+async function sellerBearsDirectAffiliateFee(record: PurchaseRecord, effects: Pick<CheckoutEffects, "featureActive">) {
+  if (
+    isFlagSet(Users.load(reader(record).seller), "bears_affiliate_fee") ||
+    (await effects.featureActive("sellers_bear_affiliate_fees"))
+  )
+    throw notPorted("a direct affiliate beside a collaborator and a seller who bears the affiliate fee");
+}
+
+// A collaborator's sale that also credits a direct affiliate: the direct affiliate's credit first, then the collaborator's, whose fee
+// is its cut of what is left of the fee after the direct affiliate's share. Both rates are memoized in the purchase's json_data
+// (`direct_affiliate_basis_points`, `collaborator_basis_points`), which the seller's share save then writes.
+async function incrementWithDirectAffiliate(
+  record: PurchaseRecord,
+  collaborator: Affiliate,
+  direct: Affiliate,
+  facts: Facts,
+  options: SaveOptions,
+): Promise<void> {
+  const data = jsonDataOf(record);
+  const directCents = Number(data.direct_affiliate_credit_cents ?? 0);
+  const ownCents = (record.get("affiliate_credit_cents") ?? 0) - directCents;
+  // Unrecorded: a sale where one credit is empty, and rates already memoized (a purchase credited before).
+  if (directCents <= 0 || ownCents <= 0) throw notPorted("a direct affiliate beside a collaborator and an empty share");
+  if ("direct_affiliate_basis_points" in data || "collaborator_basis_points" in data)
+    throw notPorted("a direct affiliate beside a collaborator with its rates already stored");
+  if (direct.affiliate_basis_points == null || direct.affiliate_user_id == null)
+    throw notPorted("a direct affiliate without a rate or a user");
+  const fee = record.get("fee_cents");
+  if (fee == null || fee === 0) throw notPorted("a direct affiliate beside a collaborator and no fee");
+
+  // post_affiliate_credit!(direct_affiliate, ..., determine_direct_affiliate_fee_cents, direct: true): the fee argument first,
+  // its Flipper read, then `direct_affiliate_credit&.basis_points || direct_affiliate.basis_points(product_id:)`
+  await sellerBearsDirectAffiliateFee(record, facts.effects);
+  if (await creditRowExists(record, true)) throw notPorted("a direct affiliate credit already recorded");
+  const directRate = await basisPoints(direct, record.get("link_id"));
+  const directFee = (directRate / BASIS_POINTS_PER_UNIT) * fee;
+  await postAffiliateCredit(record, facts, options, {
+    affiliate: direct,
+    amountCents: directCents,
+    feeCents: directFee,
+    basisPoints: directRate,
+    direct: true,
+    checkExisting: false,
+  });
+
+  // post_affiliate_credit!(affiliate, own_affiliate_credit_cents, determine_affiliate_fee_cents): `affiliate_cut`
+  // (`affiliate_credit&.basis_points || affiliate.basis_points(product_id:)`) is read before the direct fee is worked out again
+  if (await creditRowExists(record, false))
+    throw notPorted("a collaborator credit already recorded beside a direct affiliate");
+  const collaboratorRate = await basisPoints(collaborator, record.get("link_id"));
+  await sellerBearsDirectAffiliateFee(record, facts.effects);
+  await postAffiliateCredit(record, facts, options, {
+    affiliate: collaborator,
+    amountCents: ownCents,
+    feeCents: (collaboratorRate / BASIS_POINTS_PER_UNIT) * (fee - directFee),
+    basisPoints: collaboratorRate,
+    direct: false,
+    checkExisting: false,
+  });
+
+  setJsonDataForAttr(record, "direct_affiliate_basis_points", directRate);
+  setJsonDataForAttr(record, "collaborator_basis_points", collaboratorRate);
+}
+
+// increment_affiliates_balance! for a purchase with `affiliate_credit_cents > 0` (the caller has checked it and the purchase's
+// merchant account). `chargedUsingGumroad` is `charged_using_gumroad_merchant_account?`, read by Ruby after the Gumroad account.
+export async function incrementAffiliatesBalanceBang(
+  record: PurchaseRecord,
+  facts: Facts,
+  options: SaveOptions = {},
+): Promise<void> {
+  const creditCents = record.get("affiliate_credit_cents") ?? 0;
+  const affiliateId = record.get("affiliate_id");
+  const affiliate = affiliateId == null ? null : await readAffiliate(affiliateId);
+  if (affiliate === null) throw notPorted("no affiliate");
+  if (affiliate.type !== DIRECT_AFFILIATE && affiliate.type !== COLLABORATOR) throw notPorted(`a ${affiliate.type}`);
+  if (affiliate.affiliate_basis_points == null || affiliate.affiliate_user_id == null)
+    throw notPorted("an affiliate without a rate or a user");
+
+  // credits_direct_affiliate?: direct_affiliate_id present, a collaborator, and the direct affiliate found
+  if (hasDirectAffiliateId(record)) {
+    if (affiliate.type !== COLLABORATOR) throw notPorted("a direct affiliate on a sale that is not a collaborator's");
+    const direct = await readDirectAffiliate(jsonDataOf(record).direct_affiliate_id as number);
+    if (direct === null) throw notPorted("a direct affiliate that no longer exists");
+    await incrementWithDirectAffiliate(record, affiliate, direct, facts, options);
+    return;
+  }
+
+  const feeCents = await affiliateFeeCents(record, affiliate, facts.effects);
+  await postAffiliateCredit(record, facts, options, {
+    affiliate,
+    amountCents: creditCents,
+    feeCents,
+    basisPoints: null,
+    direct: false,
+    checkExisting: true,
+  });
 }

@@ -70,6 +70,10 @@ module HttpCapture
     # headers a port must match: the Stripe-Account and the Idempotency-Key (random, so numbered by first appearance).
     attr_accessor :timeline
 
+    # A case that has to answer by request (Stripe, which sees a different call each time) sets a callable taking
+    # (request, entry): it returns {status:, body:, headers:}, or nil to fall back to `responses`, or raises to drop the connection.
+    attr_accessor :responder
+
     def next_response = (@responses&.shift || {})
 
     def request_entry(request)
@@ -94,7 +98,7 @@ module HttpCapture
       WebMock.stub_request(:any, /./).to_return do |request|
         entry = request_entry(request)
         requests << entry
-        answer = next_response
+        answer = responder&.call(request, entry) || next_response
         if answer[:dropped]
           entry["dropped"] = true
           raise Errno::ECONNRESET

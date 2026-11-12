@@ -14,6 +14,7 @@ import { PurchaseSearchService } from "../search/purchase-search.ts";
 import { defaultCheckoutEffects, type CheckoutEffects } from "./checkout-effects.ts";
 import { alpha2ByName } from "./compliance-countries.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
+import { mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
 import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { setAssociation } from "./concerns/rails-validations.ts";
 import { ago } from "./concerns/ruby-time.ts";
@@ -964,6 +965,8 @@ export const Purchases = defineModel<Purchase>({
     customFeePerThousand,
   ],
   beforeSave: [
+    // JsonData: a persisted purchase's json_data delta is rebased onto the row (the `FOR UPDATE` read)
+    mergeJsonDataWithCurrentRow("purchases", { keepAttributeOrder: true }),
     {
       // assign_default_rental_expired: is_rental did not change for a purchase that is not a rental
       name: "assign_default_rental_expired",

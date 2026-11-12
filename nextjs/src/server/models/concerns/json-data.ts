@@ -60,12 +60,22 @@ export function setJsonDataForAttr<R extends JsonDataRow>(record: ModelRecord<R>
 }
 
 // JsonData#merge_json_data_with_current_row: rebase this instance's json_data delta onto the row. `type` is the STI class: `unscoped` keeps its type condition, so the locking read carries it.
-export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(tableName: string, options: { type?: string } = {}): Callback<R> {
+export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(
+  tableName: string,
+  // `keepAttributeOrder`: the dirty check and the write leave json_data where PaperTrail's `object` lists it by column (a purchase's does)
+  options: { type?: string; keepAttributeOrder?: boolean } = {},
+): Callback<R> {
   return {
     name: "merge_json_data_with_current_row",
-    if: (r) => r.persisted && r.attributeChanged("json_data"),
+    if: (r) =>
+      r.persisted &&
+      (options.keepAttributeOrder
+        ? r.untracked(() => r.attributeChanged("json_data"))
+        : r.attributeChanged("json_data")),
     async run(record, { tx }) {
-      const was = record.attributeInDatabase("json_data");
+      const was = options.keepAttributeOrder
+        ? record.untracked(() => record.attributeInDatabase("json_data"))
+        : record.attributeInDatabase("json_data");
       const wasParsed = was == null ? null : rubyJsonParse(was);
       const base = toHash(wasParsed as YamlValue) ?? new RubyHash([]);
       const mine = jsonData(record);
@@ -88,7 +98,9 @@ export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(tableName: st
         } else if (index !== -1) merged.entries.splice(index, 1);
       }
       (record.ivars as Record<symbol, JsonDataState>)[JSON_DATA] = { hash: merged };
-      record.set("json_data", rubyJsonGenerate(merged) as R["json_data"]);
+      const write = () => record.set("json_data", rubyJsonGenerate(merged) as R["json_data"]);
+      if (options.keepAttributeOrder) record.untracked(write);
+      else write();
     },
   };
 }

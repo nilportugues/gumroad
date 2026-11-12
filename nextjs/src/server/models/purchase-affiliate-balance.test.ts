@@ -1,6 +1,7 @@
 // Replays purchase-affiliate-balance.golden.json (scripts/golden/purchase-affiliate-balance.rb): the real
 // Purchase#increment_sellers_balance! for a sale that credits a DirectAffiliate. Node must send the statements Rails sent between
-// the "increment" markers, make the Flipper reads and push the jobs in the same order, and hand a collaborator back before a write.
+// the "increment" markers, make the Flipper reads and push the jobs in the same order, and hand back the shapes it holds no
+// recording of before a write.
 //
 // One deliberate difference: Node reads the purchase's presentment before it credits the affiliate (Ruby reads it afterwards, in the
 // seller's share), so that a presentment is refused before the first write. The replay moves that one SELECT to the front.
@@ -41,15 +42,8 @@ function nodeOrder(span: Entry[]): Entry[] {
   return [span[index]!, ...span.slice(0, index), ...span.slice(index + 1)];
 }
 
-// A direct affiliate credited beside a collaborator is recorded (the second credit row, its fee taken from what the collaborator's
-// cut leaves) but not ported: Node hands it back before the first write.
-const DIRECT_ON_COLLABORATOR = new Set([
-  "a collaborator and a direct affiliate on one sale",
-  "a collaborator and a direct affiliate that is not on all products",
-]);
-
 describe("Purchase#increment_sellers_balance! with an affiliate", () => {
-  for (const c of golden.cases.filter((candidate) => !DIRECT_ON_COLLABORATOR.has(candidate.name))) {
+  for (const c of golden.cases) {
     it(`sends the statements, Flipper reads and jobs of ${c.name}`, async () => {
       const { span, purchase } = setupSale(c, "increment");
       const ordered = nodeOrder(span).filter((entry) => !("marker" in entry));
@@ -76,19 +70,33 @@ describe("Purchase#increment_sellers_balance! with an affiliate", () => {
     });
   }
 
-  for (const name of DIRECT_ON_COLLABORATOR) {
-    it(`hands back ${name} before it sends a write`, async () => {
-      const c = golden.cases.find((candidate) => candidate.name === name)!;
+  // Shapes the recording does not hold are refused after the presentment and the two affiliate reads and before the first write.
+  const REFUSED: [string, (json: Record<string, unknown>) => Record<string, unknown>, string][] = [
+    ["an empty direct share", (json) => ({ ...json, direct_affiliate_credit_cents: 0 }), "an empty share"],
+    ["rates already stored", (json) => ({ ...json, direct_affiliate_basis_points: 300 }), "its rates already stored"],
+  ];
+  for (const [what, change, message] of REFUSED) {
+    it(`hands back a direct affiliate beside a collaborator with ${what} before it sends a write`, async () => {
+      const c = golden.cases.find(
+        (candidate) => candidate.name === "a collaborator and a direct affiliate on one sale",
+      )!;
       const { span, purchase } = setupSale(c, "increment");
-      const sql = sqlReplay(nodeOrder(span).filter(isSql));
+      purchase.set(
+        "json_data",
+        JSON.stringify(change(JSON.parse(purchase.get("json_data") as string) as Record<string, unknown>)) as never,
+      );
+      const affiliateReads = nodeOrder(span)
+        .filter(isSql)
+        .filter((entry) => entry.sql.includes("FROM `affiliates`") || entry.sql.includes(PRESENTMENT));
+      const sql = sqlReplay(affiliateReads);
 
       const error = await withExecutor(() =>
         incrementSellersBalanceBang(purchase, { flowOfFunds: flowOf(c) }, { now: () => golden.now }),
       ).catch((caught: unknown) => caught);
 
       expect(error).toBeInstanceOf(NotPortedError);
-      expect((error as Error).message).toContain("a direct affiliate");
-      expect(sql.log).toEqual([]);
+      expect((error as Error).message).toContain(message);
+      expect(sql.log).toEqual(affiliateReads.map((entry) => entry.sql));
     });
   }
 });
