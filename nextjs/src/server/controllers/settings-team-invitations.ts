@@ -1,10 +1,9 @@
 // Settings::Team::InvitationsController (app/controllers/settings/team/invitations_controller.rb): #update, #destroy and #restore, the
 // refusals that come before a send in #create and #resend_invitation, and #accept up to the point where it joins the team.
 //
-// Handed to Rails before the first write: the join of #accept (switch_seller_account, the membership and
-// TeamMailer.invitation_accepted), and an invitation email that passes EMAIL_REGEX but is not a bare dot-atom mailbox, which
+// Handed to Rails before the first write: the join of #accept for the Gumroad account (it flags the member), and an invitation email that passes EMAIL_REGEX but is not a bare dot-atom mailbox, which
 // Mail::AddressList has to parse.
-import type { TeamInvitation } from "@prisma/client";
+import { Prisma, type TeamInvitation, type TeamMembership, type User } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
 
@@ -12,8 +11,11 @@ import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { afterCommitEverywhere } from "../models/concerns/job-runtime.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
 import {
   checkSendThrottle,
+  deliverInvitationAccepted,
   deliverInvite,
   invitationExpiry,
   invitationLimitMessage,
@@ -32,6 +34,7 @@ import {
   TeamInvitationDeletable,
   TeamInvitations,
 } from "../models/team-invitation.ts";
+import { TeamMemberships } from "../models/team-membership.ts";
 import { findUser, isAccountActive, isConfirmed, Users, type UserRecord } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { NotAuthorizedError, loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
@@ -41,6 +44,7 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { toSentence } from "./settings-mutations.ts";
+import { switchSellerAccount } from "./switch-seller-account.ts";
 
 const NOT_FOUND = 404;
 const FORBIDDEN = 403;
@@ -50,6 +54,7 @@ const TOO_MANY_REQUESTS = 429;
 const FOUND = 302;
 const INACTIVE_SENDER_MESSAGE = "Your account can't send team invitations right now.";
 const UNREVIEWED_LIMIT_MESSAGE = `New accounts can have up to ${UNREVIEWED_TOTAL_LIMIT} team invitations while the account is being reviewed. Please contact support if you need more.`;
+const GUMROAD_ACCOUNT_EMAIL_PREFIX = "hi@";
 const INVALID_LINK_MESSAGE = "Invitation link is invalid. Please contact the account owner.";
 // The constraint Rails' default `:id` segment gives an external id, and the `.json` the team routes require (`format: :json`).
 const INVITATION = "/settings/team/invitations/:id([A-Za-z0-9_=-]+).json";
@@ -271,8 +276,62 @@ async function acceptInvitation(input: MutationInput): Promise<ActionResult> {
     await TeamInvitationDeletable.markDeletedBang(invitation);
     message = INVALID_LINK_MESSAGE;
   }
-  if (message === null) throw new HandBackToRails("joining the team, which sends mail");
-  return { status: FOUND, location: dashboard, flash: { alert: message } };
+  if (message !== null) return { status: FOUND, location: dashboard, flash: { alert: message } };
+
+  // `from_gumroad_account?` also flags the user `is_team_member`; any `hi@` seller is left to Rails, as removing one is.
+  if (String(seller!.get("email") ?? "").startsWith(GUMROAD_ACCOUNT_EMAIL_PREFIX))
+    throw new HandBackToRails("joining the Gumroad account's team");
+  const membership = await joinTeam(invitation, loggedIn);
+  if (membership === null) return { status: FOUND, location: dashboard, flash: { alert: INVALID_LINK_MESSAGE } };
+  const now = new Date();
+  const cookie = await switchSellerAccount(input.request.host, membership, now);
+  return {
+    status: FOUND,
+    location: dashboard,
+    flash: { notice: `Welcome to the team at ${seller!.get("username")}!` },
+    cookies: [cookie],
+  };
+}
+
+// The `User.transaction` block of #accept. Null when the seller was suspended before the locks were taken.
+async function joinTeam(invitation: Invitation, loggedIn: UserRecord): Promise<ModelRecord<TeamMembership> | null> {
+  return transaction(async () => {
+    // Reciprocal invitations must acquire both user locks in the same order.
+    const rows = await selectRows(
+      Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "id")} IN (${Prisma.join([loggedIn.get("id"), invitation.get("seller_id")])}) ORDER BY ${column("users", "id")} ASC FOR UPDATE`,
+    );
+    await Users.lockBang(loggedIn);
+    const sellerRow = rows.find((row) => BigInt(row.id as bigint | number) === BigInt(invitation.get("seller_id")));
+    const seller = sellerRow ? Users.load(castRow<User>("User", sellerRow)) : null;
+    if (seller === null || !isAccountActive(seller)) return null;
+
+    const now = new Date();
+    await TeamInvitations.updateBang(invitation, { accepted_at: now, deleted_at: now }, { now: () => now });
+    await createOwnerMembershipIfNeeded(loggedIn, now);
+    const membership = await TeamMemberships.createBang(
+      {
+        seller_id: seller.get("id"),
+        user_id: loggedIn.get("id"),
+        role: invitation.get("role"),
+      } as Partial<TeamMembership>,
+      { now: () => now },
+    );
+    // ActiveJob's Sidekiq adapter enqueues once the transaction has committed.
+    await afterCommitEverywhere(() => deliverInvitationAccepted(membership.get("id")));
+    return membership;
+  });
+}
+
+// `user_memberships.create!(seller: self, role: owner) unless user_memberships.one?(&:role_owner?)`
+async function createOwnerMembershipIfNeeded(user: UserRecord, now: Date): Promise<void> {
+  const memberships = await selectRows<TeamMembership>(
+    Prisma.sql`SELECT ${Prisma.raw("`team_memberships`.*")} FROM ${table("team_memberships")} WHERE ${column("team_memberships", "user_id")} = ${user.get("id")}`,
+  );
+  if (memberships.filter((row) => row.role === "owner").length === 1) return;
+  await TeamMemberships.createBang(
+    { seller_id: user.get("id"), user_id: user.get("id"), role: "owner" } as Partial<TeamMembership>,
+    { now: () => now },
+  );
 }
 
 registerMutations(

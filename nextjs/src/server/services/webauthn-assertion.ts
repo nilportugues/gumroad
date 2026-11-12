@@ -1,7 +1,8 @@
 // WebAuthn::PublicKeyCredentialWithAssertion#verify (webauthn-ruby 3.4.3) for the passkey login: the client data, the authenticator
 // data, the ES256, RS256 or PS256 signature and the counter. Anything this does not decide exactly as the gem does throws HandBackToRails, so Rails
-// answers instead: another algorithm, authenticator data with attested credential or extension data, client data that is
-// not a JSON object, and a signature OpenSSL would raise on rather than reject.
+// answers instead: another algorithm, client data that is not a JSON object, a signature OpenSSL would raise on rather than reject (Rails
+// answers 500 for those, which no recording can compare), and attested credential or extension data the gem would raise on (see
+// authenticatorDataValid).
 import { constants, createHash, createPublicKey, timingSafeEqual, verify } from "node:crypto";
 
 import { HandBackToRails } from "../controllers/application-controller.ts";
@@ -30,6 +31,11 @@ const DER_INTEGER = 0x02;
 const DER_LONG_FORM = 0x80;
 const STANDARD_BASE64 = /^[A-Za-z0-9+/]*={0,2}$/u;
 const BASE64_GROUP = 4;
+const AAGUID_LENGTH = 16;
+const CREDENTIAL_ID_LENGTH_LENGTH = 2;
+const CBOR_FALSE = 0xf4;
+const CBOR_TRUE = 0xf5;
+const CBOR_NULL = 0xf6;
 
 export type AssertionRefusal = { ok: false };
 export type AssertionAccepted = { ok: true; signCount: number };
@@ -188,6 +194,74 @@ function wellFormedDerSignature(signature: Buffer): boolean {
 
 // ---- client data and authenticator data
 
+// CBOR.encode for the items readCbor reads, with the shortest length heads; compared with the bytes read, it proves the gem's
+// `CBOR.encode(first_item).length` is the length on the wire.
+function encodeCbor(value: CborValue): Buffer {
+  const head = (major: number, length: number): Buffer => {
+    if (length < 24) return Buffer.from([(major << 5) | length]);
+    if (length < 0x100) return Buffer.from([(major << 5) | 24, length]);
+    return Buffer.from([(major << 5) | 25, length >> 8, length & 0xff]);
+  };
+  if (typeof value === "number") return value >= 0 ? head(0, value) : head(1, -1 - value);
+  if (Buffer.isBuffer(value)) return Buffer.concat([head(2, value.length), value]);
+  if (typeof value === "string") {
+    const text = Buffer.from(value, "utf8");
+    return Buffer.concat([head(3, text.length), text]);
+  }
+  if (value instanceof Map)
+    return Buffer.concat([head(5, value.size), ...[...value].flatMap(([k, v]) => [encodeCbor(k), encodeCbor(v)])]);
+  throw new HandBackToRails("a CBOR value Node does not write");
+}
+
+// The first CBOR item of `bytes` and where it ends, or a hand-back when the gem could raise instead of decide: a truncated item
+// (EOFError, which nothing rescues), a type outside readCbor's subset, or an encoding that is not the shortest one.
+function firstCborItem(bytes: Buffer): [CborValue, number] {
+  const [value, end] = readCbor(bytes, 0);
+  if (!encodeCbor(value).equals(bytes.subarray(0, end)))
+    throw new HandBackToRails("CBOR that is not in its shortest form");
+  return [value, end];
+}
+
+// WebAuthn::AuthenticatorData#valid? for the bytes after the 37 fixed ones: attested credential data (AAGUID, id, an ES256 COSE key) and
+// then extension data (one CBOR item that is not null or false, with nothing after it) when the flags say so, and no bytes left over.
+// A shape where the gem raises something Rails does not rescue, or one whose COSE key it would have to judge, is a hand-back.
+function authenticatorDataValid(authenticatorData: Buffer, flags: number): boolean {
+  const tail = authenticatorData.subarray(AUTHENTICATOR_DATA_LENGTH);
+  const attested = (flags & FLAG_ATTESTED_CREDENTIAL_DATA) !== 0;
+  const extensions = (flags & FLAG_EXTENSION_DATA) !== 0;
+  let position = 0;
+  if (attested) {
+    if (tail.length < AAGUID_LENGTH + CREDENTIAL_ID_LENGTH_LENGTH)
+      throw new HandBackToRails("truncated attested credential data");
+    position = AAGUID_LENGTH + CREDENTIAL_ID_LENGTH_LENGTH + tail.readUInt16BE(AAGUID_LENGTH);
+    if (tail.length < position) throw new HandBackToRails("truncated attested credential data");
+    const [key, keyLength] = firstCborItem(tail.subarray(position));
+    const x = key instanceof Map ? key.get(-2) : undefined;
+    const y = key instanceof Map ? key.get(-3) : undefined;
+    if (
+      !(key instanceof Map) ||
+      key.size !== 5 ||
+      key.get(1) !== COSE_KTY_EC2 ||
+      key.get(3) !== COSE_ALG_ES256 ||
+      key.get(-1) !== COSE_CRV_P256 ||
+      !Buffer.isBuffer(x) ||
+      !Buffer.isBuffer(y) ||
+      x.length !== COORDINATE_LENGTH ||
+      y.length !== COORDINATE_LENGTH
+    )
+      throw new HandBackToRails("an attested credential key Node does not judge");
+    position += keyLength;
+  }
+  if (!extensions) return position === tail.length;
+  // CBOR.decode of nothing raises EOFError; of an item followed by more bytes raises MalformedFormatError, which Rails maps to a refusal.
+  const raw = tail.subarray(position);
+  if (raw.length === 0) throw new HandBackToRails("empty extension data");
+  if (raw.length === 1 && (raw[0] === CBOR_NULL || raw[0] === CBOR_FALSE)) return false;
+  if (raw.length === 1 && raw[0] === CBOR_TRUE) return true;
+  const [, end] = firstCborItem(raw);
+  return end === raw.length;
+}
+
 type ClientData = { type: unknown; challenge: unknown; origin: unknown; tokenBinding: unknown };
 
 function parseClientData(clientDataJson: Buffer): ClientData {
@@ -248,9 +322,7 @@ export function verifyAssertion(input: AssertionInput): AssertionAccepted | Asse
   const authenticatorData = input.authenticatorData;
   if (authenticatorData.length < AUTHENTICATOR_DATA_LENGTH) return refused;
   const flags = authenticatorData[FLAGS_OFFSET]!;
-  if ((flags & (FLAG_ATTESTED_CREDENTIAL_DATA | FLAG_EXTENSION_DATA)) !== 0)
-    throw new HandBackToRails("authenticator data with attested credential or extension data");
-  if (authenticatorData.length !== AUTHENTICATOR_DATA_LENGTH) return refused;
+  if (!authenticatorDataValid(authenticatorData, flags)) return refused;
   const rpIdHash = authenticatorData.subarray(0, RP_ID_HASH_LENGTH);
   if (!rpIdHash.equals(sha256(input.rpId))) return refused;
   // Neither user_presence nor silent_authentication is set: a present or verified user passes; the login demands verification.

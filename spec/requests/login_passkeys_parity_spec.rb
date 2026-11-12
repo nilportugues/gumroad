@@ -242,6 +242,99 @@ describe "Passkey login", type: :request do
       expect { sign_in_with(garbage, token) }.to raise_error(OpenSSL::PKey::PKeyError)
     end
 
+    # Authenticator data longer than its 37 fixed bytes: attested credential data (flag 0x40) and extension data (flag 0x80). FakeClient never
+    # writes either, so the passkey is an EC key of the spec's own and the assertion is signed here over the extended data.
+    describe "with authenticator data that carries attested credential or extension data" do
+      let(:ec_key) { OpenSSL::PKey::EC.generate("prime256v1") }
+      let(:ec_credential_id) { Base64.urlsafe_encode64("ec-passkey-credential-id", padding: false) }
+      let(:cose_key) { COSE::Key::EC2.from_pkey(OpenSSL::PKey.read(ec_key.public_to_der)).tap { _1.alg = -7 }.serialize }
+      let(:attested_credential_data) { ("\0" * 16) + [3].pack("n") + "abc" + cose_key }
+      let(:extensions) { "\xA1\x61a\x01".b }
+      let!(:ec_credential) do
+        user.webauthn_credentials.create!(webauthn_id: ec_credential_id, public_key: Base64.urlsafe_encode64(cose_key, padding: false), sign_count: 0, nickname: "EC passkey", created_at: Time.utc(2025, 1, 2), updated_at: Time.utc(2025, 1, 2))
+      end
+
+      def extended_assertion(challenge, flags: 0x05, tail: "".b)
+        authenticator_data = Digest::SHA256.digest(rp_id) + [flags, 1].pack("CN") + tail.b
+        client_data_json = { type: "webauthn.get", challenge:, origin:, crossOrigin: false }.to_json
+        signature = ec_key.sign("SHA256", authenticator_data + Digest::SHA256.digest(client_data_json))
+        encode = ->(bytes) { Base64.urlsafe_encode64(bytes, padding: false) }
+        { "type" => "public-key", "id" => ec_credential_id, "rawId" => ec_credential_id, "response" => { "authenticatorData" => encode.(authenticator_data), "clientDataJSON" => encode.(client_data_json), "signature" => encode.(signature) } }
+      end
+
+      it "signs the user in with extension data that is one CBOR item", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0x85, tail: extensions), token)
+
+        expect(response).to have_http_status(:ok)
+        expect(ec_credential.reload.sign_count).to eq(1)
+      end
+
+      it "refuses extension data that is null", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0x85, tail: "\xF6"), token)
+
+        expect_refused
+      end
+
+      it "refuses extension data followed by more bytes", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0x85, tail: "\xA0\x00"), token)
+
+        expect_refused
+      end
+
+      it "signs the user in with attested credential data holding an ES256 key", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0x45, tail: attested_credential_data), token)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "signs the user in with attested credential data followed by extension data", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0xC5, tail: attested_credential_data + extensions), token)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "refuses bytes left over after attested credential data", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0x45, tail: attested_credential_data + "zz"), token)
+
+        expect_refused
+      end
+
+      it "refuses bytes the flags do not announce", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, tail: "zz"), token)
+
+        expect_refused
+      end
+
+      it "hands attested credential data whose key has no coordinates to Rails", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(extended_assertion(challenge, flags: 0x45, tail: ("\0" * 16) + [3].pack("n") + "abc" + "\xA2\x01\x02\x03\x26".b), token)
+
+        expect_refused
+      end
+
+      # Nothing rescues the EOFError of CBOR.decode(""), so Rails answers 500; Node hands such a request back.
+      it "raises for extension data that is empty" do
+        token, challenge = request_options
+
+        expect { sign_in_with(extended_assertion(challenge, flags: 0x85), token) }.to raise_error(EOFError)
+      end
+    end
+
     it "refuses an assertion from another origin", parity: true do
       token, challenge = request_options
       fake_client.instance_variable_set(:@origin, "https://evil.example.com")

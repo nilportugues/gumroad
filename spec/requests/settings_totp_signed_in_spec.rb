@@ -6,8 +6,10 @@ require "spec_helper"
 # application/json, the CSRF token in a header), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/settings-mutations.replay.test.ts, which sends the last request of each example.
 #
-# A secret, recovery codes (bcrypt-hashed) and the check of a code against the clock cannot be reproduced by a replay, so those paths are
-# "hands a ..." examples: the replay asserts Node passed the request to Rails untouched and wrote nothing.
+# Confirming and regenerating run in Node. The code a confirmation sends depends on the clock, so the replay swaps it for the code of the
+# same interval (the example name says which: the previous or the next one), and the recovery codes are random bcrypt hashes, so the replay
+# checks their shape and writes them for node_output_parity_spec.rb, where Rails redeems them. A setup draws a random secret, so the replay
+# skips the secret, the URI and the QR code, and node_output_parity_spec.rb rebuilds the last two from Node's secret and compares.
 describe "Settings authenticator app when signed in", type: :request do
   include Parity::AudienceSignedIn
 
@@ -35,22 +37,26 @@ describe "Settings authenticator app when signed in", type: :request do
       expect_error("Authenticator app is already enabled.")
     end
 
-    it "hands a first setup to Rails", parity: true do
+    it "starts a setup with a secret, a provisioning URI and a QR code", parity: true do
       log_in(seller)
 
       send_json(:post, settings_totp_path)
 
-      expect(response.parsed_body).to include("success" => true)
-      expect(seller.reload.totp_credential).not_to be_confirmed
+      credential = seller.reload.totp_credential
+      expect(credential).not_to be_confirmed
+      expect(response.parsed_body).to include("success" => true, "secret" => credential.otp_secret, "provisioning_uri" => credential.totp_provisioning_uri)
+      expect(response.parsed_body["qr_svg"]).to start_with("<?xml")
     end
 
-    it "hands a repeated setup to Rails", parity: true do
-      create(:totp_credential, user: seller)
+    it "replaces a pending setup with a new secret", parity: true do
+      previous = create(:totp_credential, user: seller).otp_secret
       log_in(seller)
 
       send_json(:post, settings_totp_path)
 
       expect(response.parsed_body).to include("success" => true)
+      expect(seller.reload.totp_credential.otp_secret).not_to eq(previous)
+      expect(TotpCredential.where(user: seller).count).to eq(1)
     end
   end
 
@@ -72,13 +78,62 @@ describe "Settings authenticator app when signed in", type: :request do
       expect_error("No pending TOTP setup found.")
     end
 
-    it "hands a code for a pending setup to Rails", parity: true do
+    it "answers 422 for a wrong code", parity: true do
       create(:totp_credential, user: seller)
       log_in(seller)
 
       send_json(:post, confirm_settings_totp_path, { code: "000000" })
 
       expect_error("Invalid code. Please try again.")
+      expect(seller.reload.totp_credential).not_to be_confirmed
+    end
+
+    it "answers 422 when no code is sent", parity: true do
+      create(:totp_credential, user: seller)
+      log_in(seller)
+
+      send_json(:post, confirm_settings_totp_path)
+
+      expect_error("Invalid code. Please try again.")
+    end
+
+    it "answers 422 for a blank code", parity: true do
+      create(:totp_credential, user: seller)
+      log_in(seller)
+
+      send_json(:post, confirm_settings_totp_path, { code: "" })
+
+      expect_error("Invalid code. Please try again.")
+    end
+
+    def confirm_with_code_at(offset)
+      credential = create(:totp_credential, user: seller)
+      log_in(seller)
+      send_json(:post, confirm_settings_totp_path, { code: ROTP::TOTP.new(credential.otp_secret).at(Time.current + offset) })
+      credential.reload
+    end
+
+    it "confirms with the current code and shows ten recovery codes", parity: true do
+      credential = confirm_with_code_at(0)
+
+      expect(response.parsed_body["recovery_codes"].length).to eq(TotpCredential::RECOVERY_CODE_COUNT)
+      expect(response.parsed_body["recovery_codes"]).to all(match(/\A[A-Z0-9]{4}-[A-Z0-9]{4}\z/))
+      expect(credential).to be_confirmed
+      expect(credential.recovery_codes.length).to eq(TotpCredential::RECOVERY_CODE_COUNT)
+    end
+
+    it "confirms with the code of the previous interval", parity: true do
+      credential = confirm_with_code_at(-TotpCredential::DRIFT)
+
+      expect(response.parsed_body).to include("success" => true)
+      expect(credential).to be_confirmed
+    end
+
+    it "answers 422 for the code of the next interval", parity: true do
+      credential = confirm_with_code_at(TotpCredential::DRIFT)
+
+      expect_error("Invalid code. Please try again.")
+      expect(credential).not_to be_confirmed
     end
   end
 
@@ -113,13 +168,15 @@ describe "Settings authenticator app when signed in", type: :request do
   end
 
   describe "regenerating recovery codes" do
-    it "hands a confirmed credential to Rails", parity: true do
-      create(:totp_credential, :with_recovery_codes, user: seller)
+    it "replaces the recovery codes of a confirmed credential", parity: true do
+      credential = create(:totp_credential, :with_recovery_codes, user: seller)
+      previous = credential.reload.recovery_codes
       log_in(seller)
 
       send_json(:post, regenerate_recovery_codes_settings_totp_path)
 
       expect(response.parsed_body["recovery_codes"].length).to eq(TotpCredential::RECOVERY_CODE_COUNT)
+      expect(credential.reload.recovery_codes).not_to include(*previous)
     end
 
     it "refuses when the authenticator app is not enabled", parity: true do
