@@ -8,6 +8,7 @@ import { yamlColumn } from "../models/concerns/serialized-columns.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { column, execute, selectRows, table } from "../models/sql.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
+import type { Params } from "../search/ruby-params.ts";
 
 import { enqueueSalesExportChunks } from "./enqueue.ts";
 import { SYNCHRONOUS_EXPORT_THRESHOLD } from "./purchase-export.ts";
@@ -23,13 +24,13 @@ export type SalesExportFilters = {
   productIds?: number[];
 };
 
-// `search_service.query.deep_stringify_keys`
-export function salesExportQuery(sellerId: bigint | number, filters: SalesExportFilters): YamlValue {
+// The PurchaseSearchService options PurchaseExportService.export builds from its filters.
+export function salesExportSearchOptions(sellerId: bigint | number, filters: SalesExportFilters): Params {
   const startTime = filters.startDate === undefined ? undefined : new Date(`${filters.startDate}T00:00:00Z`);
   // created_before is exclusive: the next day's midnight keeps the last second of the end date
   const endTime =
     filters.endDate === undefined ? undefined : new Date(Date.parse(`${filters.endDate}T00:00:00Z`) + DAY_MS);
-  const service = new PurchaseSearchService({
+  return {
     seller: sellerId,
     state: NON_GIFT_SUCCESS_STATES,
     exclude_not_charged_non_free_trial_purchases: true,
@@ -38,7 +39,12 @@ export function salesExportQuery(sellerId: bigint | number, filters: SalesExport
     created_on_or_after: startTime,
     created_before: endTime,
     size: SYNCHRONOUS_EXPORT_THRESHOLD,
-  });
+  };
+}
+
+// `search_service.query.deep_stringify_keys`
+export function salesExportQuery(sellerId: bigint | number, filters: SalesExportFilters): YamlValue {
+  const service = new PurchaseSearchService(salesExportSearchOptions(sellerId, filters));
   return service.body.query as unknown as YamlValue;
 }
 
