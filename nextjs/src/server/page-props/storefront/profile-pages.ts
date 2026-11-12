@@ -3,7 +3,7 @@
 //
 // Handed to Rails (HandBackToRails, decided in the filters): a featured product or wishlists section whose product
 // or card the port cannot prove (see featured-and-wishlist-sections.ts), a products section whose cards the
-// port cannot prove (see presenters/product.ts), a nested visitor search param (`tags[]=`), a nested or oversized
+// port cannot prove (see presenters/product.ts), a nested visitor search param other than the list and hash forms of `tags` and the list of `filetypes`, a nested or oversized
 // affiliate param, a seller with custom HTML pages, a seller with an uploaded subscribe preview, and any non-HTML
 // format.
 import { Prisma, type User } from "@prisma/client";
@@ -51,6 +51,7 @@ import { requireHtmlPage, setHostMeta } from "./post-pages.ts";
 import { setFaviconMetaTags } from "./post.ts";
 import {
   assertProductSectionsRender,
+  NESTED_VISITOR_PARAMS,
   DEFAULT_PRODUCTS_SECTION_ID,
   PRODUCTS_SECTION_TYPE,
   productsSectionProps,
@@ -100,9 +101,9 @@ async function sellerOfUsername(encoded: string): Promise<User> {
 
 async function storefrontFilters(
   chain: Chain,
-  options: { noindex: boolean; affiliateCookie?: boolean; customHtml?: boolean },
+  options: { noindex: boolean; affiliateCookie?: boolean; customHtml?: boolean; visitorFilters?: boolean },
 ): Promise<User> {
-  requireHtmlPage(chain);
+  requireHtmlPage(chain, options.visitorFilters ? NESTED_VISITOR_PARAMS : []);
   const seller = await sellerOfHost(hostUrl(chain));
   if (options.affiliateCookie) {
     const cookie = await affiliateCookieForParams(chain.request, chain.now);
@@ -384,7 +385,12 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     buyerCurrencyFooter: true,
     options: {
       filters: async (chain): Promise<FilterOutcome> => {
-        const seller = await storefrontFilters(chain, { noindex: true, affiliateCookie: true, customHtml: true });
+        const seller = await storefrontFilters(chain, {
+          noindex: true,
+          affiliateCookie: true,
+          customHtml: true,
+          visitorFilters: true,
+        });
         await assertNoShareCard(seller);
         await assertSectionsSupported(chain, seller);
         return { state: {} };

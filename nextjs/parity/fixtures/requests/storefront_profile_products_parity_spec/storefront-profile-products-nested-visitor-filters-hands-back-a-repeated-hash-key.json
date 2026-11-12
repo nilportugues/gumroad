@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/storefront_profile_products_parity_spec.rb",
-  "example": "Storefront profile products hands back a visit whose search filter is a nested param",
+  "example": "Storefront profile products nested visitor filters hands back a repeated hash key",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-10",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -27,9 +27,9 @@
             ],
             "rows": [
               {
-                "id": 1,
+                "id": 2,
                 "seller_id": null,
-                "affiliate_user_id": 1,
+                "affiliate_user_id": 2,
                 "affiliate_basis_points": 1000,
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -105,9 +105,9 @@
             "rows": [
               {
                 "id": 1,
-                "user_id": 1,
+                "user_id": 2,
                 "name": "Alpha ebook",
-                "unique_permalink": "m",
+                "unique_permalink": "i",
                 "preview_url": null,
                 "description": "About Alpha ebook",
                 "purchase_type": 0,
@@ -115,7 +115,65 @@
                 "updated_at": "<now>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
-                "price_cents": 100,
+                "price_cents": 500,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 0,
+                "first_published_at": null
+              },
+              {
+                "id": 2,
+                "user_id": 2,
+                "name": "Beta pack",
+                "unique_permalink": "g",
+                "preview_url": null,
+                "description": "About Beta pack",
+                "purchase_type": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 700,
                 "price_currency_type": "usd",
                 "customizable_price": null,
                 "max_purchase_count": null,
@@ -184,7 +242,7 @@
               {
                 "id": 1,
                 "link_id": 1,
-                "price_cents": 100,
+                "price_cents": 500,
                 "currency": "usd",
                 "recurrence": null,
                 "created_at": "<now>",
@@ -193,6 +251,47 @@
                 "flags": 0,
                 "variant_id": null,
                 "suggested_price_cents": null
+              },
+              {
+                "id": 2,
+                "link_id": 2,
+                "price_cents": 700,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
+              }
+            ]
+          },
+          "product_taggings": {
+            "columns": {
+              "id": "int",
+              "tag_id": "int",
+              "product_id": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "tag_id": 1,
+                "product_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              },
+              {
+                "id": 2,
+                "tag_id": 2,
+                "product_id": 2,
+                "created_at": "<now>",
+                "updated_at": "<now>"
               }
             ]
           },
@@ -212,8 +311,8 @@
             ],
             "rows": [
               {
-                "id": 1,
-                "seller_id": 1,
+                "id": 2,
+                "seller_id": 2,
                 "product_id": null,
                 "title": null,
                 "fine_print": null,
@@ -240,13 +339,13 @@
             ],
             "rows": [
               {
-                "id": 1,
-                "seller_id": 1,
+                "id": 2,
+                "seller_id": 2,
                 "header": "Shop",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "flags": 0,
-                "json_data": "{\"show_filters\": false, \"shown_products\": [1], \"add_new_products\": true, \"default_product_sort\": \"page_layout\"}",
+                "json_data": "{\"show_filters\": true, \"shown_products\": [1, 2], \"add_new_products\": true, \"default_product_sort\": \"page_layout\"}",
                 "type": "SellerProfileProductsSection",
                 "product_id": null
               }
@@ -272,18 +371,52 @@
             ],
             "rows": [
               {
-                "id": 1,
-                "seller_id": 1,
+                "id": 2,
+                "seller_id": 2,
                 "highlight_color": "#ff90e8",
                 "background_color": "#ffffff",
                 "font": "ABC Favorit",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "json_data": "{\"tabs\": [{\"name\": \"Home\", \"sections\": [1]}]}",
+                "json_data": "{\"tabs\": [{\"name\": \"Home\", \"sections\": [2]}]}",
                 "border_radius": "small",
                 "button_hover": "lift",
                 "seo_title": null,
                 "seo_description": null
+              }
+            ]
+          },
+          "tags": {
+            "columns": {
+              "id": "int",
+              "name": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "humanized_name": "varchar",
+              "flagged_at": "datetime",
+              "taggings_count": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "name": "writing",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "humanized_name": null,
+                "flagged_at": null,
+                "taggings_count": 1
+              },
+              {
+                "id": 2,
+                "name": "design",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "humanized_name": null,
+                "flagged_at": null,
+                "taggings_count": 1
               }
             ]
           },
@@ -361,21 +494,21 @@
             ],
             "rows": [
               {
-                "id": 1,
+                "id": 2,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$lOV2OQqpBBDppnHICWPn2Ouw.S9zudxbCaLsCNCIVHCXnHci2gOHG",
+                "encrypted_password": "$2a$04$43UOTjC9zl0xfA1o4f/Y9.FlC51fiXkBg.mKNFsbN5mNpbgv0b8ea",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "41.14.7.176",
-                "last_sign_in_ip": "17.234.60.76",
+                "current_sign_in_ip": "220.49.39.251",
+                "last_sign_in_ip": "185.208.107.48",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Parity Seller",
-                "payment_address": "edgar_20@gumroad.com",
+                "payment_address": "edgar_1@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -400,8 +533,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "7796915574706",
-                "account_created_ip": "131.145.70.73",
+                "external_id": "5276576082181",
+                "account_created_ip": "87.54.58.131",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -419,7 +552,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "TWLMOCAXC543TKU2BGMJLQBBXKJLWQSU",
+                "otp_secret_key": "SLL2G3DOHQP2JKBK57QZ7MG7G2GQ5MDQ",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -432,13 +565,15 @@
           }
         },
         "autoIncrement": {
-          "affiliates": 2,
-          "links": 2,
-          "prices": 2,
-          "refund_policies": 2,
-          "seller_profile_sections": 2,
-          "seller_profiles": 2,
-          "users": 2
+          "affiliates": 3,
+          "links": 3,
+          "prices": 3,
+          "product_taggings": 3,
+          "refund_policies": 3,
+          "seller_profile_sections": 3,
+          "seller_profiles": 3,
+          "tags": 3,
+          "users": 3
         }
       },
       "redis": {
@@ -480,7 +615,7 @@
         "source": "request",
         "method": "GET",
         "path": "/",
-        "query": "tags[]=writing",
+        "query": "tags[a]=design&tags[a]=writing",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
           "host": "seller.test.gumroad.com:31337"
@@ -505,13 +640,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "ikCheUa9stvAbnXjfpVXIZt-FfRHnUZiB6zePDH0IBCLy7A7jO2RMXFA4SXPZzARwOzDVSeNqW35r5DkHKiT1Q",
+            "value": "AklGBP-uDB89OU-pb0iSH17qpAFoCD9-fi0eoV1XB0ZnC07bNwQIsKUQ9JVzTeOxN4nlJFh9IryL-7xHh1KNig",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "FXVvZb9GNa5yqbbCk02Ab6FU6pVCgOjP9GDhPKlfby+zse/eTUl8cMzXo+/j+NCq4xF9/Ke24Xpm8cYEsFswpo39hhjLBkgoamuK0CXO41h59EQpE4YjfCjV32mRpBXnqdkuhcFR/WZ/T/1agZItkws7e0iMM1wn+07LPJSWOS4LZpfgaOX6wh8eeifPh+/ZG9mjt+QNitfAh5WgZOwkVGseB9fHRf1hud2L1yjkB0QN8SaBIi++nDuTMMK00icD56DlUnTcoV70CClOM1+0aD6mQMiEhWMJgOOoRHnBo00P5fIL+pSF4xY8VE3yc7Vs76QEX4i4uPM11u4FqrQlPTS9ME+mwR4rj9Xy6Us7oXJFAUwvQvIhYKu/gLaHKlgRzTvz--MxZ3aATvbAuLvQNn--mmdjW+BkWxszZHR8hyU6/g==",
+            "value": "R6BUr8HqBtRVYSfKoaOklaADC5zAcZEAqfmuJ5u0WxbbBRGZhcQzFLxE3hCGvXJ5Y1dHeUkpFELWGfChUW5hWGBjdj/kBkKmwarJSCkfz0kWiHhJauKCxQEYwZtUdULPu8pk7+7J/GRIsgNgSBkRClwuozkR/UWv/fLf+xdJ04M/pR0W3HIHDedrtTh+6ueD3ELoomhIAipvxkpoJmtnUQ2jLigobjTLHXmj8CVnZN5TxN0lDxWOQkHv02aonEdo80bUWuakMfgDP8e5FNLpIz+yHffx36Hp5Cchhe3ctdOP4BkFijGUoIrCHHvKXWd7uHhR/re13LxRNkxemsbT1LbOUdmg8Y72TFg8z7Fz/1hEilKatw1LREar2T51ApSld5ml--zN6n/HSf/cvOARaG--sb7h2UVbBfL1b6FI006vgQ==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -551,19 +686,19 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "U2dttqtGaYNpTBy6tr9i8CODmaGcnz13RY5j1B85Gdg=",
+            "csp_nonce": "3BSp5dY8HZHtcHKX7dK5wylEneWbcFGYgJtKGX4cRaU=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "sPlH7EBAvxe52AWRtDsLttdfOjXCx1gXZAydwnO97eOxclauihCc_Qj2kVcFyWyGjM3slKLXtxiaD9MaXuFeJg",
+            "authenticity_token": "dPSkh4cbURzxTKenPpkshnFCQb0vu5keUjc7arJadNMRtqxYT7FVs2llHJsinF0oGCEAmB_OhNyn4ZmMaF_-Hw",
             "flash": null,
             "title": "Parity Seller",
             "detected_buyer_currency": null,
             "currency_code": "usd",
             "show_ratings_filter": true,
             "creator_profile": {
-              "external_id": "7796915574706",
+              "external_id": "5276576082181",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
               "name": "Parity Seller",
               "twitter_handle": null,
@@ -576,17 +711,51 @@
             },
             "sections": [
               {
-                "id": "1UokxkyxJ__gd-gssE0g7w==",
+                "id": "7-RrdvIoUS_D2srgUHAytg==",
                 "header": "Shop",
                 "type": "SellerProfileProductsSection",
-                "show_filters": false,
+                "show_filters": true,
                 "default_product_sort": "page_layout",
                 "search_results": {
-                  "total": 0,
-                  "tags_data": [],
+                  "total": 1,
+                  "tags_data": [
+                    {
+                      "key": "writing",
+                      "doc_count": 1
+                    }
+                  ],
                   "filetypes_data": [],
                   "taxonomy_attributes_data": [],
-                  "products": []
+                  "products": [
+                    {
+                      "id": "1UokxkyxJ__gd-gssE0g7w==",
+                      "permalink": "i",
+                      "name": "Alpha ebook",
+                      "seller": null,
+                      "ratings": {
+                        "count": 0,
+                        "average": 0.0
+                      },
+                      "thumbnail_url": null,
+                      "native_type": "digital",
+                      "quantity_remaining": null,
+                      "is_sales_limited": false,
+                      "price_cents": 500,
+                      "currency_code": "usd",
+                      "buyer_currency_display": {
+                        "product_id": "1UokxkyxJ__gd-gssE0g7w==",
+                        "buyer_currency_shown": "usd",
+                        "product_currency": "usd",
+                        "buyer_local_price_cents": null,
+                        "rate": null,
+                        "display_mode": "default"
+                      },
+                      "is_pay_what_you_want": false,
+                      "url": "http://seller.test.gumroad.com:31337/l/i?layout=profile",
+                      "duration_in_months": null,
+                      "recurrence": null
+                    }
+                  ]
                 }
               }
             ],
@@ -595,12 +764,12 @@
               {
                 "name": "Home",
                 "sections": [
-                  "1UokxkyxJ__gd-gssE0g7w=="
+                  "7-RrdvIoUS_D2srgUHAytg=="
                 ]
               }
             ],
             "seller_analytics": {
-              "seller_id": "7796915574706",
+              "seller_id": "5276576082181",
               "analytics": {
                 "google_analytics_id": null,
                 "facebook_pixel_id": null,
@@ -626,7 +795,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "TeudlgvfwEDTmBsD9jzjHcRBsXOMyNuFGJODM7Kbm05MYIzUwY_jqmK2j8VHzoQtn9Nn0uzYNIrmkM3rn8coiw"
+                "content": "33qiGrkr3bWAGV48jOlWGM8_O-_qcB5pJ0SWRbhWdqG6OKrFcYHZGhgw5QCQ7Ce2plx6ytoFA6vSkjSjYlP8bQ"
               },
               {
                 "tagName": "meta",
@@ -780,7 +949,7 @@
               }
             ]
           },
-          "url": "/?tags[]=writing",
+          "url": "/?tags[a]=design&tags[a]=writing",
           "version": null,
           "encryptHistory": false,
           "clearHistory": false
@@ -794,45 +963,63 @@
           "method": "POST",
           "url": "http://elasticsearch:9200/link-test/_search",
           "contentType": "application/json",
-          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[1]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":1}}}]}},\"aggregations\":{\"tags.keyword\":{\"terms\":{\"field\":\"tags.keyword\",\"size\":200}}},\"sort\":[],\"size\":9,\"from\":0,\"_source\":false,\"track_total_hits\":true}",
+          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[2]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1,2]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":2}}},{\"term\":{\"_id\":{\"value\":2,\"boost\":1}}}]}},\"aggregations\":{\"tags.keyword\":{\"terms\":{\"field\":\"tags.keyword\",\"size\":200}}},\"sort\":[],\"size\":9,\"from\":0,\"_source\":false,\"track_total_hits\":true}",
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":3.287682,\"hits\":[{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_score\":3.287682}]},\"aggregations\":{\"tags.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[]}}}"
+            "body": "{\"took\":1,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":2,\"relation\":\"eq\"},\"max_score\":4.1053605,\"hits\":[{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_score\":4.1053605},{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"2\",\"_score\":3.1053605}]},\"aggregations\":{\"tags.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"design\",\"doc_count\":1},{\"key\":\"writing\",\"doc_count\":1}]}}}"
           }
         },
         {
           "method": "POST",
           "url": "http://elasticsearch:9200/link-test/_search",
           "contentType": "application/json",
-          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[1]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":1}}}]}},\"aggregations\":{\"filetypes.keyword\":{\"terms\":{\"field\":\"filetypes.keyword\",\"size\":8}}}}",
+          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[2]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1,2]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":2}}},{\"term\":{\"_id\":{\"value\":2,\"boost\":1}}}]}},\"aggregations\":{\"filetypes.keyword\":{\"terms\":{\"field\":\"filetypes.keyword\",\"size\":8}}}}",
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":3.287682,\"hits\":[{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_score\":3.287682,\"_source\":{\"user_id\":1,\"is_physical\":false,\"tags\":[],\"creator_name\":\"Parity Seller\",\"sales_volume\":0.0,\"created_at\":\"<now>\",\"average_rating\":0.0,\"reviews_count\":0,\"is_subscription\":false,\"is_bundle\":false,\"filetypes\":[],\"price_cents\":100,\"available_price_cents\":[100],\"updated_at\":\"<now>\",\"creator_external_id\":\"7796915574706\",\"content_updated_at\":null,\"total_fee_cents\":0.0,\"past_year_fee_cents\":0.0,\"staff_picked_at\":null,\"offer_codes\":[],\"taxonomy_attribute_filters\":[],\"name\":\"Alpha ebook\",\"rated_as_adult\":false,\"description\":\"About Alpha ebook\",\"is_recommendable\":false,\"is_alive_on_profile\":true,\"is_alive\":true,\"taxonomy_id\":null,\"is_preorder\":false,\"display_product_reviews\":true,\"is_call\":false,\"native_type\":\"digital\",\"price_currency_type\":\"usd\",\"customizable_price\":false}}]},\"aggregations\":{\"filetypes.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[]}}}"
+            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":2,\"relation\":\"eq\"},\"max_score\":4.1053605,\"hits\":[{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_score\":4.1053605,\"_source\":{\"user_id\":2,\"is_physical\":false,\"tags\":[\"writing\"],\"creator_name\":\"Parity Seller\",\"sales_volume\":0.0,\"created_at\":\"<now>\",\"average_rating\":0.0,\"reviews_count\":0,\"is_subscription\":false,\"is_bundle\":false,\"filetypes\":[],\"price_cents\":500,\"available_price_cents\":[500],\"updated_at\":\"<now>\",\"creator_external_id\":\"5276576082181\",\"content_updated_at\":null,\"total_fee_cents\":0.0,\"past_year_fee_cents\":0.0,\"staff_picked_at\":null,\"offer_codes\":[],\"taxonomy_attribute_filters\":[],\"name\":\"Alpha ebook\",\"rated_as_adult\":false,\"description\":\"About Alpha ebook\",\"is_recommendable\":false,\"is_alive_on_profile\":true,\"is_alive\":true,\"taxonomy_id\":null,\"is_preorder\":false,\"display_product_reviews\":true,\"is_call\":false,\"native_type\":\"digital\",\"price_currency_type\":\"usd\",\"customizable_price\":false}},{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"2\",\"_score\":3.1053605,\"_source\":{\"user_id\":2,\"is_physical\":false,\"tags\":[\"design\"],\"creator_name\":\"Parity Seller\",\"sales_volume\":0.0,\"created_at\":\"<now>\",\"average_rating\":0.0,\"reviews_count\":0,\"is_subscription\":false,\"is_bundle\":false,\"filetypes\":[],\"price_cents\":700,\"available_price_cents\":[700],\"updated_at\":\"<now>\",\"creator_external_id\":\"5276576082181\",\"content_updated_at\":null,\"total_fee_cents\":0.0,\"past_year_fee_cents\":0.0,\"staff_picked_at\":null,\"offer_codes\":[],\"taxonomy_attribute_filters\":[],\"name\":\"Beta pack\",\"rated_as_adult\":false,\"description\":\"About Beta pack\",\"is_recommendable\":false,\"is_alive_on_profile\":true,\"is_alive\":true,\"taxonomy_id\":null,\"is_preorder\":false,\"display_product_reviews\":true,\"is_call\":false,\"native_type\":\"digital\",\"price_currency_type\":\"usd\",\"customizable_price\":false}}]},\"aggregations\":{\"filetypes.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[]}}}"
           }
         },
         {
           "method": "POST",
           "url": "http://elasticsearch:9200/link-test/_search",
           "contentType": "application/json",
-          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[1]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1]}},{\"terms\":{\"tags.keyword\":[\"writing\"]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":1}}}]}},\"aggregations\":{\"tags.keyword\":{\"terms\":{\"field\":\"tags.keyword\",\"size\":200}}},\"sort\":[],\"size\":9,\"from\":0,\"_source\":false,\"track_total_hits\":true}",
+          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[2]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1,2]}},{\"terms\":{\"tags.keyword\":[\"writing\"]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":2}}},{\"term\":{\"_id\":{\"value\":2,\"boost\":1}}}]}},\"aggregations\":{\"tags.keyword\":{\"terms\":{\"field\":\"tags.keyword\",\"size\":200}}},\"sort\":[],\"size\":9,\"from\":0,\"_source\":false,\"track_total_hits\":true}",
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":0,\"relation\":\"eq\"},\"max_score\":null,\"hits\":[]},\"aggregations\":{\"tags.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[]}}}"
+            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":5.1053605,\"hits\":[{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_score\":5.1053605}]},\"aggregations\":{\"tags.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"writing\",\"doc_count\":1}]}}}"
           }
         },
         {
           "method": "POST",
           "url": "http://elasticsearch:9200/link-test/_search",
           "contentType": "application/json",
-          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[1]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1]}},{\"terms\":{\"tags.keyword\":[\"writing\"]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":1}}}]}},\"aggregations\":{\"filetypes.keyword\":{\"terms\":{\"field\":\"filetypes.keyword\",\"size\":8}}}}",
+          "body": "{\"query\":{\"bool\":{\"must\":[{\"terms\":{\"user_id\":[2]}},{\"term\":{\"is_alive_on_profile\":true}},{\"terms\":{\"_id\":[1,2]}},{\"terms\":{\"tags.keyword\":[\"writing\"]}}],\"should\":[{\"term\":{\"_id\":{\"value\":1,\"boost\":2}}},{\"term\":{\"_id\":{\"value\":2,\"boost\":1}}}]}},\"aggregations\":{\"filetypes.keyword\":{\"terms\":{\"field\":\"filetypes.keyword\",\"size\":8}}}}",
           "response": {
             "status": 200,
             "contentType": "application/json; charset=UTF-8",
-            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":0,\"relation\":\"eq\"},\"max_score\":null,\"hits\":[]},\"aggregations\":{\"filetypes.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[]}}}"
+            "body": "{\"took\":0,\"timed_out\":false,\"_shards\":{\"total\":1,\"successful\":1,\"skipped\":0,\"failed\":0},\"hits\":{\"total\":{\"value\":1,\"relation\":\"eq\"},\"max_score\":5.1053605,\"hits\":[{\"_index\":\"link-test\",\"_type\":\"_doc\",\"_id\":\"1\",\"_score\":5.1053605,\"_source\":{\"user_id\":2,\"is_physical\":false,\"tags\":[\"writing\"],\"creator_name\":\"Parity Seller\",\"sales_volume\":0.0,\"created_at\":\"<now>\",\"average_rating\":0.0,\"reviews_count\":0,\"is_subscription\":false,\"is_bundle\":false,\"filetypes\":[],\"price_cents\":500,\"available_price_cents\":[500],\"updated_at\":\"<now>\",\"creator_external_id\":\"5276576082181\",\"content_updated_at\":null,\"total_fee_cents\":0.0,\"past_year_fee_cents\":0.0,\"staff_picked_at\":null,\"offer_codes\":[],\"taxonomy_attribute_filters\":[],\"name\":\"Alpha ebook\",\"rated_as_adult\":false,\"description\":\"About Alpha ebook\",\"is_recommendable\":false,\"is_alive_on_profile\":true,\"is_alive\":true,\"taxonomy_id\":null,\"is_preorder\":false,\"display_product_reviews\":true,\"is_call\":false,\"native_type\":\"digital\",\"price_currency_type\":\"usd\",\"customizable_price\":false}}]},\"aggregations\":{\"filetypes.keyword\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[]}}}"
           }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "http",
+          "index": 1
+        },
+        {
+          "type": "http",
+          "index": 2
+        },
+        {
+          "type": "http",
+          "index": 3
         }
       ]
     }

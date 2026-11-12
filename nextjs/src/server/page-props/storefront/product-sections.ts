@@ -47,18 +47,49 @@ const decode = (value: string) => {
   }
 };
 
+// Names whose `name[]=` and `name[key]=` forms the port reads; a nested shape of another name is Rails' to answer.
+export const NESTED_VISITOR_PARAMS = ["tags", "filetypes"];
+const INTEGER_LIKE_KEY = /^(?:0|[1-9]\d*)$/u;
+
 // `normalize_search_param_values!(request.query_parameters.slice(*VISITOR_SEARCH_PARAMS))`, or null when the request
-// carries none of them. A nested shape (`tags[]=`, `tags[a]=`) is Rails' to answer.
+// carries none of them. Rack's nested parser gives `tags[]=` a list and `tags[a]=` a hash (last duplicate wins); a
+// shape that is a ParameterTypeError (a flat key mixed with a nested one), a deeper nesting, a valueless nested key,
+// or a hash JavaScript would reorder is Rails' to answer.
 export async function visitorSearchParams(queryString: string): Promise<Params | null> {
-  const keys = queryString
-    .split("&")
-    .filter((pair) => pair !== "")
-    .map((pair) => decode(pair.split("=", 1)[0]!));
-  if (keys.some((key) => VISITOR_SEARCH_PARAMS.some((name) => key.startsWith(`${name}[`))))
-    throw new HandBackToRails("a nested visitor search param");
+  const nested = new Map<string, { list: string[]; hash: Map<string, string> }>();
+  const flat = new Set<string>();
+  for (const pair of queryString.split("&")) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    const key = decode(index === -1 ? pair : pair.slice(0, index));
+    const name = VISITOR_SEARCH_PARAMS.find((candidate) => key === candidate || key.startsWith(`${candidate}[`));
+    if (name === undefined) continue;
+    if (key === name) {
+      flat.add(name);
+      continue;
+    }
+    const match = /^([a-z_]+)\[([^[\]]*)\]$/u.exec(key);
+    if (!match || !NESTED_VISITOR_PARAMS.includes(name) || index === -1 || key.includes(";"))
+      throw new HandBackToRails("a nested visitor search param");
+    const entry = nested.get(name) ?? { list: [], hash: new Map<string, string>() };
+    const value = decode(pair.slice(index + 1));
+    if (match[2] === "") entry.list.push(value);
+    // A filetypes hash is not normalized into a list in Rails (Elasticsearch gets the hash).
+    else if (name === "filetypes" || INTEGER_LIKE_KEY.test(match[2]!) || match[2] === "__proto__")
+      throw new HandBackToRails("an ordered hash");
+    else entry.hash.set(match[2]!, value);
+    nested.set(name, entry);
+  }
   const request = { queryString } as RailsRequest;
   const params: Params = {};
   for (const name of VISITOR_SEARCH_PARAMS) {
+    const entry = nested.get(name);
+    if (entry) {
+      if (flat.has(name) || (entry.list.length > 0 && entry.hash.size > 0))
+        throw new HandBackToRails("a visitor search param of two shapes");
+      params[name] = entry.hash.size > 0 ? Object.fromEntries(entry.hash) : entry.list;
+      continue;
+    }
     const value = queryParam(request, name);
     if (value !== undefined) params[name] = value;
   }
@@ -111,10 +142,6 @@ export async function productsSectionProps(
   }
   const products = [];
   for (const row of shown) {
-    // cardForWeb proves the tier price, but the profile's card for it crashes the server render and no profile
-    // fixture has recorded Rails' page for one.
-    if (LinkFlags.isSet(row.flags, "is_tiered_membership"))
-      throw new NotPortedError("tiered membership card on a profile");
     products.push(
       await cardForWeb(row.id, {
         request,
