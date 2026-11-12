@@ -86,6 +86,83 @@ describe "Passkey login", type: :request do
       expect(user.reload.sign_in_count).to eq(1)
     end
 
+    # A passkey whose COSE key names RS256 or PS256 (the other algorithms webauthn-ruby offers by default). FakeClient only makes ES256 keys, so the
+    # assertion is signed here over the same authenticator data and client data hash.
+    describe "with an RSA passkey" do
+      let(:rsa_key) { OpenSSL::PKey::RSA.generate(2048) }
+      let(:rsa_credential_id) { Base64.urlsafe_encode64("rsa-passkey-credential-id", padding: false) }
+      let(:cose_algorithm) { -257 }
+      let!(:rsa_credential) do
+        cose_key = COSE::Key::RSA.new(n: rsa_key.params["n"].to_s(2), e: rsa_key.params["e"].to_s(2), alg: cose_algorithm)
+        user.webauthn_credentials.create!(webauthn_id: rsa_credential_id, public_key: Base64.urlsafe_encode64(cose_key.serialize, padding: false), sign_count: 0, nickname: "RSA passkey", created_at: Time.utc(2025, 1, 2), updated_at: Time.utc(2025, 1, 2))
+      end
+
+      def rsa_assertion(challenge, pss: cose_algorithm == -37, sign_count: 1)
+        authenticator_data = Digest::SHA256.digest(rp_id) + [0x05, sign_count].pack("CN")
+        client_data_json = { type: "webauthn.get", challenge:, origin:, crossOrigin: false }.to_json
+        data = authenticator_data + Digest::SHA256.digest(client_data_json)
+        signature = pss ? rsa_key.sign_pss("SHA256", data, salt_length: :max, mgf1_hash: "SHA256") : rsa_key.sign("SHA256", data)
+        encode = ->(bytes) { Base64.urlsafe_encode64(bytes, padding: false) }
+        { "type" => "public-key", "id" => rsa_credential_id, "rawId" => rsa_credential_id, "response" => { "authenticatorData" => encode.(authenticator_data), "clientDataJSON" => encode.(client_data_json), "signature" => encode.(signature) } }
+      end
+
+      it "signs the user in with an RS256 assertion", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(rsa_assertion(challenge), token)
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+        expect(rsa_credential.reload.sign_count).to eq(1)
+      end
+
+      it "refuses an RS256 signature that does not verify", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(tampered_signature(rsa_assertion(challenge)), token)
+
+        expect_refused
+      end
+
+      it "refuses an RS256 signature of the wrong length", parity: true do
+        token, challenge = request_options
+        short = rsa_assertion(challenge).deep_merge("response" => { "signature" => Base64.urlsafe_encode64("too short", padding: false) })
+
+        sign_in_with(short, token)
+
+        expect_refused
+      end
+
+      context "when the key names PS256" do
+        let(:cose_algorithm) { -37 }
+
+        it "signs the user in with a PS256 assertion", parity: true do
+          token, challenge = request_options
+
+          sign_in_with(rsa_assertion(challenge), token)
+
+          expect(response).to have_http_status(:ok)
+          expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+        end
+
+        it "refuses a PS256 signature that does not verify", parity: true do
+          token, challenge = request_options
+
+          sign_in_with(tampered_signature(rsa_assertion(challenge)), token)
+
+          expect_refused
+        end
+
+        it "refuses a PKCS#1 signature", parity: true do
+          token, challenge = request_options
+
+          sign_in_with(rsa_assertion(challenge, pss: false), token)
+
+          expect_refused
+        end
+      end
+    end
+
     it "signs in a user who has two-factor authentication on, without the challenge", parity: true do
       user.update!(two_factor_authentication_enabled: true)
       user.update_columns(updated_at: Time.utc(2025, 1, 1))
