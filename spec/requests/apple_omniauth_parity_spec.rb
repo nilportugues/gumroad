@@ -308,8 +308,54 @@ describe "Sign in with Apple", type: :request do
       expect(response).to have_http_status(:found)
     end
 
-    it "hands a first sign-in whose address has guest purchases to Rails", parity: true do
-      build(:purchase, email: "new.apple@example.com", purchaser: nil, purchase_state: "successful").save!(validate: false)
+    def guest_purchase(**attrs)
+      build(:purchase, email: "new.apple@example.com", purchaser: nil, purchase_state: "successful", **attrs).tap do |purchase|
+        purchase.save!(validate: false)
+        # A row that is not seconds old keeps the attach's updated_at change clear of the replay's "<now>" tolerance.
+        purchase.update_columns(updated_at: 1.hour.ago)
+      end
+    end
+
+    it "attaches the guest purchases of the address to the account a first sign-in creates", parity: true do
+      older = guest_purchase
+      newer = guest_purchase
+      other = guest_purchase(email: "someone.else@example.com")
+      claimed = guest_purchase(purchaser: user)
+      new_apple_callback
+
+      expect(response).to redirect_to("/library")
+      created = User.find_by!(email: "new.apple@example.com")
+      expect([older, newer].map { _1.reload.purchaser_id }).to eq([created.id, created.id])
+      expect(other.reload.purchaser_id).to be_nil
+      expect(claimed.reload.purchaser_id).to eq(user.id)
+    end
+
+    it "leaves a reassignment-locked guest purchase with no account", parity: true do
+      locked = guest_purchase(is_reassignment_locked: true)
+      open = guest_purchase
+      new_apple_callback
+
+      expect(response).to redirect_to("/library")
+      expect(locked.reload.purchaser_id).to be_nil
+      expect(open.reload.purchaser_id).to eq(User.find_by!(email: "new.apple@example.com").id)
+    end
+
+    it "hands a first sign-in whose address has a guest bundle purchase to Rails", parity: true do
+      guest_purchase(is_bundle_purchase: true)
+      new_apple_callback
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "hands a first sign-in whose address has a guest subscription purchase to Rails", parity: true do
+      guest_purchase.update_columns(subscription_id: create(:subscription, user: nil).id)
+      new_apple_callback
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "hands a first sign-in whose address has a guest preorder purchase to Rails", parity: true do
+      guest_purchase.update_columns(preorder_id: create(:preorder).id)
       new_apple_callback
 
       expect(response).to have_http_status(:found)

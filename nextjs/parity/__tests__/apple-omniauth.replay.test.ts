@@ -76,6 +76,8 @@ const rank = (job: { class: string }) =>
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
+// A delayed job (the Elasticsearch update of an attached purchase, `perform_in(4.seconds)`) carries `at`. The fixture holds it as "<now>", so it is
+// reported as of the drain: the request's latency would otherwise move a 4 second delay across the 5 second tolerance.
 function redisJobs(redis: Redis): JobsChannel {
   return {
     async reset() {},
@@ -89,10 +91,16 @@ function redisJobs(redis: Redis): JobsChannel {
           class: string;
           args: unknown[];
           queue: string;
+          at?: number;
           wrapped?: string;
         };
         if (item.wrapped === "MailDeliveryJob" || IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: new Date() }),
+        });
       }
       // Jobs still in Ruby are pushed in Sidekiq's own format.
       for (const key of await redis.keys("queue:*")) {

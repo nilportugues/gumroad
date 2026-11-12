@@ -7,8 +7,10 @@ import { db } from "../../lib/db.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { isBlank } from "../html/text-helper.ts";
 import { notifyError } from "../infra/error-reporting.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 
 import { performAsync } from "./concerns/job-runtime.ts";
+import { changePurchaser } from "./purchase-delivery-writes.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
 import { execute, column, selectRows, table } from "./sql.ts";
 import { invalidateActiveSessions } from "./user-risk.ts";
@@ -65,11 +67,32 @@ async function hasAppleIdentity(userId: unknown): Promise<boolean> {
   return rows.length > 0;
 }
 
-async function hasGuestPurchases(email: string): Promise<boolean> {
-  const rows = await selectRows(
-    Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "email")} = ${email} AND ${column("purchases", "purchaser_id")} IS NULL LIMIT 1`,
-  );
-  return rows.length > 0;
+// Purchase.where(email:, purchaser_id: nil), in primary key order as MySQL returns it.
+const guestPurchases = (email: string) =>
+  db.purchase.findMany({ where: { email, purchaser_id: null }, orderBy: { id: "asc" } });
+
+// What `Purchase#attach_to_user_and_card(user, nil, nil)` writes beyond `purchaser_id`: a preorder or subscription row, and the
+// bundle callback `attach_unclaimed_bundle_product_purchases`. Those stay in Rails.
+async function assertAttachable(email: string): Promise<void> {
+  for (const purchase of await guestPurchases(email)) {
+    const flags = purchase.flags;
+    if (PurchaseFlags.isSet(flags, "is_bundle_purchase"))
+      throw new HandBackToRails("a guest bundle purchase to attach to the new account");
+    if (purchase.preorder_id !== null) throw new HandBackToRails("a guest preorder to attach to the new account");
+    if (purchase.subscription_id !== null && !PurchaseFlags.isSet(flags, "is_gift_sender_purchase"))
+      throw new HandBackToRails("a guest subscription to attach to the new account");
+  }
+}
+
+// The loop of find_or_create_for_apple_oauth after the new user is saved. A reassignment-locked purchase is skipped. The seller and test
+// purchase guards cannot apply: the user was created by this call, so it owns no product and no purchase has it as purchaser.
+async function attachGuestPurchases(user: UserRecord, now: () => Date): Promise<void> {
+  const email = user.get("email");
+  if (typeof email !== "string" || isBlank(email)) return;
+  for (const purchase of await guestPurchases(email)) {
+    if (PurchaseFlags.isSet(purchase.flags, "is_reassignment_locked")) continue;
+    await changePurchaser(purchase, BigInt(String(user.get("id"))), { now });
+  }
 }
 
 export async function planAppleSignIn(data: AppleData, identityUser: UserRecord | null): Promise<ApplePlan> {
@@ -87,8 +110,7 @@ export async function planAppleSignIn(data: AppleData, identityUser: UserRecord 
       }
     }
     if (user === null) {
-      const attached = isValidEmailFormat(email) && (await hasGuestPurchases(email!));
-      if (attached) throw new HandBackToRails("guest purchases to attach to the new account");
+      if (isValidEmailFormat(email)) await assertAttachable(email!);
       user = Users.build({});
       user.set("provider", PROVIDER);
       isNew = true;
@@ -144,6 +166,7 @@ export async function applyAppleSignIn(
         Prisma.sql`INSERT INTO ${table("user_external_authentications")} (${Prisma.raw("`user_id`, `provider`, `uid`, `created_at`, `updated_at`")}) VALUES (${user.get("id")}, ${PROVIDER}, ${plan.uid}, ${at}, ${at})`,
       );
     }
+    if (plan.isNew) await attachGuestPurchases(user, now);
     return user;
   } catch (error) {
     if (!(error instanceof RecordInvalid)) throw error;
