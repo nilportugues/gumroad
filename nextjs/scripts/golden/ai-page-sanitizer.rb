@@ -14,7 +14,7 @@ require "cgi"
 module Ai; end
 require_relative "../../../app/services/ai/page_sanitizer"
 
-OUT = File.expand_path("../../src/server/ai/__fixtures__/ai-page-sanitizer.golden.json", __dir__)
+OUT = ENV.fetch("OUT", File.expand_path("../../src/server/ai/__fixtures__/ai-page-sanitizer.golden.json", __dir__))
 SEED = Integer(ENV.fetch("SEED", 5150))
 RANDOM_COUNT = Integer(ENV.fetch("COUNT", 600))
 
@@ -43,6 +43,10 @@ HANDWRITTEN = {
   "a script with an invalid uri" => "<script src=\"https://cdn.jsdelivr.net/a b\"></script>",
   "a script with a blank src" => "<script src=\"\"></script><script src=\"   \"></script>",
   "a script with a valueless src" => "<script src></script>",
+  "script srcs URI.parse rejects" => [" https://cdn.jsdelivr.net/x", "https://cdn.jsdelivr.net/x y", "https://cdn.jsdelivr.net/x|y", "https://cdn.jsdelivr.net/x#a#b", "https://cdn.jsdelivr.net:8x/x", "https://cdn.jsdelivr.net/é", "https://cdn.jsdelivr.net/%zz", "https://cdn.jsdelivr.net/x\\y", "https://cdn.jsdelivr.net/{x}"].map { |src| %(<script src="#{src}"></script>) }.join,
+  "script srcs URI.parse accepts" => ["https://cdn.jsdelivr.net/x?a=b c", "https://cdn.jsdelivr.net/x?a[]=1", "HTTPS://CDN.JSDELIVR.NET/x", "https://cdn.jsdelivr.net:/x", "https://cdn.jsdelivr.net", "https://u:p@cdn.jsdelivr.net/", "https://cdn.jsdelivr.net/x?q={}", "https://cdn.jsdelivr.net./x", "https://cdn.jsdelivr.net:443/npm/@tailwindcss/browser@4", "https://unpkg.com/x#frag", "https://unpkg.com/x?q=1#frag/?"].map { |src| %(<script src="#{src}"></script>) }.join,
+  "script srcs with another scheme" => ["//cdn.jsdelivr.net/x", "https:cdn.jsdelivr.net", "http://unpkg.com/x", "ftp://unpkg.com/x", "javascript:alert(1)", "cdn.jsdelivr.net/x"].map { |src| %(<script src="#{src}"></script>) }.join,
+  "report values with C1 controls" => "<marquee title=\"a\u0085b\u009fc d\">x</marquee>",
   "an inline script" => "<script>var a = 1 < 2 && 3 > 2; document.title = \"x\";</script>",
   "an inline script closed by a style end tag" => "<script>a</style><p>b</p>",
   "an unterminated script" => "<p>a</p><script>alert(1)",

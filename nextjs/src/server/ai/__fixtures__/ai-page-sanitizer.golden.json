@@ -431,6 +431,185 @@
       }
     },
     {
+      "name": "script srcs URI.parse rejects",
+      "html": "<script src=\" https://cdn.jsdelivr.net/x\"></script><script src=\"https://cdn.jsdelivr.net/x y\"></script><script src=\"https://cdn.jsdelivr.net/x|y\"></script><script src=\"https://cdn.jsdelivr.net/x#a#b\"></script><script src=\"https://cdn.jsdelivr.net:8x/x\"></script><script src=\"https://cdn.jsdelivr.net/é\"></script><script src=\"https://cdn.jsdelivr.net/%zz\"></script><script src=\"https://cdn.jsdelivr.net/x\\y\"></script><script src=\"https://cdn.jsdelivr.net/{x}\"></script>",
+      "origin": "handwritten",
+      "ok": {
+        "html": "",
+        "report": {
+          "removed_tags": [
+            {
+              "tag": "script",
+              "attrs": {
+                "src": " https://cdn.jsdelivr.net/x"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/x y"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/x|y"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/x#a#b"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net:8x/x"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/é"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/%zz"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/x\\y"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net/{x}"
+              },
+              "reason": "script src host not allowed"
+            }
+          ],
+          "removed_attributes": [],
+          "total_removed": 9,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "name": "script srcs URI.parse accepts",
+      "html": "<script src=\"https://cdn.jsdelivr.net/x?a=b c\"></script><script src=\"https://cdn.jsdelivr.net/x?a[]=1\"></script><script src=\"HTTPS://CDN.JSDELIVR.NET/x\"></script><script src=\"https://cdn.jsdelivr.net:/x\"></script><script src=\"https://cdn.jsdelivr.net\"></script><script src=\"https://u:p@cdn.jsdelivr.net/\"></script><script src=\"https://cdn.jsdelivr.net/x?q={}\"></script><script src=\"https://cdn.jsdelivr.net./x\"></script><script src=\"https://cdn.jsdelivr.net:443/npm/@tailwindcss/browser@4\"></script><script src=\"https://unpkg.com/x#frag\"></script><script src=\"https://unpkg.com/x?q=1#frag/?\"></script>",
+      "origin": "handwritten",
+      "ok": {
+        "html": "<script src=\"https://cdn.jsdelivr.net/x?a=b%20c\"></script><script src=\"https://cdn.jsdelivr.net/x?a[]=1\"></script><script src=\"HTTPS://CDN.JSDELIVR.NET/x\"></script><script src=\"https://cdn.jsdelivr.net:/x\"></script><script src=\"https://cdn.jsdelivr.net\"></script><script src=\"https://u:p@cdn.jsdelivr.net/\"></script><script src=\"https://cdn.jsdelivr.net/x?q={}\"></script><script src=\"https://cdn.jsdelivr.net:443/npm/@tailwindcss/browser@4\"></script><script src=\"https://unpkg.com/x#frag\"></script><script src=\"https://unpkg.com/x?q=1#frag/?\"></script>",
+        "report": {
+          "removed_tags": [
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https://cdn.jsdelivr.net./x"
+              },
+              "reason": "script src host not allowed"
+            }
+          ],
+          "removed_attributes": [],
+          "total_removed": 1,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "name": "script srcs with another scheme",
+      "html": "<script src=\"//cdn.jsdelivr.net/x\"></script><script src=\"https:cdn.jsdelivr.net\"></script><script src=\"http://unpkg.com/x\"></script><script src=\"ftp://unpkg.com/x\"></script><script src=\"javascript:alert(1)\"></script><script src=\"cdn.jsdelivr.net/x\"></script>",
+      "origin": "handwritten",
+      "ok": {
+        "html": "",
+        "report": {
+          "removed_tags": [
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "//cdn.jsdelivr.net/x"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "https:cdn.jsdelivr.net"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "http://unpkg.com/x"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "ftp://unpkg.com/x"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "javascript:alert(1)"
+              },
+              "reason": "script src host not allowed"
+            },
+            {
+              "tag": "script",
+              "attrs": {
+                "src": "cdn.jsdelivr.net/x"
+              },
+              "reason": "script src host not allowed"
+            }
+          ],
+          "removed_attributes": [],
+          "total_removed": 6,
+          "truncated": false
+        }
+      }
+    },
+    {
+      "name": "report values with C1 controls",
+      "html": "<marquee title=\"abc d\">x</marquee>",
+      "origin": "handwritten",
+      "ok": {
+        "html": "",
+        "report": {
+          "removed_tags": [
+            {
+              "tag": "marquee",
+              "attrs": {
+                "title": "abc d"
+              },
+              "reason": "tag not in allowlist"
+            }
+          ],
+          "removed_attributes": [],
+          "total_removed": 1,
+          "truncated": false
+        }
+      }
+    },
+    {
       "name": "an inline script",
       "html": "<script>var a = 1 < 2 && 3 > 2; document.title = \"x\";</script>",
       "origin": "handwritten",
