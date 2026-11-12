@@ -278,24 +278,70 @@ describe "Social connect token exchange", type: :request do
       expect(SocialConnectVerification.count).to eq(0)
     end
 
-    it "hands a callback that names a redirect URI of its own to Rails", parity: true do
+    it "sends the redirect URI a callback names to Google's token endpoint", parity: true do
       log_in(user)
       state = begin_flow("youtube")
       stub_success
 
       get "/users/auth/youtube/callback", params: { code: "code-1", state:, redirect_uri: "https://example.com/callback" }
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(connected_events("youtube")).to eq(1)
     end
 
-    it "hands a callback with an empty code to Rails", parity: true do
+    it "sends an empty redirect URI as it is", parity: true do
       log_in(user)
       state = begin_flow("youtube")
       stub_success
 
+      get "/users/auth/youtube/callback", params: { code: "code-1", state:, redirect_uri: "" }
+
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(connected_events("youtube")).to eq(1)
+    end
+
+    it "exchanges the code of an XHR callback for the postmessage redirect URI", parity: true do
+      log_in(user)
+      state = begin_flow("youtube")
+      stub_success
+
+      get "/users/auth/youtube/callback", params: { code: "code-1", state: }, xhr: true
+
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(connected_events("youtube")).to eq(1)
+    end
+
+    it "prefers the redirect URI of an XHR callback over postmessage", parity: true do
+      log_in(user)
+      state = begin_flow("youtube")
+      stub_success
+
+      get "/users/auth/youtube/callback", params: { code: "code-1", state:, redirect_uri: "https://example.com/callback" }, xhr: true
+
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(connected_events("youtube")).to eq(1)
+    end
+
+    it "sends an empty code to Google's token endpoint, which refuses it", parity: true do
+      log_in(user)
+      state = begin_flow("youtube")
+      stub_google_token(status: 400, body: { error: "invalid_request", error_description: "Missing required parameter: code" })
+
       callback("youtube", state, code: "")
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(flash[:alert]).to eq("Couldn't connect YouTube. Please try again.")
+      expect(failed_events("youtube")).to eq(["invalid_credentials"])
+    end
+
+    it "sends a blank code to Google's token endpoint as it is", parity: true do
+      log_in(user)
+      state = begin_flow("youtube")
+      stub_google_token(status: 400, body: { error: "invalid_grant", error_description: "Bad Request" })
+
+      callback("youtube", state, code: " ")
+
+      expect(failed_events("youtube")).to eq(["invalid_credentials"])
     end
   end
 
@@ -397,6 +443,30 @@ describe "Social connect token exchange", type: :request do
       expect(failed_events("instagram")).to eq(["invalid_credentials"])
     end
 
+    it "sends an empty code to Instagram's token endpoint, which refuses it", parity: true do
+      log_in(user)
+      state = begin_flow("instagram")
+      stub_instagram_token(status: 400, body: { error_type: "OAuthException", code: 400, error_message: "Invalid authorization code" })
+
+      callback("instagram", state, code: "")
+
+      expect(flash[:alert]).to eq("Couldn't connect Instagram. Please try again.")
+      expect(failed_events("instagram")).to eq(["invalid_credentials"])
+    end
+
+    it "leaves the redirect URI and the XHR header of a callback alone", parity: true do
+      log_in(user)
+      state = begin_flow("instagram")
+      stub_instagram_token
+      stub_profile
+      stub_media
+
+      get "/users/auth/instagram/callback", params: { code: "code-1", state:, redirect_uri: "https://example.com/callback" }, xhr: true
+
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(connected_events("instagram")).to eq(1)
+    end
+
     it "sends a visitor who is not signed in to the login page after the exchange", parity: true do
       Feature.activate(:instagram_connect)
       state = begin_flow("instagram")
@@ -480,6 +550,17 @@ describe "Social connect token exchange", type: :request do
       stub_tiktok_token(status: 400, body: { error: "invalid_grant", error_description: "Authorization code is expired" })
 
       callback("tiktok", state)
+
+      expect(flash[:alert]).to eq("Couldn't connect TikTok. Please try again.")
+      expect(failed_events("tiktok")).to eq(["invalid_credentials"])
+    end
+
+    it "sends an empty code to TikTok's token endpoint, which refuses it", parity: true do
+      log_in(user)
+      state = begin_flow("tiktok")
+      stub_tiktok_token(status: 400, body: { error: "invalid_request", error_description: "Missing code" })
+
+      callback("tiktok", state, code: "")
 
       expect(flash[:alert]).to eq("Couldn't connect TikTok. Please try again.")
       expect(failed_events("tiktok")).to eq(["invalid_credentials"])

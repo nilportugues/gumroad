@@ -313,3 +313,5 @@ captured, and the Gemfile.
 
 
 **Mail and export hand-backs (`nextjs/ws13-mail-1`):** gift receiver receipt, `preorder_receipt` and the gift-sender and pre-order purchases export now run in Node; membership, free-trial and E13 subscription charge and plan-change shapes stay with Rails (see [parity-debt.md](parity-debt.md)).
+
+**WS-10 sign-in providers (`nextjs/ws10-omniauth-7`, lane 15):** the YouTube, Instagram and TikTok connect callbacks run in Node whatever code, redirect URI or XHR header they carry, and a passkey registers in Node (`registration_options` and `create`) when its attestation is the `none` format with an ES256 key, proven by 55 recorded examples, a mutation check, and Rails decoding Node's session cookie and accepting an attestation for its challenge. The Stripe Connect callback, the POST callbacks, signed attestation formats and non-ES256 keys stay in Rails; the reasons are in parity-debt.md.
