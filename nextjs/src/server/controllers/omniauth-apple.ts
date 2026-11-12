@@ -14,9 +14,9 @@ import { Prisma } from "@prisma/client";
 import { railsMessageVerifierGenerate, railsMessageVerifierVerified } from "../auth/message-verifier.ts";
 import { getConfig } from "../infra/config.ts";
 import { outboundFetch } from "../infra/outbound-http.ts";
-import { RecordInvalid } from "../models/runtime/errors.ts";
+import { type AppleData, applyAppleSignIn, planAppleSignIn } from "../models/social-apple.ts";
 import { selectRows, column, table } from "../models/sql.ts";
-import { findUser, isDeleted, Users } from "../models/user.ts";
+import { findUser, isDeleted } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 
 import { type ActionResult, HandBackToRails } from "./application-controller.ts";
@@ -210,23 +210,41 @@ async function appleUserId(uid: string): Promise<bigint | null> {
   return rows[0]?.user_id ?? null;
 }
 
-// `request.params["user"]`: Apple posts the name once, as JSON. Only a shape the gem's `info` block survives is accepted.
-function userHasName(input: MutationInput): boolean {
+// The strategy's `info[:name]`: `[first_name, last_name].compact.join(" ")` from `request.params["user"]`, which Apple posts once as JSON; nil
+// once pruned. Only a shape the gem's `info` block survives is accepted.
+function appleName(input: MutationInput): string | null {
   const raw = input.params.user;
-  if (raw === undefined || raw === null) return false;
+  if (raw === undefined || raw === null) return null;
   let parsed: unknown = raw;
   if (typeof raw === "string") {
     try {
       parsed = JSON.parse(raw) as unknown;
     } catch {
-      return false;
+      return null;
     }
   }
   if (!isHash(parsed)) throw new HandBackToRails("a user parameter that is not an object");
   const name = parsed.name;
-  if (name === undefined || name === null) return false;
+  if (name === undefined || name === null) return null;
   if (!isHash(name)) throw new HandBackToRails("a user name that is not an object");
-  return [name.firstName, name.lastName].some((part) => part !== undefined && part !== null && part !== "");
+  const parts = [name.firstName, name.lastName].filter((part) => part !== undefined && part !== null);
+  if (parts.some((part) => typeof part !== "string")) throw new HandBackToRails("a name part that is not a string");
+  const joined = (parts as string[]).join(" ");
+  return joined === "" ? null : joined;
+}
+
+// The strategy's `info` for the claims of a verified id_token.
+function appleData(claims: IdToken, uid: string, name: string | null): AppleData {
+  const email = claims.email;
+  if (email !== undefined && email !== null && typeof email !== "string")
+    throw new HandBackToRails("an id_token email that is not a string");
+  const verified = claims.email_verified;
+  return {
+    uid,
+    email: email === undefined || email === null || email === "" ? null : email,
+    emailVerified: verified === true || verified === "true",
+    name,
+  };
 }
 
 async function callbackPhase(input: MutationInput): Promise<ActionResult> {
@@ -275,18 +293,13 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
       throw error;
     }
 
-    // find_or_create_for_apple_oauth, for the one case Node finishes.
+    // find_or_create_for_apple_oauth: every case is judged here, before the code is spent.
     const uid = claims.sub;
     if (typeof uid !== "string" || uid === "") throw new HandBackToRails("an id_token without a subject");
     const userId = await appleUserId(uid);
-    if (userId === null)
-      throw new HandBackToRails("a first sign-in with Apple, or one that matches an account by its email");
-    const user = await findUser(userId);
-    if (user === null) throw new HandBackToRails("an Apple identity whose user is gone");
-    if (userHasName(input) && (user.get("name") === null || String(user.get("name")).trim() === ""))
-      throw new HandBackToRails("a user with no name who is given one");
-    if (user.get("unconfirmed_email") !== null && String(user.get("unconfirmed_email")) !== "")
-      throw new HandBackToRails("a user with a pending email change");
+    const identityUser = userId === null ? null : await findUser(userId);
+    if (userId !== null && identityUser === null) throw new HandBackToRails("an Apple identity whose user is gone");
+    const plan = await planAppleSignIn(appleData(claims, uid, appleName(input)), identityUser);
     const ip = remoteIp(input.request);
     if (ip === null) throw new HandBackToRails("a request with no client address");
 
@@ -294,10 +307,8 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
     const exchanged = await exchange(code, chain.now);
     if (!exchanged) return nullSessionFailure(input);
 
-    try {
-      await Users.saveBang(user, { now: () => chain.now });
-    } catch (error) {
-      if (!(error instanceof RecordInvalid)) throw error;
+    const user = plan.kind === "user" ? await applyAppleSignIn(plan, () => chain.now) : null;
+    if (user === null) {
       return {
         status: FOUND,
         location: SIGNUP_PATH,

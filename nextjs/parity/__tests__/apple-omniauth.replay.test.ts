@@ -37,6 +37,7 @@ const CLIENT_ENV = {
   APPLE_WEB_PRIVATE_KEY: TEST_KEY,
 };
 const TOKEN_URL = "https://appleid.apple.com/auth/token";
+const PWNED_ORIGIN = "https://api.pwnedpasswords.com";
 const COOKIE = "_apple_oauth_nonce";
 const COOKIE_TTL_SECONDS = 300;
 const CLIENT_SECRET_TTL_SECONDS = 60;
@@ -66,7 +67,12 @@ const TIME_TOKEN = /<now(?:[+-]\d+[smh])?>/gu;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item. The product reindexes a user save triggers ask Elasticsearch for documents the
 // replay does not hold, and Node then queues the fallback job Rails never needed.
-const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
+// GenerateSubscribePreviewJob: Rails' factories took its until_executed lock before the request; Node takes it as production does.
+const IGNORED_JOBS = new Set(["SendToElasticsearchWorker", "GenerateSubscribePreviewJob"]);
+// Redis does not keep the order jobs were enqueued in: the ones a new account makes are put in the order Rails enqueues them (after commit, then after confirmation).
+const ENQUEUE_ORDER = ["GenerateUsernameJob", "AttachPastPurchasesToUserWorker"];
+const rank = (job: { class: string }) =>
+  ENQUEUE_ORDER.includes(job.class) ? ENQUEUE_ORDER.indexOf(job.class) : ENQUEUE_ORDER.length;
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
@@ -88,7 +94,16 @@ function redisJobs(redis: Redis): JobsChannel {
         if (item.wrapped === "MailDeliveryJob" || IGNORED_JOBS.has(item.class)) continue;
         jobs.push({ class: item.class, args: item.args, queue: item.queue });
       }
-      return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      // Jobs still in Ruby are pushed in Sidekiq's own format.
+      for (const key of await redis.keys("queue:*")) {
+        for (const raw of await redis.lrange(key, 0, -1)) {
+          const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
+          if (item.class === "ActiveJob::QueueAdapters::SidekiqAdapter::JobWrapper" || IGNORED_JOBS.has(item.class))
+            continue;
+          jobs.push({ class: item.class, args: item.args, queue: item.queue });
+        }
+      }
+      return jobs.sort((a, b) => rank(a) - rank(b) || jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
@@ -102,6 +117,11 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    // A new account's random password, external id and OTP secret, and the password an adopted account is given (checked by shape below).
+    "db.users.inserted.*.encrypted_password",
+    "db.users.updated.*.changes.encrypted_password",
+    "db.users.inserted.*.external_id",
+    "db.users.inserted.*.otp_secret_key",
     // The state and the nonce of an authorize URL and the signed cookie that remembers the nonce are minted per request: checked apart.
     "response.location",
     "response.body",
@@ -167,6 +187,8 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
   let server: NextServer;
   let rails: Server;
   let standIn: Server;
+  let pwned: Server;
+  const pwnedPrefixes: string[] = [];
   let recorded: CapturedHttp[] = [];
   const received: Received[] = [];
   const mismatches: string[] = [];
@@ -229,6 +251,12 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
       });
     });
     await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
+    // api.pwnedpasswords.com: the recorded answer is an empty range.
+    pwned = createServer((request, response) => {
+      pwnedPrefixes.push((request.url ?? "").replace("/range/", ""));
+      response.writeHead(200, { "content-type": "text/plain" }).end("");
+    });
+    await new Promise<void>((resolve) => pwned.listen(0, "127.0.0.1", resolve));
     clockOffset = Math.round(PARITY_NOW - realNow());
     server = await startNextServer({
       RAILS_ENV: "test",
@@ -239,6 +267,7 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as { port: number }).port}`,
+      PWNED_PASSWORDS_ORIGIN: `http://127.0.0.1:${(pwned.address() as { port: number }).port}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
@@ -263,6 +292,7 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
     await server.stop();
     rails.close();
     await new Promise((resolve) => standIn.close(resolve));
+    pwned.close();
     await closeAllRedis();
     await redis.quit();
     await client.$disconnect();
@@ -305,6 +335,10 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
     // The sign-in instant is the recording's (a recording lasts a minute or two) and the state is random: both are checked by shape.
     const state = session["omniauth.state"];
     if (typeof state === "string" && /^[0-9a-f]{48}$/u.test(state)) session["omniauth.state"] = "<state>";
+    // The key's second element is the salt of the password digest: random for an account whose password was just set (the sign-in key is
+    // checked against the stored digest where it matters), so only its bcrypt version and cost compare.
+    const wardenKey = session["warden.user.user.key"] as [unknown, string] | undefined;
+    if (wardenKey && /^\$2a\$04\$.{22}$/u.test(wardenKey[1])) wardenKey[1] = "$2a$04$<salt>";
     const warden = session["warden.user.user.session"] as { last_sign_in_at?: number } | undefined;
     if (
       warden?.last_sign_in_at !== undefined &&
@@ -395,7 +429,9 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
       try {
         const fixture = loadFixture(file);
         const exchange = fixture.exchanges[index]!;
-        recorded = exchange.http;
+        const isPwned = (call: CapturedHttp) => call.url.startsWith(PWNED_ORIGIN);
+        recorded = exchange.http.filter((call) => !isPwned(call));
+        pwnedPrefixes.length = 0;
         received.length = 0;
         mismatches.length = 0;
         handedBack.length = 0;
@@ -416,9 +452,24 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
         }
         const replayed = await replayFixtureExchange(fixture, index, replayOptions());
         assertParity(replayed);
+        // A password Node set for an account it created or adopted is a bcrypt digest of the cost Rails used, and an adopted account's differs.
+        const digests = (await client.user.findMany({ select: { id: true, encrypted_password: true } })).map(
+          (row) => row.encrypted_password,
+        );
+        const changed = (
+          replayed.exchanges[0]!.expected.db as Record<string, { updated?: { changes: Record<string, unknown[]> }[] }>
+        ).users?.updated?.find((row) => row.changes.encrypted_password);
+        if (changed) {
+          expect(digests).not.toContain(changed.changes.encrypted_password![0]);
+          expect(digests).toContainEqual(expect.stringMatching(/^\$2a\$04\$/u));
+        }
+        if (name.includes("creates-an-account")) expect(digests).toContainEqual(expect.stringMatching(/^\$2a\$04\$/u));
         // The port made the provider calls Rails made, in the same order and with the same credentials, and no others.
         expect(mismatches).toEqual([]);
         expect(received).toHaveLength(recorded.length);
+        // The new account's random password is looked up by the first five characters of its SHA-1, as devise-pwned_password does.
+        expect(pwnedPrefixes).toHaveLength(exchange.http.filter(isPwned).length);
+        expect(pwnedPrefixes.every((prefix) => /^[0-9A-F]{5}$/u.test(prefix))).toBe(true);
         received.forEach((call, at) => {
           if (call.url === TOKEN_URL) expectClientSecret(call, recorded[at]!);
         });
