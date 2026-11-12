@@ -6,9 +6,9 @@
 // #destroy runs in Node (`mark_deleted!` of the DirectAffiliate, then `AffiliateMailer.direct_affiliate_removal(id).deliver_later`)
 // for the shapes `removalBlocker` accepts; the rest goes to Rails before the write.
 // #create runs in Node for one plain product (models/direct-affiliate-create.ts: the affiliate, its assignment, the audience member, the
-// workflow schedule job and the invitation mail); `creationBlocker` hands the rest back before any write.
-// Handed to Rails before any write: a #create of another shape and an #update that would save (the assignments are rewritten and the
-// affiliate is mailed when the products change), and #subscribe_posts and #unsubscribe_posts (a write,
+// workflow schedule job and the invitation mail), and #update for an edit that only moves fees on the affiliate's one product
+// (models/direct-affiliate-update.ts); `creationBlocker` and `updateBlocker` hand the rest back before any write.
+// Handed to Rails before any write: #subscribe_posts and #unsubscribe_posts (a write,
 // and an ERB page Node has no shell for). #export is not registered: the export service mails or streams a file, and a signed-in
 // HTML GET would make Node seed the dashboard nav before handing back. Param shapes Rails would fail
 // on (a 400 or a 500) or cast differently from Node hand back too.
@@ -27,6 +27,7 @@ import {
   removalBlocker,
   type AffiliateRemovalRow,
 } from "../models/direct-affiliate-removal.ts";
+import { updateBlocker, updateDirectAffiliate } from "../models/direct-affiliate-update.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -185,8 +186,13 @@ async function refuseOrHandBack(
     destinationUrl,
   };
 
-  if (editedId !== null)
-    throw new HandBackToRails("an affiliate update, which rewrites the assignments and mails when the products change");
+  if (editedId !== null) {
+    const edited = { ...candidate, id: editedId, productBasisPoints: productFee };
+    const editBlocker = await updateBlocker(requested, edited);
+    if (editBlocker !== null) throw new HandBackToRails(editBlocker);
+    await updateDirectAffiliate(edited);
+    return { status: SEE_OTHER, location: AFFILIATES_PATH, flash: { notice: "Affiliate updated successfully" } };
+  }
 
   const blocker = await creationBlocker(requested, candidate);
   if (blocker !== null) throw new HandBackToRails(blocker);

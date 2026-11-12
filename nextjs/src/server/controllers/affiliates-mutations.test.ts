@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   deliverLater: vi.fn(),
   creationBlocker: vi.fn(),
   createDirectAffiliate: vi.fn(),
+  updateBlocker: vi.fn(),
+  updateDirectAffiliate: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -44,6 +46,10 @@ vi.mock("../models/direct-affiliate-create.ts", () => ({
   createDirectAffiliate: mocks.createDirectAffiliate,
   // The Ruby to_i itself is pinned by its golden in direct-affiliate-create.test.ts.
   rubyToI: (value: unknown) => Number.parseInt(String(value ?? 0), 10) || 0,
+}));
+vi.mock("../models/direct-affiliate-update.ts", () => ({
+  updateBlocker: mocks.updateBlocker,
+  updateDirectAffiliate: mocks.updateDirectAffiliate,
 }));
 vi.mock("../mail/active-job.ts", () => ({ deliverLater: mocks.deliverLater }));
 vi.mock("../mail/delivery.ts", () => ({ mailRoute: () => "ruby" }));
@@ -103,6 +109,7 @@ beforeEach(() => {
   mocks.findDirectAffiliate.mockResolvedValue({ id: 5 });
   mocks.selectRows.mockResolvedValueOnce([{ id: 11 }]).mockResolvedValue([]);
   mocks.creationBlocker.mockResolvedValue(null);
+  mocks.updateBlocker.mockResolvedValue(null);
   mocks.findFirst.mockResolvedValue({ id: 9n, flags: 0n, email: "ada@example.com" });
 });
 
@@ -224,8 +231,27 @@ describe("PATCH /affiliates/:id", () => {
     );
   });
 
-  it("leaves the edited affiliate out of the already-exists check", async () => {
+  it("leaves the edited affiliate out of the already-exists check and saves the edit", async () => {
+    expect(await call(update, affiliate())).toEqual({
+      status: 303,
+      location: "/affiliates",
+      flash: { notice: "Affiliate updated successfully" },
+    });
+    expect(mocks.updateDirectAffiliate).toHaveBeenCalledWith({
+      id: 5,
+      sellerId: 3,
+      affiliateUserId: 9,
+      affiliateUserEmail: "ada@example.com",
+      basisPoints: 1000,
+      productId: 11,
+      productBasisPoints: 1000,
+    });
+  });
+
+  it("hands an edit the model cannot prove to Rails before saving", async () => {
+    mocks.updateBlocker.mockResolvedValue("an edit that changes the products of the affiliate");
     await expect(call(update, affiliate())).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.updateDirectAffiliate).not.toHaveBeenCalled();
   });
 });
 

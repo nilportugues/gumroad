@@ -328,3 +328,5 @@ captured, and the Gemfile.
 **WS-18 affiliates 1, second slice (lane 29):** `DELETE /products/affiliated/:id` runs in Node with its mail to the seller proven (see [parity-debt.md](parity-debt.md)).
 
 **WS-18 affiliates 2 (`nextjs/ws18-affiliates-2`, lane 29):** `POST /affiliates` that saves (one plain product) runs in Node with its audience member, workflow schedule job and invitation mail proven; see [parity-debt.md](parity-debt.md).
+
+**WS-18 affiliates 2, second slice (lane 29):** `PATCH /affiliates/:id` that only moves fees on the affiliate's one product runs in Node with its update mail proven; the rest of E16 (posts subscription, collaborators, wishlists, comments, reviews) is still handed back (see [parity-debt.md](parity-debt.md)).

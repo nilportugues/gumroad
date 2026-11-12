@@ -6,7 +6,7 @@ require "spec_helper"
 # #subscribe_posts and #unsubscribe_posts, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/affiliates-guards.replay.test.ts, which sends the last request of each example. An example named
 # "hands a ..." records what Node passes to Rails whole: the action saves, deletes or mails. The create that saves is recorded in
-# affiliates_create_parity_spec.rb.
+# affiliates_create_parity_spec.rb, the edit in affiliates_update_parity_spec.rb.
 describe "AffiliatesController guards", type: :request do
   include Parity::AudienceSignedIn
 
@@ -179,14 +179,6 @@ describe "AffiliatesController guards", type: :request do
 
       expect(response).to have_http_status(:see_other)
       expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates/#{direct_affiliate.id}/edit")
-    end
-
-    it "hands an edit that keeps the affiliate's own email to Rails", parity: true do
-      log_in(seller)
-
-      send_json(:patch, affiliate_path(direct_affiliate.external_id), affiliate_body)
-
-      expect(response).to redirect_to(affiliates_path)
     end
 
     it "refuses an edit that moves onto another affiliate's email", parity: true do
