@@ -91,7 +91,7 @@ const STRIPE_SCOPE = "read_write";
 // Request parameters that would sit next to the symbol key of the same name in the hash the Stripe strategy builds.
 const STRIPE_SHADOWED = ["state", "scope", "redirect_uri", "client_id", "response_type"];
 
-function stringParam(input: MutationInput, name: string): string | undefined {
+export function stringParam(input: MutationInput, name: string): string | undefined {
   const value = input.params[name];
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "string") throw new HandBackToRails(`a ${name} that is not a string`);
@@ -240,7 +240,7 @@ const STRATEGIES: Record<string, Strategy> = {
 };
 
 // `OmniAuth.config.full_host`
-function fullHost(): string {
+export function fullHost(): string {
   const { protocol, domain } = domainConfig(process.env);
   return `${protocol}://${domain}`;
 }
@@ -249,7 +249,7 @@ const requestPath = (strategy: Strategy) => `${USERS_AUTH_PATH}/${strategy.name}
 const callbackPath = (strategy: Strategy) => `${requestPath(strategy)}/callback`;
 
 // `request.GET`: the query string alone, flat. Rack's nested syntax and repeated names are left to Rails.
-function queryParams(url: URL): Record<string, string> {
+export function queryParams(url: URL): Record<string, string> {
   const params: Record<string, string> = {};
   for (const [key, value] of url.searchParams) {
     if (key.includes("[")) throw new HandBackToRails("a query parameter in Rack's nested syntax");
@@ -272,7 +272,7 @@ function passthru(): ActionResult {
   return { status: NOT_FOUND, body: PASSTHRU_BODY, contentType: "text/plain; charset=utf-8" };
 }
 
-function assertHtml(input: MutationInput): void {
+export function assertHtml(input: MutationInput): void {
   if (requestFormat(input.request) !== "html") throw new HandBackToRails("a request whose format is not HTML");
 }
 
@@ -343,15 +343,15 @@ async function connectEnabled(strategy: Strategy, auth: ResolvedAuth): Promise<b
   return isFeatureEnabled(social.flag, actor ? userActor(actor.id) : null);
 }
 
-const isHash = (value: unknown): value is Record<string, unknown> =>
+export const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-const sessionHash = (chain: Chain, key: string): Record<string, unknown> => {
+export const sessionHash = (chain: Chain, key: string): Record<string, unknown> => {
   const value = chain.session.data[key];
   return isHash(value) ? value : {};
 };
 
-const presentString = (value: unknown): value is string => typeof value === "string" && isPresent(value);
+export const presentString = (value: unknown): value is string => typeof value === "string" && isPresent(value);
 
 // The callback of a disabled social connect that has no return token to fail with is answered by the strategy itself, ahead of every
 // controller filter: a redirect with the session cookie and nothing else.
@@ -410,7 +410,7 @@ function failure(strategy: Strategy, input: MutationInput, type: string, reason:
 
 // SocialConnectReturn#consume_social_connect_return, the `before_action` of the failure action: the destination a verified return
 // names. The session entry is spent whether or not it checks out.
-async function consumeSocialConnectReturn(
+export async function consumeSocialConnectReturn(
   chain: Chain,
   omniauthParams: Record<string, unknown>,
 ): Promise<string | null> {
@@ -429,7 +429,7 @@ async function consumeSocialConnectReturn(
 }
 
 // `value.to_s.downcase.gsub(/[^a-z0-9._-]/, "").presence&.truncate(64, omission: "")`
-function sanitizeOauthError(value: string): string | null {
+export function sanitizeOauthError(value: string): string | null {
   const cleaned = value.toLowerCase().replace(/[^a-z0-9._-]/gu, "");
   return cleaned === "" ? null : cleaned.slice(0, SANITIZED_ERROR_LIMIT);
 }
@@ -525,7 +525,11 @@ function callbackPhase(strategy: Strategy) {
   };
 }
 
-const BARE: ActionOptions = { bare: true, metal: true, skip: ["redirect_to_custom_subdomain", "check_suspended"] };
+export const BARE: ActionOptions = {
+  bare: true,
+  metal: true,
+  skip: ["redirect_to_custom_subdomain", "check_suspended"],
+};
 
 registerMutations(
   ...PASSTHRU_PROVIDERS.map((name) => ({
