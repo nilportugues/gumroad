@@ -90,9 +90,11 @@ describe "API v2 products", type: :request do
       get "/v2/products/#{product.external_id}"
     end
 
-    it "hands back a product with a taxonomy category to Rails", parity: true do
-      product.update!(taxonomy: create(:taxonomy))
+    it "shows the category of a product with a taxonomy", parity: true do
+      product.update!(taxonomy: create(:taxonomy, parent: create(:taxonomy)))
       get "/v2/products/#{product.external_id}", headers: auth
+
+      expect(response.parsed_body.dig("product", "category")).to be_present
     end
 
     it "hands back a product with files to Rails", parity: true do

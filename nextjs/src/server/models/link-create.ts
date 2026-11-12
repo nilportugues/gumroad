@@ -695,3 +695,64 @@ export async function createLink(seller: CreateSeller, params: CreateParams, now
   const priceCents = tiered || params.nativeType === "coffee" ? 0 : Number(link.get("price_cents"));
   return { created: true, link, priceCents };
 }
+
+export type ApiCreateParams = {
+  name: string | null;
+  description: string | null;
+  // The raw `params[:price]`, already a whole number of cents (`price_cents=` assigns it as is, with no clean_price); null when the key is absent.
+  priceCents: number | null;
+  currency: string;
+  // An explicit taxonomy; null falls back to the "other" taxonomy.
+  taxonomyId: bigint | null;
+  customSummary: string | null;
+};
+
+// Api::V2::LinksController#create from `links.build` to the first `save!`: a digital product that starts as a draft with purchases
+// disabled. `price_cents=` on a new record only writes the attribute, so customizable_price stays unset and a zero price is not served
+// (set_customizable_price would run after the save).
+export async function createApiLink(
+  seller: CreateSeller,
+  params: ApiCreateParams,
+  now?: () => Date,
+): Promise<CreateOutcome> {
+  const taxonomyId =
+    params.taxonomyId ??
+    (
+      await selectRows<{ id: bigint }>(
+        Prisma.sql`SELECT ${column("taxonomies", "id")} FROM ${table("taxonomies")} WHERE ${column("taxonomies", "slug")} = 'other' LIMIT 1`,
+      )
+    )[0]?.id ??
+    null;
+  const jsonData: [string, YamlValue][] = [];
+  if (params.customSummary !== null) jsonData.push(["custom_summary", params.customSummary]);
+  const link = LinkCreations.build({
+    user_id: seller.id,
+    name: params.name,
+    description: params.description,
+    native_type: "digital",
+    price_cents: params.priceCents,
+    price_currency_type: params.currency,
+    draft: true,
+    purchase_disabled_at: (now ?? (() => new Date()))(),
+    taxonomy_id: taxonomyId,
+    flags: LinkFlags.set(0n, "display_product_reviews", true),
+    json_data: rubyJsonGenerate(new RubyHash(jsonData)),
+  } as Partial<Link>);
+  link.ivars.sellerMaxProductPrice = seller.verified ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
+  link.ivars.sellerDiscoverBoost = UserFlags.isSet(seller.flags, "discover_boost_enabled");
+  link.ivars.tiered = false;
+  link.ivars.priceCopies = 1;
+  link.ivars.untieredFirstSave = false;
+  link.ivars.dailyCreationLimit = seller.isTeamMember
+    ? null
+    : (dailyProductCreationLimit(seller.json_data) ??
+      (seller.user_risk_state === "compliant" ? COMPLIANT_DAILY_CREATION_LIMIT : DEFAULT_DAILY_CREATION_LIMIT));
+  if (params.priceCents === null) {
+    // Link#associate_price adds the error and raises LinkInvalid, which the action rescues.
+    const errors = new Errors();
+    errors.add("base", NO_PRICE);
+    return { created: false, errors };
+  }
+  if (!(await LinkCreations.save(link, { now }))) return { created: false, errors: link.errors };
+  return { created: true, link, priceCents: params.priceCents };
+}
