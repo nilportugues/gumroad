@@ -59,8 +59,8 @@ export function setJsonDataForAttr<R extends JsonDataRow>(record: ModelRecord<R>
   record.untracked(() => record.set("json_data", rubyJsonGenerate(hash) as R["json_data"]));
 }
 
-// JsonData#merge_json_data_with_current_row: rebase this instance's json_data delta onto the row.
-export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(tableName: string): Callback<R> {
+// JsonData#merge_json_data_with_current_row: rebase this instance's json_data delta onto the row. `type` is the STI class: `unscoped` keeps its type condition, so the locking read carries it.
+export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(tableName: string, options: { type?: string } = {}): Callback<R> {
   return {
     name: "merge_json_data_with_current_row",
     if: (r) => r.persisted && r.attributeChanged("json_data"),
@@ -70,7 +70,7 @@ export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(tableName: st
       const base = toHash(wasParsed as YamlValue) ?? new RubyHash([]);
       const mine = jsonData(record);
       const [row] = await tx.$queryRaw<{ json_data: string | null }[]>(
-        Prisma.sql`SELECT ${column(tableName, "json_data")} FROM ${table(tableName)} WHERE ${column(tableName, "id")} = ${record.get("id")} LIMIT 1 FOR UPDATE`,
+        Prisma.sql`SELECT ${column(tableName, "json_data")} FROM ${table(tableName)} WHERE ${options.type === undefined ? Prisma.empty : Prisma.sql`${column(tableName, "type")} = ${options.type} AND `}${column(tableName, "id")} = ${record.get("id")} LIMIT 1 FOR UPDATE`,
       );
       const currentText = row?.json_data ?? null;
       const current = currentText == null ? null : rubyJsonParse(currentText);

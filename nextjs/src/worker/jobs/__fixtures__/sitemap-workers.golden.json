@@ -1,0 +1,424 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a daily run while another run writes",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapDailyWorker\",\"args\":[\"2026-10-01\"],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapDailyWorker",
+      "args": [
+        "2026-10-01"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a daily run with no date while another run writes",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapDailyWorker\",\"args\":[\"2026-11-04\"],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapDailyWorker",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a daily run with a date that does not parse while another run writes",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapDailyWorker\",\"args\":[\"not a date\"],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapDailyWorker",
+      "args": [
+        "not a date"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a daily run with a non-string date while another run writes",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapDailyWorker\",\"args\":[5],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapDailyWorker",
+      "args": [
+        5
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a daily run that wins the lock",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "RefreshSitemapDailyWorker",
+      "args": [
+        "2026-10-01"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a daily run with no date that wins the lock",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "RefreshSitemapDailyWorker",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a daily run with a date that does not parse",
+      "error": {
+        "class": "Date::Error",
+        "message": "invalid date"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "RefreshSitemapDailyWorker",
+      "args": [
+        "not a date"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a wishlist run while another run writes",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshWishlistSitemapDailyWorker\",\"args\":[],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshWishlistSitemapDailyWorker",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a wishlist run that wins the lock",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "RefreshWishlistSitemapDailyWorker",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a categories retry while another run writes",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":0,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapMonthlyWorker\",\"args\":[\"categories_only\",2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only",
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a categories retry on the last attempt but one",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":0,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapMonthlyWorker\",\"args\":[\"categories_only\",24],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only",
+        23
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a categories retry on the last attempt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only",
+        24
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a categories retry past the last attempt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only",
+        30
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a categories retry with the attempt as a string",
+      "error": {
+        "class": "ArgumentError",
+        "message": "comparison of String with 24 failed"
+      },
+      "statements": [],
+      "redis": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only",
+        "2"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a categories retry with no attempt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":0,\"queue\":\"low\",\"backtrace\":true,\"class\":\"RefreshSitemapMonthlyWorker\",\"args\":[\"categories_only\",2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793796345.1230001
+            ]
+          ],
+          "expires": false
+        },
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "sitemap_generation_lock": {
+          "type": "string",
+          "value": "another-run",
+          "expires": true
+        }
+      },
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a categories retry that wins the lock",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "RefreshSitemapMonthlyWorker",
+      "args": [
+        "categories_only",
+        3
+      ],
+      "hands_back": true
+    }
+  ]
+}

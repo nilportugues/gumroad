@@ -37,8 +37,10 @@ import { deleteProductRichContentWorker } from "./delete-product-rich-content-wo
 import { deleteUnusedPublicFilesJob } from "./delete-unused-public-files-job.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
+import { detectFailingPaypalRailsJob } from "./detect-failing-paypal-rails-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
+import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-seller-job.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
@@ -46,6 +48,9 @@ import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.t
 import { generateUsernameJob } from "./generate-username-job.ts";
 import { handleGrmcCallbackJob } from "./handle-grmc-callback-job.ts";
 import { handleNewUserComplianceInfoWorker } from "./handle-new-user-compliance-info-worker.ts";
+import { googleCalendarInviteJob } from "./google-calendar-invite-job.ts";
+import { handleResendEventJob } from "./handle-resend-event-job.ts";
+import { handleSendgridEventJob } from "./handle-sendgrid-event-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
 import { handleSnsMediaconvertEventWorker } from "./handle-sns-mediaconvert-event-worker.ts";
 import { handleStripeAutodebitForNegativeBalance } from "./handle-stripe-autodebit-job.ts";
@@ -102,6 +107,7 @@ import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.t
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
 import { recordSocialScoreShadowEvaluationsJob } from "./record-social-score-shadow-evaluations-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
+import { refreshAudienceMemberJob } from "./refresh-audience-member-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
 import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
@@ -148,6 +154,11 @@ import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
+import {
+  refreshSitemapDailyWorker,
+  refreshSitemapMonthlyWorker,
+  refreshWishlistSitemapDailyWorker,
+} from "./sitemap-workers.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
 import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
 import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
@@ -326,6 +337,15 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   FlushDeliveredEmailInfosJob: flushDeliveredEmailInfosJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
   PurgeOldDeletedAssetPreviewsWorker: purgeOldDeletedAssetPreviewsWorker,
+  DetectFailingPaypalRailsJob: detectFailingPaypalRailsJob,
+  EnforceRefundPolicyForSellerJob: enforceRefundPolicyForSellerJob,
+  GoogleCalendarInviteJob: googleCalendarInviteJob,
+  HandleResendEventJob: handleResendEventJob,
+  HandleSendgridEventJob: handleSendgridEventJob,
+  RefreshAudienceMemberJob: refreshAudienceMemberJob,
+  RefreshSitemapDailyWorker: refreshSitemapDailyWorker,
+  RefreshSitemapMonthlyWorker: refreshSitemapMonthlyWorker,
+  RefreshWishlistSitemapDailyWorker: refreshWishlistSitemapDailyWorker,
   RefreshClosedTierDiscoverPricesJob: refreshClosedTierDiscoverPricesJob,
   BackfillPriceCheckerIndexFieldsJob: backfillPriceCheckerIndexFieldsJob,
   DeleteUnusedPublicFilesJob: deleteUnusedPublicFilesJob,

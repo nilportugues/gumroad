@@ -165,4 +165,13 @@ export const PORTED_JOBS: readonly string[] = [
   "Radar::SyncValueListsJob",
   "AlertOnRetiredManagedAccountActivityJob",
   "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+  "RefreshAudienceMemberJob",
+  "HandleResendEventJob",
+  "HandleSendgridEventJob",
+  "DetectFailingPaypalRailsJob",
+  "EnforceRefundPolicyForSellerJob",
+  "GoogleCalendarInviteJob",
+  "RefreshSitemapDailyWorker",
+  "RefreshWishlistSitemapDailyWorker",
+  "RefreshSitemapMonthlyWorker",
 ];
