@@ -1792,7 +1792,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PdfUnstampableNotifierWorker": {
     "file": "app/sidekiq/pdf_unstampable_notifier_worker.rb",
@@ -2602,7 +2602,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ResizeOversizedAssetPreviewWorker": {
     "file": "app/sidekiq/resize_oversized_asset_preview_worker.rb",
@@ -2759,7 +2759,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ScheduleWorkflowEmailsWorker": {
     "file": "app/sidekiq/schedule_workflow_emails_worker.rb",
@@ -3231,7 +3231,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "StampPdfForPurchaseJob": {
     "file": "app/sidekiq/stamp_pdf_for_purchase_job.rb",
@@ -3528,7 +3528,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "UpdateCachedSalesRelatedProductsInfosJob": {
     "file": "app/sidekiq/update_cached_sales_related_products_infos_job.rb",

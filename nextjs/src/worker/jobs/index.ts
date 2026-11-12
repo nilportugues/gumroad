@@ -208,6 +208,11 @@ import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-produ
 import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
 import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
 import { stripePayoutsPausedEmailJob } from "./stripe-payouts-paused-email-job.ts";
+import { scheduleMembershipPriceUpdatesJob } from "./schedule-membership-price-updates-job.ts";
+import { updateBundlePurchasesContentJob } from "./update-bundle-purchases-content-job.ts";
+import { staleTransientSuppressionSweepJob } from "./stale-transient-suppression-sweep-job.ts";
+import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
+import { pdfUnstampableNotifierJob } from "./pdf-unstampable-notifier-job.ts";
 import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { utmLinkSaleAttributionJob } from "./utm-link-sale-attribution-job.ts";
 import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
@@ -349,6 +354,11 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateUtmLinkStatsJob: updateUtmLinkStatsJob,
   UtmLinkSaleAttributionJob: utmLinkSaleAttributionJob,
   StripePayoutsPausedEmailJob: stripePayoutsPausedEmailJob,
+  ScheduleMembershipPriceUpdatesJob: scheduleMembershipPriceUpdatesJob,
+  UpdateBundlePurchasesContentJob: updateBundlePurchasesContentJob,
+  StaleTransientSuppressionSweepJob: staleTransientSuppressionSweepJob,
+  ResendConfirmationEmailJob: resendConfirmationEmailJob,
+  PdfUnstampableNotifierJob: pdfUnstampableNotifierJob,
   AlertOnBlockedEstablishedBuyersJob: alertOnBlockedEstablishedBuyersJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
   FightDisputeJob: fightDisputeJob,
