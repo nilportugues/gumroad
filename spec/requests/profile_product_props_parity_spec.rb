@@ -83,13 +83,14 @@ describe "Settings::Profile::ProductsController#show", type: :request do
     expect(response.parsed_body["product"]).to include("covers" => [], "main_cover_id" => nil)
   end
 
-  it "hands a product with a YouTube cover to Rails", parity: true do
-    create(:asset_preview_youtube, link: product)
+  it "renders a product with a YouTube cover", parity: true do
+    create(:asset_preview_youtube, link: product, guid: "profileyoutube")
     log_in(seller)
 
     fetch
 
-    expect(response.parsed_body["product"]["covers"].first).to include("type" => "oembed")
+    expect(response.parsed_body["product"]["covers"].first).to include("type" => "oembed", "id" => "profileyoutube", "native_width" => 356)
+    expect(response.parsed_body["product"]["main_cover_id"]).to eq("profileyoutube")
   end
 
   it "hands a product with an uploaded cover to Rails", parity: true do

@@ -9,15 +9,15 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { followRecaptchaSiteKey } from "../page-props/settings/profile.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
+import { coverAsJson } from "./asset-preview.ts";
 import type { LinkRow, UserRow } from "./product-reads.ts";
 
-const present = (value: string | null | undefined): value is string => value != null && value.trim() !== "";
 
 const exists = async (from: Prisma.Sql): Promise<boolean> =>
   (await selectRows(Prisma.sql`SELECT 1 FROM ${from} LIMIT 1`)).length > 0;
 
-// `Link#display_asset_previews.as_json` and `main_preview&.guid`. A cover that is an Unsplash URL is a row alone: every other field
-// of AssetPreview#as_json comes from an upload's blob or an oEmbed document, so those stay with Rails.
+// `Link#display_asset_previews.as_json` and `main_preview&.guid`. A cover that is an Unsplash URL or an oEmbed document is
+// a row alone; an upload's URL is an Active Storage blob URL with a random key, so a product with one stays with Rails.
 export async function coverProps(
   row: LinkRow,
 ): Promise<{ covers: Record<string, unknown>[]; main_cover_id: string | null }> {
@@ -33,21 +33,9 @@ export async function coverProps(
   const uploaded = await exists(
     Prisma.sql`${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = 'AssetPreview' AND ${column("active_storage_attachments", "name")} = 'file' AND ${column("active_storage_attachments", "record_id")} IN (${Prisma.join(previews.map((preview) => preview.id))})`,
   );
-  if (uploaded || previews.some((preview) => preview.oembed !== null || !present(preview.unsplash_url)))
-    throw new NotPortedError("AssetPreview#as_json for an upload or an oEmbed cover");
+  if (uploaded) throw new NotPortedError("AssetPreview#as_json for an upload");
   return {
-    covers: previews.map((preview) => ({
-      url: preview.unsplash_url,
-      original_url: preview.unsplash_url,
-      thumbnail: null,
-      id: preview.guid,
-      type: "unsplash",
-      filetype: null,
-      width: null,
-      height: null,
-      native_width: null,
-      native_height: null,
-    })),
+    covers: previews.map(coverAsJson),
     main_cover_id: previews[0]!.guid,
   };
 }

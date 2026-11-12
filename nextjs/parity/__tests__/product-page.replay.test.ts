@@ -70,6 +70,9 @@ type Case = { name: string; file: string; index: number; served: boolean; status
 const RENDERED = new Set(
   [
     "renders-a-digital-product",
+    "renders-a-product-whose-cover-is-a-youtube-video",
+    "renders-a-product-whose-cover-is-a-vimeo-video-with-a-protocol-relative-player-and-a-cfb6aabe",
+    "renders-a-product-whose-oembed-cover-reports-a-width-that-is-not-a-number",
     "renders-an-ebook-with-its-book-files-in-the-structured-data",
     "renders-a-euro-product-with-its-price-converted-to-dollars-in-the-structured-data",
     "renders-a-product-by-its-custom-permalink",
