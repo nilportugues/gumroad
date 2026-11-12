@@ -4,12 +4,13 @@
 // (before any write) once it gets past them. Served here: the 404 of `fetch_purchase` for every member action,
 // `product_purchases` of a sale that is not a bundle, `missed_posts` of a customer who cannot be contacted or a seller with nothing
 // published, `blob_url`'s 404, `update`'s two gift 422s, `variant`'s 404s, `send_post`'s 401/404/422 and `update_review_response`'s 404.
-// Handed back: refund (moves money), resend_receipt and mark_as_shipped (mail), resend_ping (webhook), change_can_contact and
-// update's saves (Purchase callbacks that mirror the opt-out into the newsletter cutover and the audience), a variant swap, a post
+// Handed back: refund (moves money), mark_as_shipped (mail), the resend_receipt of a charge, a preorder authorization or a gift sender, resend_ping (webhook), a change_can_contact that Node
+// cannot prove (models/purchase-contact-writes.ts) and update's saves (Purchase callbacks that mirror the opt-out into the newsletter cutover and the audience), a variant swap, a post
 // email, a review reply, and blob_url's success (a CDN URL for the blob's storage service).
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { changeCanContact } from "../models/purchase-contact-writes.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { eligibleToSendEmails } from "../models/user-email-eligibility.ts";
 import { PurchaseFlags } from "../search/flags.ts";
@@ -26,6 +27,8 @@ import {
   type MobileAuth,
   type MobileInput,
 } from "./mobile-api.ts";
+import { setPurchase } from "./purchase-access-writes.ts";
+import { resendReceipt } from "./purchase-resend-receipt.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 const SKUS_ENABLED_FLAG = 1n << 9n;
@@ -65,6 +68,18 @@ const handBack = (what: string) =>
   memberAction(() => {
     throw new HandBackToRails(what);
   });
+
+// SalesController#resend_receipt: a sale with no email to send to is `Could not find receipt`; the enqueue is the only write.
+const resendSaleReceipt = memberAction(async (_sale, input) => {
+  const outcome = await resendReceipt(await setPurchase(input.params.id as string), { rescueEnqueueError: false });
+  return outcome === "missing" ? fetchError("Could not find receipt") : renderJson({ success: true });
+});
+
+// SalesController#change_can_contact: no authorization beyond `fetch_purchase`; the save is Node's for a plain purchase.
+const changeSaleCanContact = memberAction(async (_sale, input) => {
+  await changeCanContact(await setPurchase(input.params.id as string), input.params.can_contact);
+  return renderJson({ success: true });
+});
 
 const rowExists = async (statement: Prisma.Sql) => (await selectRows(statement)).length > 0;
 
@@ -221,13 +236,13 @@ registerMobile(
     method: "POST",
     pattern: "/mobile/sales/:id/resend_receipt",
     scopes: MOBILE_API_SCOPES,
-    run: handBack("a receipt email"),
+    run: resendSaleReceipt,
   },
   {
     method: "POST",
     pattern: "/mobile/sales/:id/change_can_contact",
     scopes: MOBILE_API_SCOPES,
-    run: handBack("a can_contact change"),
+    run: changeSaleCanContact,
   },
   {
     method: "POST",

@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { HandBackToRails } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, selectRows, loadSellerContext, decryptSecureExternalId, readEncryptedCookie } = vi.hoisted(() => ({
+const {
+  specs,
+  selectRows,
+  loadSellerContext,
+  decryptSecureExternalId,
+  readEncryptedCookie,
+  resendReceipt,
+  changeCanContact,
+} = vi.hoisted(() => ({
+  changeCanContact: vi.fn(),
+  resendReceipt: vi.fn(),
   specs: [] as MutationSpec[],
   selectRows: vi.fn(),
   loadSellerContext: vi.fn(),
@@ -26,6 +37,8 @@ vi.mock("../policies/seller-context.ts", async (original) => ({
   ...(await original<typeof import("../policies/seller-context.ts")>()),
   loadSellerContext,
 }));
+vi.mock("../models/purchase-contact-writes.ts", () => ({ changeCanContact }));
+vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
 vi.mock("../auth/rails-cookies.ts", () => ({ readEncryptedCookie }));
 vi.mock("../auth/rails-session-config.ts", () => ({ railsCookieSecrets: () => ({}) }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
@@ -61,6 +74,8 @@ beforeEach(() => {
   selectRows.mockReset();
   decryptSecureExternalId.mockReset();
   readEncryptedCookie.mockReset();
+  resendReceipt.mockReset();
+  changeCanContact.mockReset();
   loadSellerContext.mockReset();
   loadSellerContext.mockResolvedValue({ user: seller, seller, memberships: [] });
 });
@@ -68,7 +83,6 @@ beforeEach(() => {
 describe.each([
   ["PUT", "/purchases/:id"],
   ["PATCH", "/purchases/:id"],
-  ["POST", "/purchases/:id/change_can_contact"],
   ["POST", "/purchases/:id/cancel_preorder_by_seller"],
 ])("%s %s", (method, pattern) => {
   const action = find(method, pattern);
@@ -116,7 +130,6 @@ describe.each([
   ["GET", "/purchases/:id/confirm_receipt_email"],
   ["GET", "/purchases/:id/subscribe"],
   ["POST", "/purchases/:id/subscribe"],
-  ["POST", "/purchases/:id/resend_receipt"],
 ])("%s %s", (method, pattern) => {
   const action = find(method, pattern);
 
@@ -128,6 +141,61 @@ describe.each([
   it("hands an existing purchase back to Rails", async () => {
     selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
     await expect(action.run(input("5", false))).rejects.toThrow(/^a |^the /u);
+  });
+});
+
+describe("POST /purchases/:id/change_can_contact", () => {
+  const action = find("POST", "/purchases/:id/change_can_contact");
+  const withParams = (params: Record<string, unknown>) => ({ ...input(), params }) as unknown as MutationInput;
+
+  it("answers 204 once the purchase is saved", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    changeCanContact.mockResolvedValue("changed");
+    expect(status(await action.run(withParams({ can_contact: false })))).toBe(204);
+    expect(changeCanContact).toHaveBeenCalledWith({ id: 5n, seller_id: 7n }, false);
+  });
+
+  it("hands a change Node cannot prove back to Rails", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    changeCanContact.mockRejectedValue(new HandBackToRails("a purchase that has a review"));
+    await expect(action.run(withParams({ can_contact: false }))).rejects.toThrow(/review/u);
+  });
+
+  it("does not save for another seller's purchase or an accountant", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 8n }]);
+    expect(status(await action.run(withParams({})))).toBe(404);
+    loadSellerContext.mockResolvedValue(accountant);
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    expect(status(await action.run(withParams({})))).toBe(401);
+    expect(changeCanContact).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /purchases/:id/resend_receipt", () => {
+  const action = find("POST", "/purchases/:id/resend_receipt");
+
+  it("raises a routing error for a purchase that does not exist", async () => {
+    selectRows.mockResolvedValueOnce([]);
+    await expect(action.run(input("5", false))).rejects.toThrow("Not Found");
+    expect(resendReceipt).not.toHaveBeenCalled();
+  });
+
+  it("answers 204 once the receipt is enqueued", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    resendReceipt.mockResolvedValue("sent");
+    expect(status(await action.run(input("5", false)))).toBe(204);
+  });
+
+  it("raises a routing error for a purchase with no email", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    resendReceipt.mockResolvedValue("missing");
+    await expect(action.run(input("5", false))).rejects.toThrow("Not Found");
+  });
+
+  it("answers 503 when the enqueue fails", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    resendReceipt.mockResolvedValue("unavailable");
+    expect(status(await action.run(input("5", false)))).toBe(503);
   });
 });
 

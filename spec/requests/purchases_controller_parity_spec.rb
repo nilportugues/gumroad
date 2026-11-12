@@ -87,7 +87,82 @@ describe "Purchases controller guards", type: :request do
     end
   end
 
-  describe "changing whether a buyer can be contacted" do
+  describe "changing whether a buyer can be contacted", defer_audience_refresh: true do
+    let(:free_product) { create(:product, user: seller, name: "Free product", unique_permalink: "freeguarded", price_cents: 0, created_at: Time.utc(2025, 1, 1)) }
+    let(:free_purchase) { build(:purchase, link: free_product, seller:, email: "free-buyer@example.com", purchase_state: "successful").tap { _1.save!(validate: false) } }
+
+    it "stops emailing the buyer of a free purchase", parity: true do
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: false })
+
+      expect(response).to have_http_status(:no_content)
+      expect(free_purchase.reload.can_contact).to be(false)
+    end
+
+    it "resumes emailing a buyer who was opted out", parity: true do
+      free_purchase.update_columns(can_contact: false)
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: true })
+
+      expect(response).to have_http_status(:no_content)
+      expect(free_purchase.reload.can_contact).to be(true)
+    end
+
+    it "writes nothing when the buyer can already be contacted", parity: true do
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: "true" })
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "reads off as false", parity: true do
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: "off" })
+
+      expect(response).to have_http_status(:no_content)
+      expect(free_purchase.reload.can_contact).to be(false)
+    end
+
+    it "saves a priced purchase that carries its processor trace", parity: true do
+      purchase.update_columns(merchant_account_id: create(:merchant_account, user: seller).id)
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{purchase.external_id}/change_can_contact", { can_contact: false })
+
+      expect(response).to have_http_status(:no_content)
+      expect(purchase.reload.can_contact).to be(false)
+    end
+
+    it "hands a missing value to Rails, which stores NULL", parity: true do
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", {})
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "hands the change of a seller under a newsletter cutover to Rails", parity: true do
+      FeatureAnnouncementNewsletterCutover.create!(seller:, state: "prepared", cutoff_at: Time.utc(2025, 6, 1))
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: false })
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "hands the change of a purchase that has a review to Rails", parity: true do
+      create(:product_review, purchase: free_purchase, link: free_product, rating: 4)
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: false })
+
+      expect(response).to have_http_status(:no_content)
+    end
+
     it "hands the change of an owner's purchase to Rails", parity: true do
       log_in(seller)
 
@@ -209,7 +284,34 @@ describe "Purchases controller guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the resend to Rails", parity: true do
+    it "enqueues the receipt of a plain purchase", parity: true do
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    end
+
+    it "answers 404 for a purchase with no email to send to", parity: true do
+      purchase.update_columns(email: "")
+
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:not_found)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
+    end
+
+    it "hands the receipt of a preorder authorization to Rails", parity: true do
+      preordered, = preorder_purchase
+      preordered.update_attribute(:is_preorder_authorization, true)
+
+      send_json(:post, "/purchases/#{preordered.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "hands the receipt of a gift sender to Rails", parity: true do
+      purchase.update_attribute(:is_gift_sender_purchase, true)
+
       send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
 
       expect(response).to have_http_status(:no_content)

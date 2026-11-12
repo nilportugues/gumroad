@@ -2,12 +2,13 @@
 // them: the 404 and authorization guards of every action that sends mail, charges or refunds, or mints and reads signed tokens.
 // Whatever passes a guard goes to Rails whole, before anything is written. revoke_access and undo_revoke_access are in
 // purchase-access-writes.ts; search and export (Elasticsearch, a mobile token, a CSV mail) stay in Rails untouched.
-import { Prisma } from "@prisma/client";
+import { Prisma, type Purchase } from "@prisma/client";
 
 import { decrypt, encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
 import { readEncryptedCookie } from "../auth/rails-cookies.ts";
 import { railsCookieSecrets } from "../auth/rails-session-config.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { changeCanContact } from "../models/purchase-contact-writes.ts";
 import { decryptSecureExternalId, SecureExternalIdError } from "../models/secure-external-id.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { audiencePurchasePolicy } from "../policies/audience-purchase.ts";
@@ -17,10 +18,12 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { setPurchase } from "./purchase-access-writes.ts";
 import { refundPurchase } from "./purchase-refund.ts";
-import { authorizeJson, notFoundJson } from "./seller-json.ts";
+import { resendReceipt } from "./purchase-resend-receipt.ts";
+import { authorizeJson, noContent, notFoundJson } from "./seller-json.ts";
 
 const UNSUBSCRIBE_SCOPE = "unsubscribe";
 const CONFIRM_SCOPE = "confirm";
+const SERVICE_UNAVAILABLE = 503;
 
 async function rowExists(tableName: string, id: bigint | number | string | null): Promise<boolean> {
   if (id === null) return false;
@@ -44,7 +47,11 @@ type Policy = (context: Parameters<typeof audiencePurchasePolicy.update>[0]) => 
 
 // ----- the seller's actions: authenticate_user!, set_purchase, verify_current_seller_is_seller_for_purchase, authorize
 
-function sellerPurchaseAction(query: Policy, reason: string) {
+function sellerPurchaseAction(
+  query: Policy,
+  reason: string,
+  perform?: (purchase: Purchase, input: MutationInput) => Promise<ActionResult>,
+) {
   return async (input: MutationInput): Promise<ActionResult> => {
     const seller = input.context.currentSeller;
     if (railsLoggedInUser(input.context) === null || seller === null) throw new HandBackToRails("a signed-out request");
@@ -54,18 +61,26 @@ function sellerPurchaseAction(query: Policy, reason: string) {
     if (purchase.seller_id !== seller.id) return { ...notFoundJson(), rescued: true };
     const denied = await authorizeJson(input, (context) => authorize(query, context));
     if (denied) return denied;
+    if (perform) return perform(purchase, input);
     throw new HandBackToRails(reason);
   };
 }
 
 // ----- the buyer's and the visitor's actions
 
-// receipt, confirm_receipt_email, subscribe and resend_receipt: `Purchase.find_by_external_id(params[:id]) || e404`.
+// receipt, confirm_receipt_email and subscribe: `Purchase.find_by_external_id(params[:id]) || e404`.
 function publicPurchaseAction(reason: string) {
   return async (input: MutationInput): Promise<ActionResult> => {
     await setPurchase(input.routeParams.id!);
     throw new HandBackToRails(reason);
   };
+}
+
+// `resend_receipt`: a receipt with no email to send to is a 404; a failed enqueue is "try again" (503), not a claim it was sent.
+async function resendReceiptAction(input: MutationInput): Promise<ActionResult> {
+  const outcome = await resendReceipt(await setPurchase(input.routeParams.id!), { rescueEnqueueError: true });
+  if (outcome === "missing") throw new RoutingError("Not Found");
+  return outcome === "sent" ? noContent() : { ...noContent(), status: SERVICE_UNAVAILABLE };
 }
 
 async function unsubscribe(input: MutationInput): Promise<ActionResult> {
@@ -113,7 +128,14 @@ registerMutations(
     method: "POST",
     pattern: "/purchases/:id/change_can_contact",
     json: true,
-    run: sellerPurchaseAction(audiencePurchasePolicy.changeCanContact, "a can_contact change"),
+    run: sellerPurchaseAction(
+      audiencePurchasePolicy.changeCanContact,
+      "a can_contact change",
+      async (purchase, input) => {
+        await changeCanContact(purchase, input.params.can_contact);
+        return noContent();
+      },
+    ),
   },
   {
     method: "POST",
@@ -145,7 +167,7 @@ registerMutations(
     pattern: "/purchases/:id/subscribe",
     run: publicPurchaseAction("a resubscribe, which writes every purchase of the buyer"),
   },
-  { method: "POST", pattern: "/purchases/:id/resend_receipt", json: true, run: publicPurchaseAction("a receipt mail") },
+  { method: "POST", pattern: "/purchases/:id/resend_receipt", json: true, run: resendReceiptAction },
   { method: "GET", pattern: "/purchases/:id/unsubscribe", skipForgeryProtection: true, run: unsubscribe },
   { method: "POST", pattern: "/purchases/:id/confirm", json: true, run: confirm },
   { method: "POST", pattern: "/preorders/:id/charge_preorder", json: true, run: chargePreorder },
