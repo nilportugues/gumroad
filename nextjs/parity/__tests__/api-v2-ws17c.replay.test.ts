@@ -39,6 +39,7 @@ const WS17C_SPEC_DIRS = [
   "mcp_products",
   "mcp_publication",
   "mcp_product_writes",
+  "mcp_discount_codes",
   "payouts_media",
   "sales_exports",
   "links",
@@ -71,7 +72,8 @@ function reconcilePermalink(
   // An MCP tool result carries the payload as pretty-printed JSON text, where the permalink is a quoted value.
   const quoted = new RegExp(`("permalink": ")${was}(")`, "gu");
   const swap = (value: unknown): unknown => {
-    if (typeof value === "string") return value === was ? now : value.replace(urlEnd, `$1${now}`).replace(quoted, `$1${now}$2`);
+    if (typeof value === "string")
+      return value === was ? now : value.replace(urlEnd, `$1${now}`).replace(quoted, `$1${now}$2`);
     if (Array.isArray(value)) return value.map(swap);
     if (value !== null && typeof value === "object")
       return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, swap(entry)]));

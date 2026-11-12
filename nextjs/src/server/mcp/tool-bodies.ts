@@ -9,7 +9,7 @@ import type { OauthAccessToken, ProductFile, User } from "@prisma/client";
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
-import { hasApplicableOfferCodes } from "../controllers/api-v2/offer-codes.ts";
+import { hasApplicableOfferCodes, validityPeriodOf } from "../controllers/api-v2/offer-codes.ts";
 import { isPublishedProduct, plannedDescription } from "../controllers/api-v2/product-writes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { findByName } from "../models/compliance-countries.ts";
@@ -24,9 +24,21 @@ import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
 import { createApiLink, type CreateSeller } from "../models/link-create.ts";
 import { Links } from "../models/link.ts";
+import {
+  addProduct,
+  assertPlainCode,
+  assertPlainProducts,
+  buildOfferCode,
+  loadOfferCode,
+  OfferCodes,
+  productsOfOfferCode,
+  universalProducts,
+} from "../models/offer-code-writes.ts";
+import { OfferCodeFlags } from "../models/offer-code.ts";
 import { planBuyPriceWrite, PRICE_TOO_LARGE as PRICE_WRITE_TOO_LARGE, writeBuyPrice } from "../models/price-writes.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
+import { selectRows } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
@@ -1142,13 +1154,15 @@ function validatedTiers(tiers: unknown): void {
 async function createDraftProduct(args: Hash, context: ToolContext): Promise<Hash> {
   if (args.product_type === "membership") {
     if ("price_cents" in args)
-      throw new ToolRpcError("price_cents is not accepted for a membership; set each tier's price_cents", INVALID_PARAMS);
+      throw new ToolRpcError(
+        "price_cents is not accepted for a membership; set each tier's price_cents",
+        INVALID_PARAMS,
+      );
     validatedTiers(args.tiers);
     throw new HandBackToRails("a draft membership");
   }
   if (!("price_cents" in args)) throw new ToolRpcError("price_cents is required", INVALID_PARAMS);
-  if ("tiers" in args)
-    throw new ToolRpcError("tiers are only accepted with product_type membership", INVALID_PARAMS);
+  if ("tiers" in args) throw new ToolRpcError("tiers are only accepted with product_type membership", INVALID_PARAMS);
   requireScopes(context.token, ["edit_products", "account"]);
   const rawName = args.name as string;
   if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
@@ -1218,7 +1232,8 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
     const name = rubyStrip(rawName);
     if (isBlankText(name)) throw new ToolRpcError("name must not be blank", INVALID_PARAMS);
-    if (name !== product.name && isPublishedProduct(product)) throw new HandBackToRails("the rename of a published product");
+    if (name !== product.name && isPublishedProduct(product))
+      throw new HandBackToRails("the rename of a published product");
     attributes.name = name;
   }
   let priceCents: number | undefined;
@@ -1232,7 +1247,8 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     priceCents = plan.cents;
   }
   if ("description" in args) attributes.description = plannedDescription(product, args.description);
-  if (await hasApplicableOfferCodes(context.user, product)) throw new HandBackToRails("a product beside discount codes");
+  if (await hasApplicableOfferCodes(context.user, product))
+    throw new HandBackToRails("a product beside discount codes");
 
   const record = Links.load(product);
   try {
@@ -1248,6 +1264,198 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   const saved = await (context.products ?? readProducts).find(BigInt(context.user.id), encrypt(found.id));
   if (saved === null) throw new HandBackToRails("a product that was not found after its save");
   return { product: { ...productPayload(saved, context.user, "update_product"), description: saved.description } };
+}
+
+// DISCOUNT_PERCENT_RANGE, DISCOUNT_YEAR_RANGE
+const DISCOUNT_PERCENT_MIN = 1;
+const DISCOUNT_PERCENT_MAX = 100;
+const DISCOUNT_YEAR_MIN = 1000;
+const DISCOUNT_YEAR_MAX = 9999;
+const INTEGER_COLUMN_MAX = 2 ** 31 - 1;
+const DISCOUNT_CODE_KEYS = ["percent_off", "amount_cents", "valid_at", "expires_at", "max_purchase_count"];
+const rpcError = (message: string): never => {
+  throw new ToolRpcError(message, INVALID_PARAMS);
+};
+
+// Mcp::Server#discount_amount_attributes: the argument errors, and the kind of amount given.
+function discountAmount(
+  args: Hash,
+  required: boolean,
+): { kind: "percent"; percent: number } | { kind: "cents"; cents: number } | undefined {
+  const percent = args.percent_off as number | undefined;
+  const cents = args.amount_cents as number | undefined;
+  if (percent !== undefined && cents !== undefined) rpcError("Pass only one of percent_off or amount_cents");
+  if (required && percent === undefined && cents === undefined) rpcError("Pass one of percent_off or amount_cents");
+  if (percent !== undefined) {
+    if (!(percent >= DISCOUNT_PERCENT_MIN && percent <= DISCOUNT_PERCENT_MAX))
+      rpcError(`percent_off must be between ${DISCOUNT_PERCENT_MIN} and ${DISCOUNT_PERCENT_MAX}`);
+    return { kind: "percent", percent };
+  }
+  if (cents !== undefined) {
+    if (!(cents > 0)) rpcError("amount_cents must be greater than zero");
+    if (cents > INTEGER_COLUMN_MAX) throw new HandBackToRails("an amount beyond the column");
+    return { kind: "cents", cents };
+  }
+  return undefined;
+}
+
+// Mcp::Server#discount_window_attributes and #parse_discount_time, for a whole-second timestamp with an offset.
+function discountWindow(args: Hash, defaultValidAt: Date): { valid_at?: Date; expires_at?: Date } {
+  const window: { valid_at?: Date; expires_at?: Date } = {};
+  for (const key of ["valid_at", "expires_at"] as const) {
+    if (!(key in args)) continue;
+    const text = args[key] as string;
+    // Other forms (a bare date, a fraction, a blank) are read by Time.zone.iso8601 in ways the port does not follow.
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[-+]\d{2}:\d{2})$/u.test(text))
+      throw new HandBackToRails("a time that is not YYYY-MM-DDThh:mm:ssZ");
+    const year = Number(text.slice(0, 4));
+    if (year < DISCOUNT_YEAR_MIN || year > DISCOUNT_YEAR_MAX)
+      rpcError(`${key} must have a year from ${DISCOUNT_YEAR_MIN} to ${DISCOUNT_YEAR_MAX}`);
+    const parsed = validityPeriodOf({ [key]: text })[key];
+    if (parsed === null || parsed === undefined || Number.isNaN(parsed.getTime()))
+      throw new HandBackToRails("a time the port cannot read");
+    window[key] = parsed;
+  }
+  if ("expires_at" in args && window.valid_at === undefined) window.valid_at = defaultValidAt;
+  return window;
+}
+
+function discountMaxPurchaseCount(args: Hash): number {
+  const count = args.max_purchase_count as number;
+  if (count < 0) rpcError("max_purchase_count must be zero or more");
+  if (count > INTEGER_COLUMN_MAX) throw new HandBackToRails("a count beyond the column");
+  return count;
+}
+
+async function findDiscountProduct(args: Hash, context: ToolContext) {
+  const id = args.product_id as string;
+  if (isBlankText(id)) rpcError("product_id must not be blank");
+  const found = await findProduct({ id }, context);
+  return db.link.findUniqueOrThrow({ where: { id: found.id } });
+}
+
+// Mcp::Server#discount_code_payload, for a saved code of one product or all of them.
+async function discountCodePayload(id: number | bigint, now: Date): Promise<Hash> {
+  const row = await db.offerCode.findUniqueOrThrow({ where: { id: Number(id) } });
+  const products = row.universal ? [] : await productsOfOfferCode(Number(row.id));
+  if (products.length > 1) throw new HandBackToRails("a discount code with several products");
+  const productIds = products.map((product) => encrypt(product.id));
+  return {
+    id: encrypt(row.id),
+    code: row.code,
+    scope: row.universal ? "universal" : (productIds[0] ?? null),
+    product_ids: productIds,
+    percent_off: row.amount_percentage,
+    tiers: null,
+    amount_cents: row.amount_cents,
+    currency: row.amount_cents !== null ? row.currency_type : null,
+    valid_at: row.valid_at === null ? null : iso8601(row.valid_at),
+    expires_at: row.expires_at === null ? null : iso8601(row.expires_at),
+    max_purchase_count: row.max_purchase_count,
+    expired: row.expires_at !== null && row.expires_at <= now,
+  };
+}
+
+// tool_create_discount_code for a plain code (the OfferCode port): a membership or product with options, a time in another form and
+// an amount beyond the column go to Rails whole.
+async function createDiscountCode(args: Hash, context: ToolContext): Promise<Hash> {
+  const code = rubyStrip(args.code as string);
+  if (isBlankText(code)) rpcError("code is required");
+  const product = "product_id" in args ? await findDiscountProduct(args, context) : null;
+  const user = context.user;
+  const amount = discountAmount(args, true)!;
+  const now = (context.now ?? (() => new Date()))();
+  const window = discountWindow(args, now);
+  const attributes: Record<string, unknown> = {
+    code,
+    universal: product === null,
+    user_id: Number(user.id),
+    ...window,
+    ...(amount.kind === "percent"
+      ? { amount_percentage: amount.percent, amount_cents: null, currency_type: null }
+      : {
+          amount_cents: amount.cents,
+          amount_percentage: null,
+          currency_type: product?.price_currency_type ?? user.currency_type,
+        }),
+  };
+  if ("max_purchase_count" in args) attributes.max_purchase_count = discountMaxPurchaseCount(args);
+  await assertPlainProducts(
+    product === null
+      ? await universalProducts(user.id, (attributes.currency_type as string | null) ?? null)
+      : [product],
+  );
+
+  let saved: number | bigint | undefined;
+  let failure: string | undefined;
+  await transaction(async () => {
+    // One seller's concurrent creates serialize here, so the second sees the first's code.
+    await selectRows(Prisma.sql`SELECT id FROM users WHERE id = ${user.id} LIMIT 1 FOR UPDATE`);
+    const record = buildOfferCode(attributes as never);
+    if (product !== null) await addProduct(record, product);
+    if (!(await OfferCodes.save(record, { now: context.now }))) failure = toSentence(record.errors.fullMessages());
+    else saved = record.get("id") as number | bigint;
+  });
+  if (failure !== undefined) throw new ToolError(failure);
+  return { discount_code: await discountCodePayload(saved!, (context.now ?? (() => new Date()))()) };
+}
+
+async function findDiscountCode(args: Hash, context: ToolContext) {
+  const code = rubyStrip(args.code as string);
+  if (isBlankText(code)) rpcError("code is required");
+  if ("product_id" in args) {
+    const product = await findDiscountProduct(args, context);
+    const [row] = await db.$queryRaw<{ id: bigint }[]>`SELECT offer_codes.id FROM offer_codes
+      INNER JOIN offer_codes_products ON offer_codes_products.offer_code_id = offer_codes.id
+      WHERE offer_codes_products.product_id = ${product.id} AND offer_codes.deleted_at IS NULL AND offer_codes.universal = 0
+        AND offer_codes.user_id = ${context.user.id} AND offer_codes.code = ${code} LIMIT 1`;
+    if (row === undefined)
+      throw new ToolError(
+        `No discount code ${code} is limited to this product. Omit product_id for a code that covers all products.`,
+      );
+    return { row: await db.offerCode.findUniqueOrThrow({ where: { id: Number(row.id) } }), product };
+  }
+  const [row] = await db.$queryRaw<{ id: bigint }[]>`SELECT id FROM offer_codes WHERE user_id = ${context.user.id}
+    AND deleted_at IS NULL AND universal = 1 AND code = ${code} LIMIT 1`;
+  if (row === undefined)
+    throw new ToolError(
+      `No discount code ${code} covers all products. Pass product_id for a code made for specific products.`,
+    );
+  return { row: await db.offerCode.findUniqueOrThrow({ where: { id: Number(row.id) } }), product: null };
+}
+
+// tool_update_discount_code for a plain code whose kind of amount and currency stay as they are (a change of either re-derives which
+// products the code applies to).
+async function updateDiscountCode(args: Hash, context: ToolContext): Promise<Hash> {
+  if (!DISCOUNT_CODE_KEYS.some((key) => key in args))
+    rpcError(`Pass at least one of ${DISCOUNT_CODE_KEYS.slice(0, -1).join(", ")}, or ${DISCOUNT_CODE_KEYS.at(-1)}`);
+  const { row } = await findDiscountCode(args, context);
+  await assertPlainCode(row);
+  const amount = discountAmount(args, false);
+  const attributes: Record<string, unknown> = {};
+  if (amount?.kind === "percent") {
+    if (row.amount_percentage === null || OfferCodeFlags.isSet(row.flags, "once_per_cart"))
+      throw new HandBackToRails("a change from a fixed amount to a percentage");
+    attributes.amount_percentage = amount.percent;
+  } else if (amount?.kind === "cents") {
+    if (row.amount_cents === null) throw new HandBackToRails("a change from a percentage to a fixed amount");
+    attributes.amount_cents = amount.cents;
+  }
+  const now = (context.now ?? (() => new Date()))();
+  Object.assign(attributes, discountWindow(args, row.valid_at ?? row.created_at ?? now));
+  if ("max_purchase_count" in args) attributes.max_purchase_count = discountMaxPurchaseCount(args);
+  await assertPlainProducts(
+    row.universal ? await universalProducts(row.user_id, row.currency_type) : await productsOfOfferCode(Number(row.id)),
+  );
+
+  const record = loadOfferCode(row);
+  let failure: string | undefined;
+  await transaction(async () => {
+    if (!(await OfferCodes.update(record, attributes as never, { now: context.now })))
+      failure = toSentence(record.errors.fullMessages());
+  });
+  if (failure !== undefined) throw new ToolError(failure);
+  return { discount_code: await discountCodePayload(row.id, (context.now ?? (() => new Date()))()) };
 }
 
 export type SubscriptionRow = {
@@ -1592,6 +1800,12 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "update_product":
       requireScopes(context.token, ["edit_products", "account"]);
       return updateProduct(args, context);
+    case "create_discount_code":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return createDiscountCode(args, context);
+    case "update_discount_code":
+      requireScopes(context.token, ["edit_products", "account"]);
+      return updateDiscountCode(args, context);
     case "publish_product":
       requireScopes(context.token, ["edit_products", "account"]);
       return setPublication(args, context, true);

@@ -226,7 +226,7 @@ const TIMESTAMP =
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 type ValidityPeriod = { valid_at?: Date | null; expires_at?: Date | null };
-function validityPeriodOf(params: Params): ValidityPeriod {
+export function validityPeriodOf(params: Params): ValidityPeriod {
   const out: ValidityPeriod = {};
   for (const key of ["valid_at", "expires_at"] as const) {
     if (!(key in params)) continue;
