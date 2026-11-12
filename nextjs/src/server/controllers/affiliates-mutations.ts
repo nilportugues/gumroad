@@ -3,8 +3,10 @@
 //
 // Ported: the lookups and authorization of every action, and the "Invalid affiliate parameters", unknown account, own account,
 // opted-out account, no enabled product and "already exists" refusals of #create and #update.
+// #destroy runs in Node (`mark_deleted!` of the DirectAffiliate, then `AffiliateMailer.direct_affiliate_removal(id).deliver_later`)
+// for the shapes `removalBlocker` accepts; the rest goes to Rails before the write.
 // Handed to Rails before any write: a #create or #update that would save (the affiliate and its products, and the mail to the
-// affiliate when the products change), #destroy (soft delete and mail), and #subscribe_posts and #unsubscribe_posts (a write,
+// affiliate when the products change), and #subscribe_posts and #unsubscribe_posts (a write,
 // and an ERB page Node has no shell for). #export is not registered: the export service mails or streams a file, and a signed-in
 // HTML GET would make Node seed the dashboard nav before handing back. Param shapes Rails would fail
 // on (a 400 or a 500) or cast differently from Node hand back too.
@@ -12,7 +14,16 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, decryptNumeric } from "../../lib/obfuscate-ids.ts";
+import { deliverLater } from "../mail/active-job.ts";
+import { mailRoute } from "../mail/delivery.ts";
 import { isBlank } from "../models/compliance-countries.ts";
+import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
+import {
+  loadAffiliate,
+  markDeletedBang,
+  removalBlocker,
+  type AffiliateRemovalRow,
+} from "../models/direct-affiliate-removal.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -103,12 +114,17 @@ function submitted(input: MutationInput): Submitted {
 }
 
 // `AffiliatesController#process_affiliate_params` up to the point where it saves.
-async function refuseOrHandBack(input: MutationInput, failureLocation: string, editedId: number | null): Promise<ActionResult> {
+async function refuseOrHandBack(
+  input: MutationInput,
+  failureLocation: string,
+  editedId: number | null,
+): Promise<ActionResult> {
   const seller = input.context.currentSeller!;
   const { email, applyToAllProducts, feePercent, products } = submitted(input);
 
   // `affiliate_params[:products].any?` raises on a missing list; `||` only reaches it without apply_to_all_products.
-  if (!applyToAllProducts && products === null) throw new HandBackToRails("a missing products list, which Rails raises on");
+  if (!applyToAllProducts && products === null)
+    throw new HandBackToRails("a missing products list, which Rails raises on");
   const invalidFee =
     (applyToAllProducts && blank(feePercent)) ||
     (!applyToAllProducts && products!.some((product) => product.enabled && blank(product.feePercent)));
@@ -165,14 +181,41 @@ async function update(input: MutationInput): Promise<ActionResult> {
   return refuseOrHandBack(input, `/affiliates/${holder.id}/edit`, holder.id);
 }
 
+const AFFILIATE_MAILER = "AffiliateMailer";
+const REMOVAL_MAIL = "direct_affiliate_removal";
+const AFFILIATES_PATH = "/affiliates";
+
+// `current_seller.direct_affiliates.find_by_external_id(params[:id])`, with the columns `mark_deleted!` and its validations read.
+async function removableAffiliate(sellerId: bigint, id: number) {
+  const a = (name: string) => column("affiliates", name);
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`affiliates`.*")} FROM ${table("affiliates")} WHERE ${a("type")} = 'DirectAffiliate' AND ${a("seller_id")} = ${sellerId} AND ${a("id")} = ${id} LIMIT 1`,
+  );
+  return row as (AffiliateRemovalRow & Record<string, unknown>) | undefined;
+}
+
 // DELETE /affiliates/:id
 async function destroy(input: MutationInput): Promise<ActionResult> {
+  const found: { row?: AffiliateRemovalRow & Record<string, unknown> } = {};
   const redirect = await sellerGuard(guardInput(input), async (context) => {
-    await ownAffiliate(input);
+    const owned = await ownAffiliate(input);
+    found.row = await removableAffiliate(input.context.currentSeller!.id, owned.id);
     authorize(directAffiliatePolicy.destroy, context);
   });
   if (redirect !== null) return redirect;
-  throw new HandBackToRails("deleting an affiliate, which mails the affiliate");
+  const row = found.row;
+  if (row === undefined) throw new RoutingError("Not Found");
+  const blocker = await removalBlocker(row);
+  if (blocker !== null) throw new HandBackToRails(blocker);
+
+  await markDeletedBang(loadAffiliate(row));
+  // After the commit: `deliver_later` is the last thing the action does, so a refused removal never mails.
+  await deliverLater(
+    currentJobsRuntime(),
+    { mailer: AFFILIATE_MAILER, method: REMOVAL_MAIL, args: [Number(row.id)] },
+    mailRoute(AFFILIATE_MAILER, REMOVAL_MAIL),
+  );
+  return { status: FOUND, location: AFFILIATES_PATH, flash: { notice: "Affiliate deleted successfully" } };
 }
 
 // GET /affiliates/:id/subscribe_posts and /unsubscribe_posts: public; `DirectAffiliate.find_by_external_id(params[:id])`, any seller.

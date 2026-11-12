@@ -545,6 +545,30 @@ end
 RSpec.configure do |config|
   config.include Parity::ControllerHook, type: :controller
 
+  # `parity_mail_jobs: true` records `deliver_later` for real. The test adapter keeps ActiveJobs to itself, so a mail enqueue never
+  # reaches the Sidekiq push the recorder watches and the fixture would hold no mail job; with the Sidekiq adapter it is a
+  # `MailDeliveryJob` in `jobs` (mailer, method, queue, delay and arguments), which replays compare through
+  # `nextjs/parity/src/active-job.ts`. Nothing is delivered: Sidekiq runs in fake mode.
+  config.around(:each, :parity_mail_jobs) do |example|
+    previous = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :sidekiq
+    example.run
+  ensure
+    ActiveJob::Base.queue_adapter = previous
+  end
+
+  # `parity_mail_jobs: true` records `deliver_later` for real. The test adapter keeps ActiveJobs to itself, so a mail enqueue never
+  # reaches the Sidekiq push the recorder watches and the fixture would hold no mail job; with the Sidekiq adapter it is a
+  # `MailDeliveryJob` in `jobs` (class, mailer, method, queue, delay and arguments), which replays compare through
+  # `nextjs/parity/src/active-job.ts`. Nothing is delivered: Sidekiq runs in fake mode.
+  config.around(:each, :parity_mail_jobs) do |example|
+    previous = ActiveJob::Base.queue_adapter
+    ActiveJob::Base.queue_adapter = :sidekiq
+    example.run
+  ensure
+    ActiveJob::Base.queue_adapter = previous
+  end
+
   config.around(:each) do |example|
     Parity::Recorder.enabled_for?(example) ? Parity::Recorder.around(example) : example.run
   end

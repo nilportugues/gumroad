@@ -51,7 +51,7 @@ Each passing example writes `fixtures/<spec path>/<example>.json` with one excha
 | `db` | Per table: `inserted`, `updated` (changed columns, before and after) and `deleted` rows |
 | `redis` | The main Redis database's string, hash and set keys just before the request (Flipper features, the impersonation key), with TTLs |
 | `elasticsearch` | The documents of `ConfirmedFollowerEvent`, the one index with no table behind it, just before the request (times as tokens). The replay's seeder gets it as `reset(entries, exchange, now)`; `src/elasticsearch.ts` rebuilds indices (and the purchases index from the seeded rows) under the server's `ES_INDEX_SUFFIX` |
-| `jobs` | Every Sidekiq push: class, args, queue, `at`; ActiveJob wrappers unwrapped |
+| `jobs` | Every Sidekiq push: class, args, queue, `at`; ActiveJob wrappers unwrapped. A `deliver_later` is a push only for an example tagged `parity_mail_jobs: true` (the test adapter swallows it otherwise); `src/active-job.ts` drains and unwraps Node's side for the comparison |
 | `mails` | Every delivered mail: mailer, addresses, subject, text and HTML |
 | `http` | Every WebMock-seen call: method, URL, content type, body, the headers that matter (`headers`: `idempotency-key`, `stripe-account`, `paypal-request-id`, and `authorization` as a `sha256:` digest; a random key is `<uuid>`) and the response it got |
 | `timeline` | Only when the request made an outbound call: its INSERT/UPDATE/DELETE statements (`op`, `table`), calls and enqueued jobs in the order Rails took them (`http` and `job` events point into those arrays by `index`) |
