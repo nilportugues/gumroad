@@ -33,6 +33,8 @@ import {
 } from "./application-controller.ts";
 import { discordHandlers } from "./discord.ts";
 import { gumclawPage } from "./erb-pages.ts";
+import { embeddedJavascript } from "./embedded-javascripts.ts";
+import { homePage, homePageOptions } from "./home-pages.ts";
 import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
@@ -287,7 +289,7 @@ async function acmeChallenge(token: string): Promise<Rendered> {
 }
 
 type Handler = {
-  options?: ActionOptions;
+  options?: ActionOptions | ((request: RailsRequest) => ActionOptions);
   run(request: RailsRequest, url: URL, action: ActionContext): Promise<ActionResult>;
 };
 
@@ -312,6 +314,10 @@ const HANDLERS: Record<string, Handler> = {
     run: (request, url, action) => Promise.resolve(featuresMd(request, url, action.chain.now)),
   },
   gumclaw: { run: (request, _url, action) => gumclawPage(request, action) },
+  home_page: {
+    options: homePageOptions,
+    run: (request, url, action) => homePage(request, action, url.pathname.replace(/^\/|\/$/gu, "")),
+  },
   mcp_connectors_index: { run: (request, _url, action) => mcpConnectorPage(request, action, null) },
   mcp_connectors_show: {
     run: (request, url, action) => mcpConnectorPage(request, action, decodeURIComponent(url.pathname).replace(/^\/|\/$/gu, "")),
@@ -319,6 +325,8 @@ const HANDLERS: Record<string, Handler> = {
   wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
   utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
   analytics_js: { run: (request) => analyticsScript(request) },
+  embedded_js_overlay: { run: async (request) => embeddedJavascript(request, "overlay") },
+  embedded_js_embed: { run: async (request) => embeddedJavascript(request, "embed") },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
   // GROUPED_RECEIPT_LOOKUP_PATHS
@@ -360,5 +368,6 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const url = new URL(target, `${protocol}://${host}`);
   const request = new Request(url, { method: incoming.method, headers: incoming.headers });
-  return processAction(request, handler.options ?? {}, (action) => handler.run(railsRequest(request), url, action));
+  const options = typeof handler.options === "function" ? handler.options(railsRequest(request)) : (handler.options ?? {});
+  return processAction(request, options, (action) => handler.run(railsRequest(request), url, action));
 }

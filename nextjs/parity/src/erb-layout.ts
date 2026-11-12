@@ -18,7 +18,7 @@ import { type NextServer, startNextServer } from "./next-server";
 import { assertParity, httpTransport, replayFixtureExchange, type Transport } from "./replay";
 import { reencryptCookies, redisSeeder } from "./session";
 
-const FIXTURES = path.join("parity/fixtures/requests", "erb_layout_pages_parity_spec");
+const DEFAULT_SPEC = "erb_layout_pages_parity_spec";
 const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 // What the spec writes to Rails.cache for the nav's star count.
@@ -42,12 +42,23 @@ export const maskVolatile = (text: string) =>
     .replace(/(<meta name="csrf-token" content=")[^"]*(")/u, "$1<csrf-token>$2")
     .replace(/(<script nonce=")[^"]*(")/gu, "$1<nonce>$2");
 
+// The recorder drops the CSP header as volatile, so masking the nonce would hide a header that names another nonce than the body's.
+// The live response is the only place both exist: every nonce in the body must be allowed by the header.
+export function assertNonceMatchesCsp(body: string, csp: string | null) {
+  const nonces = [...body.matchAll(/<script nonce="([^"]*)"/gu)].map((match) => match[1]!);
+  if (nonces.length === 0) return;
+  expect(csp, "content-security-policy").not.toBeNull();
+  for (const nonce of nonces) expect(csp).toContain(`'nonce-${nonce}'`);
+}
+
 const maskingTransport =
   (inner: Transport): Transport =>
   async (request) => {
     const response = await inner(request);
     if (!(response.headers.get("content-type") ?? "").includes("html")) return response;
-    const text = maskVolatile(await response.text());
+    const raw = await response.text();
+    assertNonceMatchesCsp(raw, response.headers.get("content-security-policy"));
+    const text = maskVolatile(raw);
     // Debugging aid: where the body went, for diffing against the fixture.
     if (process.env.PARITY_DUMP_BODY) writeFileSync(process.env.PARITY_DUMP_BODY, text);
     return new Response(text, { status: response.status, headers: response.headers });
@@ -55,8 +66,9 @@ const maskingTransport =
 
 export function describeErbLayoutReplay(
   title: string,
-  options: { routeFlags: string; seed: Record<string, number>; select: (name: string) => boolean },
+  options: { routeFlags: string; seed: Record<string, number>; select: (name: string) => boolean; spec?: string },
 ) {
+  const FIXTURES = path.join("parity/fixtures/requests", options.spec ?? DEFAULT_SPEC);
   const url = process.env.PARITY_DATABASE_URL;
   const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
   const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
