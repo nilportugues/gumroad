@@ -5,8 +5,10 @@
 // opted-out account, no enabled product and "already exists" refusals of #create and #update.
 // #destroy runs in Node (`mark_deleted!` of the DirectAffiliate, then `AffiliateMailer.direct_affiliate_removal(id).deliver_later`)
 // for the shapes `removalBlocker` accepts; the rest goes to Rails before the write.
-// Handed to Rails before any write: a #create or #update that would save (the affiliate and its products, and the mail to the
-// affiliate when the products change), and #subscribe_posts and #unsubscribe_posts (a write,
+// #create runs in Node for one plain product (models/direct-affiliate-create.ts: the affiliate, its assignment, the audience member, the
+// workflow schedule job and the invitation mail), and #update for an edit that only moves fees on the affiliate's one product
+// (models/direct-affiliate-update.ts); `creationBlocker` and `updateBlocker` hand the rest back before any write.
+// Handed to Rails before any write: #subscribe_posts and #unsubscribe_posts (a write,
 // and an ERB page Node has no shell for). #export is not registered: the export service mails or streams a file, and a signed-in
 // HTML GET would make Node seed the dashboard nav before handing back. Param shapes Rails would fail
 // on (a 400 or a 500) or cast differently from Node hand back too.
@@ -18,12 +20,14 @@ import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 import { isBlank } from "../models/compliance-countries.ts";
 import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
+import { creationBlocker, createDirectAffiliate, rubyToI } from "../models/direct-affiliate-create.ts";
 import {
   loadAffiliate,
   markDeletedBang,
   removalBlocker,
   type AffiliateRemovalRow,
 } from "../models/direct-affiliate-removal.ts";
+import { updateBlocker, updateDirectAffiliate } from "../models/direct-affiliate-update.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -37,6 +41,7 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requireHtml } from "./users-controller.ts";
 
 const FOUND = 302;
+const SEE_OTHER = 303;
 const NEW_AFFILIATE_PATH = "/affiliates/new";
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
@@ -67,11 +72,12 @@ async function ownAffiliate(input: MutationInput) {
 
 // `params.require(:affiliate).permit(...)`: only text, numbers, booleans and null survive as scalars; the shapes Rails would
 // reject or filter differently go to Rails.
-type Product = { id: unknown; enabled: boolean; feePercent: string | number | null };
+type Product = { id: unknown; enabled: boolean; feePercent: string | number | null; destinationUrl: unknown };
 type Submitted = {
   email: string | null;
   applyToAllProducts: boolean;
   feePercent: string | number | null;
+  destinationUrl: unknown;
   products: Product[] | null;
 };
 
@@ -103,24 +109,26 @@ function submitted(input: MutationInput): Submitted {
       id: product.id,
       enabled: truthy(product.enabled),
       feePercent: scalar(product.fee_percent),
+      destinationUrl: product.destination_url,
     }));
   }
   return {
     email,
     applyToAllProducts: truthy(affiliate.apply_to_all_products),
     feePercent: scalar(affiliate.fee_percent),
+    destinationUrl: affiliate.destination_url,
     products,
   };
 }
 
-// `AffiliatesController#process_affiliate_params` up to the point where it saves.
+// `AffiliatesController#process_affiliate_params` up to the point where it saves; #create saves when the shape is proven.
 async function refuseOrHandBack(
   input: MutationInput,
   failureLocation: string,
   editedId: number | null,
 ): Promise<ActionResult> {
   const seller = input.context.currentSeller!;
-  const { email, applyToAllProducts, feePercent, products } = submitted(input);
+  const { email, applyToAllProducts, feePercent, destinationUrl, products } = submitted(input);
 
   // `affiliate_params[:products].any?` raises on a missing list; `||` only reaches it without apply_to_all_products.
   if (!applyToAllProducts && products === null)
@@ -142,15 +150,17 @@ async function refuseOrHandBack(
   if (!applyToAllProducts && !products.some((product) => product.enabled))
     return refusal(failureLocation, "Please enable at least one product.");
 
+  const linkIds: number[] = [];
   if (!applyToAllProducts) {
     // `current_seller.links.find_by_external_id_numeric(id.to_i).id` raises on a product the seller does not have.
     for (const product of products.filter((candidate) => candidate.enabled)) {
       const numeric = Number(product.id);
       if (!Number.isInteger(numeric)) throw new HandBackToRails("a product id Rails would cast with to_i");
-      const [row] = await selectRows(
+      const [row] = await selectRows<{ id: number }>(
         Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.id} AND ${column("links", "id")} = ${decryptNumeric(numeric)} LIMIT 1`,
       );
       if (row === undefined) throw new HandBackToRails("a product the seller does not have, which Rails raises on");
+      linkIds.push(Number(row.id));
     }
   }
 
@@ -159,7 +169,36 @@ async function refuseOrHandBack(
   );
   if (existing !== undefined) return refusal(failureLocation, "This affiliate already exists.");
 
-  throw new HandBackToRails("an affiliate save, which writes the affiliate and its products and mails the affiliate");
+  const enabled = products.filter((product) => product.enabled);
+  const productFee = enabled.length === 1 ? rubyToI(enabled[0]!.feePercent) * 100 : 0;
+  if (affiliateUser.email === null) throw new HandBackToRails("an account without an email");
+  // `fee_percent.present? ? fee * 100 : the lowest fee of the products`
+  const candidate = {
+    sellerId: Number(seller.id),
+    affiliateUserId: Number(affiliateUser.id),
+    affiliateUserEmail: affiliateUser.email,
+    basisPoints: blank(feePercent) ? productFee : rubyToI(feePercent) * 100,
+    productId: linkIds[0] ?? 0,
+  };
+  const requested = {
+    applyToAllProducts,
+    enabledProducts: enabled.map((product) => ({ destinationUrl: product.destinationUrl })),
+    destinationUrl,
+  };
+
+  if (editedId !== null) {
+    const edited = { ...candidate, id: editedId, productBasisPoints: productFee };
+    const editBlocker = await updateBlocker(requested, edited);
+    if (editBlocker !== null) throw new HandBackToRails(editBlocker);
+    await updateDirectAffiliate(edited);
+    return { status: SEE_OTHER, location: AFFILIATES_PATH, flash: { notice: "Affiliate updated successfully" } };
+  }
+
+  const blocker = await creationBlocker(requested, candidate);
+  if (blocker !== null) throw new HandBackToRails(blocker);
+
+  await createDirectAffiliate({ ...candidate, productBasisPoints: productFee });
+  return { status: SEE_OTHER, location: AFFILIATES_PATH, flash: { notice: "Affiliate created successfully" } };
 }
 
 // POST /affiliates

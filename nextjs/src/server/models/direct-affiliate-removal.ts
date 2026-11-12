@@ -7,8 +7,12 @@
 // entries leave it (a customer, follower or another affiliate: the recomputed columns are not pinned by a recording).
 import { Prisma, type Affiliate } from "@prisma/client";
 
+import { deliverLater } from "../mail/active-job.ts";
+import { mailRoute } from "../mail/delivery.ts";
+
 import { AudienceMembers, findAudienceMember, type Details } from "./audience-member-record.ts";
 import { deletable } from "./concerns/deletable.ts";
+import { currentJobsRuntime } from "./concerns/job-runtime.ts";
 import { validatesAssociationPresence } from "./concerns/rails-validations.ts";
 import { defineModel, type Callback } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
@@ -67,12 +71,46 @@ const updateAudienceMemberDetails: Callback<Affiliate> = {
   async run(record) {
     if (record.get("type") !== DIRECT_AFFILIATE) return;
     if (!record.savedChanges.deleted_at && !record.savedChanges.flags) return;
+    // A new affiliate who gets posts: `should_be_audience_member?` holds and `deleted_at` did not change, so the callback ends there
+    // (its product assignments add the audience member).
+    if (
+      record.get("deleted_at") === null &&
+      !record.savedChanges.deleted_at &&
+      (record.get("flags") & SEND_POSTS_FLAG) !== 0 &&
+      record.savedChanges.created_at !== undefined
+    )
+      return;
     if (record.get("deleted_at") === null)
       throw new NotPortedError(
         "Restoring an affiliate or changing its flags",
         "app/models/concerns/affiliate/audience_member.rb",
       );
     await removeFromAudienceMemberDetails(record);
+  },
+};
+
+const SEND_POSTS_FLAG = 2;
+const AFFILIATE_MAILER = "AffiliateMailer";
+const INVITATION_MAIL = "direct_affiliate_invitation";
+const INVITATION_DELAY_SECONDS = 3;
+
+// `after_commit :send_invitation_email, on: :create`, unless `prevent_sending_invitation_email` is set.
+const sendInvitationEmail: Callback<Affiliate> = {
+  name: "send_invitation_email",
+  on: "create",
+  unless: (record) => record.ivars.preventSendingInvitationEmail === true,
+  async run(record) {
+    // `prevent_sending_invitation_email_to_seller` is not set by the controller: nil.
+    await deliverLater(
+      currentJobsRuntime(),
+      {
+        mailer: AFFILIATE_MAILER,
+        method: INVITATION_MAIL,
+        args: [record.get("id"), null],
+        waitSeconds: INVITATION_DELAY_SECONDS,
+      },
+      mailRoute(AFFILIATE_MAILER, INVITATION_MAIL),
+    );
   },
 };
 
@@ -85,6 +123,7 @@ export const DirectAffiliates = defineModel<Affiliate>({
     validatesAssociationPresence<Affiliate>(seller),
   ],
   afterSave: [updateAudienceMemberDetails],
+  afterCommit: [sendInvitationEmail],
 });
 
 const softDeletion = deletable(DirectAffiliates);

@@ -5,7 +5,8 @@ require "spec_helper"
 # The lookups and refusals of AffiliatesController that Node answers in front of #create, #update, #destroy,
 # #subscribe_posts and #unsubscribe_posts, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/affiliates-guards.replay.test.ts, which sends the last request of each example. An example named
-# "hands a ..." records what Node passes to Rails whole: the action saves, deletes or mails.
+# "hands a ..." records what Node passes to Rails whole: the action saves, deletes or mails. The create that saves is recorded in
+# affiliates_create_parity_spec.rb, the edit in affiliates_update_parity_spec.rb.
 describe "AffiliatesController guards", type: :request do
   include Parity::AudienceSignedIn
 
@@ -124,15 +125,6 @@ describe "AffiliatesController guards", type: :request do
       expect(response).to redirect_to(new_affiliate_path)
     end
 
-    it "hands a valid affiliate to Rails", parity: true do
-      affiliate_user
-      log_in(seller)
-
-      send_json(:post, affiliates_path, affiliate_body)
-
-      expect(response).to redirect_to(affiliates_path)
-    end
-
     it "hands a valid affiliate for all products to Rails", parity: true do
       affiliate_user
       product
@@ -199,13 +191,6 @@ describe "AffiliatesController guards", type: :request do
       expect(response).to have_http_status(:see_other)
     end
 
-    it "hands an edit that keeps the affiliate's own email to Rails", parity: true do
-      log_in(seller)
-
-      send_json(:patch, affiliate_path(direct_affiliate.external_id), affiliate_body)
-
-      expect(response).to redirect_to(affiliates_path)
-    end
   end
 
   describe "DELETE /affiliates/:id" do
