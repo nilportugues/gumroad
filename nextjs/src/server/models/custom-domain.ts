@@ -1,11 +1,11 @@
-// Port of app/models/custom_domain.rb for soft-deleting a stored domain (Deletable#mark_deleted!).
-// Any other save refuses with NotPortedError before SQL: creating and editing a domain need the
-// verification state machine and certificate jobs. Golden: the suspension cases of
+// Port of app/models/custom_domain.rb for soft-deleting a stored domain (Deletable#mark_deleted!) and for saving the domain a seller
+// sets on the advanced settings page. A change to anything else refuses with NotPortedError before SQL, and the DNS check that would
+// mark a domain verified is not ported (the controller hands that case back before its first write). Golden: the suspension cases of
 // __fixtures__/user-writes.golden.json.
 import { Prisma, type CustomDomain } from "@prisma/client";
 
-import { domainConfig } from "../page-props/domain.ts";
 import { railsEnv } from "../infra/rails-env.ts";
+import { domainConfig } from "../page-props/domain.ts";
 
 import { deletable } from "./concerns/deletable.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
@@ -13,6 +13,7 @@ import { isValidDomain, parseDomain } from "./concerns/public-suffix.ts";
 import { loadBelongsTo, setAssociation, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel, type Callback } from "./runtime/define-model.ts";
 import type { ModelRecord, Row } from "./runtime/record.ts";
+import { isBlank } from "./runtime/validators.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
 import { NotPortedError, strippedField } from "./user.ts";
 
@@ -21,7 +22,12 @@ export type CustomDomainRecord = ModelRecord<CustomDomain>;
 const WWW_PREFIX = "www";
 const SSL_CERTIFICATE_DELAY_SECONDS = 2;
 // INTERNAL_GUMROAD_DOMAIN (config/domain.rb), which page-props/domain.ts does not carry.
-const INTERNAL_GUMROAD_DOMAINS = { production: "gumroad.net", staging: "gumroad.net", test: "test.gumroad.net", development: "internal.localhost" } as const;
+const INTERNAL_GUMROAD_DOMAINS = {
+  production: "gumroad.net",
+  staging: "gumroad.net",
+  test: "test.gumroad.net",
+  development: "internal.localhost",
+} as const;
 
 const USER: BelongsTo = { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" };
 const PRODUCT: BelongsTo = { name: "product", foreignKey: "product_id", targetTable: "links", targetModel: "Link" };
@@ -29,7 +35,14 @@ const PRODUCT: BelongsTo = { name: "product", foreignKey: "product_id", targetTa
 // DOMAIN, ROOT_DOMAIN, SHORT_DOMAIN, DISCOVER_DOMAIN, API_DOMAIN, INTERNAL_GUMROAD_DOMAIN
 function forbiddenSuffixes(): string[] {
   const config = domainConfig(process.env);
-  return [config.domain, config.rootDomain, config.shortDomain, config.discoverDomain, config.apiDomain, INTERNAL_GUMROAD_DOMAINS[railsEnv()]];
+  return [
+    config.domain,
+    config.rootDomain,
+    config.shortDomain,
+    config.discoverDomain,
+    config.apiDomain,
+    INTERNAL_GUMROAD_DOMAINS[railsEnv()],
+  ];
 }
 
 function findAlive(domain: string): Promise<Row[]> {
@@ -43,23 +56,53 @@ async function findByHost(host: string | null): Promise<Row | undefined> {
   if (host === null || !isValidDomain(host)) return undefined;
   const parsed = parseDomain(host);
   if (parsed.trd === null || parsed.trd === WWW_PREFIX) {
-    return (await findAlive(String(parsed.domain)))[0] ?? (await findAlive(`${WWW_PREFIX}.${String(parsed.domain)}`))[0];
+    return (
+      (await findAlive(String(parsed.domain)))[0] ?? (await findAlive(`${WWW_PREFIX}.${String(parsed.domain)}`))[0]
+    );
   }
   return (await findAlive(host))[0];
 }
 
+// What a save may change: the soft delete, and what Settings::AdvancedController sets from a domain that does not point at Gumroad
+// (the domain, the verification state, and the owner of a new row). The routability and certificate columns have their own paths.
+const PORTED_CHANGES = new Set<string>([
+  "deleted_at",
+  "domain",
+  "state",
+  "user_id",
+  "created_at",
+  "updated_at",
+  "ssl_certificate_issued_at",
+  "routable",
+  "routability_checked_at",
+]);
+
 const refuseUnportedSave: Callback<CustomDomain> = {
   name: "(guard) refuse unported changes",
   run(record) {
-    if (record.newRecord) throw new NotPortedError("CustomDomain#save on a new record", "app/models/custom_domain.rb");
     record.untracked(() => {
-      const unported = record.changedAttributeNames().filter((name) => name !== "deleted_at");
-      if (unported.length > 0 || !record.attributeChanged("deleted_at", { from: null })) {
-        throw new NotPortedError(`CustomDomain#save changing ${record.changedAttributeNames().join(", ")}`, "app/models/custom_domain.rb");
+      const unported = record.changedAttributeNames().filter((name) => !PORTED_CHANGES.has(name));
+      if (unported.length > 0) {
+        throw new NotPortedError(`CustomDomain#save changing ${unported.join(", ")}`, "app/models/custom_domain.rb");
       }
     });
   },
 };
+
+// `certificate_domain_valid?`'s `ip_address?`: IPAddr.new accepts a dotted quad of 0-255 without zero-filled octets. The characters
+// the format check lets through cannot spell an IPv6 address or carry a prefix length.
+export function isIpAddress(domain: string): boolean {
+  const octets = domain.split(".");
+  return octets.length === 4 && octets.every((octet) => /^(?:0|[1-9]\d{0,2})$/u.test(octet) && Number(octet) <= 255);
+}
+
+// LetsEncrypt allows only valid hostnames; an empty label or one starting or ending with a hyphen is refused too (`malformed_label?`).
+export function certificateDomainValid(domain: string | null): boolean {
+  if (domain === null || isBlank(domain)) return false;
+  if (!/^[a-zA-Z0-9\-.]+[^.]$/u.test(domain)) return false;
+  if (domain.split(".").some((label) => label === "" || label.startsWith("-") || label.endsWith("-"))) return false;
+  return isValidDomain(domain) && !isIpAddress(domain);
+}
 
 export const CustomDomains = defineModel<CustomDomain>({
   rubyClass: "CustomDomain",
@@ -76,7 +119,8 @@ export const CustomDomains = defineModel<CustomDomain>({
     {
       name: "user_or_product_present",
       async run(record, ctx) {
-        if ((await loadBelongsTo(record, USER, ctx)) !== null || (await loadBelongsTo(record, PRODUCT, ctx)) !== null) return;
+        if ((await loadBelongsTo(record, USER, ctx)) !== null || (await loadBelongsTo(record, PRODUCT, ctx)) !== null)
+          return;
         record.errors.add("base", "Requires an associated user or product.");
       },
     },
@@ -88,7 +132,14 @@ export const CustomDomains = defineModel<CustomDomain>({
         record.errors.add("base", "The custom domain is already in use.");
       },
     },
-    // validate_domain_format is skipped for a deleted record, which is all this port saves.
+    {
+      name: "validate_domain_format, unless: :deleted?",
+      run(record) {
+        if (record.get("deleted_at") !== null) return;
+        if (!certificateDomainValid(record.get("domain")))
+          record.errors.add("base", `${record.get("domain") ?? ""} is not a valid domain name.`);
+      },
+    },
     {
       name: "validate_domain_is_allowed",
       run(record) {
@@ -114,7 +165,8 @@ export const CustomDomains = defineModel<CustomDomain>({
     {
       name: "generate_ssl_certificate",
       if: (record) => record.savedChangeTo("domain"),
-      run: (record) => performAsync("GenerateSslCertificate", [record.get("id")], { delaySeconds: SSL_CERTIFICATE_DELAY_SECONDS }),
+      run: (record) =>
+        performAsync("GenerateSslCertificate", [record.get("id")], { delaySeconds: SSL_CERTIFICATE_DELAY_SECONDS }),
     },
   ],
 });

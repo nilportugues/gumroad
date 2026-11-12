@@ -65,12 +65,14 @@ export function parseNestedQuery(query: string): Params {
 type NumberReviver = (this: unknown, key: string, value: unknown, context?: { source?: string }) => unknown;
 
 // Ruby's JSON.parse makes a Float of every number written with a point or an exponent (`5.0`, `1e2`); JSON.parse here makes both a
-// number. With `floats`, each such literal becomes a RubyFloat, read off the source text the reviver is given.
+// number. With `floats`, each such literal becomes a RubyFloat, and an integer past 2**53 (a Bignum there) a bigint, both read off the
+// source text the reviver is given.
 function parseJsonKeepingFloats(text: string): unknown {
-  const reviver: NumberReviver = (_key, value, context) =>
-    typeof value === "number" && context?.source !== undefined && /[.eE]/u.test(context.source)
-      ? new RubyFloat(value)
-      : value;
+  const reviver: NumberReviver = (_key, value, context) => {
+    if (typeof value !== "number" || context?.source === undefined) return value;
+    if (/[.eE]/u.test(context.source)) return new RubyFloat(value);
+    return Number.isSafeInteger(value) ? value : BigInt(context.source);
+  };
   return (JSON.parse as (text: string, reviver: NumberReviver) => unknown)(text, reviver);
 }
 

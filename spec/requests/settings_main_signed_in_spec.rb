@@ -101,6 +101,32 @@ describe "Settings main when signed in", type: :request do
       expect(seller.reload).to have_attributes(show_nsfw_products: true, enable_payment_email: false, disable_comments_email: false)
     end
 
+    it "answers an integer support email past 2**53 with its validation error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(support_email: 12345678901234567890, show_nsfw_products: true))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Support email")
+    end
+
+    it "hands a purchasing power parity limit past 2**53 to Rails", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+    end
+
+    it "reads an integer feature announcements flag past 2**53 as subscribed", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(feature_announcements_subscribed: 12345678901234567890, feature_announcements_version: 0))
+
+      expect(response).to have_http_status(:see_other)
+      expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 1)
+    end
+
     it "answers a float support email with its validation error", parity: true do
       log_in(seller)
 

@@ -143,6 +143,7 @@ const castBoolean = (value: unknown) =>
 // text ("3.0", "1.0e+20") is never an Integer.
 function renderedVersion(value: unknown): number {
   if (value instanceof RubyFloat) return UNKNOWN_VERSION;
+  if (typeof value === "bigint") throw new HandBackToRails("a feature announcements version past 2**53");
   if (value === undefined || value === null || typeof value === "boolean" || value === "") return UNKNOWN_VERSION;
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
   if (typeof value === "string" && /^(?:0|-?[1-9]\d*)$/u.test(value)) return Number.parseInt(value, 10);

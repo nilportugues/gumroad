@@ -117,6 +117,20 @@ describe("floats in a JSON body", () => {
     expect(() => snippetValue(new RubyFloat(1.5))).toThrow(HandBackToRails);
   });
 
+  it("keeps an integer past 2**53 as a bigint, with every digit, and casts it to its digits for a string column", () => {
+    const parsed = parseBody(
+      "application/json",
+      body('{"a":12345678901234567890,"b":-12345678901234567890,"c":9007199254740991}'),
+      true,
+    );
+    expect(parsed).toEqual({ a: 12345678901234567890n, b: -12345678901234567890n, c: 9007199254740991 });
+    expect(stringValue(12345678901234567890n)).toBe("12345678901234567890");
+    expect(isPermittedScalar(12345678901234567890n)).toBe(true);
+    expect(tiktokPixelIdValue(12345678901234567890n)).toBe(12345678901234567890n);
+    expect(() => snippetValue(12345678901234567890n)).toThrow(HandBackToRails);
+    expect(trueValue(12345678901234567890n)).toBe(false);
+  });
+
   it("reads only the float 1.0 as a true flag value", () => {
     expect(trueValue(new RubyFloat(1))).toBe(true);
     for (const value of [new RubyFloat(0), new RubyFloat(0.5), new RubyFloat(2), 0, false, "0"]) {

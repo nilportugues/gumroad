@@ -12,9 +12,10 @@ import { notifyError } from "../infra/error-reporting.ts";
 import { billingDetailOfPurchaser, BillingDetails } from "../models/billing-detail.ts";
 import { activeBlockedEmails, blockEmailBang, unblockActive } from "../models/blocked-customer-object.ts";
 import { RubyFloat, rubyFloatToS } from "../models/concerns/ruby-values.ts";
-import { aliveCustomDomainOf, CustomDomainDeletable } from "../models/custom-domain.ts";
+import { aliveCustomDomainOf, CustomDomainDeletable, CustomDomains } from "../models/custom-domain.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { transaction } from "../models/runtime/transaction.ts";
+import { isBlank } from "../models/runtime/validators.ts";
 import {
   saveThirdPartyAnalytics,
   ThirdPartyAnalyticInvalid,
@@ -35,6 +36,7 @@ import { settingsGuard } from "../page-props/settings/guard.ts";
 import { settingsAdvancedUserPolicy } from "../policies/settings/advanced-user.ts";
 import { settingsBillingPolicy } from "../policies/settings/billing.ts";
 import { settingsThirdPartyAnalyticsUserPolicy } from "../policies/settings/third-party-analytics-user.ts";
+import { customDomainPointsToGumroad } from "../services/custom-domain-verification.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -92,7 +94,7 @@ function requireUser(params: Record<string, unknown>): Record<string, unknown> {
 
 // Strong parameters' PERMITTED_SCALAR_TYPES; an array or hash under a scalar key is dropped, not an error.
 export const isPermittedScalar = (value: unknown) =>
-  value === null || value instanceof RubyFloat || ["string", "number", "boolean"].includes(typeof value);
+  value === null || value instanceof RubyFloat || ["string", "number", "bigint", "boolean"].includes(typeof value);
 
 // A permitted scalar for a string column: an integer casts to its digits, true/false to "1"/"0" for a varchar column (the MySQL
 // adapter's string type) and to "t"/"f" for a text one, and a Float to its Float#to_s. A float only reaches here as a RubyFloat (see
@@ -100,6 +102,7 @@ export const isPermittedScalar = (value: unknown) =>
 export function stringValue(value: unknown, column: "varchar" | "text" = "varchar"): string | null {
   if (value === null || typeof value === "string") return value;
   if (value instanceof RubyFloat && Number.isFinite(value.value)) return rubyFloatToS(value.value);
+  if (typeof value === "bigint") return value.toString();
   if (typeof value === "boolean") return column === "text" ? (value ? "t" : "f") : value ? "1" : "0";
   if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
   throw new HandBackToRails("a non-string value for a string attribute");
@@ -107,8 +110,9 @@ export function stringValue(value: unknown, column: "varchar" | "text" = "varcha
 
 // The JSON-data tiktok_pixel_id keeps what the request sent (no string column cast). An integer reaches the model's
 // `tiktok_pixel_id.strip` callback, which raises and lands in the action's rescue-all.
-export function tiktokPixelIdValue(value: unknown): string | number | RubyFloat | null {
+export function tiktokPixelIdValue(value: unknown): string | number | bigint | RubyFloat | null {
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
+  if (typeof value === "bigint") return value;
   if (value instanceof RubyFloat && Number.isFinite(value.value)) return value;
   return plainStringValue(value);
 }
@@ -122,7 +126,8 @@ function plainStringValue(value: unknown): string | null {
 // A snippet field stays as sent: `save_third_party_analytics` compares and keys on the raw param and casts it only when it
 // assigns a string column or looks a permalink up. A float hands back: the permalink lookup of a float is not recorded.
 export function snippetValue(value: unknown): string | number | boolean | null {
-  if (value instanceof RubyFloat) throw new HandBackToRails("a float for a snippet field");
+  if (value instanceof RubyFloat || typeof value === "bigint")
+    throw new HandBackToRails("a float or a huge integer for a snippet field");
   stringValue(value);
   return value as string | number | boolean | null;
 }
@@ -214,6 +219,19 @@ async function blockCustomerEmails(sellerId: unknown, emails: string[]): Promise
   return null;
 }
 
+// The custom domain branch of Settings::AdvancedController#update for a domain DNS does not point at Gumroad: `verify` marks a verified
+// domain unverified (an unverified one stays so, and the failed-attempts counter is not incremented from here), then one save. Rails
+// saves inside the state event and again after it; the second save has nothing left to write.
+async function saveUnverifiedCustomDomain(seller: UserRecord, domain: string): Promise<string | null> {
+  const record =
+    (await aliveCustomDomainOf(seller.get("id"), seller.attributes)) ??
+    CustomDomains.build({ user_id: Number(seller.get("id")) });
+  record.set("domain", domain);
+  if (record.get("state") === "verified") record.set("state", "unverified");
+  if (await CustomDomains.save(record)) return null;
+  return toSentence(record.errors.fullMessages());
+}
+
 async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   const denied = await guard(input, settingsAdvancedUserPolicy.update);
   if (denied) return denied;
@@ -222,8 +240,11 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   const { domain, blocked_customer_emails: emails } = input.params;
   if (!(domain === undefined || domain === null || typeof domain === "string"))
     throw new HandBackToRails("a domain that is not a string");
-  if (typeof domain === "string" && domain.trim() !== "")
-    throw new HandBackToRails("a custom domain, which Rails verifies over DNS");
+  // `params[:domain].present?`. The DNS lookup is a read that changes nothing, so it runs before the first write: a domain that
+  // points at Gumroad would be marked verified (and certified) by Rails, which Node does not do, so that request goes back whole.
+  const customDomain = typeof domain === "string" && !isBlank(domain) ? domain : null;
+  if (customDomain !== null && (await customDomainPointsToGumroad(customDomain)))
+    throw new HandBackToRails("a custom domain that points at Gumroad, which Rails verifies");
   if (isHash(emails) || Array.isArray(emails)) throw new HandBackToRails("blocked emails that are a hash or a list");
   const endpoint =
     "notification_endpoint" in user && isPermittedScalar(user.notification_endpoint)
@@ -251,10 +272,13 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
     return redirect(ADVANCED_PATH, FLASH_SOMETHING_BROKE);
   }
 
-  // `params[:domain] == "" && current_seller.custom_domain.present?`
-  if (domain === "") {
-    const customDomain = await aliveCustomDomainOf(seller.get("id"), seller.attributes);
-    if (customDomain !== null) await CustomDomainDeletable.markDeletedBang(customDomain);
+  if (customDomain !== null) {
+    const failure = await saveUnverifiedCustomDomain(seller, customDomain);
+    if (failure !== null) return redirect(ADVANCED_PATH, failure);
+  } else if (domain === "") {
+    // `params[:domain] == "" && current_seller.custom_domain.present?`
+    const stored = await aliveCustomDomainOf(seller.get("id"), seller.attributes);
+    if (stored !== null) await CustomDomainDeletable.markDeletedBang(stored);
   }
 
   if (await Users.save(seller))
