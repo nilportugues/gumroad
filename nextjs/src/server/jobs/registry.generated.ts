@@ -208,7 +208,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AutoTopUpNegativeDestinationBalancesJob": {
     "file": "app/sidekiq/auto_top_up_negative_destination_balances_job.rb",

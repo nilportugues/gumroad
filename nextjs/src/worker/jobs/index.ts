@@ -234,6 +234,7 @@ import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
 import { chargePreorderWorker } from "./charge-preorder-worker.ts";
 import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
+import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -450,6 +451,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ChargePreorderWorker: chargePreorderWorker,
   PushNotificationWorker: pushNotificationWorker,
   FinalizeBuyerPresentmentPurchaseJob: finalizeBuyerPresentmentPurchaseJob,
+  AttachPastPurchasesToUserWorker: attachPastPurchasesToUserWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
