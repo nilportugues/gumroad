@@ -11,7 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import { bulkIndex, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
@@ -139,6 +139,7 @@ const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
   ["-sales-totals-by-country-reports-sales-totals-by-country", "2026-11-12T05:00:00Z"],
   ["-list-sales-", "2026-11-12T05:00:00Z"],
   ["-list-products-", "2026-11-12T06:00:00Z"],
+  ["-get-analytics-", "2026-11-12T10:30:00Z"],
   ["-reports-sales-totals-", "2026-11-10T16:45:00Z"],
   ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
 ];
@@ -355,6 +356,25 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
           .filter((job) => !LOCKED_JOBS.has(job.class) && !FALLBACK_JOBS.has(job.class))
           .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         expected.jobs = dedupeUnique(expected.jobs);
+        // successful_sales_count, total_usd_cents and get_analytics search the purchases and page view indices, which Rails
+        // filled as the sales were made and the views recorded.
+        if (name.includes("-reports-the-sales-figures-") || name.includes("-get-analytics-")) {
+          afterRedisReset = async () => {
+            const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
+            const suffix = process.env.ES_INDEX_SUFFIX ?? "";
+            const purchases = { model: "Purchase", name: replayIndexName("purchases", suffix) } as const;
+            await recreateIndex(es, purchases);
+            await reindexPurchases(es, purchases.name, sql);
+            const views = { model: "ProductPageView", name: replayIndexName("product_page_views", suffix) } as const;
+            await recreateIndex(es, views);
+            await bulkIndex(
+              es,
+              views.name,
+              seededDocuments(expected, "ProductPageView", seedClock ?? new Date()).map((body) => ({ body })),
+            );
+            await es.close();
+          };
+        }
         if (name.includes("hands-back") || /-hands-an?-/u.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions());
@@ -369,19 +389,6 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const tripsThrottle = name.includes("-past-the-per-ip-limit");
         if (tripsThrottle) handedBack.length = 0;
         if (tripsThrottle) afterRedisReset = async () => void (await fillFirstThrottle(redis, expected.request));
-        // successful_sales_count and total_usd_cents search the purchases index, which Rails filled as the sales were made.
-        if (name.includes("-reports-the-sales-figures-")) {
-          afterRedisReset = async () => {
-            const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
-            const purchases = {
-              model: "Purchase",
-              name: replayIndexName("purchases", process.env.ES_INDEX_SUFFIX ?? ""),
-            } as const;
-            await recreateIndex(es, purchases);
-            await reindexPurchases(es, purchases.name, sql);
-            await es.close();
-          };
-        }
         const validity = VALIDITY_INSTANTS.find(([fragment]) => name.includes(fragment));
         const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
         driftDates = !pinned && !name.includes("answers-a-tools-list-call");

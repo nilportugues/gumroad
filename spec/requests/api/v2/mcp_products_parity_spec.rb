@@ -5,6 +5,8 @@ require "spec_helper"
 # The product tools of Mcp::Server (get_product, list_files) through the full Rack stack, recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts.
 describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refresh: true do
+  include ProductPageViewHelpers
+
   let(:seller) { create(:user, username: "dude", name: "Dude") }
   let(:application) { create(:oauth_application, owner: create(:user)) }
   let(:rpc) { { "Content-Type" => "application/json" } }
@@ -150,6 +152,116 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
 
     it "hands back a token without a scope the tool needs", parity: true do
       call_tool("list_files", { id: "sketchpk" }, scopes: "view_public")
+    end
+  end
+
+  # The rows are literal 2026-03 instants and the seller predates them, so the replay (which pins its seed clock to the
+  # recording hour) reads the same activity whatever day it runs.
+  describe "get_analytics" do
+    let(:seller) { create(:user, username: "dude", name: "Dude", created_at: Time.utc(2026, 1, 1)) }
+    let!(:other_product) { create(:product, user: seller, name: "Icon set", unique_permalink: "iconset") }
+    let(:march) { { start_date: "2026-03-01", end_date: "2026-03-31" } }
+
+    before do
+      Purchase.__elasticsearch__.create_index!(force: true)
+      ProductPageView.__elasticsearch__.create_index!(force: true)
+    end
+
+    def view(item, day, referrer_domain: "direct")
+      add_page_view(item, Time.utc(2026, 3, day, 11, 5).iso8601, { country: "United States", state: "CA", referrer_domain: })
+    end
+
+    def seed(*sales)
+      sales.each { |item, email, price_cents, day, attributes| sell(item, email:, price_cents:, **{ created_at: Time.utc(2026, 3, day, 10) }.merge(attributes || {})) }
+      index_model_records(Purchase)
+      EsClient.indices.refresh(index: ProductPageView.index_name)
+    end
+
+    def analytics(arguments = {}, scopes = "view_sales")
+      call_tool("get_analytics", march.merge(arguments), scopes:)
+    end
+
+    context "with views and sales on two products" do
+      before do
+        3.times { |day| view(product, day + 2) }
+        view(other_product, 4)
+        seed([product, "ada@example.com", 1000, 2], [product, "bob@example.com", 500, 3], [other_product, "cy@example.com", 700, 4])
+      end
+
+      it "reports views, sales and revenue by product, most viewed first", parity: true do
+        analytics
+      end
+
+      it "rounds the conversion rate to four places", parity: true do
+        3.times { view(product, 9) }
+        analytics
+      end
+
+      it "narrows the report to one product", parity: true do
+        analytics({ product_id: other_product.external_id })
+      end
+
+      it "narrows the report by permalink and counts only the days in range", parity: true do
+        analytics({ product_id: "sketchpk", start_date: "2026-03-03", end_date: "2026-03-03" })
+      end
+
+      it "reports the referrers behind the views and sales", parity: true do
+        view(product, 5, referrer_domain: "twitter.com")
+        view(product, 6, referrer_domain: "twitter.com")
+        analytics({ breakdown: "referrer" })
+      end
+
+      it "reports the referrers of one product", parity: true do
+        view(product, 5, referrer_domain: "twitter.com")
+        analytics({ breakdown: "referrer", product_id: "iconset" })
+      end
+
+      it "hands back two products with the same number of views", parity: true do
+        view(other_product, 5)
+        view(other_product, 6)
+        analytics
+      end
+
+      it "hands back a referrer breakdown with two referrers that have the same number of views", parity: true do
+        view(product, 7, referrer_domain: "twitter.com")
+        view(other_product, 7, referrer_domain: "google.com")
+        analytics({ breakdown: "referrer" })
+      end
+    end
+
+    it "leaves the conversion rate empty for a product nobody viewed", parity: true do
+      seed([product, "ada@example.com", 1000, 2])
+      other_product.update_columns(deleted_at: Time.utc(2026, 3, 1))
+      analytics
+    end
+
+    it "reports a seller with one product and no activity", parity: true do
+      other_product.update_columns(deleted_at: Time.utc(2026, 3, 1))
+      analytics
+    end
+
+    it "returns no rows for a range that ends before the day the account was created", parity: true do
+      analytics({ start_date: "2025-11-01", end_date: "2025-12-30" })
+    end
+
+    it "refuses a start date after the end date", parity: true do
+      analytics({ start_date: "2026-03-10", end_date: "2026-03-01" })
+    end
+
+    it "refuses a range of more than a year", parity: true do
+      analytics({ start_date: "2024-01-01", end_date: "2026-03-31" })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      analytics({ product_id: "nope" })
+    end
+
+    it "hands back a date that is not YYYY-MM-DD", parity: true do
+      analytics({ start_date: "March 1" })
+    end
+
+    it "hands back a token without a sales scope", parity: true do
+      analytics({}, "view_public")
     end
   end
 end

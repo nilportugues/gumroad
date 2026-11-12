@@ -21,10 +21,12 @@ import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
+import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
 import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import type { LinkRow, UserRow } from "../presenters/product-reads.ts";
 import { longUrl } from "../presenters/product.ts";
+import { TimeZoneNotPortedError } from "../search/civil-time.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
 const INVALID_PARAMS = -32602;
@@ -206,6 +208,7 @@ export type ToolContext = {
   sales?: SalesReader;
   products?: ProductsReader;
   // Link#successful_sales_count and Link#total_usd_cents (both Elasticsearch searches).
+  analytics?: AnalyticsReader;
   productStats?: (productId: bigint) => Promise<{ sales_count: number | null; sales_usd_cents: FloatValue | number }>;
   now?: () => Date;
 };
@@ -1056,6 +1059,139 @@ async function listPayouts(args: Hash, context: ToolContext): Promise<Hash> {
   };
 }
 
+const ANALYTICS_DEFAULT_DAYS = 30;
+const ANALYTICS_MAX_DAYS = 366;
+const ANALYTICS_MAX_REFERRERS = 50;
+const CONVERSION_DIGITS = 4;
+// A key a JavaScript object keeps in numeric order, ahead of the others, where a Ruby Hash keeps insertion order.
+const REORDERED_KEY = /^(?:0|[1-9]\d{0,8})$/u;
+
+export type AnalyticsSeries = Record<string, number[]>;
+export type AnalyticsReader = {
+  // CreatorAnalytics::CachingProxy#data_for_dates, with civil dates.
+  data: (user: User, start: string, end: string, by: "date" | "referral") => Promise<Hash>;
+  // `user.links.where(unique_permalink: ...)`, deleted products included.
+  names: (userId: bigint, permalinks: string[]) => Promise<Map<string, { id: bigint; name: string | null }>>;
+};
+
+export const readAnalytics: AnalyticsReader = {
+  async data(user, start, end, by) {
+    try {
+      return (await new CreatorAnalyticsCachingProxy(user).dataForDates(start, end, by)) as Hash;
+    } catch (error) {
+      if (error instanceof TimeZoneNotPortedError) throw new HandBackToRails(error.message);
+      throw error;
+    }
+  },
+  async names(userId, permalinks) {
+    const rows = await db.link.findMany({
+      where: { user_id: userId, unique_permalink: { in: permalinks } },
+      select: { id: true, name: true, unique_permalink: true },
+    });
+    return new Map(rows.map((row) => [row.unique_permalink ?? "", { id: row.id, name: row.name }]));
+  },
+};
+
+const sumOf = (series: number[]): number => series.reduce((total, value) => total + value, 0);
+// Mcp::Server#analytics_conversion
+const conversion = (sales: number, views: number): FloatValue | null =>
+  views > 0 ? new FloatValue(rubyRoundHalfUp(sales / views, CONVERSION_DIGITS)) : null;
+
+// sort_by { -views }. Ruby's sort_by is not stable, so rows with equal views come out in an order this port cannot promise.
+function sortedByViews<T extends { views: number }>(rows: T[]): T[] {
+  if (new Set(rows.map((row) => row.views)).size !== rows.length)
+    throw new HandBackToRails("get_analytics rows with equal views");
+  return rows.sort((a, b) => b.views - a.views);
+}
+
+function assertInsertionOrdered(keys: string[]): void {
+  if (keys.some((key) => REORDERED_KEY.test(key)))
+    throw new HandBackToRails("get_analytics keys that look like numbers");
+}
+
+// tool_get_analytics
+async function getAnalytics(args: Hash, context: ToolContext): Promise<Hash> {
+  const zone = context.user.timezone;
+  const now = (context.now ?? (() => new Date()))();
+  let today: CalendarDate;
+  let createdOn: string;
+  try {
+    today = parseDate(instantInTimeZoneIso8601(zone, now).slice(0, 10), "today");
+    if (context.user.created_at === null)
+      throw new HandBackToRails("get_analytics for a seller without a creation time");
+    createdOn = instantInTimeZoneIso8601(zone, context.user.created_at).slice(0, 10);
+  } catch (error) {
+    if (error instanceof InvalidTimeZoneError)
+      throw new HandBackToRails("an MCP tool for a seller with an unknown time zone");
+    throw error;
+  }
+  const end = typeof args.end_date === "string" ? parseDate(args.end_date, "end_date") : today;
+  const start =
+    typeof args.start_date === "string"
+      ? parseDate(args.start_date, "start_date")
+      : fromMs(dateMs(end) - (ANALYTICS_DEFAULT_DAYS - 1) * DAY_MS);
+  const days = (dateMs(end) - dateMs(start)) / DAY_MS;
+  if (days < 0) throw new ToolRpcError("start_date must not be after end_date", INVALID_PARAMS);
+  if (days >= ANALYTICS_MAX_DAYS)
+    throw new ToolRpcError(`The date range cannot exceed ${ANALYTICS_MAX_DAYS} days`, INVALID_PARAMS);
+
+  let permalink: string | null = null;
+  if (isPresent(args.product_id)) {
+    const product = await (context.products ?? readProducts).find(BigInt(context.user.id), args.product_id);
+    if (product === null) throw new ToolError("The product was not found.");
+    permalink = product.unique_permalink;
+  }
+  const breakdown = "breakdown" in args ? args.breakdown : "product";
+  const base = { start_date: isoDate(start), end_date: isoDate(end), time_zone: zone, currency: USD, breakdown };
+  // CachingProxy clamps ranges to [account creation, today]; a range wholly outside would be answered with another day's data.
+  if (isoDate(start) > isoDate(today) || isoDate(end) < createdOn) return { ...base, rows: [] };
+
+  const reader = context.analytics ?? readAnalytics;
+  const referrer = breakdown === "referrer";
+  const data = await reader.data(context.user, isoDate(start), isoDate(end), referrer ? "referral" : "date");
+  const wanted = (name: string) => permalink === null || name === permalink;
+
+  if (referrer) {
+    const byReferral = data.by_referral as Record<"views" | "sales" | "totals", Record<string, AnalyticsSeries>>;
+    const totals = new Map<string, { views: number; sales: number; revenue_cents: number }>();
+    for (const [type, field] of [
+      ["views", "views"],
+      ["sales", "sales"],
+      ["totals", "revenue_cents"],
+    ] as const) {
+      assertInsertionOrdered(Object.keys(byReferral[type]));
+      for (const [name, referrers] of Object.entries(byReferral[type])) {
+        if (!wanted(name)) continue;
+        assertInsertionOrdered(Object.keys(referrers));
+        for (const [referrerName, series] of Object.entries(referrers)) {
+          const row = totals.get(referrerName) ?? { views: 0, sales: 0, revenue_cents: 0 };
+          row[field] += sumOf(series);
+          totals.set(referrerName, row);
+        }
+      }
+    }
+    const rows = sortedByViews([...totals].map(([name, row]) => ({ referrer: name, ...row })))
+      .slice(0, ANALYTICS_MAX_REFERRERS)
+      .map((row) => ({ ...row, conversion_rate: conversion(row.sales, row.views) }));
+    return { ...base, rows };
+  }
+
+  const byDate = data.by_date as Record<"views" | "sales" | "totals", Record<string, number[]>>;
+  const permalinks = Object.keys(byDate.views);
+  assertInsertionOrdered(permalinks);
+  const names = await reader.names(BigInt(context.user.id), permalinks);
+  const rows = sortedByViews(
+    permalinks.filter(wanted).map((name) => ({
+      product_id: names.has(name) ? encrypt(names.get(name)!.id) : null,
+      product_name: names.get(name)?.name ?? null,
+      views: sumOf(byDate.views[name]!),
+      sales: sumOf(byDate.sales[name]!),
+      revenue_cents: sumOf(byDate.totals[name]!),
+    })),
+  ).map((row) => ({ ...row, conversion_rate: conversion(row.sales, row.views) }));
+  return { ...base, rows };
+}
+
 // The payload of a ported tool, or undefined for a tool that still runs in Rails.
 export async function toolBody(name: string, args: Hash, context: ToolContext): Promise<Hash | undefined> {
   switch (name) {
@@ -1080,6 +1216,9 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "get_product":
       requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);
+    case "get_analytics":
+      requireScopes(context.token, ["view_sales", "account"]);
+      return getAnalytics(args, context);
     case "list_files":
       requireScopes(context.token, ["edit_products", "account"]);
       return listFiles(args, context);

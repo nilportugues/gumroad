@@ -613,7 +613,7 @@ describe("get_sales_totals", () => {
 
 describe("toolBody", () => {
   it("leaves a tool that is not ported to Rails", async () => {
-    await expect(toolBody("get_analytics", {}, context("account"))).resolves.toBeUndefined();
+    await expect(toolBody("publish_product", { id: "x" }, context("account"))).resolves.toBeUndefined();
   });
 });
 
@@ -662,7 +662,7 @@ describe("tools/call through the session", () => {
   });
 
   it("still hands back a tool that is not ported", async () => {
-    await expect(session("account").handle(call("get_analytics", {}))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(session("account").handle(call("publish_product", { id: "x" }))).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 
@@ -956,5 +956,97 @@ describe("toolText", () => {
         .replace('"whole": "@"', '"whole": 1500.0')
         .replace('"part": "@"', '"part": 0.25'),
     );
+  });
+});
+
+describe("get_analytics", () => {
+  const series = (...values: number[]) => values;
+  const analyticsContext = (by: "date" | "referral", data: Record<string, unknown>) => {
+    const reader = {
+      data: vi.fn().mockResolvedValue(data),
+      names: vi.fn().mockResolvedValue(
+        new Map([
+          ["alpha", { id: 1n, name: "Alpha" }],
+          ["beta", { id: 2n, name: "Beta" }],
+        ]),
+      ),
+    };
+    const context = productsContext([], "view_sales");
+    context.products.find.mockResolvedValue(null);
+    return {
+      ...context,
+      user: user({ timezone: "UTC", created_at: new Date("2026-01-01T00:00:00Z") }),
+      now: () => new Date("2026-03-31T12:00:00Z"),
+      analytics: reader,
+      by,
+    };
+  };
+  const byDate = {
+    by_date: {
+      views: { alpha: series(2, 1), beta: series(4) },
+      sales: { alpha: series(1, 0), beta: series(1) },
+      totals: { alpha: series(500, 0), beta: series(700) },
+    },
+  };
+
+  it("sums each product, most viewed first, with the conversion rate rounded to four places", async () => {
+    const context = analyticsContext("date", byDate);
+    const body = (await toolBody("get_analytics", { start_date: "2026-03-01", end_date: "2026-03-31" }, context)) as {
+      rows: Record<string, unknown>[];
+    };
+    expect(context.analytics.data).toHaveBeenCalledWith(context.user, "2026-03-01", "2026-03-31", "date");
+    expect(body.rows).toEqual([
+      expect.objectContaining({ product_name: "Beta", views: 4, sales: 1, revenue_cents: 700 }),
+      expect.objectContaining({ product_name: "Alpha", views: 3, sales: 1, revenue_cents: 500 }),
+    ]);
+    expect(body.rows.map((row) => String((row.conversion_rate as FloatValue).value))).toEqual(["0.25", "0.3333"]);
+  });
+
+  it("answers an empty range for a range that ends before the account existed, without reading analytics", async () => {
+    const context = analyticsContext("date", byDate);
+    const body = await toolBody("get_analytics", { start_date: "2025-11-01", end_date: "2025-12-30" }, context);
+    expect(body).toMatchObject({ rows: [], breakdown: "product" });
+    expect(context.analytics.data).not.toHaveBeenCalled();
+  });
+
+  it("totals referrers across products and keeps the first 50", async () => {
+    const referral = {
+      by_referral: {
+        views: { alpha: { direct: series(3), twitter: series(1) }, beta: { direct: series(2) } },
+        sales: { alpha: { direct: series(1) }, beta: {} },
+        totals: { alpha: { direct: series(500) }, beta: {} },
+      },
+    };
+    const body = (await toolBody(
+      "get_analytics",
+      { breakdown: "referrer", start_date: "2026-03-01", end_date: "2026-03-31" },
+      analyticsContext("referral", referral),
+    )) as { rows: Record<string, unknown>[] };
+    expect(body.rows).toEqual([
+      expect.objectContaining({ referrer: "direct", views: 5, sales: 1, revenue_cents: 500 }),
+      expect.objectContaining({ referrer: "twitter", views: 1, sales: 0, revenue_cents: 0 }),
+    ]);
+  });
+
+  it("hands back rows with equal views, keys a JavaScript object would reorder and an unreadable date", async () => {
+    const tied = { by_date: { ...byDate.by_date, views: { alpha: series(2), beta: series(2) } } };
+    await expect(toolBody("get_analytics", {}, analyticsContext("date", tied))).rejects.toBeInstanceOf(HandBackToRails);
+    const numeric = { by_date: { ...byDate.by_date, views: { "10": series(2), alpha: series(1) } } };
+    await expect(toolBody("get_analytics", {}, analyticsContext("date", numeric))).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
+    await expect(
+      toolBody("get_analytics", { start_date: "March 1" }, analyticsContext("date", byDate)),
+    ).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("refuses a reversed or oversized range", async () => {
+    const context = analyticsContext("date", byDate);
+    await expect(
+      toolBody("get_analytics", { start_date: "2026-03-10", end_date: "2026-03-01" }, context),
+    ).rejects.toMatchObject({ code: -32602 });
+    await expect(
+      toolBody("get_analytics", { start_date: "2024-01-01", end_date: "2026-03-31" }, context),
+    ).rejects.toMatchObject({ message: "The date range cannot exceed 366 days" });
   });
 });
