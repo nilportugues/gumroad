@@ -36,12 +36,13 @@ def key_node = { "type" => "licenseKey" }
 def text_node(text = "Hello") = { "type" => "paragraph", "content" => [{ "type" => "text", "text" => text }] }
 def license(id, purchase, link: 1, serial: "AAAAAAAA-BBBBBBBB-CCCCCCCC-DDDDDDDD") = { id:, link_id: link, purchase_id: purchase, serial:, uses: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }
 
-def run(name, seed, args = [1])
+def run(name, seed, args = [1], lean: false)
   $uuid = 0
   result = capture(name, now: NOW, tables: TABLES, seed:, sidekiq: true, job: "CreateLicensesForExistingCustomersWorker", args:) do
     CreateLicensesForExistingCustomersWorker.new.perform(*args)
   end
   result.delete("seed")
+  result.delete("rows") if lean
   result
 end
 
@@ -80,6 +81,12 @@ cases << run("a sale with no variant of a product with variants", { links: [link
 cases << run("a sale with a variant of a deleted category", { links: [link_row], purchases: [sale(1)], variant_categories: [category(1, deleted_at: SEEDED_AT)], base_variants: [variant(1)], base_variants_purchases: [chosen(1, 1)], rich_contents: [page(1, 1, nodes: [text_node])] })
 cases << run("two sales of variants", { links: [link_row], purchases: [sale(1), sale(2)], variant_categories: [category(1)], base_variants: [variant(1), variant(2)], base_variants_purchases: [chosen(1, 1), chosen(2, 2)], rich_contents: [page(1, 1, nodes: [text_node]), page(2, 2, nodes: [key_node])] })
 cases << run("a sale of a variant of a sku product", { links: [link_row], purchases: [sale(1)], variant_categories: [category(1)], base_variants: [variant(1, type: "Sku")], base_variants_purchases: [chosen(1, 1)] })
+
+# A product's sales are read a thousand at a time; the licenses are written between the batch reads.
+PHYSICAL = { flags: IS_LICENSED | IS_PHYSICAL }.freeze
+licensed_but = ->(count, *missing) { (1..count).reject { missing.include?(_1) }.map { license(_1, _1, serial: format("%08X-BBBBBBBB-CCCCCCCC-DDDDDDDD", _1)) } }
+cases << run("exactly a thousand sales, all licensed", { links: [link_row(1, **PHYSICAL)], purchases: (1..1000).map { sale(_1) }, licenses: licensed_but.(1000) }, [1], lean: true)
+cases << run("a thousand and one sales, two without a license", { links: [link_row(1, **PHYSICAL)], purchases: (1..1001).map { sale(_1) }, licenses: licensed_but.(1001, 500, 1001) }, [1], lean: true)
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

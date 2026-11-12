@@ -1,11 +1,11 @@
 // Port of app/sidekiq/create_licenses_for_existing_customers_worker.rb: every successful, non-gift-sender, non-recurring sale of the
 // product gets a License unless it has one already or its variant's own content leaves the license-key block out
 // (Purchase#variant_content_permits_license_key?). The reads run in Rails' order and through the query cache, which a write clears.
-// A first batch of 1000 sales hands back before any write; an id Rails casts (a Float, a word) hands back before any statement.
+// Sales are read a thousand at a time, each batch after the licenses of the last; an id Rails casts (a Float, a word) hands back before any statement.
 // Golden: __fixtures__/create-licenses-for-existing-customers-worker.golden.json (scripts/golden/create-licenses-for-existing-customers-worker.rb).
 import { Prisma, type Link, type License } from "@prisma/client";
 
-import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
+import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { Licenses } from "../../server/models/license.ts";
 import { LinkFlags } from "../../server/models/link.ts";
 import { hasEditorContent, hasLicenseKey } from "../../server/models/rich-content.ts";
@@ -92,8 +92,6 @@ export const createLicensesForExistingCustomersWorkerWith = modelJob({ min: 1 },
   if (product === null) throw new RecordNotFound(`Couldn't find Link with 'id'=${String(id)}`);
 
   await findInBatches<Row>("purchases", salesOf(id), SALES_BATCH_SIZE, async (purchases) => {
-    // A full batch means a later batch whose rows Rails reads after this one's writes; only the first is proven.
-    if (purchases.length === SALES_BATCH_SIZE) throw new HandBackToRuby("a product with a thousand or more sales");
     for (const purchase of purchases) {
       if (!(await variantContentPermitsLicenseKey(purchase, product as unknown as Row))) continue;
 
