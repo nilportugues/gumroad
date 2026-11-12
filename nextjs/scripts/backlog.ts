@@ -58,6 +58,8 @@ type Epic = {
   title: string;
   // Hand-back sites in these source files and recorded examples in these specs belong to the epic.
   files: RegExp;
+  // Second pass: only consulted for a path no epic's `files` claims, so widening a long tail never steals from another epic.
+  fallback?: RegExp;
   state: string;
   blocker: string;
   scope: string;
@@ -69,6 +71,7 @@ const EPICS: Epic[] = [
     id: "E01",
     title: "Paid checkout (card purchase, order, charge)",
     files: /orders|purchase-(create|success|fees|response|license)|charge-|order-|free-order|checkout|customer-surcharge|purchase-sales-tax|stripe\/(payment|charge|setup)/u,
+    fallback: /purchase-pricing|merge-carts|models\/(charge|order|credit)\.ts|cart-items/u,
     state: "in progress (WS-20; free orders done, paid shape recorded, post-charge half being ported)",
     blocker:
       "Rails order recorded for one happy path only; ambiguous outcomes (timeout after intent create, 3DS, late client confirmation) have no recording, and a Node failure between intent create and purchase update would leave a charged card.",
@@ -79,6 +82,7 @@ const EPICS: Epic[] = [
     id: "E02",
     title: "Payouts (instant payout, create_payments, ProcessPaymentWorker)",
     files: /payout|payment-state|process-payment|bank-account|stripe\/payout/u,
+    fallback: /models\/payment\.ts/u,
     state: "in progress (failure paths recorded: 17 examples; Node models and Stripe client being built)",
     blocker: "Payment state machine, Payouts.create_payments, a Stripe client with the gem's retry/idempotency behaviour.",
     scope: "Instant payout, scheduled payouts, PayPal payouts, payout holds, reversal of internal transfers, payouts page branches.",
@@ -119,6 +123,7 @@ const EPICS: Epic[] = [
     id: "E07",
     title: "Sign-in providers and account security",
     files: /omniauth|social-|oauth|passkey|webauthn|totp|team-invit|auth-|login|signup|session|confirmation/u,
+    fallback: /instagram/u,
     state: "mostly done (Apple, Twitter, Google, TOTP, team join, passkey login in Node); YouTube, Instagram, TikTok, Stripe Connect callbacks and some passkey shapes left",
     blocker: "Single-use codes must not be spent unless every outcome is reproducible.",
     scope: "Remaining OmniAuth callbacks, passkey registration shapes, team invitation for the Gumroad account's own team, unconfirmed-account adoption.",
@@ -127,6 +132,7 @@ const EPICS: Epic[] = [
     id: "E08",
     title: "Content delivery and downloads (WS-16)",
     files: /url-redirect|content-deliver|stream|read-|play|download|media-location|product-file|dropbox/u,
+    fallback: /integrations?-|discord|s3-utility/u,
     state: "partial (access gates done; bytes, rich content, posts, integrations, licenses, polls hand back)",
     blocker: "Signed URLs, S3 presign of the test environment, Cloudflare production key and distribution.",
     scope: "stream/read/play/captions past the gate, download pages with files and rich content, ProductFile creation and build promote.",
@@ -135,6 +141,7 @@ const EPICS: Epic[] = [
     id: "E09",
     title: "Product pages, profiles and custom HTML (WS-11/12)",
     files: /profile|product-page|cover|custom-html|interpolator|page-sanitizer|home|pages|asset-preview|section/u,
+    fallback: /recommended|widgets|embedded-javascripts/u,
     state: "in progress (covers, nav done; Interpolator wiring and custom HTML pages being ported)",
     blocker: "Pages::ProfileData, ProductPrices, Ai::PageSanitizer.",
     scope: "Custom HTML pages, uploaded video covers, asset previews, product sections, impersonated session on the home pages.",
@@ -143,6 +150,7 @@ const EPICS: Epic[] = [
     id: "E10",
     title: "Public/v2 API and mobile API (WS-17)",
     files: /api-v2|mobile|product-(resource|build|write|create)|link-(create|publish|update)|offer-code|variant|price-writes/u,
+    fallback: /api\/v2\//u,
     state: "in progress (v2 create/update done for plain digital products; mobile sales/library shapes left)",
     blocker: "Files, rich content, refund-policy params, covers, non-USD currency, other native types in v2; media location, preorder, membership, refund and review serialization on mobile.",
     scope: "Remaining v2 product params, mobile library and search rows, sales show (CustomerPresenter), remaining mobile writes.",
@@ -159,6 +167,7 @@ const EPICS: Epic[] = [
     id: "E12",
     title: "Audience, emails, workflows and the receipt mailer (WS-13/15)",
     files: /mail|receipt|workflow|installment|post-|audience|follower|export|customers|analytics/u,
+    fallback: /marketing|\bposts?[-.]|imported-customer|events-mutations|test-ping/u,
     state: "partial (gift receiver, free-trial, subscription receipts, preorders hand back; export variants hand back)",
     blocker: "Mailer templates with files that have thumbnails.",
     scope: "Remaining receipt shapes, workflow emails with thumbnails, purchases export families (several variants, gifts, preorders, subscriptions, PayPal, Connect).",
@@ -175,6 +184,7 @@ const EPICS: Epic[] = [
     id: "E14",
     title: "Settings, team and admin (WS-10/18)",
     files: /settings|admin|team|brand-account|user-|account/u,
+    fallback: /users?-controller|models\/user\.ts|seller-|json-seller|json-actions|custom-domain|help-center|feature-announcement|connections-mutations|piracy/u,
     state: "mostly done; floats, custom domains, pixel ids, brand account creation and admin web UIs left",
     blocker: "Devise views have no HTML shell in Node.",
     scope: "Brand account creation, custom domains, Flipper UI and Sidekiq web, Devise confirmation pages.",
@@ -191,6 +201,7 @@ const EPICS: Epic[] = [
     id: "E16",
     title: "Affiliates, collaborators, wishlists, comments and reviews",
     files: /affiliate|collaborator|wishlist|comment|review|follower|utm|commission/u,
+    fallback: /communit/u,
     state: "partial (most reads and writes done; each controller still refuses some shapes)",
     blocker: "Per-shape recordings; commission completion needs balance charge (E01/E03).",
     scope: "Affiliate redirect and requests, collaborator invitations, wishlist items, comments, product reviews and responses, UTM links, commissions.",
@@ -199,6 +210,7 @@ const EPICS: Epic[] = [
     id: "E17",
     title: "Purchase management (customers, receipts JSON, license JSON)",
     files: /purchase-json|license-purchase|purchases-controller|purchases-|customer-actions|library|invoice/u,
+    fallback: /purchase-custom-field|purchase-product-updates|models\/purchase\.ts|purchase-access-writes|customer-details|shipment|buyer\/products/u,
     state: "partial (revoke access, search, export done; refund, update, resend receipt, confirm and charge actions hand back)",
     blocker: "Refund and charge paths (E01, E03).",
     scope: "PurchasesController actions beyond revoke access, purchase and license JSON shapes, invoices, library writes.",
@@ -207,6 +219,7 @@ const EPICS: Epic[] = [
     id: "E18",
     title: "Request and response fidelity (Rails params/body parsing, ERB, rate limits)",
     files: /rails-(body|params)|erb\/|rack-attack|application-controller|\/infra\/|route-table|mutation\.ts/u,
+    fallback: /number-with-delimiter|friendly-id|html-fragment|row-reads|with-filtering|public-handlers|public-data|secure-encrypt|route-redirects/u,
     state: "ongoing (generic refusals for inputs Rails munges or rejects; each is a deliberate hand-back, not a missing feature)",
     blocker: "None; port only if a real request needs the shape.",
     scope: "Nested/duplicate query keys, JSON bodies Rails munges, unsafe numbers, ERB helpers, Rack::Attack corner cases.",
@@ -215,6 +228,7 @@ const EPICS: Epic[] = [
     id: "E19",
     title: "Product editor, bundles and internal endpoints",
     files: /internal|product-editor|editor|seller-products|product-props|links-mutations|bundle|secure-redirect|listing|presenters\//u,
+    fallback: /links?-(create|controller|metrics)|models\/link\.ts|products-mutations|rich-content-writes|upsell|product-tags|thumbnails|call-availab|models\/call\.ts/u,
     state: "partial (editor JSON and mutations mostly done; sections, files and rich content shapes hand back)",
     blocker: "ProductFile creation (E08), rich content writes.",
     scope: "Product editor mutations, bundle edits, internal admin endpoints, listing pages and presenters.",
@@ -232,7 +246,7 @@ const OTHER: Epic = {
 
 function epicOf(path: string): Epic {
   const normalized = path.replace(/_/gu, "-");
-  return EPICS.find((epic) => epic.files.test(normalized)) ?? OTHER;
+  return EPICS.find((epic) => epic.files.test(normalized)) ?? EPICS.find((epic) => epic.fallback?.test(normalized)) ?? OTHER;
 }
 
 const NON_CODE = [
@@ -388,8 +402,15 @@ function build(): string {
   out.push("");
   out.push(`${n(other.sites)} sites in ${n(other.siteFiles)} files and ${n(other.examples)} recorded examples in ${n(other.specs)} specs match no epic pattern. Unassigned files with sites:`);
   out.push("");
-  for (const [file, count] of [...sites].filter(([file]) => epicOf(file).id === OTHER.id).sort((a, b) => b[1] - a[1]).slice(0, 25)) out.push(`- \`${file}\` (${n(count)})`);
+  for (const [file, count] of [...sites].filter(([file]) => epicOf(file).id === OTHER.id).sort((a, b) => b[1] - a[1]).slice(0, 200)) out.push(`- \`${file}\` (${n(count)})`);
   out.push("");
+  const otherSpecs = [...recorded].filter(([file]) => epicOf(file).id === OTHER.id).sort((a, b) => b[1] - a[1]);
+  if (otherSpecs.length > 0) {
+    out.push("Unassigned specs with recorded examples:");
+    out.push("");
+    for (const [file, count] of otherSpecs) out.push(`- \`${file}\` (${n(count)})`);
+    out.push("");
+  }
   out.push("## 8. Non-code tasks (not in any percentage)");
   out.push("");
   for (const item of NON_CODE) out.push(`- ${item}`);
