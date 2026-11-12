@@ -16,6 +16,8 @@ type Golden = {
       balance_transaction: { issued: number; holding_currency: string; holding: number } | null;
       prior_tax_cents: number;
       gumroad_held: boolean;
+      processor_refund_id?: string;
+      sale_tax_cents: number;
     };
     answers: Answers;
     events: Event[];
@@ -27,7 +29,7 @@ type Golden = {
     input: {
       purchases: { price: number; total: number; tax?: number }[];
       refunded: boolean[];
-      refunds?: { total: number; tax: number; gumroad_funded?: boolean }[];
+      refunds?: { total: number; tax: number; gumroad_funded?: boolean; balance_reconciliation_needed?: boolean }[];
       unwon?: boolean;
       gumroad_held?: boolean;
     };
@@ -49,7 +51,7 @@ const outcomeOf = (run: () => Promise<unknown>) =>
 
 describe("reverseExcessAmountFromStripeTransfer against the Ruby golden", () => {
   it("covers the transfers and refusals the golden was written for", () => {
-    expect(golden.excess.length).toBeGreaterThanOrEqual(16);
+    expect(golden.excess.length).toBeGreaterThanOrEqual(25);
     expect(golden.excess.filter((entry) => entry.credit !== null).length).toBeGreaterThanOrEqual(5);
   });
 
@@ -61,9 +63,9 @@ describe("reverseExcessAmountFromStripeTransfer against the Ruby golden", () => 
       const { balance_transaction: bt } = entry.input;
       const context: ExcessContext = {
         holderOfFunds: entry.input.gumroad_held ? "gumroad" : "stripe",
-        purchase: { gumroadTaxCents: 100, gumroadTaxRefundedCents: entry.input.prior_tax_cents, stripeTransactionId: "ch_golden" },
+        purchase: { gumroadTaxCents: entry.input.sale_tax_cents, gumroadTaxRefundedCents: entry.input.prior_tax_cents, stripeTransactionId: "ch_golden" },
         merchantAccountId: ACCOUNT_ID,
-        refund: { id: REFUND_ID, processorRefundId: PROCESSOR_REFUND_ID },
+        refund: { id: REFUND_ID, processorRefundId: entry.input.processor_refund_id ?? PROCESSOR_REFUND_ID },
         sellerBalanceTransaction: bt ? { issuedAmountNetCents: bt.issued, holdingAmountNetCents: bt.holding, holdingAmountCurrency: bt.holding_currency } : null,
         notifyAlreadyReversed: (_error, transferId) => void notified.push(transferId),
         createCredit: async (credit) => void credits.push(credit),
@@ -82,7 +84,7 @@ describe("reverseExcessAmountFromStripeTransfer against the Ruby golden", () => 
 
 describe("reverseTheTransferMadeForDisputeWin against the Ruby golden", () => {
   it("covers a full and a partial refund, a refund that did not debit the seller and the refusals", () => {
-    expect(golden.dispute.length).toBeGreaterThanOrEqual(10);
+    expect(golden.dispute.length).toBeGreaterThanOrEqual(17);
     expect(golden.dispute.filter((entry) => entry.events.some((event) => event.call === "Transfer.create_reversal")).length).toBeGreaterThanOrEqual(3);
   });
 
@@ -101,7 +103,7 @@ describe("reverseTheTransferMadeForDisputeWin against the Ruby golden", () => {
           totalTransactionCents: refund.total,
           gumroadTaxCents: refund.tax,
           gumroadFunded: refund.gumroad_funded === true,
-          balanceReconciliationNeeded: false,
+          balanceReconciliationNeeded: refund.balance_reconciliation_needed === true,
         })),
         refund: { id: REFUND_ID, processorRefundId: PROCESSOR_REFUND_ID },
       };

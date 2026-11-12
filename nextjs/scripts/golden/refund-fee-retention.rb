@@ -148,6 +148,10 @@ RETENTION_CASES = {
   "a Canadian managed account, a partial refund" => { country: "CA", currency: "cad", sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100 }, refund: { amount_cents: 333 } },
   "a US managed account with the processor fee recorded" => { country: "US", currency: "usd", sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100, processor_fee_cents: 59, processor_fee_cents_currency: "usd" }, refund: { amount_cents: 400 } },
   "a US managed account with the processor fee in another currency" => { country: "US", currency: "usd", sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100, processor_fee_cents: 59, processor_fee_cents_currency: "eur" }, refund: { amount_cents: 1000 } },
+  "a US managed account with the processor fee in another currency, a partial refund" => { country: "US", currency: "usd", sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100, processor_fee_cents: 80, processor_fee_cents_currency: "eur" }, refund: { amount_cents: 400 } },
+  "a US managed account with a USD processor fee currency and no fee amount, a partial refund" => { country: "US", currency: "usd", sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100, processor_fee_cents: nil, processor_fee_cents_currency: "usd" }, refund: { amount_cents: 400 } },
+  "Gumroad's own merchant account with the processor fee recorded, a partial refund" => { gumroad_account: true, sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100, processor_fee_cents: 80, processor_fee_cents_currency: "usd" }, refund: { amount_cents: 400 } },
+  "Gumroad's own merchant account with no processor fee, a partial refund" => { gumroad_account: true, sale: { price_cents: 1000, total_transaction_cents: 1000, fee_cents: 100 }, refund: { amount_cents: 400 } },
   "a managed account on a free sale" => { country: "US", currency: "usd", sale: { price_cents: 100, total_transaction_cents: 100, fee_cents: 0 }, refund: { amount_cents: 0 } },
   "a Connect account with Gumroad tax" => { connect: true, sale: { price_cents: 1000, total_transaction_cents: 1100, fee_cents: 100, gumroad_tax_cents: 100 }, refund: { amount_cents: 1000 } },
   "a Connect account with Gumroad tax and an affiliate, a partial refund" => { connect: true, sale: { price_cents: 1000, total_transaction_cents: 1100, fee_cents: 100, gumroad_tax_cents: 100, affiliate_credit_cents: 90 }, refund: { amount_cents: 333 } },
@@ -156,7 +160,9 @@ RETENTION_CASES = {
 
 def run_retention(seller, product)
   RETENTION_CASES.map do |name, spec|
-    merchant_account = if spec[:connect]
+    merchant_account = if spec[:gumroad_account]
+      MerchantAccount.gumroad(StripeChargeProcessor.charge_processor_id)
+    elsif spec[:connect]
       FactoryBot.create(:merchant_account_stripe_connect, user: seller, charge_processor_merchant_id: next_account_id)
     else
       merchant_account_for(seller, country: spec[:country], currency: spec[:currency])
@@ -400,6 +406,32 @@ EXCESS_CASES = {
     transfer: { amount: 700, reversals: [{ id: "trr_p", amount: 100, currency: "usd", source_refund: nil, metadata: { external_refund_id: "re_golden01" } }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 },
     answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 300, currency: "usd") }
   },
+  "a booked reversal of this refund with a negative amount" => {
+    transfer: { amount: 700, reversals: [{ id: "trr_p", amount: -150, currency: "usd", source_refund: "re_golden01" }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 },
+    answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 250, currency: "usd") }
+  },
+  "a booked reversal larger than the excess" => {
+    transfer: { amount: 700, reversals: [{ id: "trr_p", amount: 500, currency: "usd", source_refund: "re_golden01" }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 }, answers: {}
+  },
+  "a reversal with empty metadata and a refund with a blank processor id" => {
+    transfer: { amount: 700, reversals: [{ id: "trr_p", amount: 150, currency: "usd", source_refund: nil, metadata: {} }] }, bt: { issued: -400, holding_currency: "usd", holding: -400 },
+    processor_refund_id: "", answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 400, currency: "usd") }
+  },
+  "a reversal of a different refund and one of this refund" => {
+    transfer: { amount: 700, reversals: [{ id: "trr_o", amount: 300, currency: "usd", source_refund: "re_other" }, { id: "trr_p", amount: 150, currency: "usd", source_refund: "re_golden01" }] },
+    bt: { issued: -400, holding_currency: "usd", holding: -400 }, answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 250, currency: "usd") }
+  },
+  "an exact half of a CAD partial reversal" => {
+    transfer: { amount: 700, currency: "cad", amount_reversed: 250 }, bt: { issued: -450, holding_currency: "cad", holding: -600 }, answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 450) }
+  },
+  "a partial reversal whose canonical share is an exact half" => {
+    transfer: { amount: 700, currency: "cad", amount_reversed: 450 }, bt: { issued: -301, holding_currency: "cad", holding: -500 }, answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 250) }
+  },
+  "a sale with no Gumroad tax" => { transfer: { amount: 700 }, bt: { issued: -400, holding_currency: "usd", holding: -400 }, sale_tax_cents: 0, prior_tax_cents: 0, answers: {} },
+  "VAT refunded beyond what was charged" => { transfer: { amount: 700 }, bt: { issued: -400, holding_currency: "usd", holding: -400 }, prior_tax_cents: 150, answers: {} },
+  "a failure that only reads like a full reversal" => {
+    transfer: { amount: 700 }, bt: { issued: -400, holding_currency: "usd", holding: -400 }, answers: { "Transfer.create_reversal" => api_error("Transfer tr_x is already fully reversed.") }
+  },
   "less room on the transfer than the excess" => {
     transfer: { amount: 700, amount_reversed: 500 }, bt: { issued: -400, holding_currency: "usd", holding: -400 }, answers: { "Transfer.create_reversal" => reversal("trr_x", amount: 200, currency: "usd") }
   },
@@ -419,16 +451,17 @@ EXCESS_CASES = {
 def run_excess(seller, product, admin)
   EXCESS_CASES.map do |name, spec|
     merchant_account = merchant_account_for(seller, country: "CA", currency: "cad")
-    purchase = create_purchase(seller, product, merchant_account, price_cents: 1000, total_transaction_cents: 1100, fee_cents: 100, gumroad_tax_cents: 100, stripe_partially_refunded: true)
-    create_refund(purchase, total_transaction_cents: 100, amount_cents: 0, fee_cents: 0, gumroad_tax_cents: spec[:prior_tax_cents] || 100, processor_refund_id: "re_priorgolden#{rand(10**9)}")
+    purchase = create_purchase(seller, product, merchant_account, price_cents: 1000, total_transaction_cents: 1100, fee_cents: 100, gumroad_tax_cents: spec.fetch(:sale_tax_cents, 100), stripe_partially_refunded: true)
+    create_refund(purchase, total_transaction_cents: 100, amount_cents: 0, fee_cents: 0, gumroad_tax_cents: spec.fetch(:prior_tax_cents, 100), processor_refund_id: "re_priorgolden#{rand(10**9)}")
     refund = create_refund(purchase, total_transaction_cents: 400, amount_cents: 400, fee_cents: 40, gumroad_tax_cents: 0)
+    refund.update_columns(processor_refund_id: spec[:processor_refund_id]) if spec.key?(:processor_refund_id)
     if spec[:bt]
       issued = BalanceTransaction::Amount.new(currency: "usd", gross_cents: spec[:bt][:issued], net_cents: spec[:bt][:issued])
       holding = BalanceTransaction::Amount.new(currency: spec[:bt][:holding_currency], gross_cents: spec[:bt][:holding], net_cents: spec[:bt][:holding])
       BalanceTransaction.create!(user: seller, merchant_account:, refund:, issued_amount: issued, holding_amount: holding, update_user_balance: false)
     end
     reversals = (spec[:transfer][:reversals] || []).map do |r|
-      r = r.merge(source_refund: refund.processor_refund_id) if r[:source_refund]
+      r = r.merge(source_refund: refund.processor_refund_id) if r[:source_refund] == "re_golden01"
       r = r.merge(metadata: { external_refund_id: refund.processor_refund_id }) if r.dig(:metadata, :external_refund_id)
       obj(r.merge(object: "transfer_reversal"))
     end
@@ -451,7 +484,7 @@ def run_excess(seller, product, admin)
     credit = Credit.count > credits_before ? Credit.order(:id).last : nil
     {
       "name" => name,
-      "input" => { "transfer" => JSON.parse(spec[:transfer].to_json), "balance_transaction" => spec[:bt] && spec[:bt].transform_keys(&:to_s), "prior_tax_cents" => spec[:prior_tax_cents] || 100, "gumroad_held" => spec[:gumroad_held] == true },
+      "input" => { "transfer" => JSON.parse(spec[:transfer].to_json), "balance_transaction" => spec[:bt] && spec[:bt].transform_keys(&:to_s), "prior_tax_cents" => spec.fetch(:prior_tax_cents, 100), "sale_tax_cents" => spec.fetch(:sale_tax_cents, 100), "gumroad_held" => spec[:gumroad_held] == true, "processor_refund_id" => spec[:processor_refund_id] }.compact,
       "answers" => scripted,
       "events" => JSON.parse(Trace::EVENTS.to_json.gsub(/"idempotency_key":"[0-9a-f-]{36}"/, '"idempotency_key":"<uuid>"')),
       "outcome" => outcome,
@@ -469,6 +502,25 @@ DISPUTE_CASES = {
   "a refund that is already reversed in full" => { purchases: [{ price: 1000, total: 1000 }], refunded: [true], transfers: [{ id: "tr_w", amount: 700, amount_reversed: 700, description: "Dispute dp_golden01 won" }] },
   "a refund of tax only" => { purchases: [{ price: 1000, total: 1100, tax: 100 }], refunded: [false], refunds: [{ total: 100, tax: 100 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }] },
   "a refund that did not debit the seller" => { purchases: [{ price: 1000, total: 1000 }], refunded: [true], refunds: [{ total: 1000, tax: 0, gumroad_funded: true }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }] },
+  "a charge of two purchases, one refunded in full and one not" => {
+    purchases: [{ price: 1000, total: 1000 }, { price: 1000, total: 1000 }], refunded: [true, false], refunds: [{ total: 1000, tax: 0 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }]
+  },
+  "a charge of two purchases, both refunded in full" => {
+    purchases: [{ price: 1000, total: 1000 }, { price: 1000, total: 1000 }], refunded: [true, true], refunds: [{ total: 1000, tax: 0 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }]
+  },
+  "a charge of two purchases, one not refunded and one partly" => {
+    purchases: [{ price: 1000, total: 1000 }, { price: 1000, total: 1000 }], refunded: [false, false], refunds: [{ total: 250, tax: 0 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }]
+  },
+  "a partial refund of a taxed purchase" => {
+    purchases: [{ price: 1000, total: 1100, tax: 100 }], refunded: [false], refunds: [{ total: 550, tax: 50 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }]
+  },
+  "a refund whose balance needs reconciliation" => {
+    purchases: [{ price: 1000, total: 1000 }], refunded: [true], refunds: [{ total: 1000, tax: 0, balance_reconciliation_needed: true }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }]
+  },
+  "refunds that add up to more than the purchase" => {
+    purchases: [{ price: 1000, total: 1000 }], refunded: [false], refunds: [{ total: 1000, tax: 0 }, { total: 500, tax: 0 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }]
+  },
+  "a purchase that is all tax" => { purchases: [{ price: 0, total: 100, tax: 100 }], refunded: [true], refunds: [{ total: 100, tax: 100 }], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_golden01 won" }] },
   "a transfer for another dispute" => { purchases: [{ price: 1000, total: 1000 }], refunded: [true], transfers: [{ id: "tr_w", amount: 700, description: "Dispute dp_other won" }] },
   "no transfer on the account" => { purchases: [{ price: 1000, total: 1000 }], refunded: [true], transfers: [] },
   "a dispute that was not won" => { purchases: [{ price: 1000, total: 1000 }], refunded: [true], unwon: true, transfers: [] },
@@ -481,11 +533,21 @@ def run_dispute(seller, product)
     purchase = create_purchase(seller, product, merchant_account, price_cents: spec[:purchases][0][:price], total_transaction_cents: spec[:purchases][0][:total], fee_cents: 100, tax_cents: 0, gumroad_tax_cents: spec[:purchases][0][:tax] || 0,
                                                                   stripe_refunded: spec[:refunded][0], stripe_partially_refunded: !spec[:refunded][0], chargeback_date: Time.utc(2026, 10, 1))
     purchase.update_attribute(:chargeback_reversed, true)
+    if spec[:purchases].size > 1
+      charge = FactoryBot.create(:charge, seller:, merchant_account:)
+      ChargePurchase.create!(charge:, purchase:)
+      spec[:purchases].drop(1).each_with_index do |other, i|
+        sibling = create_purchase(seller, product, merchant_account, price_cents: other[:price], total_transaction_cents: other[:total], fee_cents: 100, tax_cents: 0, gumroad_tax_cents: other[:tax] || 0,
+                                                                      stripe_refunded: spec[:refunded][i + 1], stripe_partially_refunded: !spec[:refunded][i + 1])
+        ChargePurchase.create!(charge:, purchase: sibling)
+      end
+    end
     dispute = FactoryBot.create(:dispute, purchase:, charge_processor_dispute_id: "dp_golden01")
     dispute.update_columns(state: "won", won_at: spec[:unwon] ? nil : Time.utc(2026, 10, 20))
     (spec[:refunds] || [{ total: spec[:purchases][0][:total], tax: 0 }]).each_with_index do |r, i|
       create_refund(purchase, total_transaction_cents: r[:total], amount_cents: r[:total] - r[:tax], fee_cents: 0, gumroad_tax_cents: r[:tax]).tap do |refund|
         refund.update!(gumroad_funded: true) if r[:gumroad_funded]
+        refund.update!(balance_reconciliation_needed: true) if r[:balance_reconciliation_needed]
       end
     end
     refund = Refund.where(purchase_id: purchase.id).order(:id).last
