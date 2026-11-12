@@ -21,17 +21,15 @@ const handsBackEarly = (c: { args: unknown[] }) => {
 };
 
 const KEYS = { OBFUSCATE_IDS_CIPHER_KEY: "test-cipher-key", OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "123456789" };
-const original: Record<string, string | undefined> = {};
+const original = { ...process.env };
 beforeAll(() => {
-  for (const [name, value] of Object.entries(KEYS)) {
-    original[name] = process.env[name];
-    process.env[name] = value;
-  }
+  Object.assign(process.env, KEYS);
 });
 afterAll(() => {
   for (const name of Object.keys(KEYS)) {
-    if (original[name] === undefined) delete process.env[name];
-    else process.env[name] = original[name];
+    const previous = original[name];
+    if (previous === undefined) Reflect.deleteProperty(process.env, name);
+    else process.env[name] = previous;
   }
 });
 

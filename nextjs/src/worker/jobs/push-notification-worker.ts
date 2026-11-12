@@ -20,7 +20,8 @@ export const pushNotificationWorkerWith = modelJob({ min: 3, max: 7 }, async (ar
   if (typeof appType !== "string") throw new HandBackToRuby("the app type is not a string");
   // `false` and nil (and the default) take the receiver's own devices; anything else is the team admins branch
   const toTeamAdmins = args[TO_TEAM_ADMINS_INDEX];
-  if (toTeamAdmins !== undefined && toTeamAdmins !== null && toTeamAdmins !== false) throw new HandBackToRuby("a push to the receiver's team admins");
+  if (toTeamAdmins !== undefined && toTeamAdmins !== null && toTeamAdmins !== false)
+    throw new HandBackToRuby("a push to the receiver's team admins");
 
   await findByIdBang<User>("User", id);
   const rows = await selectRows(
@@ -28,7 +29,8 @@ export const pushNotificationWorkerWith = modelJob({ min: 3, max: 7 }, async (ar
   );
   for (const row of rows) {
     const device = castRow<Device>("Device", row);
-    if (PUSH_DEVICE_TYPES.includes(device.device_type)) throw new HandBackToRuby("a push notification is sent to a device");
+    if (PUSH_DEVICE_TYPES.includes(device.device_type))
+      throw new HandBackToRuby("a push notification is sent to a device");
   }
 });
 export const pushNotificationWorker = pushNotificationWorkerWith();

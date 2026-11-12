@@ -11,7 +11,8 @@ const handsBackEarly = (c: { args: unknown[] }) => {
   if (c.args.length < 1 || c.args.length > 2) return false;
   const [userId, email] = c.args;
   const castByRails =
-    !(typeof userId === "number" && Number.isInteger(userId)) && !(typeof userId === "string" && /^[0-9]{1,15}$/u.test(userId));
+    !(typeof userId === "number" && Number.isInteger(userId)) &&
+    !(typeof userId === "string" && /^[0-9]{1,15}$/u.test(userId));
   return castByRails || !(email === undefined || email === null || typeof email === "string");
 };
 

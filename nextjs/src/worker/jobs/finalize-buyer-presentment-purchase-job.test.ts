@@ -4,7 +4,9 @@
 import { loadGolden, replayJobGolden } from "./__fixtures__/replay-job-golden.ts";
 import { finalizeBuyerPresentmentPurchaseJobWith } from "./finalize-buyer-presentment-purchase-job.ts";
 
-const golden = loadGolden(new URL("./__fixtures__/finalize-buyer-presentment-purchase-job.golden.json", import.meta.url));
+const golden = loadGolden(
+  new URL("./__fixtures__/finalize-buyer-presentment-purchase-job.golden.json", import.meta.url),
+);
 
 // Rails raises for nil and casts a float or a word; Node hands those arguments back instead.
 const castByRails = (value: unknown) =>

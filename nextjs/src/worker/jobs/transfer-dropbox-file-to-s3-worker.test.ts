@@ -11,4 +11,6 @@ const castByRails = (value: unknown) =>
   !(typeof value === "number" && Number.isInteger(value)) &&
   !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
 
-replayJobGolden("TransferDropboxFileToS3Worker", golden, transferDropboxFileToS3WorkerWith(), (c) => castByRails(c.args[0]));
+replayJobGolden("TransferDropboxFileToS3Worker", golden, transferDropboxFileToS3WorkerWith(), (c) =>
+  castByRails(c.args[0]),
+);

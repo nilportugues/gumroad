@@ -12,12 +12,13 @@ import { findOneBy } from "../../server/models/row-reads.ts";
 import { modelJob } from "./support/job-deps.ts";
 
 export const massRefundForFraudJobWith = modelJob({ min: 3 }, async ([productId, externalIds]) => {
-  if (typeof productId !== "number" || !Number.isSafeInteger(productId)) throw new HandBackToRuby("the product id is not an Integer");
+  if (typeof productId !== "number" || !Number.isSafeInteger(productId))
+    throw new HandBackToRuby("the product id is not an Integer");
   if (!Array.isArray(externalIds) || !externalIds.every((externalId) => typeof externalId === "string")) {
     throw new HandBackToRuby("the external ids are not a list of strings");
   }
 
-  for (const externalId of externalIds as string[]) {
+  for (const externalId of externalIds) {
     // from_external_id: nil for an id that does not decrypt, which find_by(id: nil) reads as `id IS NULL`
     const purchase = await findOneBy<Purchase>("Purchase", "id", decrypt(externalId), true);
     if (purchase !== null && purchase.link_id === BigInt(productId)) {

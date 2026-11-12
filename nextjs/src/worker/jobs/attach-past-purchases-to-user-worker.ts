@@ -17,7 +17,8 @@ const RUBY_BLANK = /^[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u2
 
 export const attachPastPurchasesToUserWorkerWith = modelJob({ min: 1, max: 2 }, async ([userId, emailArg]) => {
   const id = await beforeSideEffects(() => recordIdFrom(userId, "User.find"));
-  if (emailArg !== undefined && emailArg !== null && typeof emailArg !== "string") throw new HandBackToRuby("the email is not a string");
+  if (emailArg !== undefined && emailArg !== null && typeof emailArg !== "string")
+    throw new HandBackToRuby("the email is not a string");
 
   const user = await findByIdBang<User>("User", id);
   // `email ||= user.email if user.confirmed?`: a given email (even an empty one) wins

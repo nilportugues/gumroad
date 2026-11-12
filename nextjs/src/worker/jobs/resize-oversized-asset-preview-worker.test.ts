@@ -11,4 +11,6 @@ const castByRails = (value: unknown) =>
   !(typeof value === "number" && Number.isInteger(value)) &&
   !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
 
-replayJobGolden("ResizeOversizedAssetPreviewWorker", golden, resizeOversizedAssetPreviewWorkerWith(), (c) => castByRails(c.args[0]));
+replayJobGolden("ResizeOversizedAssetPreviewWorker", golden, resizeOversizedAssetPreviewWorkerWith(), (c) =>
+  castByRails(c.args[0]),
+);
