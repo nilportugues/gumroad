@@ -79,6 +79,29 @@ cases << run_case("a product-specific rate sizes the credit's basis points", see
 cases << run_case("an affiliate on all products needs no product rate", seed: affiliate_sale(apply_to_all_products: true))
 cases << run_case("a collaborator's credit", seed: affiliate_sale(kind: :collaborator))
 cases << run_case("a sale whose affiliate credit is zero is not credited", seed: affiliate_sale(credit_cents: 0))
+# A collaborator shares the fee whatever the seller's fee flag says, and looks up the product's rate even on all products.
+cases << run_case("a collaborator on all products still looks up the product's rate", seed: affiliate_sale(kind: :collaborator, apply_to_all_products: true))
+cases << run_case("a collaborator with a product-specific rate", seed: affiliate_sale(kind: :collaborator, apply_to_all_products: false) { |purchase, _, _, affiliate|
+  ProductAffiliate.create!(affiliate:, product: purchase.link, affiliate_basis_points: 500, created_at: SEEDED_AT, updated_at: SEEDED_AT)
+})
+cases << run_case("a collaborator's fee share is taken although the seller bears the affiliate fee", seed: affiliate_sale(kind: :collaborator) { |_, seller, _, _| seller.update_columns(flags: seller.flags | (1 << 14)) })
+cases << run_case("a collaborator's credit already recorded is not credited again", seed: affiliate_sale(kind: :collaborator) { |purchase, _, ma, affiliate|
+  balance = Balance.create!(user: affiliate.affiliate_user, merchant_account: ma, date: SEEDED_AT.to_date, currency: "usd", holding_currency: "usd", amount_cents: 14, holding_amount_cents: 14)
+  AffiliateCredit.create!(purchase:, affiliate:, affiliate_amount_cents: 14, affiliate_fee_cents: 5, affiliate_balance: balance)
+})
+# Recorded only: a direct affiliate credited beside the collaborator. Node hands it back, so these cases pin what a port must do.
+DIRECT_ON_COLLAB_CENTS = 10
+def collab_with_direct_sale(**direct_attributes)
+  affiliate_sale(kind: :collaborator) do |purchase, seller, _, _|
+    direct = create(:direct_affiliate, seller:, affiliate_user:, created_at: SEEDED_AT, updated_at: SEEDED_AT, **direct_attributes)
+    purchase.direct_affiliate_id = direct.id
+    purchase.direct_affiliate_credit_cents = DIRECT_ON_COLLAB_CENTS
+    purchase.affiliate_credit_cents += DIRECT_ON_COLLAB_CENTS
+    purchase.save!(validate: false)
+  end
+end
+cases << run_case("a collaborator and a direct affiliate on one sale", seed: collab_with_direct_sale)
+cases << run_case("a collaborator and a direct affiliate that is not on all products", seed: collab_with_direct_sale(apply_to_all_products: false))
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.iso8601(3), "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

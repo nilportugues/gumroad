@@ -1,5 +1,5 @@
-// Purchase#increment_affiliates_balance! / post_affiliate_credit! for a sale that credits a DirectAffiliate (not a collaborator, and
-// no direct affiliate beside one): the affiliate's BalanceTransaction (and the day's Balance), then the AffiliateCredit row that
+// Purchase#increment_affiliates_balance! / post_affiliate_credit! for a sale that credits a DirectAffiliate or a Collaborator (a
+// direct affiliate beside a collaborator on one sale is handed back by the caller): the affiliate's BalanceTransaction (and the day's Balance), then the AffiliateCredit row that
 // records it. The payout stays on Gumroad's account (`using_gumroad_merchant_account_for_affiliate_user?` is always true in Ruby), so
 // no transfer and no registration mail follow.
 // Golden: __fixtures__/purchase-affiliate-balance.golden.json (scripts/golden/purchase-affiliate-balance.rb), run by the real class.
@@ -38,6 +38,7 @@ export const AFFILIATE_CREDITS = "affiliate_credits";
 const AFFILIATES = "affiliates";
 const PRODUCT_AFFILIATES = "affiliates_links";
 const DIRECT_AFFILIATE = "DirectAffiliate";
+const COLLABORATOR = "Collaborator";
 // has_flags 1 => :apply_to_all_products
 const APPLY_TO_ALL_PRODUCTS_FLAG = 1;
 const BASIS_POINTS_PER_UNIT = 10_000.0;
@@ -130,9 +131,10 @@ async function readAffiliate(id: bigint | number): Promise<Affiliate | null> {
   );
 }
 
-// DirectAffiliate#basis_points(product_id:)
+// DirectAffiliate#basis_points(product_id:) and Collaborator#basis_points(product_id:): the collaborator looks up the product's
+// own rate whatever its apply_to_all_products flag says
 async function basisPoints(affiliate: Affiliate, productId: bigint | number | null): Promise<number> {
-  if ((affiliate.flags & APPLY_TO_ALL_PRODUCTS_FLAG) !== 0 || productId == null)
+  if (productId == null || (affiliate.type !== COLLABORATOR && (affiliate.flags & APPLY_TO_ALL_PRODUCTS_FLAG) !== 0))
     return affiliate.affiliate_basis_points!;
   const row = await selectOne<{ affiliate_basis_points: number | null }>(
     "ProductAffiliate",
@@ -143,7 +145,7 @@ async function basisPoints(affiliate: Affiliate, productId: bigint | number | nu
 
 const reader = (record: PurchaseRecord) => record.ivars.context as { seller: User; effects?: CheckoutEffects };
 
-// determine_affiliate_fee_cents for an affiliate that is not a collaborator
+// determine_affiliate_fee_cents for a sale that does not also credit a direct affiliate
 async function affiliateFeeCents(
   record: PurchaseRecord,
   affiliate: Affiliate,
@@ -151,9 +153,11 @@ async function affiliateFeeCents(
 ): Promise<number> {
   const fee = record.get("fee_cents");
   if (fee == null || fee === 0) return 0;
+  // A collaborator always shares the fee: the seller-bears-the-fee flag and feature only apply to other affiliates
   if (
-    isFlagSet(Users.load(reader(record).seller), "bears_affiliate_fee") ||
-    (await effects.featureActive("sellers_bear_affiliate_fees"))
+    affiliate.type !== COLLABORATOR &&
+    (isFlagSet(Users.load(reader(record).seller), "bears_affiliate_fee") ||
+      (await effects.featureActive("sellers_bear_affiliate_fees")))
   )
     return 0;
   return ((await basisPoints(affiliate, record.get("link_id"))) / BASIS_POINTS_PER_UNIT) * fee;
@@ -196,7 +200,7 @@ export async function incrementAffiliatesBalanceBang(
   const affiliateId = record.get("affiliate_id");
   const affiliate = affiliateId == null ? null : await readAffiliate(affiliateId);
   if (affiliate === null) throw notPorted("no affiliate");
-  if (affiliate.type !== DIRECT_AFFILIATE) throw notPorted(`a ${affiliate.type}`);
+  if (affiliate.type !== DIRECT_AFFILIATE && affiliate.type !== COLLABORATOR) throw notPorted(`a ${affiliate.type}`);
   if (affiliate.affiliate_basis_points == null || affiliate.affiliate_user_id == null)
     throw notPorted("an affiliate without a rate or a user");
 
