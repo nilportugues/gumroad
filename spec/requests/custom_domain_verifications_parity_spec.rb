@@ -90,7 +90,7 @@ describe "Custom domain verification", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a domain that is not a string to Rails", parity: true do
+  it "answers that a domain sent as a list is not configured", parity: true do
     log_in(seller)
 
     verify({ domain: ["shop.example.com"] })

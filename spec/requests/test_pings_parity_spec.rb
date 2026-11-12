@@ -99,7 +99,7 @@ describe "Test pings", type: :request do
     expect(response.parsed_body["error_message"]).to eq("That URL seems to be invalid.")
   end
 
-  it "hands a URL that is a list to Rails", parity: true do
+  it "answers the generic failure to a URL that is a list", parity: true do
     log_in(seller)
 
     ping({ url: ["https://example.com/ping"] })
