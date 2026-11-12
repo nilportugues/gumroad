@@ -21,7 +21,10 @@ import {
 import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
+import { createApiLink, type CreateSeller } from "../models/link-create.ts";
 import { Links } from "../models/link.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { UserFlags } from "../models/user.ts";
 import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
@@ -1092,6 +1095,104 @@ async function setPublication(args: Hash, context: ToolContext, publish: boolean
   return { product: productPayload(saved ?? found, context.user, tool) };
 }
 
+// BasePrice::Shared::MAX_PRICE_CENTS
+const MAX_PRICE_CENTS = 2_147_483_647;
+const PRICE_TOO_LARGE = "Sorry, the price entered is too large.";
+// Ruby's String#strip: ASCII whitespace only, where JavaScript's trim() also takes NBSP and the Unicode spaces.
+const rubyStrip = (value: string) => value.replace(/^[\t\n\v\f\r ]+|[\t\n\v\f\r ]+$/gu, "");
+const toSentence = (items: string[]) =>
+  items.length <= 2 ? items.join(" and ") : `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+
+// BasePrice::Recurrence::ALLOWED_RECURRENCES and Mcp::Server::TIER_KEYS
+const ALLOWED_RECURRENCES = ["monthly", "quarterly", "biannually", "yearly", "every_two_years"];
+const TIER_KEYS = ["name", "price_cents", "recurrence"];
+
+// Mcp::Server#validated_tiers!, for the arguments it refuses. A valid set of tiers is for the caller to hand back.
+function validatedTiers(tiers: unknown): void {
+  const refuse = (message: string): never => {
+    throw new ToolRpcError(message, INVALID_PARAMS);
+  };
+  if (!Array.isArray(tiers) || tiers.length === 0) refuse("tiers are required for a membership");
+  (tiers as unknown[]).forEach((tier, index) => {
+    if (tier === null || typeof tier !== "object" || Array.isArray(tier)) refuse(`tiers[${index}] must be an object`);
+    const hash = tier as Hash;
+    const unknown = Object.keys(hash).find((key) => !TIER_KEYS.includes(key));
+    if (unknown !== undefined) refuse(`tiers[${index}] has unknown argument: ${unknown}`);
+    const missing = TIER_KEYS.find((key) => !(key in hash));
+    if (missing !== undefined) refuse(`tiers[${index}].${missing} is required`);
+    if (typeof hash.name !== "string" || /^[\s\u0085\u180e\u200b-\u200d\u2060\ufeff]*$/u.test(rubyStrip(hash.name)))
+      refuse(`tiers[${index}].name must be a non-blank string`);
+    const price = hash.price_cents;
+    if (typeof price !== "number" || !Number.isInteger(price) || price < 0)
+      refuse(`tiers[${index}].price_cents must be an integer of zero or more`);
+    if ((price as number) > MAX_PRICE_CENTS) refuse(`tiers[${index}].price_cents must be at most ${MAX_PRICE_CENTS}`);
+    if (!ALLOWED_RECURRENCES.includes(hash.recurrence as string))
+      refuse(`tiers[${index}].recurrence must be one of: ${ALLOWED_RECURRENCES.join(", ")}`);
+  });
+  if (new Set((tiers as Hash[]).map((tier) => tier.recurrence)).size > 1)
+    refuse("every tier must use the same recurrence");
+}
+
+// tool_create_draft_product for a digital product. Argument errors come before the scope check, so they are answered here and the scope
+// is checked after them. A membership, a free product (set_customizable_price runs after its save), a seller pricing in another currency,
+// and a description with markup (Rails stores it as sent, but only plain text is proven) go to Rails whole, before the first write.
+async function createDraftProduct(args: Hash, context: ToolContext): Promise<Hash> {
+  if (args.product_type === "membership") {
+    if ("price_cents" in args)
+      throw new ToolRpcError("price_cents is not accepted for a membership; set each tier's price_cents", INVALID_PARAMS);
+    validatedTiers(args.tiers);
+    throw new HandBackToRails("a draft membership");
+  }
+  if (!("price_cents" in args)) throw new ToolRpcError("price_cents is required", INVALID_PARAMS);
+  if ("tiers" in args)
+    throw new ToolRpcError("tiers are only accepted with product_type membership", INVALID_PARAMS);
+  requireScopes(context.token, ["edit_products", "account"]);
+  const rawName = args.name as string;
+  if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
+  const name = rubyStrip(rawName);
+  if (/^[\s\u0085\u180e\u200b-\u200d\u2060\ufeff]*$/u.test(name))
+    throw new ToolRpcError("name is required", INVALID_PARAMS);
+  const priceCents = args.price_cents as number;
+  if (priceCents < 0) throw new ToolRpcError("price_cents must be zero or more", INVALID_PARAMS);
+  if (priceCents === 0) throw new HandBackToRails("a free draft product");
+  if (!Number.isSafeInteger(priceCents)) throw new HandBackToRails("a price beyond 2^53");
+  const description = "description" in args ? (args.description as string) : "";
+  if (/[<>&]/u.test(description)) throw new HandBackToRails("a description with markup");
+  if (context.user.currency_type !== USD) throw new HandBackToRails("a seller who prices in another currency");
+  // Link#price_cents= raises LinkInvalid ahead of the save.
+  if (priceCents > MAX_PRICE_CENTS) throw new ToolError(PRICE_TOO_LARGE);
+
+  const user = context.user;
+  const seller: CreateSeller = {
+    id: user.id,
+    flags: user.flags,
+    verified: user.verified,
+    confirmed_at: user.confirmed_at,
+    created_at: user.created_at,
+    user_risk_state: user.user_risk_state,
+    json_data: user.json_data,
+    isTeamMember: UserFlags.isSet(user.flags, "is_team_member"),
+  };
+  let outcome: Awaited<ReturnType<typeof createApiLink>> | undefined;
+  await transaction(async () => {
+    outcome = await createApiLink(
+      seller,
+      { name, description, priceCents, currency: USD, taxonomyId: null, customSummary: null },
+      context.now,
+    );
+  });
+  if (!outcome!.created) throw new ToolError(toSentence(outcome!.errors.fullMessages()));
+  const saved = await (context.products ?? readProducts).find(
+    BigInt(user.id),
+    encrypt(outcome!.link.get("id") as bigint),
+  );
+  if (saved === null) throw new HandBackToRails("a product that was not found after its save");
+  return {
+    product: productPayload(saved, user, "create_draft_product"),
+    message: "Draft saved. It is not for sale until publish_product.",
+  };
+}
+
 export type SubscriptionRow = {
   id: bigint;
   link_id: bigint | null;
@@ -1429,6 +1530,8 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "get_product":
       requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);
+    case "create_draft_product":
+      return createDraftProduct(args, context);
     case "publish_product":
       requireScopes(context.token, ["edit_products", "account"]);
       return setPublication(args, context, true);

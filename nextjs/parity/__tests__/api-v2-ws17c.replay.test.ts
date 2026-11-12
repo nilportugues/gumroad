@@ -38,6 +38,7 @@ const WS17C_SPEC_DIRS = [
   "mcp_register",
   "mcp_products",
   "mcp_publication",
+  "mcp_product_writes",
   "payouts_media",
   "sales_exports",
   "links",
@@ -59,6 +60,7 @@ const WS17C_SPEC_DIRS = [
 function reconcilePermalink(
   exchange: { expected: Exchange; actual: CapturedExchange; differences: unknown[] },
   compare: Parameters<typeof compareExchange>[2],
+  sessionCookie?: string,
 ) {
   const drawn = (side: { db?: Record<string, { inserted?: Record<string, unknown>[] }> }) =>
     side.db?.links?.inserted?.[0]?.unique_permalink as string | undefined;
@@ -66,15 +68,17 @@ function reconcilePermalink(
   const now = drawn(exchange.actual);
   if (was === undefined || now === undefined || was === now) return;
   const urlEnd = new RegExp(`(/l/)${was}(?![A-Za-z0-9_-])`, "gu");
+  // An MCP tool result carries the payload as pretty-printed JSON text, where the permalink is a quoted value.
+  const quoted = new RegExp(`("permalink": ")${was}(")`, "gu");
   const swap = (value: unknown): unknown => {
-    if (typeof value === "string") return value === was ? now : value.replace(urlEnd, `$1${now}`);
+    if (typeof value === "string") return value === was ? now : value.replace(urlEnd, `$1${now}`).replace(quoted, `$1${now}$2`);
     if (Array.isArray(value)) return value.map(swap);
     if (value !== null && typeof value === "object")
       return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, swap(entry)]));
     return value;
   };
   exchange.expected = swap(exchange.expected) as Exchange;
-  exchange.differences = compareExchange(exchange.expected, exchange.actual, compare);
+  exchange.differences = compareExchange(exchange.expected, exchange.actual, { ...compare, sessionCookie });
 }
 
 const SPECS = existsSync(FIXTURES)
@@ -468,7 +472,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
                         : [],
           ),
         );
-        reconcilePermalink(result.exchanges[0]!, replayOptions().compare);
+        reconcilePermalink(result.exchanges[0]!, replayOptions().compare, fixture.sessionCookie);
         assertParity(result);
         if (validity) {
           const offerCode = (result.exchanges[0]!.actual.response.json as { offer_code: Record<string, unknown> })
