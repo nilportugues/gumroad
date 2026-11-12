@@ -4,8 +4,8 @@ require "spec_helper"
 
 # ProductBuildPlayerFilesController#show, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/product-build-player-files.replay.test.ts, which sends the last request of each example. An example named
-# "hands a ..." records what Node passes to Rails whole: the save endpoint. A page of the build (the save shim, which needs the
-# widget bundle `rake vite:build_widget` builds) is handed to Rails too and is not recorded.
+# "hands a ..." records what Node passes to Rails whole. A page of the build (the save shim, which needs the widget bundle
+# `rake vite:build_widget` builds) is handed to Rails and is not recorded. The save endpoint (POST /d/:id/play/:grant/save) runs in Node.
 describe "ProductBuildPlayerFilesController", type: :request do
   let(:seller) { create(:user, name: "Build Seller") }
   let(:product) { create(:product, user: seller, name: "Build product") }
@@ -105,11 +105,154 @@ describe "ProductBuildPlayerFilesController", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands a save to Rails", parity: true do
-    save_grant = ProductBuild.player_save_grant(url_redirect_token: token, purchase_id: purchase.id)
+  describe "saving from the frame" do
+    let(:save_grant) { ProductBuild.player_save_grant(url_redirect_token: token, purchase_id: purchase.id) }
 
-    post "/d/#{token}/play/#{save_grant}/save", params: { set: { "level" => "4" } }.to_json, headers: { "CONTENT_TYPE" => "text/plain;charset=UTF-8" }
+    def save(body, grant: save_grant, token: self.token)
+      post "/d/#{token}/play/#{grant}/save", params: body.is_a?(String) ? body : body.to_json, headers: { "CONTENT_TYPE" => "text/plain;charset=UTF-8" }
+    end
 
-    expect(response).to have_http_status(:no_content)
+    it "creates the save on the first batch", parity: true do
+      save({ set: { "level" => "4", "name" => "Ana" } })
+
+      expect(response).to have_http_status(:no_content)
+      expect(response.headers["Access-Control-Allow-Origin"]).to eq("*")
+      expect(ProductBuildSave.find_by(purchase:).data).to eq("level" => "4", "name" => "Ana")
+    end
+
+    it "sets and removes keys of an existing save", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "3", "name" => "Ana" })
+
+      save({ clear: false, remove: ["name"], set: { "level" => "4", "coins" => "12" } })
+
+      expect(response).to have_http_status(:no_content)
+      expect(ProductBuildSave.find_by(purchase:).data).to eq("level" => "4", "coins" => "12")
+    end
+
+    it "clears the save before applying the rest of the batch", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "3", "name" => "Ana" })
+
+      save({ clear: true, set: { "level" => "1" } })
+
+      expect(ProductBuildSave.find_by(purchase:).data).to eq("level" => "1")
+    end
+
+    it "writes nothing when the batch changes nothing", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "3" })
+
+      save({ set: { "level" => "3" } })
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    it "orders the batches of one page load by sequence", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "5" }, writer: "pageone", sequence: 2)
+
+      save({ set: { "level" => "4", "coins" => "7" }, writer: "pageone", sequence: 1 })
+
+      expect(ProductBuildSave.find_by(purchase:).data).to eq("level" => "5", "coins" => "7")
+    end
+
+    it "lets a different page load overwrite a key", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "5" }, writer: "pageone", sequence: 2)
+
+      save({ set: { "level" => "6" }, writer: "pagetwo", sequence: 1 })
+
+      expect(ProductBuildSave.find_by(purchase:).data).to eq("level" => "6")
+    end
+
+    it "ignores a late batch from a page load that cleared the save after it", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "5" }, writer: "pageone", sequence: 1)
+      ProductBuildSave.apply_changes!(purchase, clear: true, writer: "pageone", sequence: 3)
+
+      save({ set: { "level" => "4" }, remove: ["name"], writer: "pageone", sequence: 2 })
+
+      expect(ProductBuildSave.find_by(purchase:).data).to eq({})
+    end
+
+    it "keeps a removed key from coming back through a late batch", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "5" }, writer: "pageone", sequence: 1)
+      ProductBuildSave.apply_changes!(purchase, remove: ["level"], writer: "pageone", sequence: 3)
+
+      save({ set: { "level" => "4" }, writer: "pageone", sequence: 2 })
+
+      expect(ProductBuildSave.find_by(purchase:).data).to eq({})
+    end
+
+    it "answers 422 for a body that is not JSON", parity: true do
+      save("not json")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.headers["Access-Control-Allow-Origin"]).to eq("*")
+    end
+
+    it "answers 422 for a body that is not an object", parity: true do
+      save("[1, 2]")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "answers 422 for a batch of the wrong shape and keeps the save", parity: true do
+      ProductBuildSave.apply_changes!(purchase, set: { "level" => "3" })
+
+      save({ clear: true, set: ["level", "4"] })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(ProductBuildSave.find_by(purchase:).data).to eq("level" => "3")
+    end
+
+    it "answers 422 for a value that is not a string", parity: true do
+      save({ set: { "level" => 4 } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(ProductBuildSave.count).to eq(0)
+    end
+
+    it "answers 422 for a key over the byte limit", parity: true do
+      save({ set: { ("k" * 1025) => "1" } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "answers 422 for a save over the key limit", parity: true do
+      save({ set: (1..1001).to_h { |i| ["k#{i}", "v"] } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "answers 422 for a writer that is not letters or numbers", parity: true do
+      save({ set: { "level" => "4" }, writer: "page one!", sequence: 1 })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "answers 422 for a sequence that is not a positive whole number", parity: true do
+      save({ set: { "level" => "4" }, writer: "pageone", sequence: 0 })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "answers 404 for a grant of another content page token", parity: true do
+      other = create(:url_redirect, link: product, purchase: create(:free_purchase, link: product, email: "other@example.com"), uses: 0, expires_at: nil)
+
+      save({ set: { "level" => "4" } }, token: other.token)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.headers["Access-Control-Allow-Origin"]).to be_nil
+    end
+
+    it "answers 404 for a file grant used for saving", parity: true do
+      save({ set: { "level" => "4" } }, grant: grant)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a grant naming a purchase that does not exist", parity: true do
+      missing = ProductBuild.player_save_grant(url_redirect_token: token, purchase_id: 987_654)
+
+      save({ set: { "level" => "4" } }, grant: missing)
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 end

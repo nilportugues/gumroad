@@ -3,13 +3,16 @@
 // credential.
 //
 // Handed to Rails: a page of the build (html, htm), which gets the buyer's save and the save shim put in front of its scripts and
-// whose serving checks the kill switch, and the save endpoint, which applies a batch under the save limits. So is a build served
-// from a storage that is not MinIO (the signed link is a Cloudflare URL).
+// whose serving checks the kill switch. So is a build served from a storage that is not MinIO (the signed link is a Cloudflare URL).
+// #save (POST /d/:id/play/:grant/save) applies a batch to the buyer's ProductBuildSave in Node.
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { Prisma } from "@prisma/client";
 
-import { PLAYER_GRANT_PURPOSE, verifiedPlayerGrant } from "../auth/player-grant.ts";
+import { PLAYER_GRANT_PURPOSE, PLAYER_SAVE_GRANT_PURPOSE, verifiedPlayerGrant } from "../auth/player-grant.ts";
 import { getS3Client, presignS3GetUrl, SIGNED_S3_URL_VALID_FOR_MINIMUM } from "../infra/signed-urls.ts";
 import { storageConfig } from "../infra/storage.ts";
+import { applyChanges, LimitError } from "../models/product-build-save.ts";
+import { column, selectRows, table } from "../models/sql.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -110,7 +113,75 @@ async function show(input: MutationInput): Promise<ActionResult> {
   return { status: 200, body, contentType: contentType ?? "", headers, paramsRead: true };
 }
 
+// ProductBuildSave::MAX_BYTE_SIZE * 6 + 64.kilobytes: a full save as JSON, where escaping can turn one byte into six.
+const MAX_SAVE_REQUEST_BYTES = 5 * 1024 * 1024 * 6 + 64 * 1024;
+const NO_CONTENT = 204;
+const UNPROCESSABLE_ENTITY = 422;
+const PAYLOAD_TOO_LARGE = 413;
+
+// POST /d/:id/play/:grant/save: a batch from the frame's save shim, a text/plain JSON body (the one type a beacon sends without a
+// preflight) that the shim answers by status, so every response past the grant check allows any origin.
+async function save(input: MutationInput): Promise<ActionResult> {
+  const grant = verifiedPlayerGrant(input.routeParams.grant!, input.routeParams.id!, PLAYER_SAVE_GRANT_PURPOSE);
+  if (grant === null) throw new RoutingError("Not Found");
+  const headers = { "Access-Control-Allow-Origin": "*" };
+  // `head` names a content type for every status but 204.
+  const head = (status: number): ActionResult => ({
+    status,
+    body: "",
+    contentType: status === NO_CONTENT ? "" : "text/html",
+    headers,
+    paramsRead: true,
+  });
+  if (input.rawBody.byteLength > MAX_SAVE_REQUEST_BYTES) return head(PAYLOAD_TOO_LARGE);
+
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(input.rawBody);
+  } catch {
+    throw new HandBackToRails("a body that is not UTF-8");
+  }
+  let changes: unknown;
+  try {
+    changes = JSON.parse(text);
+  } catch {
+    // Ruby's JSON.parse skips comments, which this one rejects.
+    if (/\/[*/]/u.test(text)) throw new HandBackToRails("a body with comments");
+    return head(UNPROCESSABLE_ENTITY);
+  }
+  if (typeof changes !== "object" || changes === null || Array.isArray(changes)) return head(UNPROCESSABLE_ENTITY);
+  const batch = changes as Record<string, unknown>;
+  // Ruby reads 1.0 and 1e2 as Floats, which `sequence` rejects, where JavaScript reads them as the integers 1 and 100.
+  if (/"sequence"\s*:\s*-?\d[\d.]*[.eE]/u.test(text)) throw new HandBackToRails("a sequence written as a float");
+
+  // Purchase.find
+  const purchaseId = BigInt(grant.purchase_id as number | string);
+  const [purchase] = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchaseId} LIMIT 1`,
+  );
+  if (purchase === undefined) throw new RoutingError("Not Found");
+
+  try {
+    await applyChanges(
+      purchaseId,
+      {
+        set: "set" in batch ? batch.set : {},
+        remove: "remove" in batch ? batch.remove : [],
+        clear: "clear" in batch ? batch.clear : false,
+        writer: batch.writer,
+        sequence: batch.sequence,
+      },
+      () => input.chain.now,
+    );
+  } catch (error) {
+    if (error instanceof LimitError) return head(UNPROCESSABLE_ENTITY);
+    throw error;
+  }
+  return head(NO_CONTENT);
+}
+
 registerMutations(
   { method: "GET", pattern: "/d/:id/play/:grant", skipForgeryProtection: true, run: show },
   { method: "GET", pattern: "/d/:id/play/:grant/*path", skipForgeryProtection: true, run: show },
+  { method: "POST", pattern: "/d/:id/play/:grant/save", skipForgeryProtection: true, rawBody: true, run: save },
 );
