@@ -29,6 +29,7 @@ const FIXTURES = "parity/fixtures/requests";
 const SPECS = [
   "purchases_refund_parity_spec",
   "purchases_refund_failures_parity_spec",
+  "purchases_refund_fee_retention_parity_spec",
   "instant_payouts_parity_spec",
   "instant_payouts_failures_parity_spec",
   "settings_payments_stripe_account_parity_spec",
@@ -356,6 +357,104 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     const segments = timelineSegments(destination.timeline!);
     expect(segments.slice(0, 6)).toEqual(Array<string[]>(6).fill([]));
     expect(segments[6]).toEqual(expect.arrayContaining(["balance_transactions", "balances", "purchases", "refunds"]));
+  });
+
+  // The Stripe calls Rails makes after the ledger (purchases_refund_fee_retention_parity_spec.rb): the retained fee is collected once
+  // the outermost transaction commits, so every one of these calls comes after the last write of the ledger, and a failure of the
+  // collection changes nothing but the refund row. The excess reversal and the dispute-win reversal run inside the transaction.
+  it("records the Stripe calls after the refund ledger in the order Rails ran them", () => {
+    const fixtureOf = (example: string) => {
+      for (const [, file, index] of cases) {
+        if (!file.includes("purchases_refund_fee_retention_parity_spec")) continue;
+        const fixture = loadFixture(file);
+        if (fixture.example.includes(example)) return fixture.exchanges[index]!;
+      }
+      throw new Error(`no fixture for ${example}`);
+    };
+    type Exchange = ReturnType<typeof fixtureOf>;
+    const calls = (exchange: Exchange) =>
+      exchange.http
+        .slice(6)
+        .map(
+          (call) =>
+            `${call.method} ${new URL(call.url).pathname.replace(/\/(tr|ch|re|pyr|py|txn)_\w+/gu, "/$1")}${call.response.dropped ? " dropped" : ` ${call.response.status}`}`,
+        );
+    // After the sixth call (the destination payment) the ledger is written; which calls follow the last ledger write.
+    const afterCommit = (exchange: Exchange) => {
+      const timeline = exchange.timeline!;
+      const lastJob = timeline.reduce((last, entry, at) => (entry.type === "job" ? at : last), -1);
+      return timeline.slice(lastJob + 1).filter((entry) => entry.type === "http").length;
+    };
+
+    const reversal = fixtureOf("collects the retained fee by reversing a transfer");
+    expect(calls(reversal)).toEqual([
+      "GET /v1/transfers 200",
+      "POST /v1/transfers/tr/reversals 200",
+      "GET /v1/refunds/pyr 200",
+      "GET /v1/balance_transactions/txn 200",
+    ]);
+    expect(afterCommit(reversal)).toBe(4);
+    expect(reversal.http[7]!.headers).toMatchObject({ "idempotency-key": "refund_fee_retention_reversal_1_tr_paritypayout01" });
+
+    const second = fixtureOf("moves on to a second transfer");
+    expect(calls(second)).toEqual([
+      "GET /v1/transfers 200",
+      "POST /v1/transfers/tr/reversals 400",
+      "GET /v1/transfers/tr/reversals 200",
+      "GET /v1/transfers 200",
+      "POST /v1/transfers/tr/reversals 200",
+      "GET /v1/refunds/pyr 200",
+      "GET /v1/balance_transactions/txn 200",
+    ]);
+
+    // Nothing to reverse: the fee is written off with one more balance transaction and no further call.
+    expect(calls(fixtureOf("writes the fee off"))).toEqual(["GET /v1/transfers 200"]);
+    // A 500 is sent four times under one key, a dropped list four times, and the request still answers 200.
+    expect(calls(fixtureOf("Stripe fails the reversal"))).toEqual([
+      "GET /v1/transfers 200",
+      ...Array<string>(4).fill("POST /v1/transfers/tr/reversals 500"),
+    ]);
+    expect(calls(fixtureOf("connection drops while listing"))).toEqual(Array<string>(4).fill("GET /v1/transfers dropped"));
+
+    expect(calls(fixtureOf("collects the retained fee with a transfer from the seller's account"))).toEqual([
+      "GET /v1/transfers 200",
+      "POST /v1/transfers 200",
+    ]);
+    expect(calls(fixtureOf("adopts a fee transfer Stripe already made"))).toEqual(["GET /v1/transfers 200"]);
+    expect(calls(fixtureOf("keeps the fee pending when Stripe refuses the transfer"))).toEqual([
+      "GET /v1/transfers 200",
+      "POST /v1/transfers 400",
+    ]);
+
+    // The reversal of the excess VAT happens before the credit rows and inside the transaction, with a random idempotency key.
+    const excess = fixtureOf("reverses the excess from the transfer");
+    expect(calls(excess)).toEqual([
+      "GET /v1/charges/ch 200",
+      "GET /v1/transfers/tr 200",
+      "POST /v1/transfers/tr/reversals 200",
+      "GET /v1/refunds/pyr 200",
+      "GET /v1/balance_transactions/txn 200",
+    ]);
+    expect(excess.http[8]!.headers).toMatchObject({ "idempotency-key": "<uuid>" });
+    expect(afterCommit(excess)).toBe(0);
+    // A transfer Stripe says is fully reversed is reported and the refund is booked; any other failure is a 500 and books nothing.
+    expect(calls(fixtureOf("already fully reversed"))).toEqual([
+      "GET /v1/charges/ch 200",
+      "GET /v1/transfers/tr 200",
+      "POST /v1/transfers/tr/reversals 400",
+    ]);
+    const failed = fixtureOf("answers 500 and books nothing");
+    expect(failed.response.status).toBe(500);
+    expect(calls(failed).filter((call) => call.startsWith("POST"))).toEqual(
+      Array<string>(4).fill("POST /v1/transfers/tr/reversals 500"),
+    );
+    expect(failed.timeline!.filter((entry) => entry.type === "job")).toEqual([]);
+
+    // The dispute-win transfer is found with a window starting at the win and reversed under a key built from the refund id.
+    const won = fixtureOf("reverses the transfer Stripe made when the dispute was won");
+    expect(calls(won).slice(0, 2)).toEqual(["GET /v1/transfers 200", "POST /v1/transfers/tr/reversals 200"]);
+    expect(won.http[7]!.headers).toMatchObject({ "idempotency-key": "dispute_win_reversal_re_parityretain01" });
+    expect(new URL(won.http[6]!.url).searchParams.get("created[gte]")).toBe(String(Date.UTC(2026, 9, 20) / 1000 - 60000));
   });
 
   // The account row is inserted before the processor is called and filled in after.
