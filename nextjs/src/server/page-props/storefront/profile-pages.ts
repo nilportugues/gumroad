@@ -51,6 +51,7 @@ import { requireHtmlPage, setHostMeta } from "./post-pages.ts";
 import { setFaviconMetaTags } from "./post.ts";
 import {
   assertProductSectionsRender,
+  defaultProductsSectionAvailable,
   NESTED_VISITOR_PARAMS,
   DEFAULT_PRODUCTS_SECTION_ID,
   PRODUCTS_SECTION_TYPE,
@@ -196,15 +197,6 @@ function presenterRequest(url: URL, headers: Headers): PresenterRequest {
     params: Object.fromEntries(url.searchParams),
     cookies: requestCookies(headers.get("cookie")),
   };
-}
-
-// `sections.empty? && seller.products.alive.not_archived.exists?`
-async function defaultProductsSectionAvailable(seller: User): Promise<boolean> {
-  const products = await db.link.findMany({
-    where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
-    select: { flags: true },
-  });
-  return products.some((product) => !LinkFlags.isSet(product.flags, "archived"));
 }
 
 // ProfileSectionsPresenter#cached_sections + #section_props for the visitor shape.

@@ -24,7 +24,10 @@ import type { PageSpec } from "./pages.ts";
 
 // LinksController#show: `layout`, `embed` and `overlay` pick the Inertia component.
 const productPage: PageSpec = {
-  component: (action) => PRODUCT_PAGE_COMPONENTS[productPageKind(parseQuery(action.url.search.replace(/^\?/u, "")))],
+  component: (action) =>
+    PRODUCT_PAGE_COMPONENTS[
+      productPageKind(parseQuery(action.url.search.replace(/^\?/u, "")), action.state.storefront_wrapped === "1")
+    ],
   mobileAppWebView: true,
   buyerCurrencyFooter: true,
   options: PRODUCT_PAGE_OPTIONS,
@@ -35,7 +38,7 @@ const productPage: PageSpec = {
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
     const code = pathCode && pathCode.trim() !== "" ? pathCode : queryCode;
-    const kind = productPageKind(query);
+    const kind = productPageKind(query, action.state.storefront_wrapped === "1");
     // The discover layout's search box asks for its suggestions alone; Rails answers before it builds the product.
     if (kind === "discover" && isAutocompleteOnlyRequest(action.headers)) {
       await setProductPageMeta(
@@ -69,7 +72,7 @@ const productPage: PageSpec = {
     const page = await buildProductPage(
       row,
       seller,
-      { ...viewer, afterRender },
+      { ...viewer, afterRender, queryString: action.url.search.replace(/^\?/u, "") },
       action.meta,
       action.url.hostname,
       kind,

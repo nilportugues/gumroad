@@ -249,8 +249,14 @@ export async function productPageFilters(chain: Chain): Promise<FilterOutcome> {
     };
   }
 
-  await assertRenderable({ chain, product, seller, query, code, isUserCustomDomain });
-  return { state: { product_id: String(product.id), user_custom_domain: isUserCustomDomain ? "1" : "" } };
+  const { storefrontWrapped } = await assertRenderable({ chain, product, seller, query, code, isUserCustomDomain });
+  return {
+    state: {
+      product_id: String(product.id),
+      user_custom_domain: isUserCustomDomain ? "1" : "",
+      storefront_wrapped: storefrontWrapped ? "1" : "",
+    },
+  };
 }
 
 export const PRODUCT_PAGE_OPTIONS: ActionOptions = { filters: productPageFilters };

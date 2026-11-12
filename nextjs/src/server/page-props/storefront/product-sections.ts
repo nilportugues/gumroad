@@ -8,7 +8,8 @@ import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails, RoutingError } from "../../controllers/application-controller.ts";
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { findLink } from "../../presenters/product-reads.ts";
+import { db } from "../../../lib/db.ts";
+import { findLink, type LinkRow } from "../../presenters/product-reads.ts";
 import { cardForWeb, remainingForSaleCount, type PresenterRequest } from "../../presenters/product.ts";
 import { ProductSortKey, SellerProfileSectionParam } from "../../search/product-search.ts";
 import type { Params } from "../../search/ruby-params.ts";
@@ -108,6 +109,7 @@ export async function productsSectionProps(
   header: Header,
   request: PresenterRequest,
   visitor: Params | null = null,
+  omit: LinkRow | null = null,
 ): Promise<Record<string, unknown>> {
   const data = (section?.json_data ?? {}) as {
     show_filters?: boolean | null;
@@ -132,8 +134,17 @@ export async function productsSectionProps(
     rows.push(row);
   }
   let total = found.total;
+  // `omit_product`: the product page's catalogue leaves out the product the buyer is viewing and shrinks the total with it.
+  let candidates = rows;
+  if (omit) {
+    candidates = rows.filter((row) => row.id !== omit.id);
+    if (total !== null) {
+      if (candidates.length < rows.length) total -= rows.length - candidates.length;
+      else if (omitProductInSearchTotal(seller, data.shown_products ?? [], section === null, omit)) total -= 1;
+    }
+  }
   const shown = [];
-  for (const row of rows) {
+  for (const row of candidates) {
     if (LinkFlags.isSet(row.flags, "hide_sold_out_variants") && (await remainingForSaleCount(row)) === 0) {
       total = total === null ? total : total - 1;
       continue;
@@ -167,7 +178,25 @@ export async function productsSectionProps(
       taxonomy_attributes_data: found.taxonomy_attributes_data,
       products,
     },
+    ...(omit ? { exclude_ids: [externalId(omit.id)] } : {}),
   };
+}
+
+// The omitted product sits beyond the fetched page: the grid's `exclude_ids` pagination never returns it, so the
+// total shrinks only when the search counted it (no sold-out check: ES totals include sold-out products).
+function omitProductInSearchTotal(seller: User, shownProducts: number[], isDefaultSection: boolean, omit: LinkRow) {
+  const alive = omit.purchase_disabled_at === null && omit.banned_at === null && omit.deleted_at === null;
+  if (!alive || LinkFlags.isSet(omit.flags, "archived")) return false;
+  return isDefaultSection ? omit.user_id === seller.id : shownProducts.includes(Number(omit.id));
+}
+
+// `sections.empty? && seller.products.alive.not_archived.exists?`
+export async function defaultProductsSectionAvailable(seller: User): Promise<boolean> {
+  const products = await db.link.findMany({
+    where: { user_id: seller.id, purchase_disabled_at: null, banned_at: null, deleted_at: null },
+    select: { flags: true },
+  });
+  return products.some((product) => !LinkFlags.isSet(product.flags, "archived"));
 }
 
 // NotPortedError -> the caller hands the request back.

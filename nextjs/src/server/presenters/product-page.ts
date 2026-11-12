@@ -37,6 +37,8 @@ import { longUrl } from "./product.ts";
 import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
 import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
 import { setHostMeta } from "../page-props/storefront/post-pages.ts";
+import { storefrontCatalogSections } from "../page-props/storefront/catalog.ts";
+import { visitorSearchParams } from "../page-props/storefront/product-sections.ts";
 import { createDiscoverSearch, hasCuratedProductSources } from "../page-props/discover/discover.ts";
 import { taxonomiesForNav } from "../page-props/discover/taxonomies.ts";
 import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
@@ -69,12 +71,21 @@ const present = (value: string | null | undefined): value is string => value != 
 export type ProductPageKind = "show" | "iframe" | "profile" | "discover";
 
 // The branch of LinksController#show that picks the Inertia component: `layout` first, then `embed` or `overlay` (any value,
-// even a blank one: `params[:embed] || params[:overlay]`). The storefront-wrapped Products/Profile/Show of a visitor is handed back.
-export function productPageKind(query: Query): ProductPageKind {
+// even a blank one: `params[:embed] || params[:overlay]`), then a storefront seller's page for anyone but the seller, which
+// shares Products/Profile/Show with the profile layout.
+export function productPageKind(query: Query, storefrontWrapped = false): ProductPageKind {
   if (query.layout === "profile") return "profile";
   if (query.layout === "discover") return "discover";
-  return query.embed !== undefined || query.overlay !== undefined ? "iframe" : "show";
+  if (query.embed !== undefined || query.overlay !== undefined) return "iframe";
+  return storefrontWrapped ? "profile" : "show";
 }
+
+// `product.user.product_page_storefront_enabled?`
+const storefrontEnabled = (seller: UserRow) => ((BigInt(seller.flags as bigint | number) >> 57n) & 1n) === 1n;
+
+// `product_page_storefront_enabled? && pundit_user&.seller != product.user`
+export const isStorefrontWrapped = (seller: UserRow, viewer: { context: SellerContext | null }) =>
+  storefrontEnabled(seller) && viewer.context?.seller?.id !== seller.id;
 
 export const PRODUCT_PAGE_COMPONENTS: Record<ProductPageKind, string> = {
   show: "Products/Show",
@@ -439,9 +450,6 @@ async function build(
   );
   // ProductPresenter#iframe_product_props is product_props alone.
   if (kind === "iframe") return props;
-  const storefront = ((BigInt(seller.flags as bigint | number) >> 57n) & 1n) === 1n;
-  // A discover page never gets the storefront catalogue (`show_storefront_catalog?`).
-  if (storefront && kind !== "discover") throw new NotPortedError("ProductPresenter#profile_product_props");
   const [section] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "product_id")} = ${row.id} LIMIT 1`,
   );
@@ -464,6 +472,16 @@ async function build(
     main_section_index: Number(data?.main_section_index ?? 0) || 0,
     ...(editing ? await editingProps(seller) : {}),
   };
+  // ProductPresenter#show_storefront_catalog?: a discover page keeps its own recommendation context and the seller keeps
+  // the editing-shaped payload. The product has no sections of its own (handed back above).
+  if (storefrontEnabled(seller) && kind !== "discover" && !editing) {
+    const visitor = await visitorSearchParams(viewer.queryString ?? "");
+    return {
+      ...page,
+      sections: await storefrontCatalogSections(seller as unknown as User, row, viewer.request, visitor),
+      main_section_index: 0,
+    };
+  }
   if (kind !== "discover") return page;
   // The navigation lists the visitor's curated products first; the port answers only the case where there are none.
   if (await hasCuratedProductSources(viewer.user, viewer.browserGuid))
@@ -499,13 +517,14 @@ async function recordDiscoverClick(chain: Chain, product: LinkRow, query: Query)
   );
 }
 
-export async function assertRenderable(context: RenderContext): Promise<void> {
+export async function assertRenderable(context: RenderContext): Promise<{ storefrontWrapped: boolean }> {
   const { chain, product, seller, query, code } = context;
   for (const name of UNSUPPORTED_PARAMS) if (name in query) throw new HandBackToRails();
   // A layout that is not text (`layout[]=x`) matches no branch in Rails but reaches the bundle links as a hash or list.
   if ("layout" in query && typeof query.layout !== "string") throw new HandBackToRails();
   const discoverRecommended =
     typeof query.recommended_by === "string" && DISCOVER_RECOMMENDERS.includes(query.recommended_by);
+  let storefrontWrapped = false;
   try {
     const user = railsLoggedInUser(chain.auth.context);
     const viewer = viewerOf(
@@ -518,13 +537,14 @@ export async function assertRenderable(context: RenderContext): Promise<void> {
       sellerCustomDomainUrl(context.isUserCustomDomain, chain.request.hostWithPort),
       chain.request,
     );
+    storefrontWrapped = isStorefrontWrapped(seller, viewer);
     await build(
       product,
       seller,
-      viewer,
+      { ...viewer, queryString: chain.request.queryString },
       new (await import("../page-props/meta-tags.ts")).MetaTagBuilder(),
       chain.request.host,
-      productPageKind(query),
+      productPageKind(query, storefrontWrapped),
     );
     // create_discover_search!(clicked_resource: @product, ...) comes before the noindex header and the render.
     if (discoverRecommended) await recordDiscoverClick(chain, product, query);
@@ -538,6 +558,7 @@ export async function assertRenderable(context: RenderContext): Promise<void> {
     }
     throw error;
   }
+  return { storefrontWrapped };
 }
 
 // The tags a before_action leaves on a response that renders no product (the discover layout's autocomplete partial).
