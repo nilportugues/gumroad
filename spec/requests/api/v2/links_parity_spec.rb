@@ -108,7 +108,7 @@ describe "API v2 products", type: :request do
       get "/v2/products/#{create(:membership_product, user: seller).external_id}", headers: auth
     end
 
-    it "hands back the comps collection to Rails", parity: true do
+    it "answers a comps request without a taxonomy or a query", parity: true do
       get "/v2/products/comps", headers: auth
     end
   end

@@ -342,10 +342,25 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     expect(cases.length).toBeGreaterThan(0);
   });
 
+  // The first request to a route compiles it (10 s or more), which would age the seeded timestamps past the replayer's tolerance
+  // (<now+10s> against <now>). Each route is replayed once, unchecked, ahead of its first fixture, so a filtered run is as steady as a full one.
+  const warmed = new Set<string>();
+  async function warmRoute(file: string, index: number) {
+    const { method, path: requestPath } = loadFixture(file).exchanges[index]!.request;
+    const route = `${method} ${requestPath.replace(/[?].*/u, "").replace(/\/[^/]*(?:==|[a-z]\d)[^/]*(?=\/|$)/gu, "/:id")}`;
+    if (warmed.has(route)) return;
+    warmed.add(route);
+    seedClock = undefined;
+    afterRedisReset = undefined;
+    await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
+    handedBack.length = 0;
+  }
+
   it.each(cases)(
     "%s",
     async (name, file, index) => {
       try {
+        await warmRoute(file, index);
         seedClock = undefined;
         afterRedisReset = undefined;
         const fixture = loadFixture(file);
