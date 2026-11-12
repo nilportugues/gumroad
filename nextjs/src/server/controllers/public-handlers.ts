@@ -33,6 +33,7 @@ import {
 } from "./application-controller.ts";
 import { discordHandlers } from "./discord.ts";
 import { gumclawPage } from "./erb-pages.ts";
+import { embeddedJavascript } from "./embedded-javascripts.ts";
 import { homePage, homePageOptions } from "./home-pages.ts";
 import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
@@ -324,6 +325,8 @@ const HANDLERS: Record<string, Handler> = {
   wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
   utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
   analytics_js: { run: (request) => analyticsScript(request) },
+  embedded_js_overlay: { run: async (request) => embeddedJavascript(request, "overlay") },
+  embedded_js_embed: { run: async (request) => embeddedJavascript(request, "embed") },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
   // GROUPED_RECEIPT_LOOKUP_PATHS
