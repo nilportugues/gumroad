@@ -425,6 +425,90 @@ describe "Product page", type: :request do
       expect(cover).to include("url" => "https://example.com/player?x=1&y=2", "thumbnail" => "https://example.com/thumb.png", "width" => nil, "height" => nil, "native_width" => 0, "native_height" => 300)
     end
 
+    it "renders an oEmbed cover whose document has a comment before the player", parity: true do
+      product = create(:product, user: seller, name: "Commented cover")
+      create(:asset_preview, attach: false, link: product, guid: "pagecommentcover", oembed: {
+        "html" => "<!-- player --><iframe src=\"https://example.com/player\"></iframe>",
+        "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/thumb.png" }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("url" => "https://example.com/player")
+    end
+
+    it "renders an oEmbed cover whose comment holds another player", parity: true do
+      product = create(:product, user: seller, name: "Hidden player cover")
+      create(:asset_preview, attach: false, link: product, guid: "pagehiddencover", oembed: {
+        "html" => "<div><!-- <iframe src=\"https://example.com/decoy\"></iframe> --><iframe src=\"https://example.com/real\"></iframe></div>",
+        "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/thumb.png" }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("url" => "https://example.com/real")
+    end
+
+    it "renders an oEmbed cover whose player URL has character references", parity: true do
+      product = create(:product, user: seller, name: "Entity cover")
+      create(:asset_preview, attach: false, link: product, guid: "pageentitycover", oembed: {
+        "html" => "<iframe src=\"https://example.com/player?a=1&amp;b=2&#38;c=3&quot;&lt;&gt;\"></iframe>",
+        "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/thumb.png" }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover["url"]).to start_with("https://example.com/player?a=1&b=2&c=3")
+    end
+
+    it "renders an oEmbed cover with a player and no thumbnail", parity: true do
+      product = create(:product, user: seller, name: "No thumbnail cover")
+      create(:asset_preview, attach: false, link: product, guid: "pagenothumbcover", oembed: {
+        "html" => "<iframe src=\"https://example.com/player\"></iframe>",
+        "info" => { "width" => 640, "height" => 360 }
+      })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["covers"].first).to include("thumbnail" => nil)
+    end
+
+    it "renders an oEmbed cover with a thumbnail and no player", parity: true do
+      product = create(:product, user: seller, name: "No player cover")
+      preview = create(:asset_preview, attach: false, link: product, guid: "pagenoplayercover", oembed: {
+        "html" => "<iframe src=\"https://example.com/player\"></iframe>",
+        "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/thumb.png" }
+      })
+      # Creation demands a player; a document saved before that rule, or edited since, can lack one.
+      preview.update_column(:oembed, { "html" => "<p>no player</p>", "info" => { "width" => 640, "height" => 360, "thumbnail_url" => "https://example.com/thumb.png" } })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["covers"].first).to include("url" => nil)
+    end
+
+    it "renders an oEmbed cover with neither a player nor a thumbnail", parity: true do
+      product = create(:product, user: seller, name: "Bare cover")
+      preview = create(:asset_preview, attach: false, link: product, guid: "pagebarecover", oembed: {
+        "html" => "<iframe src=\"https://example.com/player\"></iframe>",
+        "info" => { "width" => 640, "height" => 360 }
+      })
+      preview.update_column(:oembed, { "html" => "<p>no player</p>", "info" => { "width" => 640, "height" => 360 } })
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]["covers"].first).to include("url" => nil, "thumbnail" => nil)
+    end
+
     it "hands an oEmbed cover whose thumbnail Addressable would re-encode to Rails", parity: true do
       product = create(:product, user: seller, name: "Spaced cover")
       create(:asset_preview, attach: false, link: product, guid: "pagespacedcover", oembed: {

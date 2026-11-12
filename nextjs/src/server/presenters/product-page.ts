@@ -216,9 +216,7 @@ async function setMeta(
     meta.set({ property: "twitter:image", content: main.url });
     meta.set({ property: "twitter:image:alt", content: "" });
   } else if (oembed) {
-    // A player card without a thumbnail or an iframe would set a nil tag content.
-    if (main.thumbnail == null || main.url == null)
-      throw new NotPortedError("the twitter player card of an oEmbed cover without a thumbnail or an iframe");
+    // A cover without a thumbnail or a player sets a nil content, which the serialized tag leaves out.
     meta.set({ property: "twitter:card", content: "player" });
     meta.set({ property: "twitter:image", content: main.thumbnail });
     meta.set({ property: "twitter:player", content: main.url });
