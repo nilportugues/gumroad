@@ -7,12 +7,9 @@
 // and the charge processors, a dispute's evidence is forwarded to Stripe, payments are created per user and the
 // stats cache is made of the payout-period aggregates of PayoutsHelper (see models/user-balance-stats.ts).
 // Golden: __fixtures__/refund-payout-guard-jobs.golden.json (scripts/golden/refund-payout-guard-jobs.rb).
-import type { Dispute, DisputeEvidence } from "@prisma/client";
-
 import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import { DISPUTE_EVIDENCES, windowOpen } from "../../server/models/dispute-evidence.ts";
 import { findPurchaseBang } from "../../server/models/purchase.ts";
-import { findByIdBang, findOneBy, recordIdFrom } from "../../server/models/row-reads.ts";
+import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { NotPortedError } from "../../server/models/user.ts";
 import { modelJob } from "./support/job-deps.ts";
 
@@ -26,19 +23,8 @@ export const refundPurchaseWorkerWith = modelJob({ min: 2, max: 3 }, async ([pur
 });
 export const refundPurchaseWorker = refundPurchaseWorkerWith();
 
-export const fightDisputeJobWith = modelJob({ min: 1 }, async ([disputeId], deps) => {
-  const id = await beforeSideEffects(() => recordIdFrom(disputeId, "Dispute.find"));
-  const dispute = await findByIdBang<Dispute>("Dispute", id);
-  const evidence = await findOneBy<DisputeEvidence>("DisputeEvidence", "dispute_id", dispute.id, true);
-  if (evidence === null) throw new TypeError("undefined method 'resolved?' for nil");
-  if (evidence.resolved_at !== null) return;
-  // Exact comparison against the deadline: nothing is forwarded before the window closes.
-  if (windowOpen(evidence.seller_contacted_at, deps.now())) return;
-  await beforeSideEffects(() => {
-    throw new NotPortedError(`${DISPUTE_EVIDENCES}.update_as_resolved!`, "fight_dispute_job.rb (evidence submission to the charge processor)");
-  });
-});
-export const fightDisputeJob = fightDisputeJobWith();
+// FightDisputeJob moved to fight-dispute-job.ts; its guards stay in this golden.
+export { fightDisputeJob, fightDisputeJobWith } from "./fight-dispute-job.ts";
 
 // `Array.wrap(user_ids)`: nil is nobody, an Integer is one user. With nobody there is nothing to create or process.
 export const payoutUsersWorkerWith = modelJob({ min: 3, max: 5 }, async ([, , userIds]) => {
