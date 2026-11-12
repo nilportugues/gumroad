@@ -23,7 +23,7 @@ export const ProductFileFlags = defineFlags(
 // ProductFile::MAX_EPUB_READER_ARCHIVE_SIZE
 const MAX_EPUB_READER_ARCHIVE_SIZE = 32 * 1024 * 1024;
 // Link::MAX_ALLOWED_FILE_SIZE_FOR_SEND_TO_KINDLE
-const MAX_ALLOWED_FILE_SIZE_FOR_SEND_TO_KINDLE = 200 * 1024 * 1024;
+const MAX_ALLOWED_FILE_SIZE_FOR_SEND_TO_KINDLE = 15_500_000;
 const GUID_LENGTH = 32;
 
 export const isStreamable = (file: ProductFile) => file.filegroup === "video";

@@ -285,4 +285,116 @@ describe "Url redirect players", type: :request do
       expect(response).to be_successful
     end
   end
+
+  describe "GET /d/:id listing files" do
+    let(:pdf) { create(:readable_document, link: product, display_name: "Handbook", description: "The whole handbook", position: 1).tap { |file| file.update_columns(pagelength: 3, size: 50_000) } }
+
+    def flag_file(file, **flags)
+      flags.each { |name, value| file.public_send(:"#{name}=", value) }
+      file.update_columns(flags: file.flags)
+    end
+
+    it "lists every kind of file with its buttons", parity: true do
+      buyer.update_columns(kindle_email: "buyer@kindle.com")
+      pdf
+      video.update_columns(position: 2, duration: 95, width: 1080, height: 1920, size: 700_000)
+      create(:subtitle_file, product_file: video, url: "#{S3_BASE_URL}specs/player-captions.srt", language: "English", size: 120)
+      create(:listenable_audio, link: product, display_name: "Theme", position: 3).update_columns(duration: 31, size: 4_000)
+      create(:product_file, link: product, url: "#{S3_BASE_URL}specs/pack.zip", filetype: "zip", filegroup: "archive", position: 4, size: 9_000)
+      create(:product_file, link: product, url: "#{S3_BASE_URL}specs/cover.png", filetype: "png", filegroup: "image", position: 5, size: 800)
+      create(:external_link, link: product, url: "https://example.com/bonus", position: 6)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "content_items").size).to eq(6)
+      expect(url_redirect.reload).to have_attributes(uses: 1, has_been_seen: true)
+    end
+
+    it "groups files into folders and leaves the others at the top", parity: true do
+      folder = create(:product_folder, link: product, name: "Bonus chapters", position: 1)
+      empty_folder = create(:product_folder, link: product, name: "Nothing here", position: 2)
+      pdf.update_columns(folder_id: folder.id)
+      create(:readable_document, link: product, display_name: "Loose", position: 2)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "content_items").map { |item| item["type"] }).to eq(%w[folder file])
+      expect(empty_folder).to be_persisted
+    end
+
+    it "keeps a stream only file out of the downloads", parity: true do
+      flag_file(pdf, stream_only: true)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "content_items", 0)).to include("download_url" => nil, "archivable" => false)
+    end
+
+    it "hides the Kindle and read buttons the seller opted out of", parity: true do
+      flag_file(pdf, hide_kindle_and_read_buttons: true)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "content_items", 0)).to include("kindle_data" => nil, "read_url" => nil)
+    end
+
+    it "offers no Kindle for a file above the size limit", parity: true do
+      pdf.update_columns(size: 16_000_000)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "content_items", 0)).to include("kindle_data" => nil)
+    end
+
+    it "carries the last position of a video and of a book", parity: true do
+      pdf
+      video.update_columns(position: 2, duration: 95)
+      create(:media_location, product_file_id: video.id, url_redirect_id: url_redirect.id, purchase_id: purchase.id, product_id: product.id, location: 40, consumed_at: Time.current)
+      create(:media_location, product_file_id: pdf.id, url_redirect_id: url_redirect.id, purchase_id: purchase.id, product_id: product.id, location: 2, consumed_at: Time.current)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      items = inertia_props_of(response).dig("content", "content_items")
+      expect(items.map { |item| item["latest_media_location"]&.fetch("location") }).to eq([2, 40])
+    end
+
+    it "keeps a rented video to streaming", parity: true do
+      video
+      set_purchase = purchase
+      set_purchase.is_rental = true
+      set_purchase.update_columns(flags: set_purchase.flags)
+      url_redirect.update!(is_rental: true)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "content_items", 0)).to include("download_url" => nil, "stream_url" => be_present)
+    end
+
+    it "lists the files for the address that bought a guest purchase", parity: true do
+      pdf
+      purchase.update_columns(purchaser_id: nil)
+
+      get url_redirect_download_page_path(token), headers: forwarded
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["add_to_library_option"]).to eq("signup_form")
+    end
+
+    it "hands a PDF that must be stamped to Rails", parity: true do
+      flag_file(pdf, pdf_stamp_enabled: true)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+  end
 end
