@@ -38,6 +38,7 @@ import "@/server/controllers/dashboard-json";
 import "@/server/controllers/audience-mutations";
 import "@/server/controllers/events-mutations";
 import "@/server/controllers/customer-surcharge";
+import "@/server/controllers/orders-validations";
 import "@/server/controllers/checkout-form-mutations";
 import "@/server/controllers/wishlists-mutations";
 import "@/server/controllers/customer-actions";
