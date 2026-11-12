@@ -1,6 +1,6 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
 // the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
-// refunds and its custom fields. A sale that needs anything else (gifts, pre-orders, subscriptions,
+// refunds and its custom fields. A sale that needs anything else (a gift's receiver, subscriptions,
 // carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
 // throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
@@ -35,8 +35,6 @@ const NON_ASCII = /[^\x20-\x7e]/u;
 
 // Tables that make a sale leave the plain path when they hold a row for it. Each is read once for the whole export.
 const PURCHASE_ID_TABLES: readonly [string, string, string][] = [
-  ["gifts", "gifter_purchase_id", "a gift"],
-  ["gifts", "giftee_purchase_id", "a gift"],
   ["purchase_presentments", "purchase_id", "a buyer-currency charge"],
   ["order_purchases", "purchase_id", "a cart"],
 ];
@@ -58,6 +56,7 @@ type UtmRow = {
   utm_term: string | null;
   utm_content: string | null;
 };
+type GiftRow = { gifter_purchase_id: bigint | null; giftee_purchase_id: bigint | null; giftee_email: string | null };
 type RefundRow = { purchase_id: bigint; amount_cents: number | null };
 // The one BaseVariant (a Variant or a Sku) a purchase holds in `variant_attributes`.
 type VariantRow = {
@@ -113,6 +112,57 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     const hits = await idsWithRows(tableName, columnName, purchaseIds);
     if (purchases.some((purchase) => hits.has(String(purchase.id))))
       throw new HandBackToRails(`an export that holds a sale with ${reason}`);
+  }
+
+  // purchase.gift_given for the sales of a gift: its giftee's email, and its giftee's purchase for the review and the license key.
+  const gifts = await selectRows<GiftRow>(
+    Prisma.sql`SELECT ${column("gifts", "gifter_purchase_id")}, ${column("gifts", "giftee_purchase_id")}, ${column("gifts", "giftee_email")} FROM ${table("gifts")} WHERE ${column("gifts", "gifter_purchase_id")} IN (${Prisma.join(purchaseIds)}) OR ${column("gifts", "giftee_purchase_id")} IN (${Prisma.join(purchaseIds)}) ORDER BY ${column("gifts", "id")}`,
+  );
+  const giftBySender = new Map<string, GiftRow>();
+  const inExport = new Set(purchaseIds.map(String));
+  for (const gift of gifts) {
+    if (gift.gifter_purchase_id === null || gift.giftee_purchase_id === null)
+      throw new HandBackToRails("a gift without a sender or a receiver");
+    // The export leaves out a gift's receiver, so one in it is not a shape the search produces.
+    if (inExport.has(String(gift.giftee_purchase_id)))
+      throw new HandBackToRails("an export that holds a gift receiver");
+    if (giftBySender.has(String(gift.gifter_purchase_id))) throw new HandBackToRails("a sale with several gifts");
+    giftBySender.set(String(gift.gifter_purchase_id), gift);
+  }
+  for (const purchase of purchases)
+    if (flagSet(purchase, "is_gift_sender_purchase") !== giftBySender.has(String(purchase.id)))
+      throw new HandBackToRails("a sale whose gift flag and gift row disagree");
+  const gifteeIds = [...new Set(gifts.map((gift) => gift.giftee_purchase_id!))];
+  const gifteeOf = new Map<string, bigint>(
+    gifts.map((gift) => [String(gift.gifter_purchase_id), gift.giftee_purchase_id!]),
+  );
+  if (gifteeIds.length > 0) {
+    // The review and the license key are read from the giftee's purchase: it must be a plain sale of the same product.
+    const giftees = await selectRows<{ id: bigint; link_id: bigint | null; subscription_id: bigint | null }>(
+      Prisma.sql`SELECT ${column("purchases", "id")}, ${column("purchases", "link_id")}, ${column("purchases", "subscription_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} IN (${Prisma.join(gifteeIds)})`,
+    );
+    const gifteeById = new Map(giftees.map((giftee) => [String(giftee.id), giftee]));
+    for (const purchase of purchases) {
+      if (!giftBySender.has(String(purchase.id))) continue;
+      const giftee = gifteeById.get(String(gifteeOf.get(String(purchase.id))));
+      if (giftee === undefined) throw new HandBackToRails("a gift whose receiver's purchase is missing");
+      if (giftee.link_id !== purchase.link_id || giftee.subscription_id !== null)
+        throw new HandBackToRails("a gift whose receiver's purchase is not a plain sale of the same product");
+    }
+    if ((await idsWithRows("base_variants_purchases", "purchase_id", gifteeIds)).size > 0)
+      throw new HandBackToRails("a gift whose receiver's purchase holds a variant");
+  }
+  // purchase.preorder.created_at for a pre-order's charge
+  const preorderIds = [
+    ...new Set(purchases.map((purchase) => purchase.preorder_id).filter((id): id is bigint => id !== null)),
+  ];
+  const preorderTimes = new Map<string, Date>();
+  if (preorderIds.length > 0) {
+    for (const row of await selectRows<{ id: bigint; created_at: Date }>(
+      Prisma.sql`SELECT ${column("preorders", "id")}, ${column("preorders", "created_at")} FROM ${table("preorders")} WHERE ${column("preorders", "id")} IN (${Prisma.join(preorderIds)})`,
+    ))
+      preorderTimes.set(String(row.id), row.created_at);
+    if (preorderTimes.size !== preorderIds.length) throw new HandBackToRails("a sale whose pre-order is missing");
   }
 
   const linkIds = [...new Set(purchases.map((purchase) => purchase.link_id))];
@@ -215,14 +265,15 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     tipCents.set(String(tip.purchase_id), tip.value_usd_cents ?? 0);
   }
 
-  // original_product_review: the sale's own review, since a subscription or a gift hands back.
+  // original_product_review: the sale's own review (a subscription hands back), the giftee's for a gift the buyer sent.
+  const lookupIds = [...purchaseIds, ...gifteeIds];
   const reviews = await selectRows<{ purchase_id: bigint; rating: number | null; message: string | null }>(
-    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")}, ${column("product_reviews", "message")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")}, ${column("product_reviews", "message")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(lookupIds)})`,
   );
   const reviewByPurchase = new Map(reviews.map((review) => [String(review.purchase_id), review]));
 
   const licenseRows = await selectRows<LicenseRow>(
-    Prisma.sql`SELECT ${column("licenses", "purchase_id")}, ${column("licenses", "serial")}, ${column("licenses", "uses")}, ${column("licenses", "disabled_at")} FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${Prisma.join(purchaseIds)}) ORDER BY ${column("licenses", "id")}`,
+    Prisma.sql`SELECT ${column("licenses", "purchase_id")}, ${column("licenses", "serial")}, ${column("licenses", "uses")}, ${column("licenses", "disabled_at")} FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${Prisma.join(lookupIds)}) ORDER BY ${column("licenses", "id")}`,
   );
   const licenseByPurchase = new Map<string, LicenseRow>();
   for (const license of licenseRows) {
@@ -283,6 +334,8 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   for (const purchase of purchases) {
     const link = linkById.get(String(purchase.link_id))!;
     const key = String(purchase.id);
+    // main_or_giftee_purchase
+    const readKey = gifteeOf.has(key) ? String(gifteeOf.get(key)) : key;
     const answered = answersByPurchase.get(key) ?? [];
     const customFieldValues = new Map<string, string | boolean>();
     for (const answer of answered) {
@@ -309,8 +362,10 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         taxCountries,
         affiliateEmails,
         tipCents: tipCents.get(key),
-        review: reviewByPurchase.get(key),
-        license: licenseByPurchase.get(key),
+        review: reviewByPurchase.get(readKey),
+        license: licenseByPurchase.get(readKey),
+        giftee: giftBySender.get(key),
+        preorderTime: purchase.preorder_id === null ? undefined : preorderTimes.get(String(purchase.preorder_id)),
         upsold: upsold.has(key),
         utm: utmByPurchase.get(key),
       }),
@@ -345,17 +400,14 @@ function purchaseFields(
     tipCents: number | undefined;
     review: { rating: number | null; message: string | null } | undefined;
     license: LicenseRow | undefined;
+    giftee: GiftRow | undefined;
+    preorderTime: Date | undefined;
     upsold: boolean;
     utm: UtmRow | undefined;
   },
 ): Record<string, CsvCell> {
-  for (const [name, reason] of [
-    ["is_gift_sender_purchase", "a gift"],
-    ["is_gift_receiver_purchase", "a gift"],
-    ["is_preorder_authorization", "a pre-order"],
-  ] as const)
+  for (const [name, reason] of [["is_gift_receiver_purchase", "a gift receiver"]] as const)
     if (flagSet(purchase, name)) throw new HandBackToRails(`an export that holds ${reason}`);
-  if (purchase.preorder_id !== null) throw new HandBackToRails("an export that holds a pre-order");
   if (purchase.subscription_id !== null) throw new HandBackToRails("an export that holds a subscription charge");
   if (purchase.paypal_order_id !== null) throw new HandBackToRails("an export that holds a PayPal sale");
   if (
@@ -433,14 +485,18 @@ function purchaseFields(
     "Discount Code": offerCode,
     "Recurring Charge?": 0,
     "Free trial purchase?": flagSet(purchase, "is_free_trial_purchase") ? 1 : 0,
-    "Pre-order authorization?": 0,
+    "Pre-order authorization?": flagSet(purchase, "is_preorder_authorization") ? 1 : 0,
     "Product ID": link.unique_permalink,
     "Order Number": encryptNumeric(Number(purchase.id)),
-    "Pre-order authorization time (UTC timezone)": null,
+    // is_preorder_charge?: a pre-order's purchase that is not its authorization
+    "Pre-order authorization time (UTC timezone)":
+      purchase.preorder_id !== null && !flagSet(purchase, "is_preorder_authorization")
+        ? timeOf(lookups.preorderTime!)
+        : null,
     "Custom Fields": hashInspect(lookups.customFieldValues),
     "Item Price ($)": new RubyFloat(priceDollars.value - variantsPriceDollars.value),
     "Variants Price ($)": variantsPriceDollars,
-    "Giftee Email": null,
+    "Giftee Email": presence(lookups.giftee?.giftee_email ?? null),
     // Sku#custom_name_or_external_id
     "SKU ID": sku === undefined ? null : (presence(sku.custom_sku) ?? encrypt(sku.id)),
     Quantity: purchase.quantity,
