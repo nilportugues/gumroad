@@ -5,6 +5,7 @@
 export const PORTED_JOBS: readonly string[] = [
   "RecoverStrandedBuyersJob",
   "AlertOnStuckPiracyReportsJob",
+  "AlertOnStalledPostEmailBlastsJob",
   "RefreshAffiliateEarningsJob",
   "CompileGumroadDailyAnalyticsJob",
   "UpdateTaxRatesJob",

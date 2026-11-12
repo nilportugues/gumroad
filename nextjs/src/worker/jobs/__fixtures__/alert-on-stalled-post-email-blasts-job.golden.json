@@ -1,0 +1,3014 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no blasts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an abandoned blast",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an abandoned blast of a later original blast",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ],
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` IN (2, 1)",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ],
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` IN (1, 2)",
+          "result": {
+            "affected": 2
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              7,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ],
+            [
+              2,
+              7,
+              1,
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "three abandoned blasts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ],
+              [
+                3
+              ],
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` IN (1, 3, 2)",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ],
+              [
+                2
+              ],
+              [
+                3
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` IN (1, 2, 3)",
+          "result": {
+            "affected": 3
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-20T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ],
+            [
+              2,
+              2,
+              1,
+              {
+                "$time": "2026-10-10T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ],
+            [
+              3,
+              3,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast that delivered its first email",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast with a sent post email after it",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "sent_post_emails": {
+          "fields": [
+            "id",
+            "post_id",
+            "email",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "buyer1@example.com",
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              },
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast with a sent post email before it",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ]
+          ]
+        },
+        "sent_post_emails": {
+          "fields": [
+            "id",
+            "post_id",
+            "email",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "buyer1@example.com",
+              {
+                "$time": "2026-10-14T12:30:45.123000Z"
+              },
+              {
+                "$time": "2026-10-14T12:30:45.123000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast with a sent post email after a later blast",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              4,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ],
+            [
+              2,
+              4,
+              1,
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "sent_post_emails": {
+          "fields": [
+            "id",
+            "post_id",
+            "email",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              4,
+              "buyer1@example.com",
+              {
+                "$time": "2026-10-17T12:30:45.123000Z"
+              },
+              {
+                "$time": "2026-10-17T12:30:45.123000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast with a sent post email of another post",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ]
+          ]
+        },
+        "sent_post_emails": {
+          "fields": [
+            "id",
+            "post_id",
+            "email",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              "buyer1@example.com",
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              },
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a non-opener resend",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              "unopened",
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a completed blast",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an expired blast",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-10-17T12:30:45.123000Z"
+              },
+              "quota"
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast older than the expiry window",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-05T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast exactly at the oldest expiry bound",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-07T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast exactly at the lookback",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-10-21T12:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-21T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a blast without a request time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast that is sent to between the expiry reads",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "INSERT INTO sent_post_emails (id, post_id, email, created_at, updated_at) VALUES (1, 1, 'buyer1@example.com', '2026-10-16 12:30:45.123000', '2026-10-16 12:30:45.123000')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        },
+        "sent_post_emails": {
+          "fields": [
+            "id",
+            "post_id",
+            "email",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "buyer1@example.com",
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              },
+              {
+                "$time": "2026-10-16T12:30:45.123000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast requested an hour ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-04T11:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast requested exactly four hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T08:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-04T08:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a blast requested five hours ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T07:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-04T07:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a started blast requested a day ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-03T12:30:45.123000Z"
+                },
+                {
+                  "$time": "2026-11-03T13:30:45.123000Z"
+                },
+                {
+                  "$time": "2026-11-03T13:30:45.123000Z"
+                },
+                null,
+                40,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-03T12:30:45.123000Z"
+              },
+              {
+                "$time": "2026-11-03T13:30:45.123000Z"
+              },
+              {
+                "$time": "2026-11-03T13:30:45.123000Z"
+              },
+              null,
+              40,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a completed blast requested a day ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-03T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-03T13:30:45.123000Z"
+              },
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an expired blast requested a day ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-03T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T10:30:45.123000Z"
+              },
+              "quota"
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a blast requested thirteen days ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-10-22T12:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-22T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an abandoned blast and a candidate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `post_email_blasts` SET `post_email_blasts`.`expired_at` = '2026-11-04 12:30:45.123000', `post_email_blasts`.`expiry_reason` = 'abandoned', `post_email_blasts`.`updated_at` = '2026-11-04 12:30:45.123000' WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                1,
+                {
+                  "$time": "2026-11-04T06:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-10-15T12:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-11-04T12:30:45.123000Z"
+              },
+              "abandoned"
+            ],
+            [
+              2,
+              2,
+              1,
+              {
+                "$time": "2026-11-04T06:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "two candidates",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T06:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                1,
+                {
+                  "$time": "2026-11-04T02:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-04T06:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              {
+                "$time": "2026-11-04T02:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a candidate and a recent blast",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `post_email_blasts`.`id` FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`first_email_delivered_at` IS NULL AND `post_email_blasts`.`recipient_filter` IS NULL AND (NOT EXISTS ( SELECT 1 FROM sent_post_emails WHERE sent_post_emails.post_id = post_email_blasts.post_id AND sent_post_emails.created_at >= post_email_blasts.requested_at AND sent_post_emails.created_at < COALESCE( (SELECT MIN(later.requested_at) FROM post_email_blasts later WHERE later.post_id = post_email_blasts.post_id AND later.recipient_filter IS NULL AND later.requested_at > post_email_blasts.requested_at), '9999-12-31'))) AND `post_email_blasts`.`requested_at` >= '2026-10-07 12:30:45.123000' AND `post_email_blasts`.`requested_at` < '2026-10-21 12:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 500",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `post_email_blasts`.* FROM `post_email_blasts` WHERE `post_email_blasts`.`completed_at` IS NULL AND `post_email_blasts`.`expired_at` IS NULL AND `post_email_blasts`.`requested_at` BETWEEN '2026-10-21 12:30:45.123000' AND '2026-11-04 08:30:45.123000' ORDER BY `post_email_blasts`.`requested_at` DESC LIMIT 501",
+          "result": {
+            "fields": [
+              "id",
+              "post_id",
+              "seller_id",
+              "requested_at",
+              "started_at",
+              "first_email_delivered_at",
+              "last_email_delivered_at",
+              "delivery_count",
+              "created_at",
+              "updated_at",
+              "completed_at",
+              "recipient_filter",
+              "expired_at",
+              "expiry_reason"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                {
+                  "$time": "2026-11-04T06:30:45.123000Z"
+                },
+                null,
+                null,
+                null,
+                0,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "post_email_blasts": {
+          "fields": [
+            "id",
+            "post_id",
+            "seller_id",
+            "requested_at",
+            "started_at",
+            "first_email_delivered_at",
+            "last_email_delivered_at",
+            "delivery_count",
+            "created_at",
+            "updated_at",
+            "completed_at",
+            "recipient_filter",
+            "expired_at",
+            "expiry_reason"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              {
+                "$time": "2026-11-04T06:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ],
+            [
+              2,
+              2,
+              1,
+              {
+                "$time": "2026-11-04T11:30:45.123000Z"
+              },
+              null,
+              null,
+              null,
+              0,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              null,
+              null
+            ]
+          ]
+        }
+      },
+      "job": "AlertOnStalledPostEmailBlastsJob",
+      "args": [],
+      "hands_back": true
+    }
+  ]
+}
