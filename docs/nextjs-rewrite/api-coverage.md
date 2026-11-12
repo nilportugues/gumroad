@@ -352,5 +352,3 @@ Unresolved:
 | `GET /internal/agent/turns/:client_turn_id` | `Api::Internal::AgentConversationsController#turn_status` | native | `nextjs_internal_agent` | y |
 | `POST /internal/agent/custom_html_preview` | `Api::Internal::AgentCustomHtmlPreviewsController#create` | native | `nextjs_internal_agent` | y |
 | `GET /internal/agent/custom_html_previews/:token` | `Api::Internal::AgentCustomHtmlPreviewsController#show` | native | `nextjs_internal_agent` | y |
-
-WS-21/WS-23 fifth pass: the refund success, instant payout and Stripe account creation remain whole hand-backs inside routes counted as native; blockers in parity-debt.md.
