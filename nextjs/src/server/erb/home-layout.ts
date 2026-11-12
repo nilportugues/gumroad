@@ -10,7 +10,17 @@ import { assetHost, type DomainConfig } from "../page-props/domain.ts";
 import { type MetaTagBuilder } from "../page-props/meta-tags.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 
-import { buttonTag, contentTag, escapeHtml, html, type Html, imageTag, linkTo, SafeString } from "./html.ts";
+import {
+  type Attributes,
+  buttonTag,
+  contentTag,
+  escapeHtml,
+  html,
+  type Html,
+  imageTag,
+  linkTo,
+  SafeString,
+} from "./html.ts";
 import { type Helpers, readView, renderErb } from "./template.ts";
 
 export type LayoutContext = {
@@ -146,41 +156,116 @@ ${rows}  </div>
 `;
 }
 
-// The helpers the home views call with literal arguments. `render` knows the two partials those views render without a block.
+// The home/shared partials that take locals. Their markup is read from the .erb file; the table is the Ruby in them, written out.
+const hashOf = (value: unknown): Record<string, unknown> =>
+  value !== null && typeof value === "object" && !(value instanceof SafeString) ? (value as Record<string, unknown>) : {};
+const required = (keywords: Record<string, unknown>, key: string): string => {
+  const value = keywords[key];
+  if (typeof value !== "string") throw new NotPortedError(`the partial local ${key}`);
+  return value;
+};
+
+// `<%== local %>` is written raw.
+function sectionHeader(config: DomainConfig, keywords: Record<string, unknown>): string {
+  const raw = {
+    subtitle: required(keywords, "subtitle"),
+    title: required(keywords, "title"),
+    description: required(keywords, "description"),
+  };
+  return renderErb("home/shared/_section_header.html.erb", {
+    values: {
+      "= subtitle": () => new SafeString(raw.subtitle),
+      "= title": () => new SafeString(raw.title),
+      "= description": () => new SafeString(raw.description),
+    },
+    helpers: homeHelpers(config),
+  });
+}
+
+const SECTION_CTA_LOCALS = `title = local_assigns[:title] || "Share your work. <br> Someone out there needs it."
+  button_text = local_assigns[:button_text] || "Start selling"
+  button_url = local_assigns[:button_url] || signup_path`;
+function sectionCta(config: DomainConfig, keywords: Record<string, unknown>): string {
+  const local = (key: string, fallback: string) =>
+    typeof keywords[key] === "string" ? String(keywords[key]) : fallback;
+  const title = local("title", "Share your work. <br> Someone out there needs it.");
+  const buttonText = local("button_text", "Start selling");
+  const buttonUrl = local("button_url", PATHS.signup_path!);
+  return renderErb("home/shared/_section_cta.html.erb", {
+    statements: { [SECTION_CTA_LOCALS]: () => undefined },
+    values: {
+      "= title": () => new SafeString(title),
+      'render "home/shared/button", text: button_text, url: button_url, variant: "dark"': () =>
+        new SafeString(button({ text: buttonText, url: buttonUrl, variant: "dark" })),
+    },
+    helpers: homeHelpers(config),
+  });
+}
+
+function accordionItem(locals: Record<string, unknown>): string {
+  const title = required(locals, "title");
+  const content = required(locals, "content");
+  return renderErb("home/shared/_accordion_item.html.erb", {
+    values: { title: () => title, "content.html_safe": () => new SafeString(content) },
+  });
+}
+
+function reviewCard(locals: Record<string, unknown>, block: SafeString): string {
+  const name = required(locals, "name");
+  return renderErb("home/shared/_review_card.html.erb", { values: { yield: () => block, name: () => name } });
+}
+
+// The helpers the home views call with literal arguments.
 export function homeHelpers(config: DomainConfig): Helpers {
   return {
-    render: ({ positional, keywords }) => {
-      const partial = positional[0];
-      if (partial === "home/shared/footer") return new SafeString(footer(config));
-      if (partial === "home/shared/header") {
-        const text = (key: string) => (typeof keywords[key] === "string" ? String(keywords[key]) : undefined);
-        return new SafeString(
-          header({
-            bgColor: String(keywords.bg_color),
-            textColor: text("text_color"),
-            subtitle: text("subtitle"),
-            title: text("title"),
-            description: text("description"),
-            noBorder: keywords.no_border === true,
-            gap: text("gap"),
-            darkBgColor: text("dark_bg_color"),
-            content: "",
-          }),
-        );
+    render: ({ positional, keywords, block }) => {
+      const partial = positional[0] ?? keywords.partial ?? keywords.layout;
+      const locals = hashOf(keywords.locals);
+      switch (partial) {
+        case "home/shared/footer":
+          return new SafeString(footer(config));
+        case "home/shared/header": {
+          const text = (key: string) => (typeof keywords[key] === "string" ? String(keywords[key]) : undefined);
+          return new SafeString(
+            header({
+              bgColor: String(keywords.bg_color),
+              textColor: text("text_color"),
+              subtitle: text("subtitle"),
+              title: text("title"),
+              description: text("description"),
+              noBorder: keywords.no_border === true,
+              gap: text("gap"),
+              darkBgColor: text("dark_bg_color"),
+              content: block?.value ?? "",
+            }),
+          );
+        }
+        case "home/shared/section_header":
+          return new SafeString(sectionHeader(config, keywords));
+        case "home/shared/section_cta":
+          return new SafeString(sectionCta(config, keywords));
+        case "home/shared/accordion_item":
+          return new SafeString(accordionItem(locals));
+        case "home/shared/review_card":
+          if (!block) throw new NotPortedError("the review card without a block");
+          return new SafeString(reviewCard(locals, block));
+        case "home/shared/button":
+          return new SafeString(
+            button({
+              text: String(keywords.text),
+              url: String(keywords.url),
+              ...(keywords.variant ? { variant: String(keywords.variant) } : {}),
+              ...(keywords.type ? { type: String(keywords.type) } : {}),
+              ...(keywords.size ? { size: String(keywords.size) } : {}),
+            }),
+          );
+        default:
+          throw new NotPortedError(`the partial ${String(partial)}`);
       }
-      if (partial !== "home/shared/button") throw new NotPortedError(`the partial ${String(partial)}`);
-      return new SafeString(
-        button({
-          text: String(keywords.text),
-          url: String(keywords.url),
-          ...(keywords.variant ? { variant: String(keywords.variant) } : {}),
-          ...(keywords.type ? { type: String(keywords.type) } : {}),
-          ...(keywords.size ? { size: String(keywords.size) } : {}),
-        }),
-      );
     },
-    image_tag: ({ positional, keywords }) => imageTag(imagePath(config, String(positional[0])), keywords),
-    link_to: ({ positional, keywords }) => linkTo(String(positional[0]), String(positional[1]), keywords),
+    image_tag: ({ positional, keywords }) =>
+      imageTag(imagePath(config, String(positional[0])), keywords as Attributes),
+    link_to: ({ positional, keywords }) => linkTo(String(positional[0]), String(positional[1]), keywords as Attributes),
     help_center_article_path: ({ positional }) => `/help/article/${String(positional[0])}`,
     ...Object.fromEntries(Object.entries(PATHS).map(([name, value]) => [name, () => value])),
   };

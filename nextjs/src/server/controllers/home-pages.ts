@@ -41,6 +41,24 @@ const HOME_PAGES: Record<string, HomePage> = {
       },
     }),
   },
+  pricing: {
+    view: "home/pricing.html.erb",
+    title: "Gumroad pricing: 10% + 50¢ direct, 30% via Discover",
+    description:
+      "Direct sales: 10% + 50¢ per sale, $0 monthly. Discover marketplace sales: 30%. Gumroad handles sales tax worldwide as Merchant of Record, at no extra cost.",
+  },
+  hackathon: {
+    view: "home/hackathon.html.erb",
+    title: "Gumroad $100K Niche Marketplace Hackathon",
+    description:
+      "Build a niche marketplace using Gumroad OSS. $100K in prizes for the best marketplace ideas and implementations.",
+  },
+  "small-bets": {
+    view: "home/small_bets.html.erb",
+    title: "Small Bets by Gumroad",
+    description:
+      "Explore the Small Bets initiative by Gumroad. Learn, experiment, and grow with small, actionable projects.",
+  },
   dpa: {
     view: "home/dpa.html.erb",
     title: "Gumroad data processing addendum",

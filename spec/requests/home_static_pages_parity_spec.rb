@@ -16,7 +16,7 @@ describe "Home static pages", type: :request do
     Rails.cache.write(stars_key, 12_345)
   end
 
-  %w[terms privacy prohibited dpa].each do |page|
+  %w[terms privacy prohibited dpa pricing hackathon small-bets].each do |page|
     describe "GET /#{page}" do
       it "renders the page edge cacheable for a visitor with no cookies", parity: true do
         get "/#{page}"

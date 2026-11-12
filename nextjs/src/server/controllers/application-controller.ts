@@ -105,7 +105,7 @@ export type BeforeAction = "redirect_to_custom_subdomain" | "check_suspended";
 export class HandBackToRails extends Error {
   constructor(message?: string) {
     super(message);
-    if (process.env.HAND_BACK_DEBUG) console.error(`handed back to Rails\n${new Error().stack}`);
+    if (process.env.HAND_BACK_DEBUG) console.error(`handed back to Rails: ${message ?? ""}\n${new Error().stack}`);
   }
 }
 
