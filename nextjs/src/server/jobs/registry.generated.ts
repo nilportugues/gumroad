@@ -688,7 +688,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "DeleteExpiredOauthDeviceAuthorizationsJob": {
     "file": "app/sidekiq/delete_expired_oauth_device_authorizations_job.rb",

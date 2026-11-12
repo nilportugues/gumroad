@@ -193,4 +193,5 @@ export const PORTED_JOBS: readonly string[] = [
   "PdfUnstampableNotifierJob",
   "GenerateProductFilesArchivesJob",
   "ActivateIntegrationsWorker",
+  "DeactivateIntegrationsWorker",
 ];

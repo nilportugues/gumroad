@@ -48,3 +48,14 @@ export async function findEnabledIntegration(purchase: PurchaseRecord, name: str
 // Integration#keep_inactive_members?
 export const keepsInactiveMembers = (integration: Pick<Integration, "flags">) =>
   (BigInt(integration.flags) & KEEP_INACTIVE_MEMBERS) !== 0n;
+
+// `DiscordIntegration.discord_user_id_for(purchase)`: the Discord user id of the purchase's live membership of its Discord integration.
+export async function discordUserIdFor(purchase: PurchaseRecord): Promise<string | null> {
+  const integration = await findEnabledIntegration(purchase, DISCORD_INTEGRATION);
+  if (integration === null) return null;
+
+  const [row] = await selectRows<{ discord_user_id: string | null }>(
+    Prisma.sql`SELECT ${Prisma.raw("`purchase_integrations`.*")} FROM ${table("purchase_integrations")} WHERE ${column("purchase_integrations", "purchase_id")} = ${purchase.id} AND ${column("purchase_integrations", "deleted_at")} IS NULL AND ${column("purchase_integrations", "integration_id")} = ${integration.id} LIMIT 1`,
+  );
+  return row?.discord_user_id ?? null;
+}
