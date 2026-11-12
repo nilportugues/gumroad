@@ -233,12 +233,22 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a taxed sale to Rails", parity: true do
-    sell(price_cents: 1000, tax_cents: 100, was_purchase_taxable: true)
+  it "writes the tax amount, its label and whether the price includes it", parity: true do
+    us_rate = create(:zip_tax_rate, country: "US", state: "NY", zip_code: "10087")
+    de_rate = create(:zip_tax_rate, country: "DE", state: nil, zip_code: nil, combined_rate: "0.1900000")
+    jp_rate = create(:zip_tax_rate, country: "JP", state: nil, zip_code: nil, combined_rate: "0.1000000")
+    taxable = Purchase.flag_mapping["flags"][:was_purchase_taxable]
+    excluded = Purchase.flag_mapping["flags"][:was_tax_excluded_from_price]
+    sell(price_cents: 1100, tax_cents: 100, zip_tax_rate: us_rate).update_columns(flags: taxable | excluded)
+    sell(price_cents: 1190, tax_cents: 0, gumroad_tax_cents: 190, zip_tax_rate: de_rate, country: "Germany").update_columns(flags: taxable)
+    sell(price_cents: 1100, tax_cents: 0, gumroad_tax_cents: 100, zip_tax_rate: jp_rate, country: "Japan").update_columns(flags: taxable)
+    sell(price_cents: 500).update_columns(flags: taxable | excluded)
+    sell(price_cents: 800, tax_cents: 50, zip_tax_rate: nil)
 
     export
 
     expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Tax Type")] }).to include("Sales tax", "VAT")
   end
 
   it "hands a sale with a non-ASCII address to Rails", parity: true do

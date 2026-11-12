@@ -1,6 +1,6 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
 // the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
-// refunds and its custom fields. A sale that needs anything else (tax labels, gifts, pre-orders, subscriptions, licenses, reviews, tips,
+// refunds and its custom fields. A sale that needs anything else (gifts, pre-orders, subscriptions, licenses, reviews, tips,
 // affiliates, UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
 // throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
@@ -13,6 +13,14 @@ import { RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
 import { rubyInspect } from "../models/concerns/ruby-values.ts";
 import { BaseVariantFlags } from "../models/base-variant.ts";
 import { LinkFlags } from "../models/link.ts";
+import {
+  COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS,
+  COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS,
+  EU_VAT_APPLICABLE_COUNTRY_CODES,
+  GST_APPLICABLE_COUNTRY_CODES,
+  NORWAY_VAT_APPLICABLE_COUNTRY_CODES,
+  taxNameFor,
+} from "../mail/mailers/receipt-tax.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
@@ -182,6 +190,17 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     if (purchasers.size !== purchaserIds.length) throw new HandBackToRails("a sale whose buyer is missing");
   }
 
+  const zipTaxRateIds = [
+    ...new Set(purchases.map((purchase) => purchase.zip_tax_rate_id).filter((id): id is bigint => id !== null)),
+  ];
+  const taxCountries = new Map<string, string | null>();
+  if (zipTaxRateIds.length > 0) {
+    for (const row of await selectRows<{ id: bigint; country: string | null }>(
+      Prisma.sql`SELECT ${column("zip_tax_rates", "id")}, ${column("zip_tax_rates", "country")} FROM ${table("zip_tax_rates")} WHERE ${column("zip_tax_rates", "id")} IN (${Prisma.join(zipTaxRateIds)})`,
+    ))
+      taxCountries.set(String(row.id), row.country);
+  }
+
   // charged_using_stripe_connect_account?: the merchant account belongs to a seller.
   const merchantAccountIds = [
     ...new Set(purchases.map((purchase) => purchase.merchant_account_id).filter((id): id is bigint => id !== null)),
@@ -226,6 +245,7 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         refundedCents,
         customFieldValues,
         variant: variantByPurchase.get(key),
+        taxCountries,
       }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
@@ -253,13 +273,13 @@ function purchaseFields(
     refundedCents: Map<string, number>;
     customFieldValues: Map<string, string | boolean>;
     variant: VariantRow | undefined;
+    taxCountries: Map<string, string | null>;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [
     ["is_gift_sender_purchase", "a gift"],
     ["is_gift_receiver_purchase", "a gift"],
     ["is_preorder_authorization", "a pre-order"],
-    ["was_purchase_taxable", "a taxable sale"],
   ] as const)
     if (flagSet(purchase, name)) throw new HandBackToRails(`an export that holds ${reason}`);
   if (purchase.preorder_id !== null) throw new HandBackToRails("an export that holds a pre-order");
@@ -273,8 +293,6 @@ function purchaseFields(
     purchase.gumroad_tax_cents === null
   )
     throw new HandBackToRails("a sale with an amount that is missing");
-  if (purchase.tax_cents > 0 || purchase.gumroad_tax_cents > 0)
-    throw new HandBackToRails("a sale with tax, whose label Rails derives from the tax rate");
   if (purchase.state === null || purchase.country === null)
     throw new HandBackToRails("a sale whose state or country comes from its IP address");
   if (purchase.created_at === null) throw new HandBackToRails("a sale without a creation time");
@@ -282,6 +300,20 @@ function purchaseFields(
   const priceDollars = dollars(purchase.price_cents);
   // Purchase#variant_extra_cost_dollars: the price differences, nil counting as nothing.
   const variantsPriceDollars = dollars(lookups.variant?.price_difference_cents ?? 0);
+  // Purchase#has_tax_label?, #tax_label(include_tax_rate: false): the named tax of the rate's country, else "Sales tax".
+  const hasTaxLabel = flagSet(purchase, "was_purchase_taxable") || purchase.gumroad_tax_cents > 0 || purchase.tax_cents > 0;
+  const taxCountry = purchase.zip_tax_rate_id === null ? null : (lookups.taxCountries.get(String(purchase.zip_tax_rate_id)) ?? null);
+  const namedTax =
+    taxCountry !== null &&
+    [
+      EU_VAT_APPLICABLE_COUNTRY_CODES,
+      NORWAY_VAT_APPLICABLE_COUNTRY_CODES,
+      COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS,
+      COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS,
+      GST_APPLICABLE_COUNTRY_CODES,
+    ].some((codes) => codes.has(taxCountry));
+  const taxLabel = !hasTaxLabel ? "" : namedTax ? taxNameFor(taxCountry) : "Sales tax";
+  const taxable = flagSet(purchase, "was_purchase_taxable");
   const sku = lookups.variant?.type === "Sku" ? lookups.variant : undefined;
   const buyer = purchase.purchaser_id === null ? undefined : lookups.purchasers.get(String(purchase.purchaser_id));
   const refunded = flagSetColumn(purchase.stripe_refunded);
@@ -299,14 +331,15 @@ function purchaseFields(
     "Purchase Date": dateOf(purchase.created_at),
     "Purchase Time (UTC timezone)": timeOf(purchase.created_at),
     "Subtotal ($)": dollars(purchase.price_cents - purchase.tax_cents - (purchase.shipping_cents ?? 0)),
-    "Taxes ($)": dollars(0),
-    "Tax Type": "",
+    // Purchase#tax_dollars
+    "Taxes ($)": dollars(purchase.gumroad_tax_cents > 0 ? purchase.gumroad_tax_cents : purchase.tax_cents),
+    "Tax Type": taxLabel,
     "Shipping ($)": dollars(purchase.shipping_cents),
     "Sale Price ($)": priceDollars,
     "Fees ($)": dollars(purchase.fee_cents),
     "Tip ($)": new RubyFloat(0),
     "Net Total ($)": dollars(purchase.price_cents - purchase.fee_cents),
-    "Tax Included in Price?": null,
+    "Tax Included in Price?": taxable ? (flagSet(purchase, "was_tax_excluded_from_price") ? 0 : 1) : null,
     "Street Address": ascii(purchase.street_address, "a street address"),
     City: ascii(purchase.city, "a city"),
     "Zip Code": zipCodeForExport(purchase.zip_code),
