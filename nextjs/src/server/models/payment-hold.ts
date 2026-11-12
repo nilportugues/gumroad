@@ -1,22 +1,23 @@
-// Port of the user side of a failed Stripe payout: StripePayoutProcessor.hold_payouts_for_unaccounted_money! and the part of
-// reverse_internal_transfer_or_hold_payouts! that runs when there is no internal transfer to reverse. Golden:
-// scripts/golden/payouts-create-payments.rb.
-//
-// Not ported, refused before anything is written: a payment with a stripe_internal_transfer_id (the reversal needs the
-// Stripe calls of `reverse_internal_transfer!`), and the `rescue` of the Ruby method, which re-stamps UNREVERSED_INTERNAL_TRANSFER,
-// retries the hold and reports once. An error raised by the hold propagates unchanged here.
+// Port of the user side of a failed Stripe payout: StripePayoutProcessor.hold_payouts_for_unaccounted_money! and
+// reverse_internal_transfer_or_hold_payouts! with its `rescue` (re-stamp UNREVERSED_INTERNAL_TRANSFER, a second hold attempt, one
+// report). The reversal itself is payout-reversal.ts. Goldens: scripts/golden/payouts-create-payments.rb (the hold) and
+// scripts/golden/payouts-reversal.rb (the reversal and the rescue).
 import { Prisma } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
+import { notifyError } from "../infra/error-reporting.ts";
 
 import { COMMENT_TYPES, Comments } from "./comment.ts";
+import REASONS from "./payment-failure-reasons.generated.json" with { type: "json" };
 import { Payments, paymentUser, type PaymentRecord } from "./payment.ts";
+import { reverseInternalTransferOrDeferBang } from "./payout-reversal.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
 import { column, selectRows, table } from "./sql.ts";
-import { isFlagSet, NotPortedError, setFlag, setJsonDataForAttr, Users } from "./user.ts";
+import { isFlagSet, setFlag, setJsonDataForAttr, Users } from "./user.ts";
 
 export const UNACCOUNTED_MONEY_HOLD_MARKER = "could not be accounted for";
 const PAYOUT_OUTCOME_UNKNOWN = "payout_outcome_unknown";
+const UNREVERSED_INTERNAL_TRANSFER = "unreversed_internal_transfer";
 // User::SYSTEM_PAYOUT_PAUSE_COMMENT_AUTHORS[:repeated_failed_payouts]
 const REPEATED_FAILED_PAYOUTS_AUTHOR = "pause_payouts_after_repeated_failures";
 const PAYOUT_PAUSE_SOURCE_SYSTEM = "system";
@@ -59,17 +60,49 @@ export async function holdPayoutsForUnaccountedMoneyBang(
   });
 }
 
-// reverse_internal_transfer_or_hold_payouts!(payment, failure_reason) for a payment that has no internal transfer.
+// The Ruby `@payout_reversal_failure_notified`: SyncStuckPayoutsJob skips a second "rejected sync" alert for the payment.
+export const payoutReversalFailureNotified = new WeakSet<PaymentRecord>();
+
+// reverse_internal_transfer_or_hold_payouts!(payment, failure_reason, reraise:)
 export async function reverseInternalTransferOrHoldPayoutsBang(
   payment: PaymentRecord,
   failureReason: string | null,
-  options: SaveOptions = {},
+  options: SaveOptions & { reraise?: boolean } = {},
 ): Promise<void> {
-  if (payment.get("stripe_internal_transfer_id") != null)
-    throw new NotPortedError(
-      "StripePayoutProcessor.reverse_internal_transfer! for a payment with an internal transfer",
-      "app/business/payments/payouts/processor/stripe/stripe_payout_processor.rb",
-    );
-  if (failureReason === PAYOUT_OUTCOME_UNKNOWN)
-    await holdPayoutsForUnaccountedMoneyBang(payment, failureReason, options);
+  const { reraise = false, ...saveOptions } = options;
+  try {
+    await reverseInternalTransferOrDeferBang(payment, saveOptions);
+    // An unknown payout outcome means Stripe may have accepted the bank payout even though the reversal succeeded.
+    if (failureReason === PAYOUT_OUTCOME_UNKNOWN)
+      await holdPayoutsForUnaccountedMoneyBang(payment, failureReason, saveOptions);
+  } catch (reverseError) {
+    // Re-stamp only a still-requeueable reason: an unknown outcome already blocks the requeue.
+    if (failureReason !== null && REASONS.requeueable_reasons.includes(failureReason)) {
+      payment.set("failure_reason", UNREVERSED_INTERNAL_TRANSFER);
+      await Payments.saveBang(payment, saveOptions);
+    }
+    let holdError: Error | null = null;
+    try {
+      await holdPayoutsForUnaccountedMoneyBang(payment, failureReason, saveOptions);
+    } catch (error) {
+      holdError = error as Error;
+    }
+    const reversalMessage = reverseError instanceof Error ? reverseError.message : String(reverseError);
+    notifyError(holdError ?? reverseError, {
+      payment_id: payment.get("id"),
+      user_id: payment.get("user_id"),
+      stripe_internal_transfer_id: payment.get("stripe_internal_transfer_id"),
+      original_failure_reason: failureReason,
+      reverse_error: reversalMessage,
+      hold_setup_failed: holdError !== null,
+      action_required:
+        holdError !== null
+          ? "Payout reversal failed and the automatic payout hold could not be set. Pause this seller and reconcile at Stripe by hand."
+          : "Payouts are paused for this seller. Reverse or reconcile this transfer at Stripe by hand, then resume payouts.",
+    });
+    payoutReversalFailureNotified.add(payment);
+    // A failed hold must still raise: mark_failed! returned the balances to unpaid.
+    if (holdError !== null) throw holdError;
+    if (reraise) throw reverseError;
+  }
 }
