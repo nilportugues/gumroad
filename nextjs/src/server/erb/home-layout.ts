@@ -5,7 +5,7 @@
 // The nav, header, button and how_we_build partials hold Ruby (methods, hashes, string interpolation), so they are written out
 // here; the footer and the scripts are plain markup and are read from the .erb files Rails renders.
 import { storageConfig } from "../infra/storage.ts";
-import { viteEntrypointStylesheet } from "../infra/vite.ts";
+import { viteEntrypointStylesheet, viteTypescriptTag } from "../infra/vite.ts";
 import { assetHost, type DomainConfig } from "../page-props/domain.ts";
 import { type MetaTagBuilder } from "../page-props/meta-tags.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
@@ -638,6 +638,36 @@ export function renderHomeLayout(ctx: LayoutContext, view: string, requestOrigin
   </body>
 </html>
 
+`;
+}
+
+// `<%= yield :script %>` with nothing to yield: its indentation and the newline.
+const YIELD_SCRIPT_LINE = "    \n";
+
+// layouts/application.html.erb around a page that keeps the base entrypoint (`@hide_layouts` unset). `view` is the template's output.
+export function renderApplicationLayout(ctx: LayoutContext, view: string, requestOrigin: string): string {
+  if (ctx.hideLayouts) throw new NotPortedError("a page that hides the base entrypoint");
+  const bodyClass = [
+    "group/body",
+    ...(ctx.userAgent?.includes("Macintosh") ? ["mac"] : []),
+    ...(ctx.bodyClass ? [ctx.bodyClass] : []),
+  ];
+  return `<!DOCTYPE html>
+<html lang="en">
+  ${head(ctx)}
+  <body id="" class="${bodyClass.join(" ")}" style="${ctx.asEmbed ? "background: transparent" : ""}">
+    <div id="design-settings" data-settings="${escapeHtml(designSettings(ctx.config, requestOrigin))}" style="display: none;"></div>
+    ${flashPartial(ctx)}
+    <div class="flex flex-col lg:flex-row h-screen">
+      <main class="flex-1 flex flex-col lg:h-screen overflow-y-auto">
+        <div class="flex-1 flex flex-col">
+          ${view}
+        </div>
+      </main>
+    </div>
+      ${viteTypescriptTag("base").tags}
+${YIELD_SCRIPT_LINE}  </body>
+</html>
 `;
 }
 

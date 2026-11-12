@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 941 | 978 | 96.2% |
-| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 949 | 978 | 97.0% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1780 | 1857 | 95.9% |
-| Same, registered in routes.json (upper bound) | 1788 | 1857 | 96.3% |
+| Routes served natively (counted, static check) | 942 | 978 | 96.3% |
+| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 950 | 978 | 97.1% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1781 | 1857 | 95.9% |
+| Same, registered in routes.json (upper bound) | 1789 | 1857 | 96.3% |
 | Rails Inertia pages with Node props (counted, string match) | 112 | 114 | 98.2% |
 | Sidekiq job classes running in Node (counted) | 225 | 296 | 76.0% |
 
@@ -28,15 +28,15 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 171,944 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 327 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 172,263 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 328 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
 | Workstream | Routes | Native | Hands back | Not registered | Native % | Weight | Native weight | Weighted % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
-| WS-10 Settings and account | 180 | 165 | 5 | 10 | 91.7% | 291 | 266 | 91.4% |
+| WS-10 Settings and account | 180 | 166 | 5 | 9 | 92.2% | 291 | 267 | 91.8% |
 | WS-11 Help, pages, blog, profiles | 71 | 69 | 0 | 2 | 97.2% | 80 | 78 | 97.5% |
 | WS-12 Products and bundles | 141 | 136 | 3 | 2 | 96.5% | 207 | 202 | 97.6% |
 | WS-13 Audience, emails, workflows | 53 | 53 | 0 | 0 | 100.0% | 106 | 106 | 100.0% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 58 | 0 | 13 | 81.7% | 222 | 179 | 80.6% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 941 | 8 | 29 | 96.2% | 1857 | 1780 | 95.9% |
+| **All** | 978 | 942 | 8 | 28 | 96.3% | 1857 | 1781 | 95.9% |
 
 ## Sensitivity to the weights
 
@@ -57,16 +57,16 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 941 | 978 | 96.2% |
-| Verb only: GET 1, other verbs 2 | 1374 | 1427 | 96.3% |
-| Rubric weights 1 to 4 (the headline) | 1780 | 1857 | 95.9% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2090 | 2194 | 95.3% |
+| Every route counts 1 (the plain route share) | 942 | 978 | 96.3% |
+| Verb only: GET 1, other verbs 2 | 1375 | 1427 | 96.4% |
+| Rubric weights 1 to 4 (the headline) | 1781 | 1857 | 95.9% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2091 | 2194 | 95.3% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 370 | 95.9% |
+| 1 | 386 | 371 | 96.1% |
 | 2 | 330 | 324 | 98.2% |
 | 3 | 237 | 226 | 95.4% |
 | 4 | 25 | 21 | 84.0% |
@@ -89,7 +89,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Admin::FlipperUiController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Admin::SidekiqWebController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ApplicationController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
-| `ConfirmationsController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 1/2 (4) | 1 |
 | `GlobalAffiliates::ProductEligibilityController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ProductReviewVideos::StreamsController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Products::AvailableOfferCodesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
@@ -216,6 +215,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Communities::ChatMessagesController` | WS-13 Audience, emails, workflows | 3 | 3 | 0 | 0 | 2 (6) | 0 |
 | `Communities::LastReadChatMessagesController` | WS-13 Audience, emails, workflows | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Communities::NotificationSettingsController` | WS-13 Audience, emails, workflows | 1 | 1 | 0 | 0 | 2 (2) | 0 |
+| `ConfirmationsController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
 | `ConnectionsController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 2 (8) | 0 |
 | `ConsumptionAnalyticsController` | WS-16 Library and content delivery | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `CustomDomain::VerificationsController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 3 (3) | 0 |

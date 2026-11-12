@@ -59,3 +59,38 @@ export function viteEntrypointStylesheet(entry: string): { tag: string; linkHead
     linkHeader: `<${href}>; rel=preload; as=style; crossorigin=anonymous; nopush`,
   };
 }
+
+// ViteRuby's import_chunks_for: the chunks an entry imports, dependencies first, each file once.
+function importedFiles(manifest: Manifest, entry: Manifest[string], seen: Set<string>): string[] {
+  const files: string[] = [];
+  for (const key of entry.imports ?? []) {
+    const chunk = manifest[key];
+    if (!chunk) throw new NotPortedError(`${key} in the Vite manifest`);
+    if (seen.has(chunk.file)) continue;
+    seen.add(chunk.file);
+    files.push(...importedFiles(manifest, chunk, seen), chunk.file);
+  }
+  return files;
+}
+
+// `vite_typescript_tag name, skip_style_tags: true`: the module script, then a modulepreload link per imported chunk. Only the
+// script's preload reaches the `Link` header; the imports go out as early hints.
+export function viteTypescriptTag(name: string): { tags: string; linkHeader: string } {
+  if (railsEnv() === "development") throw new NotPortedError("the Vite dev server's script tags");
+  const { dir, local, manifest } = loadManifest();
+  const entry = manifest[`entrypoints/${name}.ts`];
+  if (!entry) throw new NotPortedError(`entrypoints/${name}.ts in the Vite manifest`);
+  const host = local ? "" : (domainConfig().assetHost ?? "");
+  const href = (file: string) => `${host}/${dir}/${file}`;
+  const preloads = importedFiles(manifest, entry, new Set()).map(
+    (file) => `<link rel="modulepreload" href="${href(file)}" as="script" crossorigin="">`,
+  );
+  const src = href(entry.file);
+  return {
+    tags: [
+      `<script src="${src}" crossorigin="" type="module"></script>${preloads[0] ?? ""}`,
+      ...preloads.slice(1),
+    ].join("\n"),
+    linkHeader: `<${src}>; rel=modulepreload; as=script; crossorigin=; nopush`,
+  };
+}

@@ -40,7 +40,9 @@ const COMPARE = {
 export const maskVolatile = (text: string) =>
   text
     .replace(/(<meta name="csrf-token" content=")[^"]*(")/u, "$1<csrf-token>$2")
-    .replace(/(<script nonce=")[^"]*(")/gu, "$1<nonce>$2");
+    .replace(/(<script nonce=")[^"]*(")/gu, "$1<nonce>$2")
+    // The per-form tokens of a Devise view: csrf.test.ts pins how each is derived from the session's.
+    .replace(/(name="authenticity_token" value=")[^"]*(")/gu, "$1<csrf-token>$2");
 
 // The recorder drops the CSP header as volatile, so masking the nonce would hide a header that names another nonce than the body's.
 // The live response is the only place both exist: every nonce in the body must be allowed by the header.
@@ -66,7 +68,7 @@ const maskingTransport =
 
 export function describeErbLayoutReplay(
   title: string,
-  options: { routeFlags: string; seed: Record<string, number | null>; github?: number; select: (name: string) => boolean; spec?: string },
+  options: { routeFlags: string; seed: Record<string, number | null>; github?: number; select: (name: string) => boolean; spec?: string; env?: Record<string, string> },
 ) {
   const FIXTURES = path.join("parity/fixtures/requests", options.spec ?? DEFAULT_SPEC);
   const url = process.env.PARITY_DATABASE_URL;
@@ -127,6 +129,7 @@ export function describeErbLayoutReplay(
         SIDEKIQ_REDIS_HOST: redisHost,
         JOBS_REDIS_URL: `redis://${redisHost}`,
         RAILS_CACHE_TEST_SEED: JSON.stringify(options.seed),
+        ...options.env,
         ...(github ? { GITHUB_API_ORIGIN: `http://127.0.0.1:${(github.address() as { port: number }).port}` } : {}),
       });
     }, FIRST_COMPILE_TIMEOUT_MS);

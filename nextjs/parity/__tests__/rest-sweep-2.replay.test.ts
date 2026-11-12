@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
@@ -98,7 +99,10 @@ function redisJobs(redis: Redis): JobsChannel {
             ...(item.at === undefined ? {} : { at: item.at }),
           });
       }
-      return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      // Rails' user factories took the until_executed lock of GenerateSubscribePreviewJob before the request; Node takes it as production does.
+      return jobs
+        .filter((job) => job.class !== "GenerateSubscribePreviewJob")
+        .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
@@ -154,6 +158,14 @@ const COMPARE = {
     "http",
     // The export file is named after the second it was made in.
     "response.headers.content-disposition",
+    // A brand account is a new user: random tokens and the bcrypt hash (checked below), and the cookie is encrypted with a random IV.
+    "db.users.inserted.*.encrypted_password",
+    "db.users.inserted.*.confirmation_token",
+    "db.users.inserted.*.external_id",
+    "db.users.inserted.*.otp_secret_key",
+    "db.seller_profiles.inserted.*.created_at",
+    "db.seller_profiles.inserted.*.updated_at",
+    "response.cookies.current_seller_id.value",
   ],
 };
 
@@ -306,6 +318,26 @@ describe.skipIf(!url)("rest sweep 2", () => {
           ...(fixture.sessionCookie ? { sessionCookie: fixture.sessionCookie } : {}),
         });
         assertParity(result);
+        const actual = result.exchanges[0]!.actual;
+        if ((actual.db?.users?.inserted?.length ?? 0) > 0) {
+          // A new account: the bcrypt hash, the confirmation mail carrying the stored token, and the switch into the account.
+          const row = (await client.user.findFirst({
+            where: { id: BigInt((actual.db!.users!.inserted![0] as { id: number }).id) },
+            select: { id: true, encrypted_password: true, confirmation_token: true },
+          }))!;
+          expect(row.encrypted_password!.startsWith("$2a$04$")).toBe(true);
+          expect(row.confirmation_token).toMatch(/^[A-Za-z0-9_-]{20}$/u);
+          expect(mailJobs).toHaveLength(1);
+          const wrapped = (mailJobs[0]!.args as { job_class: string; queue_name: string; arguments: unknown[] }[])[0]!;
+          expect(wrapped).toMatchObject({ job_class: "MailDeliveryJob", queue_name: "critical" });
+          expect(wrapped.arguments.slice(0, 2)).toEqual(["UserSignupMailer", "confirmation_instructions"]);
+          expect(JSON.stringify(mailJobs[0]!.args)).toContain(row.confirmation_token!);
+          const cookie = actual.response.cookies?.current_seller_id?.value as string | undefined;
+          expect(readEncryptedCookie(deriveRailsCookieSecrets(SECRET_KEY_BASE), "current_seller_id", cookie)).toBe(
+            Number(row.id),
+          );
+          return;
+        }
         const wanted = expectedContactMail(name);
         expect(mailJobs).toHaveLength(wanted === null ? 0 : 1);
         if (wanted !== null) {

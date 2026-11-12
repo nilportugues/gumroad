@@ -323,7 +323,7 @@ async function joinTeam(invitation: Invitation, loggedIn: UserRecord): Promise<M
 }
 
 // `user_memberships.create!(seller: self, role: owner) unless user_memberships.one?(&:role_owner?)`
-async function createOwnerMembershipIfNeeded(user: UserRecord, now: Date): Promise<void> {
+export async function createOwnerMembershipIfNeeded(user: UserRecord, now: Date): Promise<void> {
   const memberships = await selectRows<TeamMembership>(
     Prisma.sql`SELECT ${Prisma.raw("`team_memberships`.*")} FROM ${table("team_memberships")} WHERE ${column("team_memberships", "user_id")} = ${user.get("id")}`,
   );

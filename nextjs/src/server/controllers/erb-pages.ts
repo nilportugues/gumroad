@@ -9,11 +9,12 @@ import {
   howWeBuild,
   imagePath,
   type LayoutContext,
+  renderApplicationLayout,
   renderHomeLayout,
 } from "../erb/home-layout.ts";
 import { imageTag } from "../erb/html.ts";
 import { generateCspNonce } from "../infra/secure-headers.ts";
-import { viteEntrypointStylesheet } from "../infra/vite.ts";
+import { viteEntrypointStylesheet, viteTypescriptTag } from "../infra/vite.ts";
 import { formAuthenticityToken } from "../page-props/csrf.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { MetaTagBuilder } from "../page-props/meta-tags.ts";
@@ -93,6 +94,11 @@ function pageMetaTags(meta: MetaTagBuilder, { title, description, url }: PageMet
 // The layout reads the signed-in seller only for the third-party analytics flag.
 const PORTS = { presenters: signedInPresenters } as SharedPropsPorts;
 
+type ErbLayout = "home" | "application";
+
+// `csrfToken` is the session's real token, for the forms a view signs itself.
+export type ErbView = (ctx: LayoutContext, csrfToken: string) => string;
+
 export async function renderHomePage(
   request: RailsRequest,
   action: ActionContext,
@@ -100,11 +106,32 @@ export async function renderHomePage(
   view: (ctx: LayoutContext) => string,
   response: { paramsRead?: boolean; headers?: Record<string, string> } = {},
 ): Promise<Rendered> {
+  return renderErbPage(request, action, "home", page, view, response);
+}
+
+// A page in layouts/application.html.erb that keeps the base entrypoint, as Devise's views do.
+export function renderApplicationPage(
+  request: RailsRequest,
+  action: ActionContext,
+  page: PageMeta | null,
+  view: ErbView,
+): Promise<Rendered> {
+  return renderErbPage(request, action, "application", page, view, {});
+}
+
+async function renderErbPage(
+  request: RailsRequest,
+  action: ActionContext,
+  layout: ErbLayout,
+  page: PageMeta | ((origin: string) => PageMeta) | null,
+  view: ErbView,
+  response: { paramsRead?: boolean; headers?: Record<string, string> },
+): Promise<Rendered> {
   const config = domainConfig(process.env);
   // `signed_in?` is the Warden session, which an impersonating admin has as themselves.
   const signedIn = railsLoggedInUser(action.context) !== null;
   const origin = `${config.protocol}://${request.hostWithPort}`;
-  const githubStars = await cachedGithubStars();
+  const githubStars = layout === "home" ? await cachedGithubStars() : null;
   const state = action.takeRenderState();
   const meta = new MetaTagBuilder();
   await applicationMetaTags(meta, {
@@ -112,8 +139,9 @@ export async function renderHomePage(
     config,
     csrfToken: formAuthenticityToken(state.csrfToken),
     ports: PORTS,
+    analyticsFirst: layout === "application",
   });
-  pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
+  if (page !== null) pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
   const nonce = generateCspNonce();
   const ctx: LayoutContext = {
     config,
@@ -126,12 +154,18 @@ export async function renderHomePage(
     meta,
     githubStars,
     signedIn,
-    hideLayouts: true,
+    hideLayouts: layout === "home",
   };
   // A tag the ERB table does not list is a page Rails renders, not one to guess.
   let renderedBody: string;
+  let link = viteEntrypointStylesheet("entrypoints/design.scss").linkHeader;
   try {
-    renderedBody = renderHomeLayout(ctx, view(ctx), origin);
+    const content = view(ctx, state.csrfToken);
+    if (layout === "home") renderedBody = renderHomeLayout(ctx, content, origin);
+    else {
+      renderedBody = renderApplicationLayout(ctx, content, origin);
+      link = `${link},${viteTypescriptTag("base").linkHeader}`;
+    }
   } catch (error) {
     if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
     throw error;
@@ -140,7 +174,7 @@ export async function renderHomePage(
     status: 200,
     body: renderedBody,
     contentType: HTML,
-    headers: { ...response.headers, link: viteEntrypointStylesheet("entrypoints/design.scss").linkHeader },
+    headers: { ...response.headers, link },
     cspNonce: nonce,
     paramsRead: response.paramsRead ?? true,
   };

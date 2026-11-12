@@ -16,7 +16,21 @@ export type DnsResolver = {
   a(name: string): Promise<string[]>;
 };
 
+// Test environment only: the zone a replay answers from instead of the network, as a spec's Resolv::DNS stub does.
+// JSON of `{ "cname": { name: target }, "a": { name: [address] } }`.
+function testZoneResolver(): DnsResolver | null {
+  const zone = railsEnv() === "test" ? process.env.CUSTOM_DOMAIN_DNS_TEST_ZONE : undefined;
+  if (zone === undefined) return null;
+  const { cname = {}, a = {} } = JSON.parse(zone) as { cname?: Record<string, string>; a?: Record<string, string[]> };
+  return {
+    cname: (name) => Promise.resolve(cname[name] === undefined ? [] : [cname[name]]),
+    a: (name) => Promise.resolve(a[name] ?? []),
+  };
+}
+
 export function nodeDnsResolver(): DnsResolver {
+  const stand = testZoneResolver();
+  if (stand !== null) return stand;
   const resolver = new Resolver({ timeout: RESOLVER_TIMEOUT_MS, tries: 1 });
   const orEmpty = async (lookup: Promise<string[]>) => {
     try {
