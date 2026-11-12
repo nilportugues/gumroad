@@ -268,6 +268,39 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("Affiliate")] }).to include("partner@example.com", "new-address@example.com")
   end
 
+  it "writes the tip, the review and the license key with its activations", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed", is_licensed: true)
+    tipped = sell(price_cents: 1150)
+    Tip.create!(purchase: tipped, value_cents: 150, value_usd_cents: 150)
+    reviewed = sell(price_cents: 500)
+    ProductReview.new(purchase: reviewed, link: product, rating: 4, message: "Worth it, \"quoted\"").save!(validate: false)
+    unmessaged = sell(price_cents: 500)
+    ProductReview.new(purchase: unmessaged, link: product, rating: 5).save!(validate: false)
+    keyed = sell(of: licensed, price_cents: 900)
+    License.create!(purchase: keyed, link: licensed, serial: "AAAA-BBBB-CCCC-DDDD", uses: 3)
+    disabled = sell(of: licensed, price_cents: 900)
+    License.create!(purchase: disabled, link: licensed, serial: "EEEE-FFFF-GGGG-HHHH", uses: 0, disabled_at: 2.days.ago)
+    sell(of: licensed, price_cents: 900)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("License Key")] }).to include("AAAA-BBBB-CCCC-DDDD", "EEEE-FFFF-GGGG-HHHH")
+  end
+
+  it "hands a sale of a licensed product with a variant to Rails", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed versions", is_licensed: true)
+    category = create(:variant_category, link: licensed, title: "Edition")
+    edition = create(:variant, variant_category: category, name: "Pro", price_difference_cents: 100)
+    keyed = sell(of: licensed, price_cents: 600)
+    keyed.variant_attributes << edition
+    License.create!(purchase: keyed, link: licensed, serial: "IIII-JJJJ-KKKK-LLLL", uses: 1)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+  end
+
   it "hands a sale with a non-ASCII address to Rails", parity: true do
     sell(street_address: "1 Marktstraße")
 

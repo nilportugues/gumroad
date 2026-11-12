@@ -1,6 +1,6 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
 // the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
-// refunds and its custom fields. A sale that needs anything else (gifts, pre-orders, subscriptions, licenses, reviews, tips,
+// refunds and its custom fields. A sale that needs anything else (gifts, pre-orders, subscriptions,
 // UTM links, upsells, carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
 // throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
@@ -37,9 +37,6 @@ const NON_ASCII = /[^\x20-\x7e]/u;
 const PURCHASE_ID_TABLES: readonly [string, string, string][] = [
   ["gifts", "gifter_purchase_id", "a gift"],
   ["gifts", "giftee_purchase_id", "a gift"],
-  ["licenses", "purchase_id", "a license"],
-  ["product_reviews", "purchase_id", "a review"],
-  ["tips", "purchase_id", "a tip"],
   ["purchase_presentments", "purchase_id", "a buyer-currency charge"],
   ["upsell_purchases", "purchase_id", "an upsell"],
   ["utm_link_driven_sales", "purchase_id", "a UTM link"],
@@ -54,6 +51,7 @@ const flagSet = (purchase: Purchase, name: Parameters<typeof PurchaseFlags.isSet
   PurchaseFlags.isSet(purchase.flags, name);
 
 type CustomFieldRow = { purchase_id: bigint; name: string | null; value: string | null; field_type: string | null };
+type LicenseRow = { purchase_id: bigint; serial: string | null; uses: number | null; disabled_at: Date | null };
 type RefundRow = { purchase_id: bigint; amount_cents: number | null };
 // The one BaseVariant (a Variant or a Sku) a purchase holds in `variant_attributes`.
 type VariantRow = {
@@ -201,6 +199,37 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       taxCountries.set(String(row.id), row.country);
   }
 
+  const tips = await selectRows<{ purchase_id: bigint; value_usd_cents: number | null }>(
+    Prisma.sql`SELECT ${column("tips", "purchase_id")}, ${column("tips", "value_usd_cents")} FROM ${table("tips")} WHERE ${column("tips", "purchase_id")} IN (${Prisma.join(purchaseIds)}) ORDER BY ${column("tips", "id")}`,
+  );
+  // has_one :tip reads the first row; a second tip on one sale is not proven.
+  const tipCents = new Map<string, number>();
+  for (const tip of tips) {
+    if (tipCents.has(String(tip.purchase_id))) throw new HandBackToRails("a sale with several tips");
+    tipCents.set(String(tip.purchase_id), tip.value_usd_cents ?? 0);
+  }
+
+  // original_product_review: the sale's own review, since a subscription or a gift hands back.
+  const reviews = await selectRows<{ purchase_id: bigint; rating: number | null; message: string | null }>(
+    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")}, ${column("product_reviews", "message")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+  );
+  const reviewByPurchase = new Map(reviews.map((review) => [String(review.purchase_id), review]));
+
+  const licenseRows = await selectRows<LicenseRow>(
+    Prisma.sql`SELECT ${column("licenses", "purchase_id")}, ${column("licenses", "serial")}, ${column("licenses", "uses")}, ${column("licenses", "disabled_at")} FROM ${table("licenses")} WHERE ${column("licenses", "purchase_id")} IN (${Prisma.join(purchaseIds)}) ORDER BY ${column("licenses", "id")}`,
+  );
+  const licenseByPurchase = new Map<string, LicenseRow>();
+  for (const license of licenseRows) {
+    if (licenseByPurchase.has(String(license.purchase_id))) throw new HandBackToRails("a sale with several licenses");
+    licenseByPurchase.set(String(license.purchase_id), license);
+  }
+  // Purchase#variant_content_permits_license_key? reads the variants' rich content, which is not ported.
+  for (const purchase of purchases) {
+    const link = linkById.get(String(purchase.link_id))!;
+    if (LinkFlags.isSet(link.flags, "is_licensed") && variantByPurchase.has(String(purchase.id)))
+      throw new HandBackToRails("a licensed product's sale with a variant");
+  }
+
   // purchase.affiliate&.affiliate_user&.form_email
   const affiliateIds = [
     ...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id): id is bigint => id !== null)),
@@ -261,6 +290,9 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         variant: variantByPurchase.get(key),
         taxCountries,
         affiliateEmails,
+        tipCents: tipCents.get(key),
+        review: reviewByPurchase.get(key),
+        license: licenseByPurchase.get(key),
       }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
@@ -281,7 +313,7 @@ function ascii(value: string | null, what: string): string | null {
 
 function purchaseFields(
   purchase: Purchase,
-  link: { name: string | null; unique_permalink: string | null },
+  link: { name: string | null; unique_permalink: string | null; flags: bigint },
   lookups: {
     purchasers: Map<string, { name: string | null; email: string | null }>;
     offerCodes: Map<string, string | null>;
@@ -290,6 +322,9 @@ function purchaseFields(
     variant: VariantRow | undefined;
     taxCountries: Map<string, string | null>;
     affiliateEmails: Map<string, string | null>;
+    tipCents: number | undefined;
+    review: { rating: number | null; message: string | null } | undefined;
+    license: LicenseRow | undefined;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [
@@ -352,7 +387,8 @@ function purchaseFields(
     "Shipping ($)": dollars(purchase.shipping_cents),
     "Sale Price ($)": priceDollars,
     "Fees ($)": dollars(purchase.fee_cents),
-    "Tip ($)": new RubyFloat(0),
+    // (tip&.value_usd_cents || 0) / 100.0, not rounded
+    "Tip ($)": new RubyFloat((lookups.tipCents ?? 0) / CENTS_PER_DOLLAR),
     "Net Total ($)": dollars(purchase.price_cents - purchase.fee_cents),
     "Tax Included in Price?": taxable ? (flagSet(purchase, "was_tax_excluded_from_price") ? 0 : 1) : null,
     "Street Address": ascii(purchase.street_address, "a street address"),
@@ -391,11 +427,12 @@ function purchaseFields(
     "Discover?": flagSet(purchase, "was_product_recommended") ? 1 : 0,
     "Cancellation Date": null,
     "Subscription End Date": null,
-    Rating: null,
-    Review: null,
-    "License Key": null,
-    "License Key Activation Count": null,
-    "License Key Enabled?": null,
+    Rating: lookups.review?.rating ?? null,
+    Review: lookups.review?.message ?? null,
+    // Purchase#license_key: only a licensed product shows its serial.
+    "License Key": LinkFlags.isSet(link.flags, "is_licensed") ? (lookups.license?.serial ?? null) : null,
+    "License Key Activation Count": lookups.license === undefined ? null : (lookups.license.uses ?? null),
+    "License Key Enabled?": lookups.license === undefined ? null : lookups.license.disabled_at === null ? 1 : 0,
     "Payment Type": paymentTypeLabel(purchase.card_type) ?? null,
     "PayPal Transaction ID": null,
     "PayPal Fee Amount": null,
