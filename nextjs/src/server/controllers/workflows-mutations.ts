@@ -1,6 +1,6 @@
-// WorkflowsController#create, #update and #destroy (app/controllers/workflows_controller.rb), and the guards of
-// Workflows::EmailsController#update: its saves go through Workflow::SaveInstallmentsService (moderation, schedule intents, preview
-// mail), which is not ported, so a request that passes them goes to Rails whole, before any write.
+// WorkflowsController#create, #update and #destroy (app/controllers/workflows_controller.rb), and Workflows::EmailsController#update:
+// the guards, then Workflow::SaveInstallmentsService (models/workflow-save-installments.ts). An email with files, a preview, an
+// upsell card or an abandoned cart goes to Rails whole, before any write.
 import { Prisma, type Link, type Workflow } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
@@ -16,6 +16,7 @@ import {
   SAVE_AND_PUBLISH_ACTION,
   SAVE_AND_UNPUBLISH_ACTION,
 } from "../models/workflow-manage.ts";
+import { permitInstallments, saveInstallments } from "../models/workflow-save-installments.ts";
 import { markDeletedBang, Workflows } from "../models/workflow-writes.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -125,6 +126,7 @@ async function manage(input: MutationInput, loaded: Loaded): Promise<ActionResul
 }
 
 async function updateEmails(input: MutationInput): Promise<ActionResult> {
+  let workflow: ModelRecord<Workflow> | null = null;
   const denied = await sellerGuard(
     {
       context: input.context,
@@ -135,7 +137,7 @@ async function updateEmails(input: MutationInput): Promise<ActionResult> {
     },
     async (sellerContext) => {
       // `@workflow.link.user` raises NoMethodError in Rails for a workflow whose product row is gone.
-      await setWorkflow(sellerContext.seller!.id, input.routeParams.workflow_id!).catch((error: unknown) => {
+      workflow = await setWorkflow(sellerContext.seller!.id, input.routeParams.workflow_id!).catch((error: unknown) => {
         if (error instanceof TypeError) throw new HandBackToRails("a workflow whose product row is missing");
         throw error;
       });
@@ -143,7 +145,19 @@ async function updateEmails(input: MutationInput): Promise<ActionResult> {
     },
   );
   if (denied) return denied;
-  throw new HandBackToRails("an email save, which Workflow::SaveInstallmentsService performs");
+
+  const params = permitInstallments(input.params.workflow);
+  const record = workflow!;
+  const location = `/workflows/${railsSegment(encrypt(record.get("id")))}/emails`;
+  const result = await saveInstallments({ seller: input.context.currentSeller!, params, workflow: record });
+  if (!result.ok) return { status: SEE_OTHER, location, flash: { alert: result.error }, inertiaErrors: result.errors };
+  const notice =
+    params.save_action_name === SAVE_AND_PUBLISH_ACTION
+      ? FLASH_WORKFLOW_PUBLISHED
+      : params.save_action_name === SAVE_AND_UNPUBLISH_ACTION
+        ? FLASH_WORKFLOW_UNPUBLISHED
+        : FLASH_CHANGES_SAVED;
+  return { status: SEE_OTHER, location, flash: { notice } };
 }
 
 registerMutations(

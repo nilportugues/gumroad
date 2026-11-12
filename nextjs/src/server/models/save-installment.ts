@@ -5,33 +5,41 @@
 // What Node cannot prove throws NotPortedError before the first write, and the controller hands the request to Rails:
 // a post with files (S3 and ProductFile), a message Nokogiri would rewrite or that holds an upsell card,
 // a preview email, a "has not clicked" filter, and the date formats TimeZone#parse reads beyond ISO 8601.
-import { Prisma, type BaseVariant, type Installment, type InstallmentRule, type Link, type User } from "@prisma/client";
-
 import { randomBytes } from "node:crypto";
+
+import { Prisma, type BaseVariant, type Installment, type InstallmentRule, type Link, type User } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { notifyError } from "../infra/error-reporting.ts";
-import { dateInTimeZoneIso8601, endOfDayIso8601, startOfDayIso8601 } from "./concerns/rails-time-zone.ts";
-import { rubyToI } from "./concerns/ruby-numeric.ts";
-import { setAssociation } from "./concerns/rails-validations.ts";
+
 import { performAsync } from "./concerns/job-runtime.ts";
 import { jsonData, setJsonDataForAttr } from "./concerns/json-data.ts";
+import { dateInTimeZoneIso8601, endOfDayIso8601, startOfDayIso8601 } from "./concerns/rails-time-zone.ts";
+import { setAssociation } from "./concerns/rails-validations.ts";
+import { rubyToI } from "./concerns/ruby-numeric.ts";
 import { parseIsoDate } from "./concerns/ruby-time.ts";
 import { nokogiriRoundtrip } from "./html-fragment.ts";
 import { InstallmentFlags } from "./installment-post.ts";
 import { InstallmentRules, markDeletedBang as markRuleDeletedBang } from "./installment-rule-writes.ts";
 import { InstallmentInvalid, Installments, post, publishBang } from "./installment-writes.ts";
 import { enqueueLinkIndexUpdate } from "./link.ts";
-import { findOneBy } from "./row-reads.ts";
 import { createBlastAndEnqueue, hasBeenBlasted } from "./post-email-blast.ts";
+import { findOneBy } from "./row-reads.ts";
 import { RecordInvalid } from "./runtime/errors.ts";
-import { transaction } from "./runtime/transaction.ts";
 import type { ModelRecord } from "./runtime/record.ts";
+import { transaction } from "./runtime/transaction.ts";
 import { updateProfilePostsSections } from "./seller-profile-sections.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
 import { eligibleToSendEmails, MINIMUM_SALES_CENTS_VALUE } from "./user-email-eligibility.ts";
 import { NotPortedError } from "./user.ts";
-import { castBoolean, AUDIENCE_TYPE, FOLLOWER_TYPE, PRODUCT_TYPE, SELLER_TYPE, VARIANT_TYPE } from "./with-filtering.ts";
+import {
+  castBoolean,
+  AUDIENCE_TYPE,
+  FOLLOWER_TYPE,
+  PRODUCT_TYPE,
+  SELLER_TYPE,
+  VARIANT_TYPE,
+} from "./with-filtering.ts";
 
 type InstallmentRecord = ModelRecord<Installment>;
 type Scalar = string | number | boolean | null;
@@ -47,7 +55,8 @@ const refuse = (what: string): never => {
 
 // `BaseVariant.find_by_external_id(id)&.id`: an id that does not decrypt looks up `id IS NULL` (no row), and `nil.to_s` decodes like "".
 export async function findBaseVariantId(externalId: unknown): Promise<number | null> {
-  if (externalId !== undefined && externalId !== null && typeof externalId !== "string") return refuse("a variant_external_id that is not text");
+  if (externalId !== undefined && externalId !== null && typeof externalId !== "string")
+    return refuse("a variant_external_id that is not text");
   const variant = await findOneBy<BaseVariant>("BaseVariant", "id", decrypt(externalId ?? ""), true);
   return variant === null ? null : Number(variant.id);
 }
@@ -70,14 +79,29 @@ const SCALAR_KEYS = [
   "allow_comments",
   "not_clicked_post_id",
 ] as const;
-const ARRAY_KEYS = ["bought_products", "bought_variants", "affiliate_products", "not_bought_products", "not_bought_variants", "waitlisted_products", "shown_in_profile_sections"] as const;
-export type Permitted = Partial<Record<(typeof SCALAR_KEYS)[number], Scalar>> & Partial<Record<(typeof ARRAY_KEYS)[number], string[]>>;
+const ARRAY_KEYS = [
+  "bought_products",
+  "bought_variants",
+  "affiliate_products",
+  "not_bought_products",
+  "not_bought_variants",
+  "waitlisted_products",
+  "shown_in_profile_sections",
+] as const;
+export type Permitted = Partial<Record<(typeof SCALAR_KEYS)[number], Scalar>> &
+  Partial<Record<(typeof ARRAY_KEYS)[number], string[]>>;
 
-const isScalar = (value: unknown): value is Scalar => value === null || ["string", "number", "boolean"].includes(typeof value);
-const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const isScalar = (value: unknown): value is Scalar =>
+  value === null || ["string", "number", "boolean"].includes(typeof value);
+const isHash = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
 
 // ActionController::Parameters#permit: scalars first, then the lists of scalars, each in the order of the permit list.
-export function permit(raw: unknown, scalarKeys: readonly string[], arrayKeys: readonly string[]): Record<string, unknown> {
+export function permit(
+  raw: unknown,
+  scalarKeys: readonly string[],
+  arrayKeys: readonly string[],
+): Record<string, unknown> {
   if (!isHash(raw)) return refuse("a parameter that is not a hash");
   const out: Record<string, unknown> = {};
   for (const key of scalarKeys) {
@@ -105,15 +129,32 @@ export function present(value: unknown): boolean {
   return true;
 }
 const presence = <T>(value: T): T | null => (present(value) ? value : null);
-const wrap = (value: unknown): unknown[] => (value === null || value === undefined ? [] : Array.isArray(value) ? value : [value]);
+const wrap = (value: unknown): unknown[] =>
+  value === null || value === undefined ? [] : Array.isArray(value) ? value : [value];
 
 // FlagShihTzu::TRUE_VALUES
 const TRUE_VALUES = [true, 1, "1", "t", "T", "true", "TRUE"];
 const setFlag = (record: InstallmentRecord, name: Parameters<typeof InstallmentFlags.set>[1], value: unknown) =>
   record.set("flags", Number(InstallmentFlags.set(record.get("flags"), name, TRUE_VALUES.includes(value as never))));
 
-const FILTER_KEYS = new Set(["paid_more_than_cents", "paid_less_than_cents", "created_after", "created_before", "bought_from", "active_customers_only", "minimum_license_uses", "not_clicked_post_id"]);
-const FILTER_LISTS = new Set(["bought_products", "bought_variants", "affiliate_products", "not_bought_products", "not_bought_variants", "waitlisted_products"]);
+const FILTER_KEYS = new Set([
+  "paid_more_than_cents",
+  "paid_less_than_cents",
+  "created_after",
+  "created_before",
+  "bought_from",
+  "active_customers_only",
+  "minimum_license_uses",
+  "not_clicked_post_id",
+]);
+const FILTER_LISTS = new Set([
+  "bought_products",
+  "bought_variants",
+  "affiliate_products",
+  "not_bought_products",
+  "not_bought_variants",
+  "waitlisted_products",
+]);
 
 function asString(value: Scalar | undefined): string | null {
   if (value === null || value === undefined) return null;
@@ -126,15 +167,20 @@ function assign(record: InstallmentRecord, attrs: Permitted, keys: readonly stri
     if (!keys.includes(key)) continue;
     if (key === "name" || key === "message" || key === "installment_type") record.set(key, asString(value as Scalar));
     else if (key === "link_id") record.set("link_id", value === null ? null : rubyToI(value));
-    else if (key === "shown_on_profile" || key === "send_emails" || key === "allow_comments") setFlag(record, key, value);
+    else if (key === "shown_on_profile" || key === "send_emails" || key === "allow_comments")
+      setFlag(record, key, value);
     // json_data is read and written through its accessors, which leave the attribute's place in `attributes` alone.
-    else if (FILTER_KEYS.has(key) || FILTER_LISTS.has(key)) record.untracked(() => setJsonDataForAttr(record, key, value as never));
+    else if (FILTER_KEYS.has(key) || FILTER_LISTS.has(key))
+      record.untracked(() => setJsonDataForAttr(record, key, value as never));
   }
 }
 
 // ----- WithFiltering#add_and_validate_filters
 
-const compareFailed = (a: unknown, b: unknown) => new Error(`comparison of ${typeof a === "string" ? "String" : "Integer"} with ${typeof b === "string" ? "String" : "Integer"} failed`);
+const compareFailed = (a: unknown, b: unknown) =>
+  new Error(
+    `comparison of ${typeof a === "string" ? "String" : "Integer"} with ${typeof b === "string" ? "String" : "Integer"} failed`,
+  );
 
 function greater(a: unknown, b: unknown): boolean {
   if (typeof a === "string" && typeof b === "string") {
@@ -150,10 +196,17 @@ function greater(a: unknown, b: unknown): boolean {
 function safeParseFilterDate(value: unknown): { year: number; month: number; day: number } | null {
   if (!present(value)) return null;
   const text = typeof value === "string" ? value : refuse("a filter date that is not text");
-  if (!/^\s*\d{4}-\d{1,2}-\d{1,2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\s*$/u.test(text)) return refuse("a filter date in a format Date.parse reads");
+  if (!/^\s*\d{4}-\d{1,2}-\d{1,2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?\s*$/u.test(text))
+    return refuse("a filter date in a format Date.parse reads");
   let date;
   try {
-    date = parseIsoDate(text.trim().slice(0, 10).replace(/(\d{4})-(\d)-/u, "$1-0$2-").replace(/-(\d)$/u, "-0$1"));
+    date = parseIsoDate(
+      text
+        .trim()
+        .slice(0, 10)
+        .replace(/(\d{4})-(\d)-/u, "$1-0$2-")
+        .replace(/-(\d)$/u, "-0$1"),
+    );
   } catch {
     return null;
   }
@@ -163,26 +216,38 @@ function safeParseFilterDate(value: unknown): { year: number; month: number; day
 // BigDecimal(value.to_s) * unit_scaling_factor for the dollar amounts a workflow form sends; only USD sellers, whose cents need no conversion.
 function priceFilterCents(value: unknown, currency: string): number | null {
   if (currency !== "usd") return refuse("a price filter in a currency other than USD");
-  const text = typeof value === "number" && Number.isInteger(value) ? String(value) : typeof value === "string" ? value : refuse("a price filter that is not an integer or text");
+  const text =
+    typeof value === "number" && Number.isInteger(value)
+      ? String(value)
+      : typeof value === "string"
+        ? value
+        : refuse("a price filter that is not an integer or text");
   const match = /^\s*(-?)(\d+)(?:\.(\d+))?\s*$/u.exec(text);
   if (match === null) return refuse("a price filter BigDecimal may not read");
   const [, sign, whole, fraction = ""] = match as unknown as [string, string, string, string?];
   // Beyond 10^13 dollars the cents are not exact doubles; beyond MAX_PRICE_FILTER_MAGNITUDE the filter is dropped.
-  if (whole.length > 13) return whole.length > 16 || Number(whole) > 1e15 ? null : refuse("a price filter beyond double precision");
-  const cents = Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
+  if (whole.length > 13)
+    return whole.length > 16 || Number(whole) > 1e15 ? null : refuse("a price filter beyond double precision");
+  const cents = Number(whole) * 100 + Number(`${fraction}00`.slice(0, 2));
   return sign === "-" ? -cents : cents;
 }
 
 // Returns false (and adds the error) where Ruby does. Shared with Workflow::ManageService, whose type column is workflow_type.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function addAndValidateFilters(record: ModelRecord<any>, params: FilterParams, timezone: string, options: { typeColumn?: string; currency?: string } = {}): boolean {
+export function addAndValidateFilters(
+  record: ModelRecord<any>,
+  params: FilterParams,
+  timezone: string,
+  options: { typeColumn?: string; currency?: string } = {},
+): boolean {
   const type = record.get(options.typeColumn ?? "installment_type") as string | null;
   const audience = type === AUDIENCE_TYPE;
   const follower = type === FOLLOWER_TYPE;
   const sellerish = type === SELLER_TYPE || type === PRODUCT_TYPE || type === VARIANT_TYPE;
   const set = (key: string, value: unknown) => setJsonDataForAttr(record, key, value as never);
   const currency = options.currency ?? "usd";
-  const price = (cents: unknown, dollars: unknown) => (!sellerish ? null : present(cents) ? cents : present(dollars) ? priceFilterCents(dollars, currency) : null);
+  const price = (cents: unknown, dollars: unknown) =>
+    !sellerish ? null : present(cents) ? cents : present(dollars) ? priceFilterCents(dollars, currency) : null;
   set("paid_more_than_cents", price(params.paid_more_than_cents, params.paid_more_than));
   set("paid_less_than_cents", price(params.paid_less_than_cents, params.paid_less_than));
   set("bought_products", !audience && present(params.bought_products) ? wrap(params.bought_products) : []);
@@ -193,7 +258,12 @@ export function addAndValidateFilters(record: ModelRecord<any>, params: FilterPa
   set("created_before", before ? endOfDayIso8601(timezone, before.year, before.month, before.day) : null);
   set("bought_from", sellerish ? presence((params.bought_from ?? null) as Scalar) : null);
   set("active_customers_only", sellerish ? castBoolean((params.active_customers_only ?? null) as never) : null);
-  set("minimum_license_uses", sellerish && present(params.minimum_license_uses) ? presence(Math.max(rubyToI(params.minimum_license_uses), 0)) : null);
+  set(
+    "minimum_license_uses",
+    sellerish && present(params.minimum_license_uses)
+      ? presence(Math.max(rubyToI(params.minimum_license_uses), 0))
+      : null,
+  );
   set("bought_variants", !audience && present(params.bought_variants) ? wrap(params.bought_variants) : []);
   set("not_bought_variants", present(params.not_bought_variants) ? wrap(params.not_bought_variants) : []);
   set("affiliate_products", !audience && present(params.affiliate_products) ? wrap(params.affiliate_products) : []);
@@ -211,7 +281,12 @@ export function addAndValidateFilters(record: ModelRecord<any>, params: FilterPa
     record.errors.add("base", "Please enter valid paid more than and paid less than values.");
     return false;
   }
-  if (after && before && new Date(startOfDayIso8601(timezone, after.year, after.month, after.day)) > new Date(endOfDayIso8601(timezone, before.year, before.month, before.day))) {
+  if (
+    after &&
+    before &&
+    new Date(startOfDayIso8601(timezone, after.year, after.month, after.day)) >
+      new Date(endOfDayIso8601(timezone, before.year, before.month, before.day))
+  ) {
     record.errors.add("base", "Please enter valid before and after dates.");
     return false;
   }
@@ -224,19 +299,35 @@ function parseLocalTime(timezone: string, text: string): Date | null {
   // An explicit offset (the API's ISO 8601 times) names the instant: the seller's zone only reads a time without one.
   const zoned = /^\s*(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:\d{2})\s*$/u.exec(text);
   if (zoned !== null) {
-    const [year, month, day, hour, minute, second] = zoned.slice(1, 7).map((part) => Number(part ?? 0)) as [number, number, number, number, number, number];
+    const [year, month, day, hour, minute, second] = zoned.slice(1, 7).map((part) => Number(part ?? 0)) as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
     if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 24 || minute > 59 || second > 59) return null;
     const check = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-    if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23) return refuse("a publish time Time.new would normalize");
+    if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23)
+      return refuse("a publish time Time.new would normalize");
     return new Date(`${text.trim().slice(0, 16)}:${String(second).padStart(2, "0")}${zoned[7]}`);
   }
   const match = /^\s*(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?\s*$/u.exec(text);
   if (match === null) return refuse("a publish time in a format TimeZone#parse reads");
-  const [year, month, day, hour, minute, second] = match.slice(1).map((part) => Number(part ?? 0)) as [number, number, number, number, number, number];
+  const [year, month, day, hour, minute, second] = match.slice(1).map((part) => Number(part ?? 0)) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
   // Time.new raises ArgumentError (rescued as "not a date") for these; the rest it normalizes (Feb 30 is Mar 2), which Node leaves to Rails.
   if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 24 || minute > 59 || second > 59) return null;
   const check = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
-  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23) return refuse("a publish time Time.new would normalize");
+  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23)
+    return refuse("a publish time Time.new would normalize");
   return new Date(dateInTimeZoneIso8601(timezone, year, month, day, hour * 3600 + minute * 60 + second));
 }
 
@@ -244,18 +335,25 @@ function parseLocalTime(timezone: string, text: string): Date | null {
 function isoDate(text: string): { instant: Date; day: string } {
   const match = /^(\d{4}-\d{2}-\d{2})T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/u.exec(text);
   const instant = new Date(text);
-  if (match === null || Number.isNaN(instant.getTime())) return refuse("a publish date in a format Rails casts differently");
+  if (match === null || Number.isNaN(instant.getTime()))
+    return refuse("a publish date in a format Rails casts differently");
   return { instant, day: match[1]! };
 }
 
 // ----- the service
 
 export type SaveInstallmentDeps = { now: () => Date; hex4: () => string; notify: (error: unknown) => void };
-const defaultDeps: SaveInstallmentDeps = { now: () => new Date(), hex4: () => randomBytes(4).toString("hex"), notify: (error) => notifyError(error) };
+const defaultDeps: SaveInstallmentDeps = {
+  now: () => new Date(),
+  hex4: () => randomBytes(4).toString("hex"),
+  notify: (error) => notifyError(error),
+};
 
 export type SaveInstallmentResult = { ok: boolean; error: string | null; installment: InstallmentRecord | null };
 
-const isDatabaseDuplicate = (error: unknown, index: string) => (error as { code?: string; message?: string } | null)?.code === "P2002" && String((error as Error).message).includes(index);
+const isDatabaseDuplicate = (error: unknown, index: string) =>
+  (error as { code?: string; message?: string } | null)?.code === "P2002" &&
+  String((error as Error).message).includes(index);
 
 export async function saveInstallment(
   input: { seller: User; params: RequestParams; installment: InstallmentRecord | null },
@@ -287,14 +385,22 @@ export async function saveInstallment(
 
   // ensure_seller_is_eligible_to_publish_or_schedule_emails
   const scheduleParam = params.to_be_published_at;
-  if ((present(scheduleParam) || present(params.publish)) && ip.send_emails !== undefined && ip.send_emails !== null && ip.send_emails !== false && !(await eligibleToSendEmails(seller))) {
+  if (
+    (present(scheduleParam) || present(params.publish)) &&
+    ip.send_emails !== undefined &&
+    ip.send_emails !== null &&
+    ip.send_emails !== false &&
+    !(await eligibleToSendEmails(seller))
+  ) {
     error = `You are not eligible to publish or schedule emails. Please ensure you have made at least $${MINIMUM_SALES_CENTS_VALUE / 100} in sales and received a payout.`;
     return { ok: false, error, installment };
   }
 
   // build_installment_if_needed
   if (installment === null) {
-    installment = Installments.build(productOrVariant ? { link_id: Number(product!.id) } : { seller_id: Number(seller.id) });
+    installment = Installments.build(
+      productOrVariant ? { link_id: Number(product!.id) } : { seller_id: Number(seller.id) },
+    );
     assign(installment, ip, attrs);
   } else if (installment.get("published_at") === null) {
     assign(installment, ip, attrs);
@@ -308,12 +414,35 @@ export async function saveInstallment(
       async () => {
         // SaveContentUpsellsService#from_html
         const oldMessage = record.attributeWas("message");
-        for (const html of [oldMessage, record.get("message")]) if (html !== null && /upsell-card/iu.test(html)) refuse("a message with an upsell card (SaveContentUpsellsService)");
+        for (const html of [oldMessage, record.get("message")])
+          if (html !== null && /upsell-card/iu.test(html))
+            refuse("a message with an upsell card (SaveContentUpsellsService)");
         record.set("message", nokogiriRoundtrip(record.get("message")));
-        await saveInstallmentRecord(record, ip, params, { seller, product, productOrVariant, attrs }, deps, (message) => (error = message));
+        await saveInstallmentRecord(
+          record,
+          ip,
+          params,
+          { seller, product, productOrVariant, attrs },
+          deps,
+          (message) => (error = message),
+        );
 
-        if (present(scheduleParam)) await scheduleInstallment(record, seller, scheduleParam, deps, (message) => (error = message), () => error);
-        else if (present(params.publish)) await publishInstallment(record, deps, (message) => (error = message), () => error);
+        if (present(scheduleParam))
+          await scheduleInstallment(
+            record,
+            seller,
+            scheduleParam,
+            deps,
+            (message) => (error = message),
+            () => error,
+          );
+        else if (present(params.publish))
+          await publishInstallment(
+            record,
+            deps,
+            (message) => (error = message),
+            () => error,
+          );
         else if (present(params.send_preview_email)) refuse("a preview email");
 
         return error === null;
@@ -321,7 +450,8 @@ export async function saveInstallment(
       { returningStatus: true },
     );
   } catch (caught) {
-    if (caught instanceof NotPortedError || (caught instanceof Error && caught.name === "HandBackToRails")) throw caught;
+    if (caught instanceof NotPortedError || (caught instanceof Error && caught.name === "HandBackToRails"))
+      throw caught;
     if (caught instanceof InstallmentInvalid || caught instanceof PreviewEmailError) error = caught.message;
     else {
       error ??= caught instanceof Error ? caught.message : String(caught);
@@ -361,7 +491,10 @@ async function saveInstallmentRecord(
   const wasPublished = record.get("published_at") !== null;
   if (!wasPublished) {
     record.set("installment_type", asString(ip.installment_type));
-    record.set("base_variant_id", ip.installment_type === VARIANT_TYPE ? await findBaseVariantId(params.variant_external_id) : null);
+    record.set(
+      "base_variant_id",
+      ip.installment_type === VARIANT_TYPE ? await findBaseVariantId(params.variant_external_id) : null,
+    );
     record.set("link_id", productOrVariant ? Number(product!.id) : null);
     record.set("seller_id", Number(seller.id));
     setAssociation(record, "seller", seller.id, seller);
@@ -369,7 +502,10 @@ async function saveInstallmentRecord(
   }
   // `audience_type?` and the other recipient predicates read `attributes`, which materializes every attribute in column order.
   if (!wasPublished) record.materializeAll();
-  if (!wasPublished && !record.untracked(() => addAndValidateFilters(record, ip, seller.timezone ?? "Pacific Time (US & Canada)"))) {
+  if (
+    !wasPublished &&
+    !record.untracked(() => addAndValidateFilters(record, ip, seller.timezone ?? "Pacific Time (US & Canada)"))
+  ) {
     fail(record.errors.fullMessages()[0]!);
     return;
   }
@@ -377,7 +513,7 @@ async function saveInstallmentRecord(
     fail(record.errors.fullMessages()[0]!);
     return;
   }
-  await saveFiles(record, params);
+  await saveInstallmentFiles(record, params);
   await updateProfilePostsSections(seller, record.get("id"), ip.shown_in_profile_sections, deps.now);
 }
 
@@ -392,9 +528,10 @@ async function saveWithUniqueSlug(record: InstallmentRecord, deps: SaveInstallme
 }
 
 // SaveFilesService.perform(installment, product_files_params) for a payload with no files and a post with none.
-async function saveFiles(record: InstallmentRecord, params: RequestParams): Promise<void> {
+export async function saveInstallmentFiles(record: InstallmentRecord, params: RequestParams): Promise<void> {
   const files = (params.installment as Record<string, unknown>).files;
-  if (files !== undefined && !(Array.isArray(files) && files.length === 0)) refuse("a post with files (SaveFilesService)");
+  if (files !== undefined && !(Array.isArray(files) && files.length === 0))
+    refuse("a post with files (SaveFilesService)");
   // save_files!: the alive files not in the payload are deleted, and the product's file types are reindexed.
   if ((await post(record).aliveProductFiles()).length > 0) refuse("a post with files (save_files!)");
   // is_downloadable?: the same alive files again
@@ -425,7 +562,10 @@ async function scheduleInstallment(
 ): Promise<void> {
   if (seller.confirmed_at === null) fail("You have to confirm your email address before you can do that.");
   if (currentError() !== null) return;
-  const at = parseLocalTime(seller.timezone ?? "Pacific Time (US & Canada)", typeof scheduleParam === "string" ? scheduleParam : refuse("a publish time that is not text"));
+  const at = parseLocalTime(
+    seller.timezone ?? "Pacific Time (US & Canada)",
+    typeof scheduleParam === "string" ? scheduleParam : refuse("a publish time that is not text"),
+  );
   if (at === null) {
     fail("Please provide a valid date and time.");
     return;
@@ -443,7 +583,12 @@ async function scheduleInstallment(
   }
 }
 
-async function publishInstallment(record: InstallmentRecord, deps: SaveInstallmentDeps, fail: (message: string) => void, currentError: () => string | null): Promise<void> {
+async function publishInstallment(
+  record: InstallmentRecord,
+  deps: SaveInstallmentDeps,
+  fail: (message: string) => void,
+  currentError: () => string | null,
+): Promise<void> {
   if (currentError() !== null) return;
   try {
     await publishBang(record, { now: deps.now });
