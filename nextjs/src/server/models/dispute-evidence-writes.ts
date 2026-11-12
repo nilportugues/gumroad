@@ -6,7 +6,8 @@ import { hasPaperTrail } from "./concerns/paper-trail.ts";
 import { defineModel, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { validatesLengthOf } from "./runtime/validators.ts";
-import { strippedField } from "./user.ts";
+import { column, selectRows, table } from "./sql.ts";
+import { NotPortedError, strippedField } from "./user.ts";
 
 // DisputeEvidence::STRIPE_MAX_COMBINED_FILE_SIZE and ALLOWED_FILE_CONTENT_TYPES
 const STRIPE_MAX_COMBINED_FILE_SIZE = 5_000_000;
@@ -61,9 +62,39 @@ async function forSubscriptionPurchase(
   return rows.length > 0;
 }
 
+// The `has_one_attached` associations a job has already loaded the way Rails does, by name and whether a file is attached. A save
+// of such a record validates from them, and reads the ones still unloaded one by one in validation order, as ActiveStorage does.
+const loadedAttachments = new WeakMap<object, Map<string, boolean>>();
+
+export function trackAttachmentReads(record: ModelRecord<DisputeEvidence>): void {
+  if (!loadedAttachments.has(record)) loadedAttachments.set(record, new Map());
+}
+
+// `record.<name>.attached?`: `SELECT active_storage_attachments.* ... name = '<name>' LIMIT 1`, once per record.
+export async function attachmentAttached(record: ModelRecord<DisputeEvidence>, name: string): Promise<boolean> {
+  const loaded = loadedAttachments.get(record);
+  const known = loaded?.get(name);
+  if (known !== undefined) return known;
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`active_storage_attachments`.*")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_id")} = ${record.get("id")} AND ${column("active_storage_attachments", "record_type")} = ${"DisputeEvidence"} AND ${column("active_storage_attachments", "name")} = ${name} LIMIT 1`,
+  );
+  loaded?.set(name, rows.length > 0);
+  return rows.length > 0;
+}
+
+// A file to measure needs its blob, which this path does not read: the job that tracks hands the save back instead.
+async function validateTrackedFiles(record: ModelRecord<DisputeEvidence>): Promise<void> {
+  // for_subscription_purchase? is false for the purchases such a job accepts, so the policy image is the refund policy's.
+  for (const name of ["customer_communication_file", "receipt_image", "refund_policy_image"]) {
+    if (await attachmentAttached(record, name))
+      throw new NotPortedError(`Validating the attached ${name} of a dispute evidence`, "dispute_evidence.rb: all_files_size_within_limit");
+  }
+}
+
 // customer_communication_file_size, customer_communication_file_type and all_files_size_within_limit read the attachments a save
 // leaves in place, so a row without any adds no further query.
 async function validateFiles(record: ModelRecord<DisputeEvidence>, ctx: CallbackContext): Promise<void> {
+  if (loadedAttachments.has(record)) return validateTrackedFiles(record);
   const blobs = await attachedBlobs(record, ctx);
   if (blobs.size === 0) return;
   const hasPolicyImage = blobs.has("cancellation_policy_image") || blobs.has("refund_policy_image");

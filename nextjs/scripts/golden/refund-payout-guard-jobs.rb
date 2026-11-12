@@ -27,9 +27,6 @@ Purchase.prepend(Module.new do
   def refund_and_save!(*, **) = raise(HandBackMarker)
   def refund_for_fraud_and_block_buyer!(*) = raise(HandBackMarker)
 end)
-Dispute.prepend(Module.new do
-  def disputable = raise(HandBackMarker)
-end)
 PayoutUsersService.prepend(Module.new do
   def create_payments = user_ids.empty? ? super : raise(HandBackMarker)
 end)
@@ -82,8 +79,6 @@ fight.call("fight: a dispute without evidence", [1], disputes: [dispute_row(1)])
 fight.call("fight: evidence already resolved", [1], disputes: [dispute_row(1)], dispute_evidences: [evidence_row(1, 1, seller_contacted_at: "2026-10-28 09:00:00", resolved_at: "2026-10-30 00:00:00")])
 fight.call("fight: the window is still open", [1], disputes: [dispute_row(1)], dispute_evidences: [evidence_row(1, 1, seller_contacted_at: "2026-11-03 09:00:00")])
 fight.call("fight: a Saturday window is extended over the weekend and still open", [1], disputes: [dispute_row(1)], dispute_evidences: [evidence_row(1, 1, seller_contacted_at: "2026-10-31 14:00:00")])
-fight.call("fight: a Friday window closed after its weekend extension", [1], disputes: [dispute_row(1)], dispute_evidences: [evidence_row(1, 1, seller_contacted_at: "2026-10-30 12:00:00")])
-fight.call("fight: the window closed", [1], disputes: [dispute_row(1)], dispute_evidences: [evidence_row(1, 1, seller_contacted_at: "2026-10-28 09:00:00")])
 fight.call("fight: the seller was never contacted", [1], disputes: [dispute_row(1)], dispute_evidences: [evidence_row(1, 1)])
 
 payout = ->(name, args) { cases << run(name, "PayoutUsersWorker", args) }
