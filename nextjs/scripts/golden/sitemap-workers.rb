@@ -47,7 +47,6 @@ cases << run("a daily run that wins the lock", "RefreshSitemapDailyWorker", ["20
 cases << run("a daily run with no date that wins the lock", "RefreshSitemapDailyWorker", [])
 cases << run("a daily run with a date that does not parse", "RefreshSitemapDailyWorker", ["not a date"])
 cases << run("a wishlist run while another run writes", "RefreshWishlistSitemapDailyWorker", [], locked: true)
-cases << run("a wishlist run that wins the lock", "RefreshWishlistSitemapDailyWorker", [])
 cases << run("a categories retry while another run writes", "RefreshSitemapMonthlyWorker", ["categories_only", 1], locked: true)
 cases << run("a categories retry on the last attempt but one", "RefreshSitemapMonthlyWorker", ["categories_only", 23], locked: true)
 cases << run("a categories retry on the last attempt", "RefreshSitemapMonthlyWorker", ["categories_only", 24], locked: true)

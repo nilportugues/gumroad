@@ -1,8 +1,9 @@
 // Ports of app/sidekiq/refresh_sitemap_daily_worker.rb, refresh_wishlist_sitemap_daily_worker.rb and the categories retry of
-// refresh_sitemap_monthly_worker.rb, up to SitemapService's generation lock. A run that finds the lock held comes back later (Rails'
-// `GenerationInProgress` rescue); a run that would win it writes the sitemap through SitemapGenerator and S3, which Node does not
-// do, so it is handed back before taking the lock. Only the read of the lock differs from Rails (SET NX), so a lock released between
-// the read and the hand-back costs a run that Rails would have made at once.
+// refresh_sitemap_monthly_worker.rb. A run that finds the lock held comes back later (Rails' `GenerationInProgress` rescue).
+// The wishlist worker generates its sitemap in Node (sitemap-generation.ts). A daily or categories run that would win the lock writes
+// the sitemap through SitemapGenerator and S3, which Node does not do there yet, so it is handed back before taking the lock; only
+// the read of the lock differs from Rails (SET NX), so a lock released between the read and the hand-back costs a run that Rails
+// would have made at once.
 // The monthly worker's first step enqueues the product sitemaps before it reaches the categories, and is handed back whole.
 // Golden: __fixtures__/sitemap-workers.golden.json (scripts/golden/sitemap-workers.rb).
 import { getRedis } from "../../server/infra/redis.ts";
@@ -12,6 +13,7 @@ import { performAsync, withJobsRuntime } from "../../server/models/concerns/job-
 import { toCalendarDate, dateToS } from "../../server/models/concerns/ruby-time.ts";
 
 import { checkArity } from "./arity.ts";
+import { generateWishlistSitemap, type SitemapDeps } from "./sitemap-generation.ts";
 import { type JobDeps, defaultJobDeps } from "./support/job-deps.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -23,10 +25,10 @@ const GENERATION_RETRY_DELAY_SECONDS = 15 * 60;
 const CATEGORIES_ONLY = "categories_only";
 const CATEGORIES_MAX_ATTEMPTS = 24;
 
-export type SitemapRedis = { get(key: string): Promise<string | null> };
-export type SitemapDeps = { redis: () => SitemapRedis };
+export type LockProbeRedis = { get(key: string): Promise<string | null> };
+export type LockProbeDeps = { redis: () => LockProbeRedis };
 
-const lockHeld = (sitemap: Partial<SitemapDeps>) =>
+const lockHeld = (sitemap: Partial<LockProbeDeps>) =>
   (sitemap.redis ?? (() => getRedis("main")))()
     .get(GENERATION_LOCK_KEY)
     .then((token) => token !== null);
@@ -37,7 +39,7 @@ function handBackWinningRun(): never {
 
 export const refreshSitemapDailyWorkerWith = (
   overrides: Partial<JobDeps> = {},
-  sitemap: Partial<SitemapDeps> = {},
+  sitemap: Partial<LockProbeDeps> = {},
 ): JobHandler => {
   const deps = { ...defaultJobDeps, ...overrides };
   return (args, context) =>
@@ -55,12 +57,12 @@ export const refreshWishlistSitemapDailyWorkerWith =
   (args, context) =>
     withJobsRuntime(context.runtime, async () => {
       checkArity(args, 0);
-      if (!(await lockHeld(sitemap))) handBackWinningRun();
+      if (await generateWishlistSitemap(sitemap)) return;
       await performAsync("RefreshWishlistSitemapDailyWorker", [], { delaySeconds: GENERATION_RETRY_DELAY_SECONDS });
     });
 
 export const refreshSitemapMonthlyWorkerWith =
-  (sitemap: Partial<SitemapDeps> = {}): JobHandler =>
+  (sitemap: Partial<LockProbeDeps> = {}): JobHandler =>
   (args, context) =>
     withJobsRuntime(context.runtime, async () => {
       checkArity(args, 0, 2);

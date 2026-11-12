@@ -55,7 +55,11 @@ function handlerFor(job: string, locked: boolean) {
   const sitemap = { redis: () => ({ get: () => Promise.resolve(locked ? "another-run" : null) }) };
   const now = () => new Date(Math.round(golden.now * 1000));
   if (job === "RefreshSitemapDailyWorker") return refreshSitemapDailyWorkerWith({ now }, sitemap);
-  if (job === "RefreshWishlistSitemapDailyWorker") return refreshWishlistSitemapDailyWorkerWith(sitemap);
+  // The wishlist worker takes the lock itself (SET NX); a run that wins it is replayed in sitemap-generation.test.ts.
+  if (job === "RefreshWishlistSitemapDailyWorker")
+    return refreshWishlistSitemapDailyWorkerWith({
+      redis: () => ({ set: () => Promise.resolve(locked ? null : "OK"), eval: () => Promise.resolve(1) }),
+    });
   return refreshSitemapMonthlyWorkerWith(sitemap);
 }
 
