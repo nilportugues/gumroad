@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const models = vi.hoisted(() => ({
   findApplicationByUid: vi.fn(),
   findApplicationById: vi.fn(),
+  findAliveApplicationByUid: vi.fn(),
   findAccessToken: vi.fn(),
   findAccessGrant: vi.fn(),
   revokeAccessToken: vi.fn(),
@@ -56,6 +57,7 @@ beforeEach(() => {
   for (const mock of Object.values(models)) mock.mockReset();
   models.findApplicationByUid.mockResolvedValue(null);
   models.findApplicationById.mockResolvedValue(null);
+  models.findAliveApplicationByUid.mockResolvedValue(null);
   models.findAccessToken.mockResolvedValue(null);
   models.findAccessGrant.mockResolvedValue(null);
   models.transaction.mockImplementation((run: () => unknown) => run());
@@ -384,10 +386,21 @@ describe("token endpoint", () => {
     expect(body(result)).not.toHaveProperty("refresh_token");
   });
 
-  it("hands the device code grant on /oauth/token back", async () => {
-    await expect(createToken(input({ grant_type: "urn:ietf:params:oauth:grant-type:device_code" }))).rejects.toThrow(
-      /device code/u,
+  it("answers a device code grant for an unknown client with the device flow's own invalid_client", async () => {
+    const result = await createToken(
+      input({ grant_type: "urn:ietf:params:oauth:grant-type:device_code", client_id: "nope" }),
     );
+    expect(status(result)).toBe(401);
+    expect(body(result)).toEqual({
+      error: "invalid_client",
+      error_description: "Client authentication failed due to unknown client",
+    });
+  });
+
+  it("asks a device code grant without a client for a client_id", async () => {
+    const result = await createToken(input({ grant_type: "urn:ietf:params:oauth:grant-type:device_code" }));
+    expect(status(result)).toBe(400);
+    expect(body(result)).toMatchObject({ error: "invalid_request", error_description: "client_id is required" });
   });
 
   it("leaves a device code grant on an alias path to the unsupported grant answer", async () => {

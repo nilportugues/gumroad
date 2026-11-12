@@ -1,15 +1,22 @@
 // Oauth::TokensController (app/controllers/oauth/tokens_controller.rb over Doorkeeper::TokensController, doorkeeper 5.7.1): POST
 // /oauth/token with the muse, claude, chatgpt, IFTTT and Notion aliases, /oauth/revoke, /oauth/introspect and GET /oauth/token/info.
 //
-// The token endpoint runs the authorization_code, client_credentials and refresh_token grants in full: validation order, PKCE, the
+// The token endpoint runs the authorization_code, client_credentials, refresh_token and device-code grants in full: validation order, PKCE, the
 // redirect URI check (models/oauth-redirect-uri.ts), the grant and refresh locks, the shared application lock around a refresh and
 // the rows Doorkeeper writes (random urlsafe tokens, a revoked grant or refresh token). Dynamically registered MCP clients get
-// Gumroad's S256 and resource checks. Handed to Rails whole, before any write: a brand account token (team membership), the
-// device-code grant (until the device flow is ported), a request that carries a session cookie, and any parameter that is not a string.
+// Gumroad's S256 and resource checks. Handed to Rails whole, before any write: a brand account token (team membership), a
+// request that carries a session cookie, and any parameter that is not a string.
 import { createHash } from "node:crypto";
 
 import { railsSessionCookieName } from "../auth/rails-session-config.ts";
 import { withApplicationLock } from "../models/oauth-application-writes.ts";
+import {
+  findByDeviceCode,
+  GRANT_TYPE,
+  issuedTokenRevoked,
+  poll as pollDeviceAuthorization,
+  withApplicationRowLock,
+} from "../models/oauth-device-authorization.ts";
 import { redirectUriAllowed } from "../models/oauth-redirect-uri.ts";
 import {
   type AccessGrantRow,
@@ -35,12 +42,21 @@ import { esJson, type JsonValue } from "../search/es-json.ts";
 
 import type { ActionResult, Rendered } from "./application-controller.ts";
 import { type MutationInput, registerMutations } from "./mutation.ts";
-import type { Params } from "./rails-body.ts";
+import {
+  authenticateOauthApplication,
+  oauthJsonError,
+  refusalJson,
+  SERVER_SCOPES,
+  splitScopes,
+  stringParam,
+  validScopeString,
+} from "./oauth-client-authentication.ts";
+import { requestUserAgent, requireRemoteIp } from "./oauth-device.ts";
 import { isPresent } from "./rails-request.ts";
 
 const RUBY_FILE = "app/controllers/oauth/tokens_controller.rb";
 const JSON_TYPE = "application/json; charset=utf-8";
-const DEVICE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code";
+const DEVICE_GRANT_TYPE = GRANT_TYPE;
 const AUTHORIZATION_CODE = "authorization_code";
 const CLIENT_CREDENTIALS = "client_credentials";
 const REFRESH_TOKEN = "refresh_token";
@@ -74,13 +90,6 @@ const DESCRIPTIONS: Record<string, string> = {
   revoke_unauthorized: "You are not authorized to revoke this token",
 };
 const missingParam = (name: string) => `Missing required parameter: ${name}.`;
-
-function stringParam(params: Params, name: string): string | null {
-  const value = params[name];
-  if (value === undefined || value === null) return null;
-  if (typeof value !== "string") throw new NotPortedError(`a ${name} that is not a string`, RUBY_FILE);
-  return value;
-}
 
 // The session middleware re-answers a session it was sent with its own bookkeeping, which Node does not reproduce.
 function assertNoSession(input: MutationInput): void {
@@ -155,43 +164,11 @@ const revocationRefusal = (): Rendered =>
 
 // ---- /oauth/token
 
-const SERVER_SCOPES = [
-  "view_public",
-  "edit_products",
-  "edit_emails",
-  "view_sales",
-  "view_payouts",
-  "mark_sales_as_shipped",
-  "refund_sales",
-  "edit_sales",
-  "revenue_share",
-  "ifttt",
-  "mobile_api",
-  "creator_api",
-  "view_profile",
-  "edit_profile",
-  "unfurl",
-  "helper_api",
-  "view_tax_data",
-  "account",
-];
 const DEFAULT_SCOPES = ["view_public"];
 const S256 = "S256";
 const PLAIN = "plain";
 
-// String#split with no argument: ASCII whitespace only.
-const splitScopes = (value: string) => value.split(/[ \t\n\v\f\r]+/u).filter((scope) => scope !== "");
-// Scopes#add dedups and Scopes#to_s joins with a space.
 const scopeString = (scopes: string[]) => [...new Set(scopes)].join(" ");
-
-// ScopeChecker::Validator#valid?
-function validScopeString(scopeStr: string, validScopes: string[]): boolean {
-  return (
-    isPresent(scopeStr) &&
-    !/[\n\r\t]/u.test(scopeStr) &&
-    splitScopes(scopeStr).every((scope) => validScopes.includes(scope))
-  );
-}
 
 // render_oauth_json_error: Gumroad's own 400s carry no WWW-Authenticate.
 const gumroadError = (name: string, description: string): Rendered =>
@@ -392,12 +369,50 @@ async function refreshTokenGrant(input: MutationInput, state: string | null, now
   return application === null ? run() : withApplicationLock(application.id, true, run);
 }
 
+// Oauth::TokensController#create_device_access_token. The connector aliases do not offer the grant.
+async function deviceCodeGrant(input: MutationInput): Promise<ActionResult> {
+  const { application, refusal } = await authenticateOauthApplication(input);
+  if (refusal !== null) return refusalJson(input, refusal);
+  if (!truthy(application.device_authorization_enabled))
+    return oauthJsonError(input, "unauthorized_client", "Client is not allowed to use device authorization");
+  const deviceCode = stringParam(input.params, "device_code");
+  if (!isPresent(deviceCode)) return oauthJsonError(input, "invalid_request", "device_code is required");
+
+  const expiredToken = () => oauthJsonError(input, "expired_token", "Device code is invalid or expired");
+  const authorization = await findByDeviceCode(deviceCode);
+  if (authorization === null) return expiredToken();
+
+  const outcome = await pollDeviceAuthorization(authorization.id, application, {
+    ipAddress: requireRemoteIp(input),
+    userAgent: requestUserAgent(input),
+    now: new Date(),
+  });
+  switch (outcome.status) {
+    case "approved": {
+      // `oauth_application.with_lock { ... value.reload.revoked? }`: a revoke that landed after poll! released its locks still counts.
+      const issued = outcome.token;
+      return withApplicationRowLock(application.id, async () =>
+        (await issuedTokenRevoked(issued, new Date()))
+          ? oauthJsonError(input, "access_denied", "Access was denied")
+          : tokenResponse(issued),
+      );
+    }
+    case "authorization_pending":
+      return oauthJsonError(input, "authorization_pending", "Authorization is pending");
+    case "slow_down":
+      return oauthJsonError(input, "slow_down", "Polling too quickly", { extra: { interval: outcome.interval } });
+    case "access_denied":
+      return oauthJsonError(input, "access_denied", "Access was denied");
+    default:
+      return expiredToken();
+  }
+}
+
 async function createToken(input: MutationInput): Promise<ActionResult> {
   assertPlainSession(input);
   const grantType = stringParam(input.params, "grant_type");
   const state = stringParam(input.params, "state");
-  if (grantType === DEVICE_GRANT_TYPE && input.request.path === "/oauth/token")
-    throw new NotPortedError("a device code grant", RUBY_FILE);
+  if (grantType === DEVICE_GRANT_TYPE && input.request.path === "/oauth/token") return deviceCodeGrant(input);
   // The `strategy` override: a blank grant_type is an authorization code exchange.
   const effective = isPresent(grantType) ? grantType : AUTHORIZATION_CODE;
   const now = new Date();

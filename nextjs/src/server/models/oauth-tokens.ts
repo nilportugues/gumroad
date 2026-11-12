@@ -14,6 +14,8 @@ export type ApplicationRow = {
   confidential: unknown;
   mcp_dynamic_client: unknown;
   scopes: string;
+  deleted_at: Date | null;
+  device_authorization_enabled: unknown;
 };
 export type AccessTokenRow = {
   id: number;
@@ -54,6 +56,14 @@ export const truthy = (value: unknown): boolean => value === true || Number(valu
 export async function findApplicationByUid(uid: string): Promise<ApplicationRow | null> {
   const [row] = await selectRows<ApplicationRow>(
     Prisma.sql`SELECT ${Prisma.raw("`oauth_applications`.*")} FROM ${table(APPLICATIONS)} WHERE ${column(APPLICATIONS, "uid")} = ${uid} LIMIT 1`,
+  );
+  return row ?? null;
+}
+
+// OauthApplication.alive.find_by(uid:)
+export async function findAliveApplicationByUid(uid: string): Promise<ApplicationRow | null> {
+  const [row] = await selectRows<ApplicationRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`oauth_applications`.*")} FROM ${table(APPLICATIONS)} WHERE ${column(APPLICATIONS, "deleted_at")} IS NULL AND ${column(APPLICATIONS, "uid")} = ${uid} LIMIT 1`,
   );
   return row ?? null;
 }

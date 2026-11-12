@@ -167,12 +167,6 @@ describe "OAuth tokens", type: :request do
       expect(response.parsed_body["error"]).to eq("unauthorized_client")
     end
 
-    it "hands a device code grant back to Rails", parity: true do
-      post "/oauth/token", params: { grant_type: "urn:ietf:params:oauth:grant-type:device_code", client_id: public_app.uid, device_code: "unknown" }
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
     it "answers the Notion token endpoint like the token endpoint", parity: true do
       post "/notion/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
