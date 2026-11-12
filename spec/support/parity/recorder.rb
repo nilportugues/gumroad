@@ -143,7 +143,8 @@ module Parity
         "mails" => @mails.map { mail_json(_1, now) },
         "http" => @http.map { |signature, response| http_json(signature, response, now) },
         # Order only means something against an outbound call; without one it would be noise in every fixture.
-        "timeline" => (@timeline if @http.any?),
+        # An example tagged `parity_timeline: true` records it anyway, for a write path whose proof is its statement order.
+        "timeline" => (@timeline if @http.any? || @example.metadata[:parity_timeline]),
       }.compact
       result
     end
