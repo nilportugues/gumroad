@@ -43,6 +43,12 @@ function runtime() {
   });
 }
 
+const CONSERVATIVE = new Set([
+  "a delivered piracy notice event with a float timestamp",
+  "a bounce piracy notice event with a float timestamp",
+  "a delivered piracy notice event with an address that is not text",
+]);
+
 describe("HandleSendgridEventJob", () => {
   for (const c of golden.cases) {
     it(c.name, async () => {
@@ -54,10 +60,27 @@ describe("HandleSendgridEventJob", () => {
         error = e;
       }
 
-      // A charge receipt for a charge that is gone fails the state machine after its reads, with the transaction rolled back.
-      if (c.error?.class === "StateMachines::InvalidTransition") {
+      // A charge receipt for a charge that is gone fails the state machine after its reads, with the transaction rolled back; a piracy
+      // report whose seller or product is gone fails its validations the same way.
+      if (
+        c.error?.class === "StateMachines::InvalidTransition" ||
+        (c.error?.class === "ActiveRecord::RecordInvalid" &&
+          /^Validation failed: (Seller|Product) must exist/u.test(c.error.message))
+      ) {
         expect((error as Error | null)?.message).toBe(c.error.message);
         expect(sql.log).toEqual(sql.expected);
+        return;
+      }
+      // A piracy report the model would refuse to save for another reason is handed back after the one read of the report.
+      if (c.error?.class === "ActiveRecord::RecordInvalid") {
+        expect((error as Error | null)?.name).toBe("HandBackToRuby");
+        expect(sql.log).toEqual(sql.expected.slice(0, 1));
+        return;
+      }
+      // Timestamps and recipients Node does not follow are handed back before any statement, though Rails runs the event.
+      if (CONSERVATIVE.has(c.name)) {
+        expect((error as Error | null)?.name).toBe("HandBackToRuby");
+        expect(sql.log).toEqual([]);
         return;
       }
       const handedBack = c.hands_back || c.error !== null;

@@ -35,6 +35,10 @@ export const handleResendEventJobWith = modelJob({ min: 1, max: 1 }, async ([eve
     chargeId: fields.chargeId,
     purchaseId: fields.purchaseId,
     createdAt: fields.createdAt,
+    createdAtSubMillisecondMicros: fields.createdAtSubMillisecondMicros,
+    createdAtExact: fields.createdAtExact,
+    email: fields.email,
+    mailerArgs: fields.mailerArgs,
   };
   await handleEmailEvents([info], deps.now);
 });

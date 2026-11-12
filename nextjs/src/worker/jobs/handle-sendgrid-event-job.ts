@@ -30,6 +30,7 @@ const stringOrNull = (value: unknown) => (typeof value === "string" ? value : nu
 function sendgridEventInfo(event: unknown): EmailEventInfo | null {
   if (!isObject(event)) throw new HandBackToRuby("a SendGrid event that is not a hash");
   let createdAt: Date | null = null;
+  let createdAtExact = true;
   if ("timestamp" in event) {
     // `Time.zone.at(timestamp)` raises for anything but a number.
     if (
@@ -39,10 +40,12 @@ function sendgridEventInfo(event: unknown): EmailEventInfo | null {
     )
       throw new HandBackToRuby("a SendGrid timestamp that is not a number Node follows");
     createdAt = new Date(Math.floor(event.timestamp * 1000));
+    // A fractional timestamp is a Float whose microseconds the Time keeps and a Date does not.
+    createdAtExact = Number.isInteger(event.timestamp);
   }
   const type = typeof event.event === "string" ? TRACKED_EVENTS[event.event] : undefined;
 
-  let info: Omit<EmailEventInfo, "provider" | "type" | "installmentId" | "createdAt">;
+  let info: Pick<EmailEventInfo, "mailerClass" | "mailerMethod" | "chargeId" | "purchaseId">;
   let mailerArgs: unknown;
   if (!isBlank(event.type) && !isBlank(event.identifier)) {
     // The old shape: `split` and `gsub` raise for anything but strings, and a preorder receipt reads the preorder.
@@ -68,7 +71,17 @@ function sendgridEventInfo(event: unknown): EmailEventInfo | null {
     };
   }
   if (type === undefined || isBlank(mailerArgs)) return null;
-  return { provider: "sendgrid", type, installmentId: event.installment_id, createdAt, ...info };
+  return {
+    provider: "sendgrid",
+    type,
+    installmentId: event.installment_id,
+    createdAt,
+    createdAtSubMillisecondMicros: 0,
+    createdAtExact,
+    email: event.email,
+    mailerArgs,
+    ...info,
+  };
 }
 
 export const handleSendgridEventJobWith = modelJob({ min: 1, max: 1 }, async ([params], deps) => {

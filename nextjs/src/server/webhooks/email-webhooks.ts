@@ -127,7 +127,7 @@ const CREATED_AT =
   /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:(Z)|([+-])(\d{2})(?::?(\d{2}))?)?$/u;
 
 // Time.zone.parse for the timestamps Resend sends (UTC when there is no offset); a date Ruby would reject throws NotPortedError.
-function parseResendCreatedAt(createdAt: string): Date {
+function parseResendCreatedAt(createdAt: string): { time: Date; subMillisecondMicros: number; exact: boolean } {
   const match = CREATED_AT.exec(createdAt);
   if (match === null) throw new NotPortedError("a Resend created_at Ruby's date parser may reject");
   const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number) as [
@@ -144,8 +144,13 @@ function parseResendCreatedAt(createdAt: string): Date {
     throw new NotPortedError("a Resend created_at Ruby's date parser may reject");
   const offsetMinutes =
     match[9] === undefined ? 0 : (match[9] === "-" ? -1 : 1) * (Number(match[10]) * 60 + Number(match[11] ?? 0));
-  const milliseconds = Number((match[7] ?? "").padEnd(3, "0").slice(0, 3));
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, second, milliseconds) - offsetMinutes * 60_000);
+  const fraction = match[7] ?? "";
+  const milliseconds = Number(fraction.padEnd(3, "0").slice(0, 3));
+  return {
+    time: new Date(Date.UTC(year, month - 1, day, hour, minute, second, milliseconds) - offsetMinutes * 60_000),
+    subMillisecondMicros: Number(fraction.padEnd(6, "0").slice(3, 6)),
+    exact: fraction.length <= 6,
+  };
 }
 
 // What ResendEventInfo#initialize reads, for the fields HandleEmailEventInfo looks at.
@@ -158,6 +163,12 @@ export type ResendEventFields = {
   chargeId: string | null;
   installmentId: string | null;
   createdAt: Date;
+  // The decrypted `mailer_args` header and the first recipient, for the handlers that read them (the piracy notice).
+  mailerArgs: string | null;
+  email: unknown;
+  // The microseconds below the millisecond `createdAt` holds (0 to 999), and false when the fraction runs past microseconds.
+  createdAtSubMillisecondMicros: number;
+  createdAtExact: boolean;
 };
 
 // `ResendEventInfo.new(event_json)`: null where Ruby raises (the job then fails), NotPortedError where Node cannot judge the input.
@@ -198,7 +209,11 @@ export function parseResendEvent(eventJson: Record<string, unknown>): ResendEven
       purchaseId: values.purchase_id ?? null,
       chargeId: values.charge_id ?? null,
       installmentId: values.post_id ?? null,
-      createdAt: created,
+      createdAt: created.time,
+      mailerArgs: values.mailer_args ?? null,
+      email: data.to[0] ?? null,
+      createdAtSubMillisecondMicros: created.subMillisecondMicros,
+      createdAtExact: created.exact,
     };
   } catch (error) {
     if (error instanceof NotPortedError) throw error;
