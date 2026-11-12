@@ -202,4 +202,5 @@ export const PORTED_JOBS: readonly string[] = [
   "ProcessEarlyFraudWarningJob",
   "CreateStripeMerchantAccountWorker",
   "AnalyzeFileWorker",
+  "TransferDropboxFileToS3Worker",
 ];

@@ -3462,7 +3462,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "TriggerCommunityChatRecapRunJob": {
     "file": "app/sidekiq/trigger_community_chat_recap_run_job.rb",
