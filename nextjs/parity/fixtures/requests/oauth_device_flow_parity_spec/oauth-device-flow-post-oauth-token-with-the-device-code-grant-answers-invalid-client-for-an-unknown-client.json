@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "spec": "spec/requests/oauth_device_flow_parity_spec.rb",
+  "example": "OAuth device flow POST /oauth/token with the device_code grant answers invalid_client for an unknown client",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-12",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {},
+        "autoIncrement": {}
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/oauth/token",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          "host": "app.test.gumroad.com:31337",
+          "user-agent": "Gumroad CLI"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Adevice_code&client_id=unknown&device_code=x"
+      },
+      "response": {
+        "status": 401,
+        "headers": {
+          "cache-control": "no-store",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "_gumroad_app_session_test": {
+            "value": "4gjyUVKK31oV2Bh2QskyitlRZV8FFKh8V8hEdKihZif3OXYZ6bSM04f+iJC3UmVa41qJIO9YHZk1eJXDfQWWw0kVE0werC5m+oaqICY3yQpWRzarKmnT6Tww7P4n4RLyTGbVk5QbXZlhvpqrC9o9tS1i6cM08ArAXJ2GtbD9g5rdHjkeAl7vV7OQMH9fWW8QKlqbD3yJ827gLTGwNuZ+jBP3s8Jbq7E=--8HvLN/0WehKahIJl--/ncE6mzFt2KymgPpz8ozaw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "error": "invalid_client",
+          "error_description": "Client authentication failed due to unknown client"
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

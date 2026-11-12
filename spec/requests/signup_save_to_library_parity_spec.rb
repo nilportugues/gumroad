@@ -3,7 +3,7 @@
 require "spec_helper"
 
 # POST /save_to_library (SignupController#save_to_library), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
-# nextjs/parity/__tests__/ws10-triage.replay.test.ts, which sends the last request of each example. An example named "hands ..." is one Node
+# nextjs/parity/__tests__/auth-mutations.replay.test.ts, which sends the last request of each example. An example named "hands ..." is one Node
 # leaves to Rails: the replay asserts it reached Rails and wrote nothing.
 describe "Save to library", type: :request do
   include Parity::AudienceSignedIn
@@ -34,11 +34,54 @@ describe "Save to library", type: :request do
     expect(response.parsed_body["error_message"]).to eq("Please provide a valid email address.")
   end
 
-  it "hands a user hash that creates an account to Rails", parity: true do
-    post "/save_to_library", params: { authenticity_token: csrf_token, user: { email: "library-buyer@example.com", password: "a-long-library-password" } }
+  it "creates the account without signing it in", parity: true do
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: { email: "library-buyer@example.com", password: "a-long-library-password", terms_accepted: "1", buyer_signup: "true" } }
 
     expect(response.parsed_body).to eq("success" => true)
-    expect(User.where(email: "library-buyer@example.com").count).to eq(1)
+    user = User.find_by!(email: "library-buyer@example.com")
+    expect(user.buyer_signup).to eq(true)
+    expect(user.tos_agreements.count).to eq(1)
+  end
+
+  it "answers the first validation error for a password confirmation that does not match", parity: true do
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: { email: "short-library@example.com", password: "a-long-library-password", password_confirmation: "another-long-password" } }
+
+    expect(response.parsed_body["success"]).to eq(false)
+    expect(response.parsed_body["error_message"]).to be_present
+    expect(User.where(email: "short-library@example.com").count).to eq(0)
+  end
+
+  it "answers the first validation error for an email that is taken", parity: true do
+    create(:user, email: "taken-library@example.com")
+
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: { email: "taken-library@example.com", password: "a-long-library-password" } }
+
+    expect(response.parsed_body["success"]).to eq(false)
+    expect(response.parsed_body["error_message"]).to be_present
+  end
+
+  it "answers the first validation error for a missing email", parity: true do
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: { password: "a-long-library-password" } }
+
+    expect(response.parsed_body["success"]).to eq(false)
+  end
+
+  it "hands a user hash that names a purchase to Rails", parity: true do
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: { email: "purchase-library@example.com", password: "a-long-library-password", purchase_id: "unknown" } }
+
+    expect(response.parsed_body).to eq("success" => true)
+  end
+
+  it "hands a user hash with the remember-me checkbox to Rails", parity: true do
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: { email: "remember-library@example.com", password: "a-long-library-password", remember_me: "1" } }
+
+    expect(response.parsed_body).to eq("success" => true)
+  end
+
+  it "hands an empty user hash to Rails", parity: true do
+    post "/save_to_library", params: { authenticity_token: csrf_token, user: {} }.to_json, headers: { "CONTENT_TYPE" => "application/json" }
+
+    expect(response).to have_http_status(:bad_request)
   end
 
   it "hands a post without an authenticity token to Rails", parity: true do

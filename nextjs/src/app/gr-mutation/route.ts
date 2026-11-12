@@ -20,6 +20,8 @@ import "@/server/controllers/settings-beneficial-owners";
 import "@/server/controllers/social-callbacks";
 import "@/server/controllers/connections-mutations";
 import "@/server/controllers/oauth-applications-mutations";
+import "@/server/controllers/login-passkeys";
+import "@/server/controllers/oauth-device";
 import "@/server/controllers/oauth-tokens";
 import "@/server/controllers/oauth-authorizations";
 import "@/server/controllers/omniauth-failure";

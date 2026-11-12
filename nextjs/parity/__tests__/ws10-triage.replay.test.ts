@@ -14,18 +14,16 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays the WS-10r specs (omniauth failure, mobile pre-authorization, save to library, Circle setup calls): the last exchange of each
+// Replays the WS-10r specs (omniauth failure, mobile pre-authorization, Circle setup calls): the last exchange of each
 // fixture is sent to `next dev` with their flags on; a stand-in Rails receives whatever Node hands back.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const DIRS = [
   "omniauth_failure_parity_spec",
   "mobile_pre_authorizations_parity_spec",
-  "signup_save_to_library_parity_spec",
   "integrations_circle_parity_spec",
 ].map((spec) => path.join("parity/fixtures/requests", spec));
-const ROUTE_FLAGS =
-  "nextjs_omniauth_failure,nextjs_mobile_pre_authorization,nextjs_signup_save_to_library,nextjs_integrations_circle";
+const ROUTE_FLAGS = "nextjs_omniauth_failure,nextjs_mobile_pre_authorization,nextjs_integrations_circle";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");

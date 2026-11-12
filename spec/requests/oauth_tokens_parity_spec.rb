@@ -6,9 +6,9 @@ require "spec_helper"
 # nextjs/parity/__tests__/oauth-tokens.replay.test.ts, which sends the last request of each example. An example named "hands ..." is one
 # Node leaves to Rails: the replay asserts it reached Rails and wrote nothing.
 #
-# POST /oauth/token and the muse, claude and chatgpt token aliases are not served by Node at all: Rack::Attack's `oauth_token/ip`
-# throttle (3000 a minute per IP, with backoff tiers) counts them in Rails' Redis, and Node has no way to share that counter without
-# counting a handed-back request twice. The examples for them are all "hands ...".
+# POST /oauth/token and its aliases are served by Node as well: the token issuance examples live in oauth_token_issuance_parity_spec.rb,
+# and Rack::Attack's `oauth_token/ip` counter is the single one in controllers/rack-attack.ts (its limit is exercised by
+# rack-attack-throttles.test.ts: 3000 requests do not fit a recording).
 describe "OAuth tokens", type: :request do
   let(:owner) { create(:user) }
   let(:resource_owner) { create(:user) }
@@ -133,22 +133,6 @@ describe "OAuth tokens", type: :request do
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
-    it "hands a valid authorization code back to Rails", parity: true do
-      post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant_for(public_app).token, client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
-
-      expect(response).to have_http_status(:ok)
-      expect(Doorkeeper::AccessToken.count).to eq(1)
-    end
-
-    it "hands a code granted to a dynamically registered client back to Rails", parity: true do
-      dynamic_app = create(:oauth_application, owner:, confidential: false, mcp_dynamic_client: true)
-      grant = grant_for(dynamic_app, resource: "#{Mcp::DynamicClientOauth.base_url}/claude/v1/mcp", code_challenge: "challenge", code_challenge_method: "S256")
-
-      post "/claude/v1/oauth2/token", params: { grant_type: "authorization_code", code: grant.token, client_id: dynamic_app.uid, redirect_uri: dynamic_app.redirect_uri, code_verifier: "verifier" }
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
     it "hands a client_id that is not a string back to Rails", parity: true do
       post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: [public_app.uid], redirect_uri: public_app.redirect_uri }.to_json, headers: { "Content-Type" => "application/json" }
 
@@ -183,26 +167,6 @@ describe "OAuth tokens", type: :request do
       expect(response.parsed_body["error"]).to eq("unauthorized_client")
     end
 
-    it "hands a client_credentials grant that would issue a token back to Rails", parity: true do
-      post "/ifttt/v1/oauth2/token", params: { grant_type: "client_credentials", client_id: confidential_app.uid, client_secret: confidential_app.secret, scope: "view_profile" }
-
-      expect(response).to have_http_status(:ok)
-    end
-
-    it "hands a refresh_token grant back to Rails", parity: true do
-      token = access_token_for(public_app)
-
-      post "/oauth/token", params: { grant_type: "refresh_token", refresh_token: token.refresh_token, client_id: public_app.uid }
-
-      expect(response).to have_http_status(:ok)
-    end
-
-    it "hands a device code grant back to Rails", parity: true do
-      post "/oauth/token", params: { grant_type: "urn:ietf:params:oauth:grant-type:device_code", client_id: public_app.uid, device_code: "unknown" }
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
     it "answers the Notion token endpoint like the token endpoint", parity: true do
       post "/notion/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
@@ -210,67 +174,31 @@ describe "OAuth tokens", type: :request do
     end
   end
 
-  # Rack::Attack's `oauth_token/ip` rule counts these four paths per client IP in Redis, and a request Node answers never reaches
-  # that counter, so Node does not register them.
   describe "POST /oauth/token and the muse, claude and chatgpt aliases" do
-    let(:ip) { "203.0.113.77" }
-
-    def exhaust_token_throttle
-      Rack::Attack.cache.store.flushdb
-      Rack::Attack.reset!
-      3000.times do
-        Rack::Attack.configuration.throttled?(
-          Rack::Attack::Request.new(Rack::MockRequest.env_for("/oauth/token", method: "POST", input: "", "HTTP_CF_CONNECTING_IP" => ip))
-        )
-      end
-    end
-
-    after do
-      Rack::Attack.cache.store.flushdb
-      Rack::Attack.reset!
-    end
-
-    it "hands a failing code exchange on /oauth/token back to Rails", parity: true do
+    it "answers a failing code exchange on /oauth/token", parity: true do
       post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
-    it "hands a failing code exchange on the muse alias back to Rails", parity: true do
+    it "answers a failing code exchange on the muse alias", parity: true do
       post "/muse/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
-    it "hands a failing code exchange on the claude alias back to Rails", parity: true do
+    it "answers a failing code exchange on the claude alias", parity: true do
       post "/claude/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
-    it "hands a failing code exchange on the chatgpt alias back to Rails", parity: true do
+    it "answers a failing code exchange on the chatgpt alias", parity: true do
       post "/chatgpt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
-    it "hands a request past the per-IP limit on /oauth/token back to Rails", parity: true do
-      exhaust_token_throttle
-
-      post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }, headers: { "CF-Connecting-IP" => ip }
-
-      expect(response).to have_http_status(:too_many_requests)
-      expect(response.body).to eq("Retry later\n")
-      expect(response.headers["Retry-After"]).to be_present
-    end
-
-    it "hands a request past the per-IP limit on the claude alias back to Rails", parity: true do
-      exhaust_token_throttle
-
-      post "/claude/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }, headers: { "CF-Connecting-IP" => ip }
-
-      expect(response).to have_http_status(:too_many_requests)
-    end
   end
 
   describe "POST /oauth/revoke" do

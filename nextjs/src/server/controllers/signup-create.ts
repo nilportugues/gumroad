@@ -52,11 +52,11 @@ const CANADA = "CA";
 // The `user` keys SignupController#permitted_params keeps; the rest never reach User.new.
 const CARD_PARAMS = ["stripe_token", "stripe_payment_method_id"];
 
-const isHash = (value: unknown): value is Record<string, unknown> =>
+export const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
 // `Object#present?` for a value a form or JSON body can carry.
-function isPresent(value: unknown): boolean {
+export function isPresent(value: unknown): boolean {
   if (value === undefined || value === null || value === false) return false;
   if (typeof value === "string") return !isBlank(value);
   if (Array.isArray(value)) return value.length > 0;
@@ -162,6 +162,30 @@ async function existingAccount(
   );
 }
 
+function assertScalarFlags(userParams: Record<string, unknown>): void {
+  for (const name of ["terms_accepted", "buyer_signup"] as const)
+    if (isHash(userParams[name]) || Array.isArray(userParams[name]))
+      throw new HandBackToRails("a permitted key holding a list or hash");
+}
+
+// SignupController#build_user_with_params: the account as the permitted `user` params describe it, not saved.
+export async function buildSignupUser(input: MutationInput, userParams: Record<string, unknown>) {
+  const email = textParam(userParams.email);
+  const password = textParam(userParams.password);
+  const confirmation = textParam(userParams.password_confirmation);
+  assertScalarFlags(userParams);
+  const ip = clientIp(input);
+  const geo = geoIpLookup(ip);
+  if (geo?.countryCode === CANADA) throw new HandBackToRails("a Canadian address, which turns announcements off");
+
+  const user = Users.build({ email: email ?? "" });
+  await setPassword(user, password, confirmation === null ? undefined : confirmation);
+  user.set("account_created_ip", ip);
+  if (isPresent(userParams.buyer_signup)) setFlag(user, "buyer_signup", true);
+  if (isPresent(userParams.terms_accepted)) user.ivars.new_tos_agreement_ips = [ip];
+  return { user, ip };
+}
+
 async function signupCreate(input: MutationInput): Promise<ActionResult> {
   const { chain, params, request, context, url } = input;
   const format = answerFormat(input);
@@ -179,25 +203,14 @@ async function signupCreate(input: MutationInput): Promise<ActionResult> {
 
   const email = textParam(userParams.email);
   const password = textParam(userParams.password);
-  const confirmation = textParam(userParams.password_confirmation);
-  for (const name of ["terms_accepted", "buyer_signup"] as const)
-    if (isHash(userParams[name]) || Array.isArray(userParams[name]))
-      throw new HandBackToRails("a permitted key holding a list or hash");
+  assertScalarFlags(userParams);
 
   if (password !== null && !isBlank(password) && email !== null && !isBlank(email)) {
     const existing = await existingAccount(input, format, email, password);
     if (existing !== null) return existing;
   }
 
-  const ip = clientIp(input);
-  const geo = geoIpLookup(ip);
-  if (geo?.countryCode === CANADA) throw new HandBackToRails("a Canadian address, which turns announcements off");
-
-  const user = Users.build({ email: email ?? "" });
-  await setPassword(user, password, confirmation === null ? undefined : confirmation);
-  user.set("account_created_ip", ip);
-  if (isPresent(userParams.buyer_signup)) setFlag(user, "buyer_signup", true);
-  if (isPresent(userParams.terms_accepted)) user.ivars.new_tos_agreement_ips = [ip];
+  const { user, ip } = await buildSignupUser(input, userParams);
 
   if (!(await Users.save(user))) {
     const message =
