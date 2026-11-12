@@ -7,7 +7,9 @@ import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { LinkFlags, Links } from "../models/link.ts";
+import { promoteBuildBang } from "../models/product-build-promote.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { NotPortedError } from "../models/user.ts";
 import { authorize } from "../policies/authorize.ts";
 import { collaboratingProductIds, linkPolicy, productDuplicatesLinkPolicy } from "../policies/link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
@@ -24,7 +26,7 @@ import { sellerJsonAction } from "./json-seller.ts";
 import { registerMutations } from "./mutation.ts";
 import { find } from "./products-mutations.ts";
 import { requestFormat } from "./rails-params.ts";
-import { authorizeJson, json } from "./seller-json.ts";
+import { authorizeJson, json, noContent } from "./seller-json.ts";
 
 // ProductDuplicatorService
 const DUPLICATING = "product_duplicating";
@@ -152,9 +154,8 @@ async function buildsIndex(action: ActionContext, routeParams: Record<string, st
   );
 }
 
-// Products::BuildsController#promote (POST /products/:product_id/builds/:id/promote): the guards, then ProductBuild#promote! (the
-// product row lock, the superseded build's file, the new product file, the content-page embed swap, the archives and
-// ProductBuildUnpackJob) hands back whole.
+// Products::BuildsController#promote (POST /products/:product_id/builds/:id/promote): the guards, then ProductBuild#promote! for a
+// product with one set of pages (promoteBuildBang); a live build, versions and folders are handed back from inside it, before a write.
 registerMutations({
   method: "POST",
   pattern: "/products/:product_id/builds/:id/promote.json",
@@ -170,7 +171,13 @@ registerMutations({
           Prisma.sql`SELECT ${column("product_builds", "id")} FROM ${table("product_builds")} WHERE ${column("product_builds", "product_id")} = ${fetched.product.id} AND ${column("product_builds", "public_id")} = ${input.routeParams.id ?? ""} LIMIT 1`,
         );
         if (build === undefined) throw new RoutingError("Not Found");
-        throw new HandBackToRails("promoting a build");
+        try {
+          await promoteBuildBang(fetched.product.id, build.id);
+        } catch (error) {
+          if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
+          throw error;
+        }
+        return noContent();
       },
     ),
 });

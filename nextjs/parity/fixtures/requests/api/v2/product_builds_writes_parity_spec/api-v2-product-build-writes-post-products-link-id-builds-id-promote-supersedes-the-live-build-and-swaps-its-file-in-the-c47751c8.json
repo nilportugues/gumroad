@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/api/v2/product_builds_writes_parity_spec.rb",
-  "example": "API v2 product build writes POST /products/:link_id/builds/:id/promote hands a promotion through the /api prefix on the Gumroad domain to Rails",
+  "example": "API v2 product build writes POST /products/:link_id/builds/:id/promote supersedes the live build and swaps its file in the pages",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -197,7 +197,7 @@
                 "id": 1,
                 "resource_owner_id": 1,
                 "application_id": 1,
-                "token": "KDzta_dkbDhZTWL_sI2IeS15QJ8aDc430KCuDrX18qE",
+                "token": "XM4c4jQlvqU7KkkbhGDL3Pt0qXpnt4xv8GBksgMQuhw",
                 "refresh_token": null,
                 "expires_in": null,
                 "revoked_at": null,
@@ -233,9 +233,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app19",
-                "uid": "3_e-VQ2tKTIEJ90A7TWYrIMGq3venO7jwVKr0zmnirs",
-                "secret": "dOagWbEovq2BwkJKrZ4FoGFEkpl4GjKpsgkX29f5GqE",
+                "name": "app6",
+                "uid": "Fy_6zV_2irMcpFC_-uU7Wc6lb6SVjKDtRC8Gvj2xpuM",
+                "secret": "AqOz2TtIQgydxMAxw8iZhlMbTqOqBcP6yu2z3T_fTfI",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -310,11 +310,29 @@
               {
                 "id": 1,
                 "product_id": 1,
-                "public_id": "buildpublicid00000007",
-                "number": 4,
+                "public_id": "buildpublicid00live01",
+                "number": 1,
+                "status": "live",
+                "source_url": "https://example.com/uploads/0c1fb1477e2eb2f3/original/game.zip",
+                "storage_key": "builds/1/1/build.zip",
+                "byte_size": 1024,
+                "product_file_id": 1,
+                "promoted_at": "<now-7548h>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "site_unpacked_at": null,
+                "site_file_count": null,
+                "site_byte_size": null,
+                "site_unpack_error": null
+              },
+              {
+                "id": 2,
+                "product_id": 1,
+                "public_id": "buildpublicid00000008",
+                "number": 2,
                 "status": "uploaded",
-                "source_url": "https://example.com/uploads/08c59b8cfbfc595d/original/game.zip",
-                "storage_key": "builds/1/4/build.zip",
+                "source_url": "https://example.com/uploads/e204e91814881fcf/original/game.zip",
+                "storage_key": "builds/1/2/build.zip",
                 "byte_size": 1024,
                 "product_file_id": null,
                 "promoted_at": null,
@@ -324,6 +342,67 @@
                 "site_file_count": null,
                 "site_byte_size": null,
                 "site_unpack_error": null
+              }
+            ]
+          },
+          "product_files": {
+            "columns": {
+              "id": "bigint",
+              "link_id": "bigint",
+              "url": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "flags": "bigint",
+              "json_data": "longtext",
+              "deleted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "position": "int",
+              "installment_id": "bigint",
+              "display_name": "varchar",
+              "deleted_from_cdn_at": "datetime",
+              "description": "text",
+              "folder_id": "bigint",
+              "stampable_pdf": "tinyint",
+              "isbn": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "url": "http://localhost:9010/gumroad-specs/builds/1/1/build.zip",
+                "filetype": "zip",
+                "filegroup": "archive",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "flags": 0,
+                "json_data": null,
+                "deleted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "position": null,
+                "installment_id": null,
+                "display_name": "Playable build 1.zip",
+                "deleted_from_cdn_at": null,
+                "description": null,
+                "folder_id": null,
+                "stampable_pdf": null,
+                "isbn": null
               }
             ]
           },
@@ -361,6 +440,35 @@
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "rich_contents": {
+            "columns": {
+              "id": "bigint",
+              "entity_id": "bigint",
+              "entity_type": "varchar",
+              "description": "json",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "title": "varchar",
+              "position": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "entity_id": 1,
+                "entity_type": "Link",
+                "description": "[{\"type\": \"paragraph\", \"content\": [{\"text\": \"Intro\", \"type\": \"text\"}]}, {\"type\": \"fileEmbed\", \"attrs\": {\"id\": \"1UokxkyxJ__gd-gssE0g7w==\", \"uid\": \"00000000-0000-4000-8000-000000000001\"}}, {\"type\": \"paragraph\", \"content\": [{\"text\": \"Outro\", \"type\": \"text\"}]}]",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "title": null,
+                "position": 0
               }
             ]
           },
@@ -440,19 +548,19 @@
               {
                 "id": 1,
                 "email": "build-seller@example.com",
-                "encrypted_password": "$2a$04$VQQsPoPEUZ7htUAANdWveuWKvyQ2eW2IfHIOuPiTa2IdDinRtaSfm",
+                "encrypted_password": "$2a$04$EmJ88KE2GuMkoMI58Q12eeVNzNodPdaGq4JLsuTLxH5jQvQ1L7Qqa",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "52.217.114.245",
-                "last_sign_in_ip": "158.150.207.71",
+                "current_sign_in_ip": "58.222.31.137",
+                "last_sign_in_ip": "233.135.202.236",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Build Seller",
-                "payment_address": "edgarcf1718b9_57@gumroad.com",
+                "payment_address": "edgar55c54280_17@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -464,7 +572,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar3a984eb139",
+                "username": "edgarb248932312",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -477,8 +585,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "9462720866345",
-                "account_created_ip": "211.46.97.34",
+                "external_id": "9515921201350",
+                "account_created_ip": "10.155.114.235",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -496,7 +604,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "UGBNKYHCP6M6KJWVG2WYEOZF6WIE7F4B",
+                "otp_secret_key": "PWIQTFNTY3G6ZIWQ7W4D3QGQV3UCQ4SO",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -507,20 +615,20 @@
               },
               {
                 "id": 2,
-                "email": "edgar335a7a35_58@gumroad.com",
-                "encrypted_password": "$2a$04$ssJACBpdNjDvbLFEvz3Z6O5rBo7oymMGXsAnM5q8cZ1YudmLU/B3u",
+                "email": "edgard2c0670b_18@gumroad.com",
+                "encrypted_password": "$2a$04$RWTuywzkXJks0.HwIc9gsOUcX8ewIIg2oMA.LxaOEZzi7ClH34RmW",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "13.241.225.154",
-                "last_sign_in_ip": "32.71.217.172",
+                "current_sign_in_ip": "253.244.5.174",
+                "last_sign_in_ip": "69.216.39.208",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgarb8f248df_59@gumroad.com",
+                "payment_address": "edgar05344628_19@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -532,7 +640,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar3ccf09a540",
+                "username": "edgareb57ba3b13",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -545,8 +653,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "8468898106982",
-                "account_created_ip": "25.33.172.104",
+                "external_id": "9603240233858",
+                "account_created_ip": "30.198.154.224",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -564,7 +672,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "QTVSNBMH7EZOE7ITPH3CZEVV7N2P4YIZ",
+                "otp_secret_key": "SNAJJISMW3HYBYYHFY5PBEW6RUCOLKBO",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -582,8 +690,10 @@
           "oauth_access_tokens": 2,
           "oauth_applications": 2,
           "prices": 2,
-          "product_builds": 2,
+          "product_builds": 3,
+          "product_files": 2,
           "refund_policies": 3,
+          "rich_contents": 2,
           "users": 3
         }
       },
@@ -625,12 +735,12 @@
       "request": {
         "source": "request",
         "method": "POST",
-        "path": "/api/v2/products/1UokxkyxJ__gd-gssE0g7w==/builds/buildpublicid00000007/promote",
+        "path": "/v2/products/1UokxkyxJ__gd-gssE0g7w==/builds/buildpublicid00000008/promote",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
-          "authorization": "Bearer KDzta_dkbDhZTWL_sI2IeS15QJ8aDc430KCuDrX18qE",
+          "authorization": "Bearer XM4c4jQlvqU7KkkbhGDL3Pt0qXpnt4xv8GBksgMQuhw",
           "content-type": "application/x-www-form-urlencoded",
-          "host": "app.test.gumroad.com:31337"
+          "host": "api.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1"
       },
@@ -651,8 +761,8 @@
         "json": {
           "success": true,
           "build": {
-            "id": "buildpublicid00000007",
-            "number": 4,
+            "id": "buildpublicid00000008",
+            "number": 2,
             "status": "live",
             "byte_size": 1024,
             "created_at": "<now>",
@@ -669,12 +779,27 @@
               },
               "changes": {
                 "status": [
+                  "live",
+                  "superseded"
+                ],
+                "updated_at": [
+                  "<now>",
+                  "<now>"
+                ]
+              }
+            },
+            {
+              "key": {
+                "id": 2
+              },
+              "changes": {
+                "status": [
                   "uploaded",
                   "live"
                 ],
                 "product_file_id": [
                   null,
-                  1
+                  2
                 ],
                 "promoted_at": [
                   null,
@@ -691,9 +816,9 @@
         "product_files": {
           "inserted": [
             {
-              "id": 1,
+              "id": 2,
               "link_id": 1,
-              "url": "http://localhost:9010/gumroad-specs/builds/1/4/build.zip",
+              "url": "http://localhost:9010/gumroad-specs/builds/1/2/build.zip",
               "filetype": "zip",
               "filegroup": "archive",
               "size": null,
@@ -710,12 +835,48 @@
               "updated_at": "<now>",
               "position": null,
               "installment_id": null,
-              "display_name": "Playable build 4.zip",
+              "display_name": "Playable build 2.zip",
               "deleted_from_cdn_at": null,
               "description": null,
               "folder_id": null,
               "stampable_pdf": null,
               "isbn": null
+            }
+          ],
+          "updated": [
+            {
+              "key": {
+                "id": 1
+              },
+              "changes": {
+                "deleted_at": [
+                  null,
+                  "<now>"
+                ],
+                "updated_at": [
+                  "<now>",
+                  "<now>"
+                ]
+              }
+            }
+          ]
+        },
+        "rich_contents": {
+          "updated": [
+            {
+              "key": {
+                "id": 1
+              },
+              "changes": {
+                "description": [
+                  "[{\"type\": \"paragraph\", \"content\": [{\"text\": \"Intro\", \"type\": \"text\"}]}, {\"type\": \"fileEmbed\", \"attrs\": {\"id\": \"1UokxkyxJ__gd-gssE0g7w==\", \"uid\": \"00000000-0000-4000-8000-000000000001\"}}, {\"type\": \"paragraph\", \"content\": [{\"text\": \"Outro\", \"type\": \"text\"}]}]",
+                  "[{\"type\": \"paragraph\", \"content\": [{\"text\": \"Intro\", \"type\": \"text\"}]}, {\"type\": \"paragraph\", \"content\": [{\"text\": \"Outro\", \"type\": \"text\"}]}, {\"type\": \"fileEmbed\", \"attrs\": {\"id\": \"7-RrdvIoUS_D2srgUHAytg==\", \"uid\": \"a9b35dd6-e49f-4a03-a58f-91fa2776e46d\"}}]"
+                ],
+                "updated_at": [
+                  "<now>",
+                  "<now>"
+                ]
+              }
             }
           ]
         }
@@ -724,7 +885,7 @@
         {
           "class": "AnalyzeFileWorker",
           "args": [
-            1,
+            2,
             "ProductFile"
           ],
           "queue": "low",
@@ -733,13 +894,48 @@
         {
           "class": "ProductBuildUnpackJob",
           "args": [
-            1
+            2
           ],
           "queue": "low"
         }
       ],
       "mails": [],
-      "http": []
+      "http": [],
+      "timeline": [
+        {
+          "type": "db",
+          "op": "update",
+          "table": "product_files"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "product_builds"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "product_files"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "product_builds"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "rich_contents"
+        },
+        {
+          "type": "job",
+          "index": 0
+        },
+        {
+          "type": "job",
+          "index": 1
+        }
+      ]
     }
   ]
 }

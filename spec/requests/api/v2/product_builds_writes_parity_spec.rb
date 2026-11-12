@@ -149,20 +149,109 @@ describe "API v2 product build writes", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands a promotion of a build to Rails", parity: true do
-      build = create(:product_build, product:, public_id: "buildpublicid00000006")
+    def embed(file, uid = "00000000-0000-4000-8000-000000000001") = { "type" => "fileEmbed", "attrs" => { "id" => file.external_id, "uid" => uid } }
+    def paragraph(text) = { "type" => "paragraph", "content" => [{ "type" => "text", "text" => text }] }
+
+    def zip_of(build) = create(:product_file, link: product, url: "#{S3_BASE_URL}#{build.storage_key}", display_name: "Playable build #{build.number}.zip")
+
+    def live_build(number: 1, public_id: "buildpublicid00live01")
+      build = create(:product_build, product:, number:, public_id:, status: "live", promoted_at: Time.utc(2026, 1, 2, 3, 4, 5))
+      build.update!(product_file: zip_of(build))
+      build
+    end
+
+    it "promotes the first build of a product with no pages", parity: true, parity_timeline: true do
+      build = create(:product_build, product:, number: 1, public_id: "buildpublicid00000006")
 
       promote(build.public_id)
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["build"]).to include("id" => "buildpublicid00000006", "status" => "live")
+      expect(build.reload.product_file.display_name).to eq("Playable build 1.zip")
     end
 
-    it "hands a promotion through the /api prefix on the Gumroad domain to Rails", parity: true do
+    it "promotes a build through the /api prefix on the Gumroad domain", parity: true, parity_timeline: true do
       build = create(:product_build, product:, public_id: "buildpublicid00000007")
 
       promote(build.public_id, api_host: false)
 
       expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "supersedes the live build and swaps its file in the pages", parity: true, parity_timeline: true do
+      old_build = live_build
+      create(:rich_content, entity: product, description: [paragraph("Intro"), embed(old_build.product_file), paragraph("Outro")])
+      build = create(:product_build, product:, number: 2, public_id: "buildpublicid00000008")
+
+      promote(build.public_id)
+
+      expect(old_build.reload.status).to eq("superseded")
+      expect(old_build.product_file).not_to be_alive
+      expect(product.alive_rich_contents.first.embedded_product_file_ids_in_order).to eq([build.reload.product_file.id])
+    end
+
+    it "puts the file on the first page only and keeps the other files of the pages", parity: true, parity_timeline: true do
+      old_build = live_build
+      other = create(:product_file, link: product)
+      create(:rich_content, entity: product, position: 1, title: "Second", description: [embed(old_build.product_file, "00000000-0000-4000-8000-000000000002"), embed(other, "00000000-0000-4000-8000-000000000003")])
+      create(:rich_content, entity: product, position: 0, title: "First", description: [paragraph("Start")])
+      build = create(:product_build, product:, number: 2, public_id: "buildpublicid00000009")
+
+      promote(build.public_id)
+
+      first, second = product.alive_rich_contents.order(:position).to_a
+      expect(first.embedded_product_file_ids_in_order).to eq([build.reload.product_file.id])
+      expect(second.embedded_product_file_ids_in_order).to eq([other.id])
+    end
+
+    it "removes the old embed from inside a list", parity: true, parity_timeline: true do
+      old_build = live_build
+      create(:rich_content, entity: product, description: [{ "type" => "bulletList", "content" => [{ "type" => "listItem", "content" => [embed(old_build.product_file)] }] }, paragraph("After")])
+      build = create(:product_build, product:, number: 2, public_id: "buildpublicid00000010")
+
+      promote(build.public_id)
+
+      expect(response.parsed_body["build"]).to include("status" => "live")
+    end
+
+    it "promotes a superseded build again", parity: true, parity_timeline: true do
+      live = live_build(number: 2, public_id: "buildpublicid00live02")
+      create(:rich_content, entity: product, description: [embed(live.product_file)])
+      older = create(:product_build, product:, number: 1, public_id: "buildpublicid00000011", status: "superseded")
+
+      promote(older.public_id)
+
+      expect(live.reload.status).to eq("superseded")
+      expect(older.reload.status).to eq("live")
+    end
+
+    it "hands a promotion of the live build to Rails", parity: true do
+      build = live_build
+
+      promote(build.public_id)
+
+      expect(response.parsed_body["build"]).to include("status" => "live")
+    end
+
+    it "hands a promotion for a product with versions to Rails", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
+      create(:variant, variant_category: category, name: "Standard")
+      build = create(:product_build, product:, public_id: "buildpublicid00000012")
+
+      promote(build.public_id)
+
+      expect(response.parsed_body["build"]).to include("status" => "live")
+    end
+
+    it "hands a promotion for a page with a folder to Rails", parity: true do
+      first_file = create(:product_file, link: product)
+      second_file = create(:product_file, link: product)
+      group = { "type" => "fileEmbedGroup", "attrs" => { "name" => "Pack", "uid" => "00000000-0000-4000-8000-000000000009" }, "content" => [embed(first_file, "00000000-0000-4000-8000-000000000004"), embed(second_file, "00000000-0000-4000-8000-000000000005")] }
+      create(:rich_content, entity: product, description: [group])
+      build = create(:product_build, product:, public_id: "buildpublicid00000013")
+
+      promote(build.public_id)
+
+      expect(response.parsed_body["build"]).to include("status" => "live")
     end
   end
 end

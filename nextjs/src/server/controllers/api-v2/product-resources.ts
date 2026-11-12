@@ -4,6 +4,7 @@ import type { BaseVariant, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { storageConfig } from "../../infra/storage.ts";
+import { promoteBuildBang } from "../../models/product-build-promote.ts";
 import { hasEditorContent } from "../../models/rich-content.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
@@ -236,8 +237,8 @@ registerApiV2(
     before: loadBuild,
     run: async (input) => renderResponse(true, { build: productBuildJson(input.state.build) }),
   },
-  // #deploy copies the seller's upload inside S3 under the product lock and #promote swaps the live file, rewrites the rich content and
-  // enqueues the unpack job; Rails takes both once the checks below pass.
+  // #deploy copies the seller's upload inside S3 under the product lock, which Rails takes once the checks below pass. #promote runs in
+  // Node for a product with one set of pages (promoteBuildBang); a live build, versions and folders are handed back from inside it.
   {
     method: "POST",
     pattern: "/v2/products/:link_id/builds/deploy",
@@ -250,8 +251,9 @@ registerApiV2(
     pattern: "/v2/products/:link_id/builds/:id/promote",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadBuild,
-    async run() {
-      throw new HandBackToRails("a build promotion");
+    async run(input) {
+      const build = await promoteBuildBang(productOf(input).id, input.state.build.id);
+      return renderResponse(true, { build: productBuildJson(build) });
     },
   },
 );
