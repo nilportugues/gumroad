@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -49,6 +50,34 @@ const COUNTED_KEYS: [RegExp, number][] = [
   [/post-v2-media-the-rack-attack-throttle-counts/u, 2],
 ];
 
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item.
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const jobs: RawJob[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as RawJob;
+        jobs.push({ class: item.class, args: item.args, queue: item.queue });
+      }
+      return jobs;
+    },
+  };
+}
+
+// The requests Node sends Elasticsearch, without the index name (Rails' test index is `link-test`, Node's is `products`).
+type EsCall = { method: string; path: string; body: unknown };
+const esCall = (method: string, url: string, body: string | null | undefined): EsCall => ({
+  method,
+  path: new URL(url, "http://es.example.com").pathname.replace(/^\/[^/]+/u, ""),
+  body: body ? (JSON.parse(body) as unknown) : null,
+});
+
 const cases = existsSync(DIR)
   ? readdirSync(DIR)
       .filter((file) => file.endsWith(".json"))
@@ -69,6 +98,8 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
   let server: NextServer;
   let rails: Server;
   const handedBack: { method: string; url: string }[] = [];
+  let elasticsearch: Server;
+  const esCalls: EsCall[] = [];
   const saved = { ...process.env };
 
   beforeAll(async () => {
@@ -84,6 +115,28 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
       request.on("end", () => response.writeHead(218, { "x-handed-back": "rails" }).end());
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    // An Elasticsearch that notes what it is sent and says every document was updated.
+    elasticsearch = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        // The client's product check on its first request.
+        if (request.url === "/") {
+          response.writeHead(200, { "content-type": "application/json" }).end(
+            JSON.stringify({
+              version: { number: "7.9.0", build_flavor: "default" },
+              tagline: "You Know, for Search",
+            }),
+          );
+          return;
+        }
+        esCalls.push(esCall(request.method ?? "", request.url ?? "", Buffer.concat(chunks).toString("utf8")));
+        response
+          .writeHead(200, { "content-type": "application/json", "x-elastic-product": "Elasticsearch" })
+          .end(JSON.stringify({ result: "updated", _shards: { total: 1, successful: 1, failed: 0 } }));
+      });
+    });
+    await new Promise<void>((resolve) => elasticsearch.listen(0, "127.0.0.1", resolve));
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
@@ -92,6 +145,7 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as { port: number }).port}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
+      ELASTICSEARCH_HOST: `http://127.0.0.1:${(elasticsearch.address() as { port: number }).port}`,
       REDIS_HOST: redisHost,
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
@@ -102,6 +156,7 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
   afterAll(async () => {
     await server?.stop();
     await new Promise<void>((resolve) => (rails ? rails.close(() => resolve()) : resolve()));
+    await new Promise<void>((resolve) => (elasticsearch ? elasticsearch.close(() => resolve()) : resolve()));
     await closeAllRedis();
     await redis?.quit();
     await client?.$disconnect();
@@ -123,6 +178,7 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
       },
       transport: httpTransport(server.baseUrl),
       interceptHttp: false,
+      jobs: redisJobs(redis),
       compare: COMPARE,
     });
 
@@ -146,6 +202,7 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
     "%s",
     async (name, file, index) => {
       handedBack.length = 0;
+      esCalls.length = 0;
       try {
         const result = await replay(file, index, name.includes("answers-429"));
         const counters = await rackAttackCounters(redis);
@@ -160,6 +217,11 @@ describe.skipIf(!url)("API v2 throttled routes parity", () => {
         }
         expect(handedBack).toHaveLength(0);
         assertParity(result);
+        // The Elasticsearch update Rails sent after the commit (none for a refusal or a draft nobody indexes).
+        const recorded = (loadFixture(file).exchanges[index]!.http ?? []).map((call) =>
+          esCall(call.method, call.url, call.body),
+        );
+        expect(esCalls).toEqual(recorded);
         expectRetryAfter(result.exchanges[0]!.actual.response, [64, 600]);
         const counted = COUNTED_KEYS.find(([pattern]) => pattern.test(name));
         if (counted) {

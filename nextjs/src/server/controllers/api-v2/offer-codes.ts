@@ -64,6 +64,14 @@ const universalCodes = (userId: bigint, currency: string | null, productId: bigi
 const productCodes = (productId: bigint) =>
   Prisma.sql`${column(OFFER_CODES, "id")} IN (SELECT offer_code_id FROM offer_codes_products WHERE product_id = ${productId}) AND ${alive}`;
 
+// Whether `product_and_universal_offer_codes` is non-empty.
+export async function hasApplicableOfferCodes(owner: { id: bigint }, product: Link): Promise<boolean> {
+  const [row] = await selectRows<{ found: number }>(
+    Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table(OFFER_CODES)} WHERE ${productCodes(product.id)} UNION ALL SELECT 1 FROM ${table(OFFER_CODES)} WHERE ${universalCodes(owner.id, product.price_currency_type, product.id)}) AS found`,
+  );
+  return Number(row?.found ?? 0) > 0;
+}
+
 // find_by_external_id: nil for an id that does not decrypt.
 const idOf = (externalId: unknown): number | null => (typeof externalId === "string" ? decrypt(externalId) : null);
 

@@ -13,6 +13,7 @@ import { railsCache } from "../cache/rails-cache.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 
+import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import {
@@ -64,17 +65,31 @@ const PURCHASE_PROPERTIES = ["updated_at"];
 const ROLLUP_LINK_COLUMNS = ["deleted_at", "purchase_disabled_at", "banned_at", "draft", "flags", "user_id"];
 const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 // Product::Searchable::ATTRIBUTE_TO_SEARCH_FIELDS_MAP, for the columns a ported update can change.
+// The order is the Ruby map's: it decides the order of the fields in the enqueued job.
 const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
+  name: ["name", "rated_as_adult"],
   purchase_disabled_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   deleted_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   banned_at: ["is_recommendable", "is_alive_on_profile", "is_alive"],
   archived: ["is_recommendable", "is_alive_on_profile"],
+  display_product_reviews: ["display_product_reviews", "is_recommendable"],
+  is_adult: ["rated_as_adult"],
 };
-// The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for the archived bit only.
-const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags", "deleted_at"];
+// The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for PORTED_FLAG_BITS only.
+const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags", "deleted_at", "name"];
 // The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index`.
 const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index"];
 const ARCHIVED_BIT = 1n << 4n;
+// Flag N is bit N - 1: archived, is_adult, display_product_reviews and should_show_sales_count.
+const IS_ADULT_BIT = 1n << 15n;
+const DISPLAY_PRODUCT_REVIEWS_BIT = 1n << 16n;
+const SHOULD_SHOW_SALES_COUNT_BIT = 1n << 21n;
+const PORTED_FLAG_BITS = ARCHIVED_BIT | IS_ADULT_BIT | DISPLAY_PRODUCT_REVIEWS_BIT | SHOULD_SHOW_SALES_COUNT_BIT;
+const SEARCH_FLAG_BITS: Record<string, bigint> = {
+  archived: ARCHIVED_BIT,
+  is_adult: IS_ADULT_BIT,
+  display_product_reviews: DISPLAY_PRODUCT_REVIEWS_BIT,
+};
 
 export const NATIVE_TYPES_TO_TAX_CODE = {
   digital: "31000",
@@ -279,7 +294,9 @@ async function getUsdCents(currencyType: string, quantity: number): Promise<numb
 
 const flagsDiff = (link: LinkRecord) => BigInt(link.get("flags") ?? 0) ^ BigInt(link.attributeWas("flags") ?? 0);
 const attributeChangedForSearch = (link: LinkRecord, key: string) =>
-  key === "archived" ? (flagsDiff(link) & ARCHIVED_BIT) !== 0n : link.attributeChanged(key as keyof Link & string);
+  key in SEARCH_FLAG_BITS
+    ? (flagsDiff(link) & SEARCH_FLAG_BITS[key]!) !== 0n
+    : link.attributeChanged(key as keyof Link & string);
 const changedForSearch = (link: LinkRecord) =>
   Object.keys(ATTRIBUTE_TO_SEARCH_FIELDS).flatMap((key) =>
     attributeChangedForSearch(link, key) ? ATTRIBUTE_TO_SEARCH_FIELDS[key]! : [],
@@ -329,8 +346,11 @@ const refuseUnportedSave: Callback<Link> = {
         .filter((name) => (name === "json_data" ? jsonDataUnported : !PORTED_CHANGES.includes(name)));
       if (unported.length > 0)
         throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
-      if (link.attributeChanged("flags") && (flagsDiff(link) & ~ARCHIVED_BIT) !== 0n)
-        throw new NotPortedError("Link#save changing flags other than archived", "app/models/link.rb");
+      if (link.attributeChanged("flags") && (flagsDiff(link) & ~PORTED_FLAG_BITS) !== 0n)
+        throw new NotPortedError(
+          "Link#save changing flags other than archived, is_adult, display_product_reviews and should_show_sales_count",
+          "app/models/link.rb",
+        );
       if (link.get("unique_permalink") == null)
         throw new NotPortedError("Link#generate_unique_permalink", "app/models/link.rb:1882");
     });
@@ -596,7 +616,15 @@ const validations: Callback<Link>[] = [
       if (empty) link.errors.add("base", "Sorry, the product versions must have at least one option.");
     },
   },
-  // content_has_no_adult_keywords only runs when name or description change.
+  {
+    // Runs when name or description change; a ported update changes the name only.
+    name: "content_has_no_adult_keywords",
+    if: (link) => link.attributeChanged("name"),
+    run(link) {
+      if (isAdult(link.get("description")) || isAdult(link.get("name")))
+        link.errors.add("base", "Adult keywords are not allowed");
+    },
+  },
   {
     name: "custom_view_content_button_text_length",
     run(link) {
@@ -678,7 +706,14 @@ const validations: Callback<Link>[] = [
       await loadBelongsTo(link, DEFAULT_OFFER_CODE, ctx);
     },
   },
-  // content_moderation_check only runs while publishing or when name/description change.
+  {
+    // Runs while publishing, or when the name or description of a published product change; the moderation service is Ruby's.
+    name: "content_moderation_check",
+    if: (link) => !link.newRecord && isPublished(link) && link.attributeChanged("name"),
+    run() {
+      throw new NotPortedError("ContentModeration::ModerateRecordService.check", "app/models/link.rb:2385");
+    },
+  },
   {
     name: "validates_associated :installment_plan",
     async run(link) {

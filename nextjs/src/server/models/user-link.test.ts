@@ -19,9 +19,9 @@ describe("Links", () => {
     expect(db.queries).toEqual([]);
   });
 
-  it("refuses an update that changes anything but banned_at", async () => {
+  it("refuses an update that changes a column the port does not cover", async () => {
     const link = Links.load(row);
-    await expect(Links.update(link, { name: "Renamed", banned_at: new Date(0) })).rejects.toThrow("Link#save changing name is not ported");
+    await expect(Links.update(link, { description: "Renamed", banned_at: new Date(0) })).rejects.toThrow("Link#save changing description is not ported");
     expect(db.queries).toEqual([]);
   });
 

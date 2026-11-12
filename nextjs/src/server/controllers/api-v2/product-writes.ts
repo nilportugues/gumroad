@@ -2,19 +2,33 @@
 // chain, tags, rich content, files and their archives, publishing) is Rails': a request that passes every refusal below goes to Rails whole
 // before anything is written, and Rack::Attack's count for it is taken back by the hand-back (rack-attack.ts counts once).
 //
-// This module is deliberately separate from the Link save chain of POST /links: nothing here writes.
+// #update writes in Node for the one shape the Link model port covers: name, is_adult, display_product_reviews and should_show_sales_count
+// on a product whose rename needs no content moderation. Every other write is checked before the first statement, so a hand-back never follows one.
 import { Prisma, type Link } from "@prisma/client";
 
+import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { storageConfig } from "../../infra/storage.ts";
 import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
-import { LinkFlags } from "../../models/link.ts";
+import { LinkFlags, Links } from "../../models/link.ts";
+import { RecordInvalid } from "../../models/runtime/errors.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { HandBackToRails, type Rendered } from "../application-controller.ts";
 import type { Params } from "../rails-body.ts";
 
-import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, loadProduct, present, registerApiV2, renderResponse } from "./base.ts";
+import {
+  type ApiV2Input,
+  EDIT_PRODUCTS_SCOPES,
+  loadProduct,
+  present,
+  registerApiV2,
+  renderResponse,
+  successWithObject,
+  toSentence,
+} from "./base.ts";
+import { hasApplicableOfferCodes } from "./offer-codes.ts";
+import { productsApiJson } from "./product-json.ts";
 import { accountLevelRefundPolicyEnabled } from "./refund-policies.ts";
 import { blankParam, isHash, rubyToI, rubyToS } from "./ruby-params.ts";
 
@@ -299,7 +313,70 @@ async function update(input: ApiV2Input) {
   if (has(params, "cover_ids") && !isTextList(params.cover_ids))
     return refuse("cover_ids must be an array of strings.");
 
-  throw new HandBackToRails("the update of a product");
+  return updateSimpleAttributes(input, product);
+}
+
+// The attributes #update reads that the simple path does not write.
+const UNPORTED_UPDATE_KEYS = [
+  "custom_permalink",
+  "price_currency_type",
+  "price",
+  "customizable_price",
+  "suggested_price_cents",
+  "max_purchase_count",
+  "quantity_enabled",
+  "taxonomy_id",
+  "custom_receipt",
+  "has_same_rich_content_for_all_variants",
+  "description",
+  "custom_summary",
+  "refund_period",
+  "refund_fine_print",
+  "custom_html",
+  "files",
+  "rich_content",
+  "tags",
+  "cover_ids",
+];
+const UPDATE_FLAG_PARAMS = ["is_adult", "display_product_reviews", "should_show_sales_count"] as const;
+
+// Link#published?
+const isPublishedProduct = (product: Link) =>
+  product.deleted_at === null && product.purchase_disabled_at === null && !product.draft;
+
+// #update with none of UNPORTED_UPDATE_KEYS: assign_attributes, save!, then the product JSON. A flag value other than true or false
+// goes to Rails (FlagShihTzu's TRUE_VALUES and ActiveModel's casts differ from each other).
+async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
+  const { params, owner } = input;
+  if (UNPORTED_UPDATE_KEYS.some((key) => has(params, key)))
+    throw new HandBackToRails("an update of more than the simple attributes");
+  if (has(params, "name") && typeof params.name !== "string") throw new HandBackToRails("a name that is not text");
+  for (const key of UPDATE_FLAG_PARAMS)
+    if (has(params, key) && typeof params[key] !== "boolean")
+      throw new HandBackToRails(`a ${key} that is not true or false`);
+  // content_moderation_check runs on the rename of a published product; check_offer_code_validity runs after every save.
+  if (typeof params.name === "string" && params.name !== product.name && isPublishedProduct(product))
+    throw new HandBackToRails("the rename of a published product");
+  if (await hasApplicableOfferCodes(owner, product)) throw new HandBackToRails("offer codes whose validity is checked");
+  const scopes = (input.token.scopes ?? "").split(/\s+/u).filter(Boolean);
+  const json = async (row: Link) => (await productsApiJson([row], { owner, scopes, slim: false }))[0]!;
+  // The response serializes the product: refuse what Node cannot before the write.
+  await json(product);
+
+  let flags = product.flags;
+  for (const key of UPDATE_FLAG_PARAMS) if (has(params, key)) flags = LinkFlags.set(flags, key, params[key] as boolean);
+  const attributes: Partial<Link> = { flags };
+  if (typeof params.name === "string") attributes.name = params.name;
+  const record = Links.load(product);
+  try {
+    await Links.updateBang(record, attributes);
+  } catch (caught) {
+    if (!(caught instanceof RecordInvalid)) throw caught;
+    return renderResponse(false, {
+      message: toSentence(record.errors.fullMessages()) || "The product was unable to be modified.",
+    });
+  }
+  return successWithObject("product", await json((await db.link.findUnique({ where: { id: product.id } }))!));
 }
 
 registerApiV2(
