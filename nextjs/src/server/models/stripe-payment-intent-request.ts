@@ -257,7 +257,7 @@ export function buildPaymentIntentRequests(input: PaymentIntentRequestInput): Pa
 
   const requiresMandate = chargeable.kind === "payment_method" && chargeable.country === "IN";
   let mandate: string | null = null;
-  if (input.offSession && requiresMandate && chargeable.kind === "payment_method") {
+  if (input.offSession && requiresMandate) {
     if (present(chargeable.validatedMandateId)) mandate = chargeable.validatedMandateId;
     else mandate = input.resolvedMandateId;
   }
