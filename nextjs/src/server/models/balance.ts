@@ -11,6 +11,8 @@ import { validatesAssociationPresence, type BelongsTo } from "./concerns/rails-v
 import { HOLDER_OF_FUNDS, holderOfFunds, MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
+import { InvalidTransition } from "./runtime/state-machine.ts";
+import { transaction } from "./runtime/transaction.ts";
 import { validatesPresenceOf } from "./runtime/validators.ts";
 import { isFlagSet, isOnProbation, Users, type UserRecord } from "./user.ts";
 
@@ -112,4 +114,24 @@ export async function createBalanceBang(
   assignBalanceUser(balance, attributes.user);
   assignBalanceMerchantAccount(balance, attributes.merchantAccount);
   return Balances.saveBang(balance, options);
+}
+
+// state_machine(:state, initial: :unpaid): the events, as `balance.mark_unpaid!` runs them. An event is one transaction around the
+// save; a state with no transition for it raises before anything is sent.
+const BALANCE_TRANSITIONS = {
+  mark_forfeited: { from: ["unpaid"], to: "forfeited" },
+  mark_processing: { from: ["unpaid"], to: "processing" },
+  mark_paid: { from: ["processing"], to: "paid" },
+  mark_unpaid: { from: ["processing", "paid"], to: "unpaid" },
+} as const;
+export type BalanceEvent = keyof typeof BALANCE_TRANSITIONS;
+
+export async function fireBalanceEventBang(balance: BalanceRecord, event: BalanceEvent, options: SaveOptions = {}): Promise<BalanceRecord> {
+  const { from, to } = BALANCE_TRANSITIONS[event];
+  const current = balance.get("state") as string | null;
+  if (!(from as readonly (string | null)[]).includes(current)) throw new InvalidTransition("state", event, current);
+  return transaction(async () => {
+    balance.set("state", to);
+    return Balances.saveBang(balance, options);
+  });
 }

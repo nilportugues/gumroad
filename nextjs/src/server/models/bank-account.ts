@@ -11,22 +11,23 @@ import { aliveStripeAccountsOf, isStripeConnectAccount } from "./merchant-accoun
 import { defineModel } from "./runtime/define-model.ts";
 import { isBlank } from "./runtime/validators.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
+import { findUser } from "./user.ts";
 
 const PAYPAL_CHARGE_PROCESSOR_ID = "paypal";
 
-// BankAccount#user_has_another_payout_method?
+// BankAccount#user_has_another_payout_method?: `user.payment_address.present?` loads the user, `.exists?` sends `SELECT 1 AS one`, and
+// `has_paypal_account_connected?` loads every live PayPal account before asking whether there is one.
 async function userHasAnotherPayoutMethod(userId: unknown, bankAccountId: unknown): Promise<boolean> {
-  const [user] = await selectRows<{ payment_address: string | null }>(
-    Prisma.sql`SELECT ${column("users", "payment_address")} FROM ${table("users")} WHERE ${column("users", "id")} = ${userId} LIMIT 1`,
-  );
-  if (user && !isBlank(user.payment_address)) return true;
+  const user = await findUser(userId);
+  if (!user) throw new TypeError("undefined method 'payment_address' for nil");
+  if (!isBlank(user.get("payment_address"))) return true;
   const banks = await selectRows(
-    Prisma.sql`SELECT 1 AS present FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${userId} AND ${column("bank_accounts", "deleted_at")} IS NULL AND ${column("bank_accounts", "id")} != ${bankAccountId} LIMIT 1`,
+    Prisma.sql`SELECT 1 AS one FROM ${table("bank_accounts")} WHERE ${column("bank_accounts", "user_id")} = ${userId} AND ${column("bank_accounts", "deleted_at")} IS NULL AND ${column("bank_accounts", "id")} != ${bankAccountId} LIMIT 1`,
   );
   if (banks.length > 0) return true;
   if ((await aliveStripeAccountsOf(userId)).some((account) => isStripeConnectAccount(account))) return true;
   const paypal = await selectRows(
-    Prisma.sql`SELECT 1 AS present FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} = ${PAYPAL_CHARGE_PROCESSOR_ID} LIMIT 1`,
+    Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${userId} AND ${column("merchant_accounts", "deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_alive_at")} IS NOT NULL AND ${column("merchant_accounts", "charge_processor_deleted_at")} IS NULL AND ${column("merchant_accounts", "charge_processor_id")} = ${PAYPAL_CHARGE_PROCESSOR_ID}`,
   );
   return paypal.length > 0;
 }

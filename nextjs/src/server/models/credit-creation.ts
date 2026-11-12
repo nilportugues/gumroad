@@ -2,20 +2,19 @@
 // (app/models/credit.rb): a credit, its balance transaction, and the balance it lands on. The
 // other create_for_* methods need models that are not ported (Purchase, Refund, Dispute, Payment)
 // or mail (notify_user), and are not here.
-import { getConfigValue } from "../infra/config.ts";
-import { railsEnv } from "../infra/rails-env.ts";
 import { assignBelongsTo } from "./concerns/belongs-to-record.ts";
 import { getUsdCents } from "./concerns/currency-helper.ts";
 import { balanceTransactionBalance, createBalanceTransactionBang, type Amount } from "./balance-transaction.ts";
-import { assignCreditCreditingUser, assignCreditMerchantAccount, assignCreditUser, creditMerchantAccount, creditUser, Credits, type CreditRecord } from "./credit.ts";
+import { assignCreditCreditingUser, assignCreditMerchantAccount, assignCreditReturnedPayment, assignCreditUser, creditMerchantAccount, creditUser, Credits, type CreditRecord } from "./credit.ts";
 import { merchantAccountUser, type MerchantAccountRecord } from "./merchant-account.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
-import { findUserBang } from "./user.ts";
+import type { PaymentRecord } from "./payment.ts";
+import { findUserBang, type UserRecord } from "./user.ts";
 
 const USD = "usd";
 
-// GUMROAD_ADMIN_ID (config/initializers/004_constants.rb)
-export const gumroadAdminId = () => getConfigValue("GUMROAD_ADMIN_ID", railsEnv() === "staging" ? 978 : 767082);
+export { gumroadAdminId } from "./gumroad-admin-id.ts";
+import { gumroadAdminId } from "./gumroad-admin-id.ts";
 
 // Credit.create_for_balance_change_on_stripe_account!
 export async function createForBalanceChangeOnStripeAccountBang(
@@ -37,6 +36,37 @@ export async function createForBalanceChangeOnStripeAccountBang(
     currency: (await creditMerchantAccount(credit))!.get("currency") as string,
     grossCents: amountCentsHoldingCurrency,
     netCents: amountCentsHoldingCurrency,
+  };
+  const balanceTransaction = await createBalanceTransactionBang(
+    { user: (await creditUser(credit))!, merchantAccount: (await creditMerchantAccount(credit))!, credit, issuedAmount, holdingAmount },
+    options,
+  );
+
+  const balance = await balanceTransactionBalance(balanceTransaction);
+  assignBelongsTo(credit, { name: "balance", foreignKey: "balance_id", targetTable: "balances", targetModel: "Balance" }, balance);
+  await Credits.saveBang(credit, options);
+  return credit;
+}
+
+// Credit.create_for_returned_payment_difference!: the currency-conversion difference of a returned payout, as a zero-dollar credit whose
+// balance transaction moves only the holding currency.
+export async function createForReturnedPaymentDifferenceBang(
+  attributes: { user: UserRecord; merchantAccount: MerchantAccountRecord; returnedPayment: PaymentRecord; differenceAmountCents: number },
+  options: SaveOptions = {},
+): Promise<CreditRecord> {
+  const { user, merchantAccount, returnedPayment, differenceAmountCents } = attributes;
+  const credit = Credits.build({});
+  assignCreditUser(credit, user);
+  assignCreditMerchantAccount(credit, merchantAccount);
+  credit.set("amount_cents", 0);
+  assignCreditReturnedPayment(credit, returnedPayment);
+  await Credits.saveBang(credit, options);
+
+  const issuedAmount: Amount = { currency: USD, grossCents: 0, netCents: 0 };
+  const holdingAmount: Amount = {
+    currency: returnedPayment.get("currency") as string,
+    grossCents: differenceAmountCents,
+    netCents: differenceAmountCents,
   };
   const balanceTransaction = await createBalanceTransactionBang(
     { user: (await creditUser(credit))!, merchantAccount: (await creditMerchantAccount(credit))!, credit, issuedAmount, holdingAmount },

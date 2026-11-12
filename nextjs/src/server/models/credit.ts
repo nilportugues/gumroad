@@ -9,6 +9,7 @@ import { assignBelongsTo, readBelongsTo } from "./concerns/belongs-to-record.ts"
 import { validatesAssociationPresence, type BelongsTo } from "./concerns/rails-validations.ts";
 import { rubyJsonParse } from "./concerns/serialized-columns.ts";
 import { Comments } from "./comment.ts";
+import { Payments, type PaymentRecord } from "./payment.ts";
 import { MerchantAccounts, type MerchantAccountRecord } from "./merchant-account.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
@@ -21,12 +22,12 @@ const assoc = (name: string, targetTable: string, targetModel: BelongsTo["target
 export const CREDIT_USER = assoc("user", "users", "User");
 export const CREDIT_MERCHANT_ACCOUNT = assoc("merchant_account", "merchant_accounts", "MerchantAccount");
 export const CREDIT_CREDITING_USER = assoc("crediting_user", "users", "User");
+export const CREDIT_RETURNED_PAYMENT = assoc("returned_payment", "payments", "Payment");
 
 // The belongs_to associations validate_associated_entity and add_comment look at, in the order
 // they are read. Only crediting_user is ported; the others' models are not.
 const UNPORTED_ENTITIES = [
   ["chargebacked_purchase_id", "chargebacked_purchase"],
-  ["returned_payment_id", "returned_payment"],
   ["refund_id", "refund"],
   ["financing_paydown_purchase_id", "financing_paydown_purchase"],
   ["fee_retention_refund_id", "fee_retention_refund"],
@@ -45,6 +46,8 @@ export const creditMerchantAccount = (credit: CreditRecord) => readBelongsTo(cre
 export const creditCreditingUser = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_CREDITING_USER, Users);
 export const assignCreditUser = (credit: CreditRecord, user: UserRecord | null) => assignBelongsTo(credit, CREDIT_USER, user);
 export const assignCreditMerchantAccount = (credit: CreditRecord, account: MerchantAccountRecord | null) => assignBelongsTo(credit, CREDIT_MERCHANT_ACCOUNT, account);
+export const creditReturnedPayment = (credit: CreditRecord) => readBelongsTo(credit, CREDIT_RETURNED_PAYMENT, Payments);
+export const assignCreditReturnedPayment = (credit: CreditRecord, payment: PaymentRecord | null) => assignBelongsTo(credit, CREDIT_RETURNED_PAYMENT, payment);
 export const assignCreditCreditingUser = (credit: CreditRecord, user: UserRecord | null) => assignBelongsTo(credit, CREDIT_CREDITING_USER, user);
 
 // json_data["stripe_loan_paydown_id"] / ["stripe_loan_paydown_reason"] (attr_json_data_accessor)
@@ -80,7 +83,14 @@ async function addComment(credit: CreditRecord, ctx: { now?: () => Date }): Prom
   if (await creditCreditingUser(credit)) {
     attrs.author_id = BigInt(credit.get("crediting_user_id") as number);
   } else {
-    refuseUnportedEntity(credit, "refund");
+    refuseUnportedEntity(credit, "chargebacked_purchase");
+    const returnedPayment = await creditReturnedPayment(credit);
+    if (returnedPayment) {
+      attrs.author_name = `AutoCredit Returned Payment (${String(returnedPayment.get("id"))})`;
+      attrs.content = `issued adjustment due to currency conversion differences when payment ${String(returnedPayment.get("id"))} returned.`;
+    } else {
+      refuseUnportedEntity(credit, "refund");
+    }
   }
   const user = await creditUser(credit);
   if (user === null) throw new TypeError("undefined method 'comments' for nil");
@@ -99,6 +109,8 @@ export const Credits = defineModel<Credit>({
       name: "validate_associated_entity",
       async run(credit) {
         if (await creditCreditingUser(credit)) return;
+        refuseUnportedEntity(credit, "chargebacked_purchase");
+        if (await creditReturnedPayment(credit)) return;
         refuseUnportedEntity(credit, "backtax_agreement");
         if (isAutomaticCapitalDeduction(credit)) return;
         credit.errors.add(

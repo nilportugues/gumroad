@@ -24,7 +24,7 @@ type Recorded = {
 };
 type GoldenCase = {
   name: string;
-  responses?: [number, Record<string, string>, string][];
+  responses?: [number | "drop", Record<string, string>, string][];
   requests?: Recorded[];
   retries: number;
   result?: unknown;
@@ -42,6 +42,7 @@ type GoldenCase = {
 const golden = JSON.parse(
   fs.readFileSync(path.join(import.meta.dirname, "__fixtures__/stripe-requests.golden.json"), "utf8"),
 ) as {
+  api_base: string;
   sleep_time: { retries: number; samples: [number, number] }[];
   cases: GoldenCase[];
 };
@@ -106,6 +107,14 @@ const CALLS: Record<string, (o: Opts) => Promise<unknown>> = {
   "429 rate limit is not retried": (o) => Account.retrieve("acct_1", o),
   "409 conflict is retried": (o) => Account.retrieve("acct_1", o),
   "500 is retried until max_network_retries": (o) => Account.retrieve("acct_1", o),
+  "payout create is sent four times under one idempotency key when Stripe answers 500": (o) => payoutCreate(o, true),
+  "payout create is sent four times under one idempotency key when the connection drops": (o) => payoutCreate(o, true),
+  "payout create succeeds on the third attempt after two drops, keeping its key": (o) => payoutCreate(o, false),
+  "payout create 429 rate limit is not retried": (o) => payoutCreate(o, false),
+  "transfer create 500 is retried under one idempotency key": (o) =>
+    Transfer.create({ amount: 1234, currency: "usd", destination: "acct_1" }, o),
+  "transfer reversal is sent four times when the connection drops": (o) =>
+    Transfer.createReversal("tr_1", { amount: 500 }, o),
   "stripe-should-retry false stops a 500 retry": (o) => Account.retrieve("acct_1", o),
   "stripe-should-retry true retries a 400": (o) => Account.retrieve("acct_1", o),
   "unparseable body": (o) => Account.retrieve("acct_1", o),
@@ -113,6 +122,12 @@ const CALLS: Record<string, (o: Opts) => Promise<unknown>> = {
   "oauth error": (o) => Account.retrieve("acct_1", o),
   "connection refused": (o) => Account.retrieve("acct_1", o),
 };
+
+const payoutCreate = (o: Opts, instant: boolean) =>
+  Payout.create(
+    { amount: 1234, currency: "usd", ...(instant ? { method: "instant" } : {}) },
+    { ...o, stripeAccount: "acct_1" },
+  );
 
 // The headers that carry meaning; User-Agent and X-Stripe-Client-User-Agent describe the
 // bindings and differ by design. Idempotency keys are random, so they compare by identity.
@@ -157,7 +172,7 @@ function normalize(requests: Recorded[]) {
 let server: http.Server;
 let port: number;
 const recorded: Recorded[] = [];
-let script: [number, Record<string, string>, string][] = [];
+let script: [number | "drop", Record<string, string>, string][] = [];
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
@@ -175,6 +190,7 @@ beforeAll(async () => {
         body: req.headers["content-length"] ? Buffer.concat(chunks).toString("utf8") : null,
       });
       const [status, responseHeaders, body] = script.shift() ?? [500, {}, "no scripted response"];
+      if (status === "drop") return void req.socket.destroy();
       res.writeHead(status, { ...responseHeaders, "Content-Length": Buffer.byteLength(body) });
       res.end(body);
     });
@@ -232,6 +248,11 @@ describe("requests match stripe-ruby 12.5.0", () => {
     }
     if (c.requests) expect(normalize(recorded)).toEqual(normalize(c.requests));
     expect(sleeps.length).toBe(c.retries);
+    // The gem's messages name the port its own server listened on.
+    if (c.error) {
+      const fix = (text: string) => text.replaceAll(golden.api_base, base);
+      c = { ...c, error: { ...c.error, message: fix(c.error.message), to_s: fix(c.error.to_s) } };
+    }
     if (name === "connection refused") {
       // Net::HTTP's wording for ECONNREFUSED, reproduced from the errno.
       expect(outcome.error).toEqual(c.error);
