@@ -19,8 +19,14 @@ import { LinkFlags } from "./link.ts";
 import { PurchaseRefundPolicies } from "./purchase-refund-policy.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
-import { column, execute, selectRows, table } from "./sql.ts";
-import { isValidEmailFormat, mailAddressDomain, MAX_PRICE_USD_CENTS_UNLESS_VERIFIED, NotPortedError } from "./user.ts";
+import { castRow, column, execute, selectRows, table } from "./sql.ts";
+import {
+  isValidEmailFormat,
+  mailAddressDomain,
+  MAX_PRICE_USD_CENTS_UNLESS_VERIFIED,
+  NotPortedError,
+  strippedFieldWith,
+} from "./user.ts";
 
 export type PurchaseRecord = ModelRecord<Purchase>;
 
@@ -76,8 +82,11 @@ export type PurchaseContext = {
   link: Link;
   seller: User;
   purchaserEmail?: string | null;
-  // `User.find_by(email: purchase.email)`, which the service ran when it picked the purchaser (the query cache answers the later one)
+  // `User.find_by(email: params[:email])`, which the service ran when it picked the purchaser, with the email it ran it for.
+  // The email is stripped and downcased when the purchase validates, so the fraud check asks again unless it came out the same
+  // (the query cache answers it then).
   buyerByEmail: User | null;
+  buyerLookupEmail?: string | null;
   geoInfo?: { countryCode: string | null; regionName: string | null } | null;
   refundPolicy?: Pick<PurchaseRefundPolicy, "max_refund_period_in_days" | "title" | "fine_print"> | null;
 };
@@ -185,6 +194,23 @@ const notGiftSender = Prisma.sql`((${column(PURCHASES, "flags")} & 64 = 0))`;
 
 const star = Prisma.raw("`purchases`.*");
 
+// stripped_fields :email, remove_duplicate_spaces: false, nilify_blanks: false, transform: downcase,
+//   if: -> { email.present? && email_changed? }
+const strippedEmail: Callback<Purchase> = {
+  name: "stripped_fields :email",
+  if: (record) => record.get("email") != null && record.get("email")!.trim() !== "" && record.attributeChanged("email"),
+  run(record) {
+    record.set(
+      "email",
+      strippedFieldWith(record.get("email"), {
+        removeDuplicateSpaces: false,
+        nilifyBlanks: false,
+        transform: (value) => value.toLowerCase(),
+      }) as never,
+    );
+  },
+};
+
 const mustHaveValidEmail: Callback<Purchase> = {
   name: "must_have_valid_email",
   run(record) {
@@ -195,6 +221,7 @@ const mustHaveValidEmail: Callback<Purchase> = {
 
 const notDoubleCharged: Callback<Purchase> = {
   name: "not_double_charged",
+  on: "create",
   async run(record, ctx) {
     const { link } = contextOf(record);
     if (flag(record, "is_bundle_product_purchase") || flag(record, "is_gift_receiver_purchase")) return;
@@ -268,6 +295,28 @@ const presence = (
       if (record.get(attribute) == null) record.errors.add(attribute === "seller_id" ? "seller" : attribute, "blank");
   },
 });
+
+// validates :custom_fee_per_thousand, allow_nil: true, numericality: { only_integer: true, >= 0, <= 1000 }
+const CUSTOM_FEE_PER_THOUSAND_MAX = 1000;
+const customFeePerThousand: Callback<Purchase> = {
+  name: "validates custom_fee_per_thousand, numericality",
+  run(record) {
+    const value = jsonDataOf(record).custom_fee_per_thousand;
+    if (value == null) return;
+    const attribute = "custom_fee_per_thousand";
+    const number =
+      typeof value === "number"
+        ? value
+        : typeof value === "string" && /^[+-]?\d+(\.\d+)?$/u.test(value.trim())
+          ? Number(value)
+          : NaN;
+    if (Number.isNaN(number)) return void record.errors.add(attribute, "not_a_number");
+    if (!Number.isInteger(number)) return void record.errors.add(attribute, "not_an_integer");
+    if (number < 0) return void record.errors.add(attribute, "greater_than_or_equal_to", { count: 0 });
+    if (number > CUSTOM_FEE_PER_THOUSAND_MAX)
+      record.errors.add(attribute, "less_than_or_equal_to", { count: CUSTOM_FEE_PER_THOUSAND_MAX });
+  },
+};
 
 // ---- before_create guards ----------------------------------------------------------------------------------------
 
@@ -490,8 +539,15 @@ const checkForFraud: Callback<Purchase> = {
     );
     if (chargedBack.length + chargedBackByGuid.length > 0) throw notPorted("a buyer with a chargeback");
 
-    // check_for_past_fraudulent_buyers: the User.find_by(email:) the service already ran
-    if (context.buyerByEmail?.user_risk_state === "suspended_for_fraud") {
+    // check_for_past_fraudulent_buyers: User.find_by(email:), which the service already ran when the email is unchanged
+    let buyer = context.buyerByEmail;
+    if (context.buyerLookupEmail !== undefined && context.buyerLookupEmail !== record.get("email")) {
+      const [row] = await selectRows<User>(
+        Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "email")} = ${record.get("email")} LIMIT 1`,
+      );
+      buyer = row ? castRow<User>("User", row as never) : null;
+    }
+    if (buyer?.user_risk_state === "suspended_for_fraud") {
       fail("suspended_buyer", "Your card was not charged.");
       return;
     }
@@ -587,6 +643,8 @@ export const Purchases = defineModel<Purchase>({
       },
     },
   ],
+  afterUpdate: [...paperTrail.afterUpdate],
+  beforeValidation: [strippedEmail],
   validations: [
     mustHaveValidEmail,
     notDoubleCharged,
@@ -595,6 +653,7 @@ export const Purchases = defineModel<Purchase>({
     presence(["price_cents"]),
     presence(["total_transaction_cents"]),
     presence(["fee_cents"]),
+    customFeePerThousand,
   ],
   beforeSave: [
     {
@@ -650,6 +709,10 @@ export const Purchases = defineModel<Purchase>({
       name: "update_product_review_stat",
       async run(record) {
         if (Object.keys(record.savedChanges).length === 0) return;
+        // `product_review` is a has_one: the first read loads it and the later saves of the same instance reuse it
+        const memo = record.ivars as { productReviewLoaded?: boolean };
+        if (memo.productReviewLoaded) return;
+        memo.productReviewLoaded = true;
         const rows = await selectRows(
           Prisma.sql`SELECT ${Prisma.raw("`product_reviews`.*")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${record.get("id")} LIMIT 1`,
         );

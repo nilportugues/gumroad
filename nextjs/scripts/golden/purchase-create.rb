@@ -101,6 +101,33 @@ class JobMarker
 end
 Sidekiq.configure_client { |config| config.client_middleware { |chain| chain.add JobMarker } }
 
+# The app's own Redis ($redis, db REDIS_HOST) reads and writes and every Flipper read, in the order they happened. Sidekiq's
+# client uses another database, so its pushes stay out (they are recorded as `job` entries).
+APP_REDIS_DB = ENV.fetch("REDIS_HOST")[%r{/(\d+)\z}, 1].to_i
+module RedisRecorder
+  def call_v(command, &block) = RedisRecorder.wrap(self, command) { super }
+  def call_once_v(command, &block) = RedisRecorder.wrap(self, command) { super }
+  def blocking_call_v(timeout, command, &block) = RedisRecorder.wrap(self, command) { super }
+
+  def self.wrap(client, command)
+    result = yield
+    if RailsRecorder.log && client.config.db == APP_REDIS_DB
+      RailsRecorder.log << { "redis" => command.map(&:to_s), "result" => RailsRecorder.encode_value(result) }
+    end
+    result
+  end
+end
+RedisClient.prepend(RedisRecorder)
+
+module FlipperRecorder
+  def active?(feature_name, actor = nil)
+    result = super
+    RailsRecorder.log << { "flipper" => feature_name.to_s, "actor" => actor && "#{actor.class.name};#{actor.id}", "result" => result } if RailsRecorder.log
+    result
+  end
+end
+Feature.singleton_class.prepend(FlipperRecorder)
+
 capture_elasticsearch!
 capture_http!
 
@@ -175,6 +202,7 @@ cases << case_for("essentials only", seed: product_universe,
 cases << case_for("email owned by a confirmed account", seed: product_universe { create(:user, email: "owner@example.com") }, body: order_body(line("freeone"), email: "owner@example.com"))
 cases << case_for("product with a file", seed: product_universe { |_| Link.find_by(unique_permalink: "freeone").product_files << create(:product_file, link: Link.find_by(unique_permalink: "freeone")) },
                                          body: order_body(line("freeone")))
+cases << case_for("email with spaces and capitals", seed: product_universe, body: order_body(line("freeone"), email: "  Buyer@Example.COM "))
 cases << case_for("no refund policy", seed: product_universe { |seller| seller.update!(refund_policy_enabled: false) }, body: order_body(line("freeone")))
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.iso8601(3), "cases" => cases }) + "\n")

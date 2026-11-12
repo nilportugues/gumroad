@@ -348,12 +348,20 @@ const INVISIBLE_FORMAT_CHARS = /[­​‎‏⁠﻿]/gu;
 const UNICODE_SPACES = /[   -   　]/gu;
 
 export function strippedField(value: unknown): string | null {
+  return strippedFieldWith(value, {});
+}
+
+// StrippedField.before_validation with its options: `remove_duplicate_spaces`, `nilify_blanks` and `transform` (which only
+// runs on a present value).
+export function strippedFieldWith(
+  value: unknown,
+  options: { removeDuplicateSpaces?: boolean; nilifyBlanks?: boolean; transform?: (value: string) => string },
+): string | null {
   const text = value == null ? "" : String(value);
-  const stripped = rubyStrip(text.replace(INVISIBLE_FORMAT_CHARS, "").replace(UNICODE_SPACES, " ")).replace(
-    / {2,}/gu,
-    " ",
-  );
-  return isBlank(stripped) ? null : stripped;
+  let stripped = rubyStrip(text.replace(INVISIBLE_FORMAT_CHARS, "").replace(UNICODE_SPACES, " "));
+  if (options.removeDuplicateSpaces ?? true) stripped = stripped.replace(/ {2,}/gu, " ");
+  if (options.transform && !isBlank(stripped)) stripped = options.transform(stripped);
+  return (options.nilifyBlanks ?? true) && isBlank(stripped) ? null : stripped;
 }
 
 // Ruby `\s` and `.` in the validators below are ASCII whitespace and "anything but \n".

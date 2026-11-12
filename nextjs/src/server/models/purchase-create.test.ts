@@ -69,13 +69,18 @@ function seededRow(c: GoldenCase, table: string): Record<string, unknown> {
 function buildPurchase(c: GoldenCase, span: Entry[]) {
   const insert = span.filter(isSql).find((s) => s.sql.startsWith("INSERT INTO `purchases`"))!;
   const { row } = parseInsert(insert.sql);
-  const attributes = castRow<Purchase>("Purchase", typed({ ...row, created_at: null, updated_at: null }));
+  // The service hands the save the email as the buyer typed it; the model strips and downcases it when it validates.
+  const typedEmail = (c.request as { email?: string }).email;
+  const attributes = castRow<Purchase>(
+    "Purchase",
+    typed({ ...row, ...(typedEmail === undefined ? {} : { email: typedEmail }), created_at: null, updated_at: null }),
+  );
   const link = castRow<Link>("Link", seededRow(c, "links"));
   const seller = castRow<User>("User", seededRow(c, "users"));
   const policy = span.filter(isSql).find((s) => s.sql.startsWith("INSERT INTO `purchase_refund_policies`"));
   const refundPolicy = policy ? (parseInsert(policy.sql).row as PurchaseContext["refundPolicy"]) : null;
   const users = c.seed.map(parseInsert).filter((parsed) => parsed.table === "users");
-  const buyerRow = users.find((parsed) => parsed.row.email === attributes.email)?.row;
+  const buyerRow = users.find((parsed) => parsed.row.email === typedEmail)?.row;
   const purchaserRow = users.find((parsed) => BigInt(parsed.row.id as number) === attributes.purchaser_id)?.row;
   const context: PurchaseContext = {
     link,
@@ -83,6 +88,7 @@ function buildPurchase(c: GoldenCase, span: Entry[]) {
     geoInfo: null,
     refundPolicy,
     buyerByEmail: buyerRow ? castRow<User>("User", typed(buyerRow)) : null,
+    buyerLookupEmail: typedEmail,
     purchaserEmail: purchaserRow ? (purchaserRow.email as string) : undefined,
   };
   return withContext(Purchases.build(attributes), context);
@@ -234,6 +240,57 @@ describe("Purchase create (free checkout)", () => {
     purchase.set("referrer", "r".repeat(300));
     await withExecutor(() => Purchases.save(purchase, { now: () => NOW }));
     expect(purchase.get("referrer")).toHaveLength(191);
+  });
+
+  it("updates the saved purchase without the create-only checks or a second look for its review", async () => {
+    const c = golden.cases[0]!;
+    const first = firstSaveSpan(c);
+    // The next "Purchase#save": `update(succeeded_at:)`, up to its COMMIT
+    const from = c.statements.findIndex(
+      (entry, i) =>
+        isMarker(entry, "start") &&
+        c.statements.slice(i, i + 4).some((next) => isSql(next) && next.sql.startsWith("UPDATE `purchases` SET")),
+    );
+    const to = c.statements.findIndex((entry, i) => i > from && isSql(entry) && entry.sql === "COMMIT");
+    const second = c.statements.slice(from + 1, to + 1).filter(isSql);
+    const sql = sqlReplay([...first.filter(isSql), ...second]);
+    const purchase = buildPurchase(c, first);
+    const version = parseInsert(first.filter(isSql).find((s) => s.sql.startsWith("INSERT INTO `versions`"))!.sql).row;
+    await withExecutor(() =>
+      withPaperTrailRequest(
+        {
+          controllerInfo: {
+            remote_ip: version.remote_ip as string,
+            request_path: version.request_path as string,
+            request_uuid: version.request_uuid as string,
+          },
+        },
+        async () => {
+          await Purchases.saveBang(purchase, { now: () => NOW });
+          sql.log.length = 0;
+          purchase.set("succeeded_at", new Date("2026-11-04T12:30:45.000Z"));
+          await Purchases.saveBang(purchase, { now: () => NOW });
+        },
+      ),
+    );
+    expect(sql.log).toEqual(second.map((statement) => statement.sql));
+  });
+
+  it("refuses a custom fee that is not an integer between 0 and 1000", async () => {
+    const c = golden.cases[0]!;
+    const span = firstSaveSpan(c);
+    sqlReplay(span.filter(isSql));
+    const check = async (fee: unknown) => {
+      const purchase = buildPurchase(c, span);
+      purchase.set("json_data", JSON.stringify({ custom_fee_per_thousand: fee }));
+      await withExecutor(() => Purchases.valid(purchase));
+      return purchase.errors.fullMessages();
+    };
+    expect(await check(1001)).toEqual(["Custom fee per thousand must be less than or equal to 1000"]);
+    expect(await check(-1)).toEqual(["Custom fee per thousand must be greater than or equal to 0"]);
+    expect(await check(2.5)).toEqual(["Custom fee per thousand must be an integer"]);
+    expect(await check("abc")).toEqual(["Custom fee per thousand is not a number"]);
+    expect(await check(100)).toEqual([]);
   });
 
   it("counts the sale against the product's inventory counter after the commit", async () => {
