@@ -1,13 +1,13 @@
 // Port of app/sidekiq/refresh_audience_member_job.rb: AudienceMember#refresh! rebuilds the row from the seller's purchases, follower and
 // direct affiliates, saves it, or destroys it when nothing qualifies any more (under the row lock when it exists).
 //
-// Runs in Node for a buyer whose purchases all fail the cheap checks of Purchase#should_be_audience_member? (no subscription, and the
-// buyer cannot be contacted, the sale is not in a sellable state or the address is malformed), whose only source is a follower, or who
-// has no source at all. A purchase that could qualify (its details need the country, variants, subscription and license) and any
-// direct affiliate are handed back; the statements before that are read-only, so Rails re-runs the job from the start.
+// Every source runs in Node: purchases (Purchase#should_be_audience_member? and #audience_member_details, with the subscription,
+// variant and license reads), the follower, and direct affiliates (Affiliate#should_be_audience_member? and its product rows). A
+// purchase or affiliate row with no created_at is handed back: Ruby raises there and the statements before it are read-only.
 // Golden: __fixtures__/refresh-audience-member-job.golden.json (scripts/golden/refresh-audience-member-job.rb).
-import { Prisma, type Follower, type Purchase } from "@prisma/client";
+import { Prisma, type Affiliate, type Follower, type Purchase, type User } from "@prisma/client";
 
+import { defineFlags } from "../../lib/flags.ts";
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import {
   AudienceMembers,
@@ -15,7 +15,10 @@ import {
   type AudienceMemberRecord,
   type Details,
 } from "../../server/models/audience-member-record.ts";
+import { sendsPosts } from "../../server/models/direct-affiliate.ts";
+import { PurchaseRecord } from "../../server/models/purchase-pricing.ts";
 import { findById } from "../../server/models/row-reads.ts";
+import { isBlank } from "../../server/models/runtime/validators.ts";
 import { castRow, column, findInBatches, quoteName, selectRows, table } from "../../server/models/sql.ts";
 import { isValidEmailFormat } from "../../server/models/user.ts";
 
@@ -23,6 +26,7 @@ import { modelJob } from "./support/job-deps.ts";
 
 const FIND_EACH_BATCH_SIZE = 1_000;
 const AUDIENCE_PURCHASE_STATES = ["successful", "gift_receiver_purchase_successful", "not_charged"];
+const SubscriptionFlags = defineFlags("subscriptions", { 1: "is_test_subscription" }, { queryMode: "bit_operator" });
 
 // Time#iso8601 of a UTC time.
 const iso8601 = (time: Date): string => time.toISOString().replace(".000Z", "Z");
@@ -41,27 +45,67 @@ function sellerIdFrom(value: unknown): bigint {
   throw new HandBackToRuby(`seller_id ${JSON.stringify(value)} is not an Integer`);
 }
 
+const columnsOf = (model: "Affiliate" | "User") =>
+  Prisma.dmmf.datamodel.models.find((m) => m.name === model)!.fields.filter((field) => field.kind !== "object");
+
 // `includes(:affiliate_user).where(users: { email: })` eager loads, so every column of both tables is selected under tN_rM aliases.
 function eagerLoadedColumns(): Prisma.Sql {
-  const columns = (model: string, alias: string) =>
-    Prisma.dmmf.datamodel.models
-      .find((m) => m.name === model)!
-      .fields.filter((field) => field.kind !== "object")
-      .map(
-        (field, index) =>
-          `${quoteName(model === "User" ? "users" : "affiliates")}.${quoteName(field.name)} AS ${alias}_r${index}`,
-      );
-  return Prisma.raw([...columns("Affiliate", "t0"), ...columns("User", "t1")].join(", "));
+  const aliased = (model: "Affiliate" | "User", alias: string) =>
+    columnsOf(model).map(
+      (field, index) =>
+        `${quoteName(model === "User" ? "users" : "affiliates")}.${quoteName(field.name)} AS ${alias}_r${index}`,
+    );
+  return Prisma.raw([...aliased("Affiliate", "t0"), ...aliased("User", "t1")].join(", "));
 }
 
-// Purchase#should_be_audience_member? for a purchase without a subscription, as far as a query-free check decides it.
-const cannotQualify = (purchase: Purchase): boolean =>
-  purchase.subscription_id === null &&
-  (!purchase.can_contact ||
-    purchase.purchase_state === null ||
-    !AUDIENCE_PURCHASE_STATES.includes(purchase.purchase_state) ||
-    purchase.email === null ||
-    !isValidEmailFormat(purchase.email));
+// The inverse of eagerLoadedColumns for one row.
+function unaliased(model: "Affiliate" | "User", alias: "t0" | "t1", row: Record<string, unknown>) {
+  return Object.fromEntries(columnsOf(model).map((field, index) => [field.name, row[`${alias}_r${index}`]]));
+}
+
+// Purchase#should_be_audience_member?. Its `result &= ...` terms all run, so a subscription purchase loads its subscription (and
+// raises on a missing one) whatever the earlier terms came out as.
+async function purchaseShouldBeAudienceMember(purchase: PurchaseRecord): Promise<boolean> {
+  const row = purchase.row;
+  let result = row.can_contact === true;
+  result &&= row.purchase_state !== null && AUDIENCE_PURCHASE_STATES.includes(row.purchase_state);
+  result &&= !purchase.flag("is_gift_sender_purchase");
+  result &&= isValidEmailFormat(row.email);
+  if (row.subscription_id === null) {
+    result &&= row.stripe_refunded !== true;
+    return result && (row.chargeback_date === null || purchase.flag("chargeback_reversed"));
+  }
+  const subscription = await purchase.subscriptionRow();
+  if (subscription === null) throw new NoMethodError("undefined method 'deactivated_at' for nil");
+  return (
+    result &&
+    purchase.flag("is_original_subscription_purchase") &&
+    !purchase.flag("is_archived_original_subscription_purchase") &&
+    subscription.deactivated_at === null &&
+    !SubscriptionFlags.isSet(subscription.flags, "is_test_subscription")
+  );
+}
+
+// Purchase#audience_member_details; the row's own compaction drops the blank values (`compact_blank`).
+async function purchaseDetails(purchase: PurchaseRecord): Promise<Details> {
+  const row = purchase.row;
+  if (row.created_at === null) throw new HandBackToRuby("a purchase with no created_at");
+  const variantIds = await selectRows<{ id: unknown }>(
+    Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} INNER JOIN ${table("base_variants_purchases")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${row.id}`,
+  );
+  const subscription = row.subscription_id === null ? null : await purchase.subscriptionRow();
+  const license = await purchase.license();
+  return {
+    id: Number(row.id),
+    country: (isBlank(row.country) ? row.ip_country : row.country) ?? "",
+    created_at: iso8601(row.created_at),
+    product_id: row.link_id === null ? null : Number(row.link_id),
+    variant_ids: variantIds.map((variant) => Number(variant.id)),
+    price_cents: row.price_cents,
+    subscription_cancelled: subscription?.cancelled_at != null,
+    license_uses: license?.uses ?? null,
+  };
+}
 
 async function applyRefresh(member: AudienceMemberRecord, sellerId: bigint, now: () => Date): Promise<void> {
   // The stored address of a row that exists (lowercased), the job's argument for one that does not.
@@ -73,11 +117,12 @@ async function applyRefresh(member: AudienceMemberRecord, sellerId: bigint, now:
   if (seller === null) throw new NoMethodError("undefined method 'sales' for nil");
 
   const sales = Prisma.sql`${column("purchases", "seller_id")} = ${sellerId} AND ${column("purchases", "email")} = ${email}`;
-  await findInBatches<Record<string, unknown>>("purchases", sales, FIND_EACH_BATCH_SIZE, (rows) => {
-    for (const row of rows)
-      if (!cannotQualify(castRow<Purchase>("Purchase", row)))
-        throw new HandBackToRuby("a purchase that could be an audience member");
-    return Promise.resolve();
+  await findInBatches<Record<string, unknown>>("purchases", sales, FIND_EACH_BATCH_SIZE, async (rows) => {
+    for (const row of rows) {
+      const purchase = new PurchaseRecord(castRow<Purchase>("Purchase", row), null);
+      const purchases = ((details.purchases as Details[] | undefined) ??= []);
+      if (await purchaseShouldBeAudienceMember(purchase)) purchases.push(await purchaseDetails(purchase));
+    }
   });
 
   const [follower] = await selectRows<Record<string, unknown>>(
@@ -94,7 +139,26 @@ async function applyRefresh(member: AudienceMemberRecord, sellerId: bigint, now:
     "affiliates",
     affiliates,
     FIND_EACH_BATCH_SIZE,
-    () => Promise.reject(new HandBackToRuby("a direct affiliate of the seller")),
+    async (rows) => {
+      for (const row of rows) {
+        const affiliate = castRow<Affiliate>("Affiliate", unaliased("Affiliate", "t0", row));
+        const affiliateUser = castRow<User>("User", unaliased("User", "t1", row));
+        // Affiliate#should_be_audience_member?: the scope fixes `type`, and `seller.present?` holds because the seller was read above.
+        if (affiliate.deleted_at !== null || !sendsPosts(affiliate) || !isValidEmailFormat(affiliateUser.email))
+          continue;
+        if (affiliate.created_at === null) throw new HandBackToRuby("an affiliate with no created_at");
+        const list = ((details.affiliates as Details[] | undefined) ??= []);
+        const productAffiliates = await selectRows<Record<string, unknown>>(
+          Prisma.sql`SELECT ${Prisma.raw("`affiliates_links`.*")} FROM ${table("affiliates_links")} WHERE ${column("affiliates_links", "affiliate_id")} = ${affiliate.id}`,
+        );
+        for (const productAffiliate of productAffiliates)
+          list.push({
+            id: Number(affiliate.id),
+            product_id: productAffiliate.link_id === null ? null : Number(productAffiliate.link_id),
+            created_at: iso8601(affiliate.created_at),
+          });
+      }
+    },
     eagerLoadedColumns(),
     Prisma.sql`LEFT OUTER JOIN ${table("users")} ON ${column("users", "id")} = ${column("affiliates", "affiliate_user_id")}`,
   );

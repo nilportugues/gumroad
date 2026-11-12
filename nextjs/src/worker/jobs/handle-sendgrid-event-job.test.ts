@@ -1,6 +1,7 @@
 // Replays handle-sendgrid-event-job.golden.json (scripts/golden/handle-sendgrid-event-job.rb): HandleSendgridEventJob run by the real
-// app as a Sidekiq job. Node drops the events Rails drops and hands back the job at the first event Rails acts on, or fails on,
-// before any statement. A malformed payload Rails fails on is handed back rather than failed.
+// app as a Sidekiq job. Node drops the events Rails drops, runs the receipt events (the CustomerEmailInfo statements Rails sent) and the
+// events no handler claims, and hands the whole job back, before any statement, when an event of the batch is another handler's or
+// Rails fails on it. A malformed payload Rails fails on is handed back rather than failed.
 import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
@@ -16,7 +17,7 @@ import {
   sequentialJids,
 } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
-import { handleSendgridEventJob } from "./handle-sendgrid-event-job.ts";
+import { handleSendgridEventJobWith } from "./handle-sendgrid-event-job.ts";
 
 type Case = {
   name: string;
@@ -28,6 +29,8 @@ type Case = {
 const golden = parseRubyJson(
   readFileSync(new URL("./__fixtures__/handle-sendgrid-event-job.golden.json", import.meta.url), "utf8"),
 ) as unknown as { now: number; cases: Case[] };
+
+const handler = handleSendgridEventJobWith({ now: () => new Date(Math.round(golden.now * 1000)) });
 
 function runtime() {
   const recording = recordingSidekiqRedis();
@@ -46,20 +49,21 @@ describe("HandleSendgridEventJob", () => {
       const sql = sqlReplay(c.statements);
       let error: unknown = null;
       try {
-        await asSidekiqJob(() => handleSendgridEventJob(c.args, contextFor(runtime())), golden.now);
+        await asSidekiqJob(() => handler(c.args, contextFor(runtime())), golden.now);
       } catch (e) {
         error = e;
       }
 
-      expect((error as Error | null)?.name ?? null).toBe(c.hands_back || c.error !== null ? "HandBackToRuby" : null);
-      expect(sql.log).toEqual([]);
-      expect(sql.expected).toEqual([]);
+      const handedBack = c.hands_back || c.error !== null;
+      expect((error as Error | null)?.name ?? null).toBe(handedBack ? "HandBackToRuby" : null);
+      // A hand-back leaves nothing written; otherwise Node sends the statements Rails sent.
+      expect(sql.log).toEqual(handedBack ? [] : sql.expected);
     });
   }
 
   for (const args of [[], [null], [[]], ["x"]] as JsonValue[][]) {
     it(`rejects ${JSON.stringify(args)} before any statement`, async () => {
-      const outcome = asSidekiqJob(() => handleSendgridEventJob(args, contextFor(runtime())), golden.now);
+      const outcome = asSidekiqJob(() => handler(args, contextFor(runtime())), golden.now);
       if (args.length === 0) await expect(outcome).rejects.toThrow("wrong number of arguments");
       else await expect(outcome).rejects.toMatchObject({ name: "HandBackToRuby" });
     });

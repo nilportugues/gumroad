@@ -121,19 +121,58 @@ function resendHeader(headers: unknown, field: MailerInfoField): string | null {
   return decrypted;
 }
 
-// ForeignWebhooksController#trackable_resend_event?: `!ResendEventInfo.new(event_json).invalid?`, true when anything raises.
-export function resendEventIsTrackable(eventJson: Record<string, unknown>): boolean {
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const isLeapYear = (year: number) => (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+const CREATED_AT =
+  /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(?:(Z)|([+-])(\d{2})(?::?(\d{2}))?)?$/u;
+
+// Time.zone.parse for the timestamps Resend sends (UTC when there is no offset); a date Ruby would reject throws NotPortedError.
+function parseResendCreatedAt(createdAt: string): Date {
+  const match = CREATED_AT.exec(createdAt);
+  if (match === null) throw new NotPortedError("a Resend created_at Ruby's date parser may reject");
+  const [year, month, day, hour, minute, second] = match.slice(1, 7).map(Number) as [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  const daysInMonth =
+    month >= 1 && month <= 12 ? DAYS_IN_MONTH[month - 1]! + (month === 2 && isLeapYear(year) ? 1 : 0) : 0;
+  if (day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59)
+    throw new NotPortedError("a Resend created_at Ruby's date parser may reject");
+  const offsetMinutes =
+    match[9] === undefined ? 0 : (match[9] === "-" ? -1 : 1) * (Number(match[10]) * 60 + Number(match[11] ?? 0));
+  const milliseconds = Number((match[7] ?? "").padEnd(3, "0").slice(0, 3));
+  return new Date(Date.UTC(year, month - 1, day, hour, minute, second, milliseconds) - offsetMinutes * 60_000);
+}
+
+// What ResendEventInfo#initialize reads, for the fields HandleEmailEventInfo looks at.
+export type ResendEventFields = {
+  invalid: boolean;
+  type: string | undefined;
+  mailerClass: string | null;
+  mailerMethod: string | null;
+  purchaseId: string | null;
+  chargeId: string | null;
+  installmentId: string | null;
+  createdAt: Date;
+};
+
+// `ResendEventInfo.new(event_json)`: null where Ruby raises (the job then fails), NotPortedError where Node cannot judge the input.
+export function parseResendEvent(eventJson: Record<string, unknown>): ResendEventFields | null {
   try {
     const data = eventJson.data;
     // Only a missing `data` is certain to raise (nil["to"]); a String would answer [] and not raise.
-    if (data === null || data === undefined) return true;
+    if (data === null || data === undefined) return null;
     if (!isObject(data)) throw new NotPortedError("a Resend payload whose data is not an object");
     if (!Array.isArray(data.to)) {
-      if (data.to === null || data.to === undefined) return true;
+      if (data.to === null || data.to === undefined) return null;
       throw new NotPortedError("a Resend payload whose recipients are not a list");
     }
     const click = data.click;
-    if (click !== null && click !== undefined && !isObject(click)) return true;
+    if (click !== null && click !== undefined && !isObject(click)) return null;
     const values = Object.fromEntries(
       RESEND_HEADERS.map((field) => [field, resendHeader(data.headers, field)] as const),
     );
@@ -147,17 +186,28 @@ export function resendEventIsTrackable(eventJson: Record<string, unknown>): bool
     }
     // Time.zone.parse raises on nil and on a number, answers nil for a string it cannot read, and raises for an impossible date.
     const createdAt = data.created_at;
-    if (typeof createdAt !== "string") return true;
-    if (!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}(?::?\d{2})?)?$/u.test(createdAt))
-      throw new NotPortedError("a Resend created_at Ruby's date parser may reject");
-    const invalid =
-      typeof eventJson.type !== "string" ||
-      !RESEND_EVENT_TYPES.has(eventJson.type) ||
-      isBlank(values.mailer_class) ||
-      isBlank(values.mailer_method);
-    return !invalid;
+    if (typeof createdAt !== "string") return null;
+    const created = parseResendCreatedAt(createdAt);
+    const type =
+      typeof eventJson.type === "string" && RESEND_EVENT_TYPES.has(eventJson.type) ? eventJson.type : undefined;
+    return {
+      invalid: type === undefined || isBlank(values.mailer_class) || isBlank(values.mailer_method),
+      type: type?.slice("email.".length),
+      mailerClass: values.mailer_class ?? null,
+      mailerMethod: values.mailer_method ?? null,
+      purchaseId: values.purchase_id ?? null,
+      chargeId: values.charge_id ?? null,
+      installmentId: values.post_id ?? null,
+      createdAt: created,
+    };
   } catch (error) {
     if (error instanceof NotPortedError) throw error;
-    return true;
+    return null;
   }
+}
+
+// ForeignWebhooksController#trackable_resend_event?: `!ResendEventInfo.new(event_json).invalid?`, true when anything raises.
+export function resendEventIsTrackable(eventJson: Record<string, unknown>): boolean {
+  const fields = parseResendEvent(eventJson);
+  return !fields?.invalid;
 }

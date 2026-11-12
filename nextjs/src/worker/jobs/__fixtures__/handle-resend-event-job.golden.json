@@ -4,7 +4,44 @@
     {
       "name": "a delivered receipt",
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-01-02 00:14:11', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleResendEventJob",
@@ -19,22 +56,63 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:or2wHYuRwQY97qFdOGHtOA==:BXsMFimI8qktW4rrLsNIRw=="
+                "value": "v1:fTayUHWSGgzBf7GfLIhYNQ==:aOuh/Sd7jkfsqVqALWnslg=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:F5kWoYfYq7CZMqJdap3tEQ==:HZNSr1gd2xB0CVTjPt9pwA=="
+                "value": "v1:Ycfr+3fj50t72mcQ6lW0pw==:KOe/ZqJnhlk/njjLjauO3w=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:BxVm/r+r1TL6RK1Vc3oEiA==:g5zirBohmPV0lH1jltaAtA=="
               }
             ]
           }
         }
       ],
-      "hands_back": true
+      "hands_back": false
     },
     {
       "name": "an opened receipt",
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'opened', NULL, NULL, '2025-01-02 00:14:11')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleResendEventJob",
@@ -49,22 +127,44 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:jS/Mg4o56WBqvGSRcrjJSw==:MlGqGIzu8kWqv2xu34Kpiw=="
+                "value": "v1:JLE7/Moomd0QiHRrwO19ww==:/Cl14CnIz9zZEHyDwnsf2Q=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:8ZW3wrL1Atks/9VYGFuyPw==:O1JAaW0iPPoVOzkRnvTASg=="
+                "value": "v1:2nJd1Hkq+sNGJVyRGIxnUw==:GRCn9rvIlfHtyhJ3Xx0/7Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:rnvwsiCbtOpWX4t6MeggCA==:CwTNO350+BkWTtebdKMFjQ=="
               }
             ]
           }
         }
       ],
-      "hands_back": true
+      "hands_back": false
     },
     {
       "name": "a clicked receipt",
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleResendEventJob",
@@ -79,11 +179,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:yDXcqeay5J5KD2LBZMZVog==:YlGqXXDbXMHxler4D0XcYQ=="
+                "value": "v1:O9tAgmWWYmhr26VZvJl/EQ==:Cr8dy40AuUX3y4Eh5r6epA=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:Cenb31Vd6WfL4BZHQyR7YA==:9jFFakXIvLI/oYnng1zAFg=="
+                "value": "v1:0QI5AcK4kb91XQWLpmEHcw==:xf3k92ZXprzKw7hZ7vIO9A=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:YXmV2wACY/FLN2o3GcpyQg==:687BfanbZ4MMaXJwUn6wYg=="
               }
             ],
             "click": {
@@ -92,7 +196,7 @@
           }
         }
       ],
-      "hands_back": true
+      "hands_back": false
     },
     {
       "name": "a bounced installment",
@@ -112,15 +216,19 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:ZlPjsH6d2zqWBDQOcAjN0Q==:mmkFs8CHtWuz/NsFjjqhHQ=="
+                "value": "v1:wP8ARupMfnPYjTGH8GG4PQ==:1kL1ZWxBm/tTcZG6up0/fg=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:q4rdaO5pFxEpF8nuu8CcYg==:BcKcPDCPBEVX04sCiuxOjN4Njn2lr4ImFgkwSyzEyG4="
+                "value": "v1:oWUXizEtZ80HF/NUDJleZQ==:tPoPfBAfprYT0ORsPD/HIrVjgZP+h2QJhuTHlgyKRHw="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:A1VDV+XEHsHVc7Kx1i3U0Q==:3TQ4TtMgiGRYGlyu31JNxw=="
               },
               {
                 "name": "X-GUM-Post-Id",
-                "value": "v1:lKSE5C60UtntpsRXn+cr4Q==:fQuHxqnjx1lUJvlunF4/FA=="
+                "value": "v1:Bv2QjUliN6h/qjX9M6cjQA==:gQlb8wI3stHej/QNmjg9JA=="
               }
             ]
           }
@@ -131,7 +239,25 @@
     {
       "name": "a complaint",
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleResendEventJob",
@@ -146,17 +272,21 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:Dkb6LkYiN07kI4k2Fn82fA==:hQumbvFiFeo/XmGhcKexug=="
+                "value": "v1:83zkNA1uJOmwevtKMzjWiw==:aexfVwP3bVW8xHaWZRSQnw=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:hshSAjWRlqKnVD+nuwoV4A==:lHq+rJeV91KbNOfClYHcig=="
+                "value": "v1:FwEZErnz1c4bfJIJlOQOLw==:o+cMW6G3cw9Faw5CMxtfHQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:K3g9+rXCV1t+8MItntwtZg==:W477x+yHQZM2BxCJX38Q/Q=="
               }
             ]
           }
         }
       ],
-      "hands_back": true
+      "hands_back": false
     },
     {
       "name": "an event type that is not tracked",
@@ -176,11 +306,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:Uee6IwQBdmEmsmYXhIgxNg==:2ehTQL5r/juJoHrw+gY4Eg=="
+                "value": "v1:PfWusDyfsB5rQu1pcTrMKQ==:NVGJnT2TdlOJMqG7llboaQ=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:pek4X/LSv2PtGOTm+jceNQ==:RDJ34JXTon84Cy7M7KtKyg=="
+                "value": "v1:lJgiyhH56M5LlaVTqMGyhw==:xhJ30MFlmdcP7QQqz5XRBg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:39CF8oIPPqA1G2BSyqW8Eg==:ZZBac1ubE+H5V2ZzcNC3OQ=="
               }
             ]
           }
@@ -206,11 +340,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:hs0D+r4JhpiPoTArFcFd1Q==:pVnoH/aIxKIn/O+7WbpAsA=="
+                "value": "v1:r6zpwkBrtMmbhaB0s2XI4A==:7yzLfp4tsQG7GO0WnfHZ3g=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:RDt1dmMJtbyzl1NkKA/BRQ==:uFH3FZOprlKkKPTt6xG4MA=="
+                "value": "v1:3IgjP8ev2nuV3I3sBI2A+A==:pLzWlaW8n9C68aK6PPD5Yg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:6d4pOOUmOkTrVpuWbBN3eg==:TA11M2+9Hh+yY95fpkwfLQ=="
               }
             ]
           }
@@ -236,7 +374,11 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:GcNxsZ3/Oviu/Ih0LkHL6w==:faFTfLi0dECnWsV7nG0bww=="
+                "value": "v1:qENoL28joDEBgqwYqFxsyQ==:MJD8goCndP2iCdJua0QDdQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:TT3uNCniLYeablSRnQBCwg==:ynsHtoV15KVXQjCo5szLWg=="
               }
             ]
           }
@@ -262,7 +404,11 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:uSYwbdKIWQY4/JsTeMKwuA==:r8+oVqNhPv0ERwzUSkZDyA=="
+                "value": "v1:GHf40HxyHyqV3s9vQMB05g==:q4BFON0Y+I1Ho7ZnRGKVrA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:YxEQVdxF4rFK7EYeYQHUWA==:WSK4Tay0189RUCRpmawXwg=="
               }
             ]
           }
@@ -288,11 +434,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:gz6/6IXhX+WdhYhg/edCEg==:DmqF/Wts8qY1rHucDfLmMQ=="
+                "value": "v1:KP4EylzEJjaWQuivF2WyiQ==:m9vUWxGmpz8yTuF1dvBCaA=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:oea31nbqdXOlRkF1RovWmg==:VRANVKqD/bZbb/vDhoLuQA=="
+                "value": "v1:bD7+ODDCTrbUkpfGPsXkTQ==:ewc2Z4ia6kaMXJrXurUq0g=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:GUtLF0SUc4dH8p5xt6/TUg==:vQBb0eb6ckxlMP6gfisLmQ=="
               }
             ]
           }
@@ -348,6 +498,3432 @@
       "hands_back": false
     },
     {
+      "name": "email.delivered with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-01-02 00:14:11', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:sZVec98NeAuJ0pIIER78ww==:fKUA6Zl11Acb+Zl0xt6B6w=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:dg57U+rWdk+K/Vyyw+wPTA==:216qJPNZJZh2XMl6Vg+AZQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:e0e9aGAz7VplgGZGNLwiBw==:iNPkZUZKxY9LIHaLkuc7MQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.delivered for a created row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "created",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:URH4NOkLTiOjPm2993GsfA==:ca93zqt2h5We/zuP88KqyA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:p9A+BQrb0PjnTxz1Ma0/qg==:ykN6qpL3zUrgpQO6K6AUzQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:dHAB4/OKBzYOBm0ciFoYJQ==:4Vx18QopJxe/rp/iZFYozw=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.delivered for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:F+SfH3PfuMCQT18d/8CWSw==:TULJV/7t0VVP5xfnmIn4/g=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:cPtOwVp+n6BuGUiL42vmuw==:0ASlWFt9gTTNaBODbpkTpQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:ezPU71cevvMQTHNPkoDU6w==:c51FRgAYiV1IFOLvY4P1/Q=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.delivered for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:wgB8V8wzgBl9v4UMAEjZ5w==:M3Y6xZ9ykv2ILwJYJJUIbA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:2WqWL9GfFuyO3mhoIWOS/w==:p6m/XzwsRC9bsJ8/Vqv01Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:VS4Pr/z0lfkB/8lnlvcFAg==:hUMKDSLrNxGOXxGC90K4zQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.delivered for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:VSaUbDp99+35fc5sWe0QBQ==:D+Zm3sFCXpBgtJtz76lg5Q=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:4tpzP2JYVLxd/jbK3cUXxQ==:J52ASnstEXSgDQeAOLw1Jg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:sGGV5uHz7HzAifLLG58kcg==:8iQbvP2yxFevs8geiQNTXQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.delivered for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:XNYJniQhh3+pRtgKaD1k8g==:9VYZNgHaYdJT4668Ri1+JQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:CBgDZnVECmzXBGi+s5lrpw==:7QbwsDkIrgOE1sw/j8+g7A=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:P36r3g6iwBxRb/SdeF46ng==:S8XRsflKNx512F8UjQLM4Q=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.opened with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'opened', NULL, NULL, '2025-01-02 00:14:11')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:bPOzsTlNMmyQGcbNTPTMNw==:raj/xieIy2/J11EdoDRhFQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:LNOZbW7kg0yEzPcs6K5nLA==:S6ZE2CxSCZ23YYO95fLa5w=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:H+wy4L/Okrt3PafMhsaCvw==:68zadDWNk1sFB/zEXjSZpA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.opened for a created row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "created",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:t1TWbBZOx/nyGVp30tEuEg==:/GvA+f4wmotQGBqNxFGu5g=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:JyLGHzH3ah6b/yiIUWWEbA==:9ZmQNeKv5+GnjjghhAdvAA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:uihA6yoVgbGCPm5pstSKqg==:lChX6He2kjK0wBZLf07lMA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.opened for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:hwwUQMxHaNILPZFp3r9m6g==:fzYAyv/qiUhMFU37MWo/rw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:G4DgOx/SzpVB9UL3IF2e2g==:r/Zwky1Jbo8hUrK4hAcnNg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:iKwWgUehdmCXUeeGN+ACpQ==:DMYa3e5cE2BUGttms4mnrg=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.opened for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:cxhl5drhAWpC4D+furAtDQ==:GeC15nnRsP9KtughLHQGYg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:zA5rjMOPS8CTRtNUdJlKKA==:M4yD7p7Qh+EC/JdFb6z4mg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:ud0X6a7c9iKxADGiQZRriw==:AOAV57hzM1dsmxZ7w9mEdw=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.opened for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:xgXvzjqpEGCoFm5zriY2Fg==:YKD2PphBGVJIEeP1Hrf0Mg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:vlbPCaLlQBMiTOrwbMlhmw==:LxNu/aI3AGuYMTR/aN5xrA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:QFojD4EjvuUudnJ7qMQ2vA==:d6M5XmJuOVUgWzcsimYfqg=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.opened for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:vb1hPl9jFSL0c6NfKzyLqQ==:T6SVnBiMvMT6PTiBU+iHIw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:3NOlvTi/1myH/HHD1XZ3ew==:20uJdtpA5SbiRouie43wuA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:H9yRHcnyKjG0TOXlQpP7jg==:j+qahbW6zEP8HDf9wYmB5g=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.bounced with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'bounced', NULL, NULL, NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.bounced",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:C4FzkR9IUu8v2n+39X5xeA==:pdPbon9JWFlm1MZNkZlycA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:FmExYBfdIvFDUzEpm4wQKQ==:9g2P1RHXneFESk50GJxhkQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:8kQP8pID/wKQ2LIg/7Mn5A==:uYtimke7R/bPYAe2oPKNHQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.bounced for a created row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "created",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.bounced",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:Lv8dOiLNWO8WNi2aK1bbRA==:SpPdvHC4Derwe2AunPU5Pg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:C7bYhfpoiH5ayIIebf+kCw==:p8BwesrGJBlBhgMh6NCnkA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:1u6pmRYWd3PsFAwcsxKuow==:9oufr+sm15zhvHAFtxRiSQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.bounced for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.bounced",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:UE3xGcvMHJA2mzfLPVzkpw==:d/N4XGZ8fSfOxdCYY4eJGw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:tCY2esZByGXy42jPlSrxuw==:tZxTqHHWK8P7NWBxdMOmRw=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:NLos59AsuklQ6cofosQvtA==:/eOUdY3MIcTxp19XsxtEaw=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.bounced for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.bounced",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:9B6sdP0PboYtJUmn4j5SJA==:IS5Ol9sVWKSmb+OHbGCP7A=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:kxzs2NtwFONuUVL8hLAZ/w==:n/GQKWWFj5pDweI4AsTgTQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:mOEt4p2zC2tnEWMBoiCrWw==:AXVknzPVpyAALBy7H0sM7w=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.bounced for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.bounced",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:O9zSOM9Hf5gl6H1ocwf7cQ==:4ozDtq+S5QzpGvnncd7Rmg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:17pkDu7/dMvIORWGf5jI4Q==:VD0T+FueAT1DPOUW/aWW4Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:68GAdGixuSXwfFtEZmiiXA==:YQuXAF7tojhbWIq30sc9LQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.bounced for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.bounced",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:kwSIyrpTw2jTTlTjpL2/1g==:6LVuRwLzGdUD5FG+7o98Tw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:0bQQmHdYkvoINPH6udCl/Q==:VDn26QXFmlcQ6rFWH6tOHA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:Ot2f9ObSdEp6Xw6HA4g3ZQ==:ZZvroD5luVtTXmfaUadk0A=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.clicked with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.clicked",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:MUOrUHF2ggNZaqG2GUBpDA==:KfKrWCs5KrWYKVVmNdQRKQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:W/lEvH+kProOdK4vnD1Lug==:tG4af2JA4irUeh8dwEMRfQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:f62XZVgGcZspYUbGODBOuw==:+LgjJu67KvmJpJcMuQ/HTw=="
+              }
+            ],
+            "click": {
+              "link": "https://example.com/x"
+            }
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.clicked for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.clicked",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:yN1O6fPSqwdawxKWMP9dsQ==:XZ3U79eMRg6utYyoRfhMTA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:ZwfXsGQRgVyKMjCWYg3Mvg==:hipa+we8oj3MhCZJIJhLHw=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:v7DYHqzVV/Tea/tiPs0lYg==:eUNxmjPnI0b0FB1PnxGLaQ=="
+              }
+            ],
+            "click": {
+              "link": "https://example.com/x"
+            }
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.complained for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.complained",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:K4CtNHs64UuowZnzA1Biuw==:bQc2jZDFQebAp5K1Zun46A=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:pNqWri1e0jpNbelQUPEzfg==:fvIEwTFgxzDOjLcdGqWPYQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:9ZVJuipmPwfRYujwcJJu6g==:BOcM54fccg2IMLtN4+3Cbw=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "email.complained with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.complained",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:uUEz99fgzV95P5I+RnPuag==:X5RlEyoo1Bun8GwJAMycbw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:yYbV7R62CrM2Ci0G0Pn+3w==:NFlswyPr4ZNG36JOCq3cbg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:GK4KLzHkgTPGk3N1Hyjd2A==:3BGOmfjFbjMSNvk+PuG/zw=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered preorder receipt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'preorder_receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "preorder_receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:lTnkXR3+hqKO8wJ5+vLh8A==:6WZ3C6hG44f95AiqkDWbZw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:n43U7um0AdnCPy/GkbkmrQ==:gDDob38YCq9O1B7B7EDD5jdgsz9ssEV+obYJuw2hsHk="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:uadIOCpTDaBmPPXvhUnmvg==:w0Krs929x9KW+3y9xdebbQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered preorder receipt for a receipt row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'preorder_receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'preorder_receipt', 'delivered', NULL, '2025-01-02 00:14:11', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 2
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:/D2bNDBohIUr4/GDdPsNmQ==:60UHqmu2uP8LQ48fcNZGuA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:YYCSvtCVqRoRpZGYrtJ6pA==:z9gQjmn1fP1V9731PixaLD+HdOWlYdVtz+4MGC73Kko="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:w97FqarGYkYT6CWPFHnJfg==:bh5da52B/G/IdcDn/F56IQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt for another purchase",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-01-02 00:14:11', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 2
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:OUWIufa8wS6LB/h1t2m7UA==:lXXcrozB1K6y5DCQ8HVmvQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:/ipcLrHF4PtUYVg5jSdEaQ==:nc5S85HaPANwkiT/2fc+EA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:zx/l7feJG0ihaMC2Xgolzg==:Ewk7fA5QGrwC3NcrcM/aqg=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt for a row of another type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-01-02 00:14:11', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 2
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:K98rL2sgmvD0O31dnoejJA==:zNPie2PlhXv/IUqcoUsDdg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:R+U0rmuAnkK6hjfLj4AHig==:BYX2Hc5fwryd+sG9jWCZTQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:qzSD6DXhvaqwbkrEzNnNmg==:rhfl2ncmdswUpJdnDr0QSQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with two sends, the event after both",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-02-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:yCxyXvvXeqXsHiopyydEMA==:z4jpkXKBJ6m8KTdriYtfhQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:k20ZvVUDKQOMe0vViP6LpQ==:31zP4DdhvKp8nLYdsgVPQQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:LqUDzDShq1jo7saQLNAX2Q==:oMkLFSyhdbGc1eAx/nmjew=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with two sends, the event between them",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-02-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2026-01-15 00:00:00' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2026-01-15 00:00:00.5+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:9SQqJschVcP09bwpnQhhqQ==:SUgBm+C4box1tucFOG+V+g=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:OBKsOvt1p1sPZ59yrBSt3g==:yFwdKu3YK4UiQ7n5NXQ8ww=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:sZ2nl9kre2KkCF3JcLw7nA==:ZJb9lm0oQCd1JOkCJHN9FA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with two sends, the event before both",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-02-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-12-01 00:00:00' WHERE `email_infos`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-12-01 00:00:00+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:k5wv9VVD8Ylq0eHQ/T+MNw==:H/9mmZBCSTuMQhw5kNhNtg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:KD9n8GnOuJM4JUWTYPbT4g==:z7eqbKBZ8ohm2BmuRa94yw=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:wryPWmCikOZhxZrC1YI45w==:y7HuwuDYHpM8dRy+4lWQag=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with two sends, the event at the second send",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-02-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2026-02-01 00:00:00' WHERE `email_infos`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2026-02-01 00:00:00+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:ZeygOgSbxlyJRUiGgb0XsQ==:sl9C7iGDxMXBwY/Y0IZQNw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:UpdF8NJurSbAnqUB4c+jLw==:stbpEFff7BoGq2ZF3O+6+g=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:4tPTfx0iysqwoGlWgPcExA==:2SLFbmlYYhmqC/uxH2x0PA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a row sent at a fraction of a second",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2026-01-01 00:00:00' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2026-01-01 00:00:00.5+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:ZoJqyHp/u7yRidT1ja/PhA==:AZRKMngOj9P9AXbI3MivXw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:oa0ZHUmwkMzkK0+1tv2TyQ==:O7XtN5u3kdOdxeU0OjJcZg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:YtlVTaI34GZ8Ie7cptM87g==:oAKpq9RpcaaD43sNXRYrlg=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a row that was never sent",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "created",
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 2",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:L2Fcx4vtL/oBnufMULG87Q==:iW3CKTLdmmSm0qWaqAAcmA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:IPvyBIDnld2beDKnh5KNkQ==:21YiwFEuI7sOAhHyIwyT6A=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:9fShemA25t0Ofp+GIbigGA==:926uczyamLzdHI+69+Y+sA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a time zone offset",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2026-03-04 03:06:07', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2026-03-04T05:06:07.891+02:00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:PY987b3XuJQrRolVEG9i2w==:s53eiBvLRLHCNnly/gt2og=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:5HYVLxHG20Pp0m/R9X4T6Q==:YFFwmX6NgEEvRcB0hcF7pw=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:RdzX8DNDtAwtLbay7Q+liw==:lUe/5zk5f09XS4LbAaRZ2w=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a whole-second time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2026-03-04 05:06:07', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2026-03-04T05:06:07Z",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:VQcgX55oqOen8G8NBOYP4A==:J48lupXSar+su68gN0Cl3g=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:AUIBYf6d7YEETfttzOGy7w==:/FAT+x2IjvaDhjpILnZSCg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:IoVAyrMnbvbyu5wtACGl1w==:bZwi0oJueuhtJwYjfPVo4Q=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with microseconds",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2026-03-04 05:06:07', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2026-03-04 05:06:07.891234+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:Gf59zONuNWx+dfSo99piBg==:rTWBH+WHITpCY7wePxJOAg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:fKzkUbV5fv0qolqF/zN16Q==:/tWSZC8Qsc3fKceIeVHuNQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:XZIfaxNrGnGKQv/GFF+rjw==:soBqwOFHgDJNU5aNlK+cuA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a purchase id of leading zeros",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:3cGdjSnjQsjADiRYxknI1w==:wAfH8pDk+rLJRScU5+6/eA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:9ISgGgle8SciAwlm/UfiGw==:M+exq+qMvaUA5RyWo7JY7Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:i4cCT1/96o5At2W1jGBPSQ==:uTaCGZV4waWoL5ywiNWaFQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a purchase id that is not an integer",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:xoUOdkKnUli+JT9V337eYw==:/JgEMkLnyMYiOrAkJYWYrg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:dKoFTealxQ0lBAZZTsOVSQ==:IEGrwsDPzrCrrA752cdgzg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:z2we/wIPIxp8T8tnh9EvTw==:cUTBWFoETBHa4DzxVLyrwA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered receipt with no purchase id",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:Oz46xKUoZIMAdz+pP6stZw==:sT/fKQFYe9caArFILNqkGg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:goQIfWzj3OTsQK+JF7OUjw==:Hy4zM7lWotTN9DD6WTudEQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered receipt with a charge id",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:17Uf1t0VVaR0RFBjs/bUTw==:DinBuAMZGP08RzzToPbDuQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:P1qJSsoHO3RlrZlgkkm+Ew==:eBI0cAHh4STFnzr5u9v0aQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:jyFx2fkZ0P1B23/90GUMCQ==:LDQeumPySGNCdrj54xPUXg=="
+              },
+              {
+                "name": "X-GUM-Charge-Id",
+                "value": "v1:w5siDs0AvFYluhVjlPWZBw==:aQSgi76nGBRVCcmZOBb+Ng=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered receipt with a blank charge id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:xNfyPcY5MGE/k+84CF7QUA==:U1eHH9rQgB8kPx3Jz4k/HA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:1Lgm6WZRy5l01r7Wm9mpPg==:4EkVZ6voxmgTRfjh0WUG9Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:ID6d2aia2hvIj+ZWEj+z8w==:IBX56BrnOt/HRMP/HkI6OQ=="
+              },
+              {
+                "name": "X-GUM-Charge-Id",
+                "value": "v1:B9+fFfg5cuxN+3qZENQv3w==:0K2v0Fuo3XOdeqI+kmW8Kg=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered event of another mailer",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:1TAulhj5pbCMK16Xy63VIQ==:SGSwVXhxLROfIhC/MG5qQQ=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:LTdYbI4FGASxF4NJcm1iGA==:olj7o0VM79It6w1dX+UR3A=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:UKJkCear7s9UBarCd4NQiw==:B/ih96EyPEc4ELUEUXmwoA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered event of another customer mailer method",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:Ap16ll13eOx+l7WF9qqLoA==:dOFheTTkdjMzDiZ9yxAoqw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:F5YHbq1mDXf3UGqgMCLqyg==:tJXPsVHqS0hiD+qb+OoamA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:QVTp146k4gmdR9lg68BlyA==:AsUqH61D19sewJxxOiOeVw=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered event of a customer mailer receipt in another case",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:XA3++rnJ//pAwUdZ9tj58g==:68RhS3YlmvP1aRChueDemA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:YsuWtUSdD1mqYlSuP3wG7A==:XEeYuvwoQu7RxETZlFFS+Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:G1vnG28RPrIM2HCwLkWqLQ==:vzfjtx0plBdAaHAgOH5VTA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered abandoned cart",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:r8AlVDNeUyKKkdbu1xt4yg==:rcIuQuK2kI1XEnrvXkCnmw=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:QVr3O+5LoM/wz53+mw8XNw==:EcDsfQe9mAoLF8ITudztpg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:N1Me70AUSxh8E/agTRBKQw==:OBAGHeRNm54Wqron2HtC7Q=="
+              },
+              {
+                "name": "X-GUM-Workflow-Ids",
+                "value": "v1:RKRGaGyD4Ze8d7OhHq2vOg==:uWDVaGMTa6T4ViCL+9og4w=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered piracy notice",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:BGkrZ8tf4L8jP/jTHeaHBw==:CjTnjsBT3uX9IcrYBg000h9TZSlwbM6C+xIwOUarmog="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:a7iKPC5jyoQBfdRJMnZJnA==:M3flFOSWMdlaSTrh7UYaeg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:Khzh3/agmjFs4Mt/gdOCVQ==:TAKcQVQCTVBw6W3pOn9aEA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Args",
+                "value": "v1:hv0v29ByYIiBMQKYHrYXIg==:Wy5ZPwXyRDH5JAJ/e0S1vQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a piracy mailer with another method",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:64Ccfc/FC/95GzQopORQlA==:YM3dgGrFRpUuqWH89PXCWO9zsOgUQmq/cuLtVpYKMkw="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:YKpGmutpEHS5hy1lkm7oMw==:0sOLcJS6yDKZ4fIcfj1s3Q=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:AA5xv/Zyqw4of2U/rVIhgg==:1ctta9VVSiOP2VWd/SvhDQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt with a post id",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:zZsBr+u+26GLxnE1cRXMFQ==:k3jXdFPiTJ595b1IXmm6Dg=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:ej/IHTgoo/v0qyDj9Hh9ww==:oHhgxskN6K4frGClYcuiuw=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:eq5b4L3wfT5vJIR+tdarPw==:QDuHsBzG3JHbWwGzLDNL0w=="
+              },
+              {
+                "name": "X-GUM-Post-Id",
+                "value": "v1:TLZUmOiGW/GJqA9o2uNR1g==:B/ItGLU2qklogHfr9fgnNA=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered receipt with a blank post id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                5,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-01-02 00:14:11' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:KSc0w7TOAHGUIzBMJGHwlg==:Y32xUtQgaaCtroVNstIOtA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:x73va0+egpBPci0nUKfWJw==:OaLcYDPBLZGrEIocraTWfQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:+VPjMNBM1dQwbwtyXYTRqQ==:6FWkGTxwQBSAEEqwlDQ2YQ=="
+              },
+              {
+                "name": "X-GUM-Post-Id",
+                "value": "v1:5Wgl4mKRIhMvlyxXKkw+1Q==:iCHtQchvKfl2D1Dz74Ugng=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered purchase installment",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.delivered",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:WVPb/VrI110QUsS77/2QGA==:gQY9nNF68rOEogPMscDJUA=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:pQb+3XtHrMby8q9pVBqfGw==:oXGgA5GjaqKsVwrgmW7xC8PSvdALQJry8n4gJ/CdRHw="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:Ql9NOsNCXwtZscsi46wERg==:OLgT6Tc40J01X7pi5ZiHwQ=="
+              },
+              {
+                "name": "X-GUM-Post-Id",
+                "value": "v1:fUuvNkGbqZrdwrlOcV1eAQ==:OTPgxXqAhvqdb0U2pzeieQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an opened email of another mailer with a post id",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleResendEventJob",
+      "args": [
+        {
+          "type": "email.opened",
+          "data": {
+            "created_at": "2025-01-02 00:14:11.140106+00",
+            "to": [
+              "buyer@example.com"
+            ],
+            "headers": [
+              {
+                "name": "X-GUM-Mailer-Class",
+                "value": "v1:jbLPACg7g9B0cSw+E8m5kQ==:lBGOpWH8JqGXbwX44Xhd8g=="
+              },
+              {
+                "name": "X-GUM-Mailer-Method",
+                "value": "v1:cJcB4BrhBgC9qHXMvJbg2A==:Z8XRO+TGFw5PlNFm3CEiJA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:fv6bkl5uUWmXG7mMXNC+kw==:ZBxb7yitDJQIWjBFyUJs7A=="
+              },
+              {
+                "name": "X-GUM-Post-Id",
+                "value": "v1:UQCZgkDxzRrYhD5P/ibkxg==:51XJ8A+ZahXCLfxt/FTMtQ=="
+              }
+            ]
+          }
+        }
+      ],
+      "hands_back": true
+    },
+    {
       "name": "an untracked type with workflow ids that do not parse",
       "error": {
         "class": "JSON::ParserError",
@@ -368,15 +3944,19 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:QkivekeUJOHdSDUsy2sP8A==:832WFKsH8cxPoZJv/XwXhw=="
+                "value": "v1:TgAbWeZmNFQyMmhyZCutWQ==:xDxiqEcWdiJzXSP6qcFmpQ=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:OHPTeP9nm9PXucaFbQEwqQ==:J1dEz2FEE9UVpXNE6MOZaw=="
+                "value": "v1:llRnTQK7P2f2VS8zpdVxGA==:2kWrIWZVvM7u3w+vUaR7Hg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:WErsFEJ/mrsHQXLE7RCx7A==:YVfayFxjl+xj2HxHlDFPKg=="
               },
               {
                 "name": "X-GUM-Workflow-Ids",
-                "value": "v1:/BRY2ffnkO86zhxNIxdFQg==:KXeud2jRLeapQcnJ8rkIJQ=="
+                "value": "v1:8Um1Fu5ZcdvlcZ5+QaMVQg==:/UpEFEXJU3mPKZKWjBdaBQ=="
               }
             ]
           }
@@ -387,7 +3967,44 @@
     {
       "name": "a delivered event with workflow ids",
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-01-02 00:14:11', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleResendEventJob",
@@ -402,21 +4019,25 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:P+QPVyI75Du67ufQoGvZwA==:mIDAtMuaS5HM1NI07W21/w=="
+                "value": "v1:PwGr47VmSNeHmYckK0nLPA==:8+OMJ/xQ+jRY9m/nTeMe9g=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:VE6Opj3Uci5HYmp/QUL9Zw==:kvIJn0Ex/PegrsFXya9SWQ=="
+                "value": "v1:xz3P66oVlYLT05ytAjSo/Q==:W9U5yOPz8RRIWANyEGz8rQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:Jwr7NpxIe/Cz1oqqKNNySQ==:kxFmSajEQzFWqCSYA3b4fA=="
               },
               {
                 "name": "X-GUM-Workflow-Ids",
-                "value": "v1:j52U3bjc3TOfe+puI08ojg==:Kbxh8XdMQVa5gPpv8tgCIg=="
+                "value": "v1:Ky97XOVpVdkveRKQAQFVCw==:IRGCv3HkY9cCdGREaAUf2g=="
               }
             ]
           }
         }
       ],
-      "hands_back": true
+      "hands_back": false
     },
     {
       "name": "a delivered event with workflow ids that do not parse",
@@ -439,15 +4060,19 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:Yqup0hOB4QiMTZD8poiYhg==:lP/qwSZ3aj0kC5vyqxRlag=="
+                "value": "v1:iUwxIV1FqYR8WJDPJ39+dw==:PnJQNgIUiqSjrs8i8gIlMg=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:SYjJPiwzbhYuG33lKKcgeQ==:b0GS3r2k+HXdyvTf5aC1gQ=="
+                "value": "v1:4+cLS/QuYTSNJd9pfQ02eQ==:h2kBcdsv71tX9x8/Dctg3g=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:NbkxZzfTA4yzdMO+nWTn6g==:vZzTd2IZuORsP74bg7io3Q=="
               },
               {
                 "name": "X-GUM-Workflow-Ids",
-                "value": "v1:hqWfZ64l+LjVxyurJMplrw==:8r71f0+TfaKwTE3t4O3e1g=="
+                "value": "v1:v6seOouv9GU+dXaDl5wkCA==:F/IRUCGmQOkXmNLLtzSDtw=="
               }
             ]
           }
@@ -473,19 +4098,19 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:3wycVHhQZSSA2egQHB9BkQ==:GI/190sboP/+/b6M4lA8Bw=="
+                "value": "v1:zXjfUfkmwGu1e68XMC5FPQ==:rTXoUHz7l0EBLlExGk2Rmg=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:uFL/z8Tb+U/FXsVkYYCuHA==:LT6sHOmIe6SMHkgCiQR+OA=="
-              },
-              {
-                "name": "X-GUM-Charge-Id",
-                "value": "v1:VsAOQY39MNUs9xCkGQIWVA==:RNWXb4i/fPHCXDc292M2SQ=="
+                "value": "v1:uoNhZ3KL8Vk9rA3caIUPNw==:4bVIpkrPx42598HMI/5hhg=="
               },
               {
                 "name": "X-GUM-Purchase-Id",
-                "value": "v1:OvXyyaB4OE36TC6dE2W8Ng==:cKtYZsD31WrHZoHDtz45jw=="
+                "value": "v1:cs1dzc9XBwJ+tIFd+glmHQ==:VK3KL6vmSjPGGSbVQRAz9g=="
+              },
+              {
+                "name": "X-GUM-Charge-Id",
+                "value": "v1:UPl9CHEjoBzSvBIu9QpxfA==:c4yTQPFIzxXfqrLxQFuUJg=="
               }
             ]
           }
@@ -514,11 +4139,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:cbTyXhUNTLX9jcpvh8XR9g==:r4KrxuWSiK5yHeIEZsNDdA=="
+                "value": "v1:zqtYIpNNOg5L6UsdGboXcQ==:ucqb5fhMpvw2vCyeCa8IkQ=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:m8uxEgCCfsvKM/vBgCYgDA==:/VE/b04mvngVDIvIuD30sg=="
+                "value": "v1:wNX5hs+S7LUmdwWaJlRSYw==:fZlgjaFWlMrQkWEZbViQnQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:qS+2qm+zriWbQAkfxXNcGA==:WbOFgLLb7mnM0swSH5uLWQ=="
               }
             ]
           }
@@ -544,11 +4173,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:OLyJGvgbrBQHMIo6JNIxRg==:kItQoDyhRNcT86H3SvTCsA=="
+                "value": "v1:ap24EUvnykkMuClMHOD6tg==:gwbdH6RQTxcoAEUsJHd0tA=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:+g6ydppq+Plp2jPz2vz8RA==:ZIX6Ph5bfyBBJsitvbJi6Q=="
+                "value": "v1:cZ8qDRNOpI9chI2L1dZDBA==:l+14ojaNKnhqT2ifHjc3oA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:HYr0FdHp9sy+2dMQYLhUag==:Q4M6N5Dk2b1zxfI0Y1OX6g=="
               }
             ]
           }
@@ -559,7 +4192,44 @@
     {
       "name": "a delivered event with a created_at that does not parse",
       "error": null,
-      "statements": [],
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.* FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`purchase_id` = 5 ORDER BY `email_infos`.`id` ASC",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "installment_id",
+              "type",
+              "email_name",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (5, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2026-11-04 12:30:45', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
       "redis": {},
       "cache": [],
       "job": "HandleResendEventJob",
@@ -574,17 +4244,21 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:DLsWd5AHU8Bm6Az/3gvFig==:KC6bbMYb5UDla9PIdzxBSw=="
+                "value": "v1:TH08HYmNvCa07WMS8/yiVQ==:+n5m/qTu8oaScy2CDZpfew=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:YdUNnEJKYC1TKmgmM7wRJA==:44dPSSNOi03oKUf7ZHz6wA=="
+                "value": "v1:P5Mjm6mv96WFM+ZqL+0rxg==:/mFmp4RxSFxKrqmrGgaRKw=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:uA838UL4fjZgQVLN+S/Gpw==:xKpp5iPYk/IdGen+7hHEIg=="
               }
             ]
           }
         }
       ],
-      "hands_back": true
+      "hands_back": false
     },
     {
       "name": "a number for created_at",
@@ -607,11 +4281,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:Md+yVaAcS8tvdeBS2E1Fpw==:R4GSR9MvLWKMVGOrvWC/rg=="
+                "value": "v1:O7wOF1sYhW8HatQy6J+5wg==:9d789WwouZw75vjtuVvTqA=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:nvQzyT0vlK51n9niVEOV+w==:yV5lvlm2gtYx9Jgi8HNJgg=="
+                "value": "v1:Hfd9vuMiHXzRp129dnDjkw==:pe4bZXipZR+0wl7H1uWjNA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:qiRV0eLNqQ7swDFTM8xVxA==:Q4aB5zCoN6bsaEzyWkDJlQ=="
               }
             ]
           }
@@ -635,11 +4313,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:rRXRPYEPFRJKjz+aA5poxA==:bxsGF9VVpEpSI08MxYmLKg=="
+                "value": "v1:/cDTpQAGvbif5y9O31zSWw==:rwWEk+ScjJOknanXSqJczA=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:SqgHUv1BIPaW5O8miutzNw==:Gn2p0EwzPlsPbasIrXl7Bg=="
+                "value": "v1:DLBddPYMacHwY3cqYWNdaw==:u04lvdJ1GfBC+o/cFI/0iQ=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:Ene/MKpdNQgA5EYAWsa8kA==:JqjHFYiykWlaBeoJj+ah5g=="
               }
             ]
           }
@@ -666,11 +4348,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:bwPLEow2aQb7765Y15UCiw==:fjvwpFsKAHKecKZJAwRIHg=="
+                "value": "v1:1ymyk1azwy6lkLB0Yxm2yw==:+B3L/rAkZ5LOU8yEttaphw=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:wE3RqT9f6IcyRpIf1AeIDQ==:K/d0nhxq31r1PUYYFUHUOQ=="
+                "value": "v1:henFnt786nNM/Tqh92TnTw==:OTa1q/Gymo9Z8ZjJg7rLkg=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:a6FVp5LOT7KPuuadMx/InA==:u+xajsCFa4I1Ddcmw+FEkg=="
               }
             ]
           }
@@ -842,11 +4528,15 @@
             "headers": [
               {
                 "name": "X-GUM-Mailer-Class",
-                "value": "v1:7J+CzmxKwNLOhGKCsi6dQQ==:UivzdnmO2fRrIfuGLV/0UQ=="
+                "value": "v1:zjheUFdD1ftmWqet99+AbA==:xZMPcKtuOPk/SL8OL5DSPg=="
               },
               {
                 "name": "X-GUM-Mailer-Method",
-                "value": "v1:l9dTbWMEccLi2ZyszSyVRA==:+7yK3AdoJUhkgvAymTiTSQ=="
+                "value": "v1:5gXSB/hZQ8QPWgAqKrz5tQ==:UpwMp+yoD0tJLo5drDUKEA=="
+              },
+              {
+                "name": "X-GUM-Purchase-Id",
+                "value": "v1:cPtvu95OpoLX3qRvulUQsw==:QcarvvVcDKFKd5eupF2TWw=="
               }
             ],
             "click": "x"
