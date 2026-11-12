@@ -9,6 +9,14 @@ const mocks = vi.hoisted(() => {
 });
 vi.mock("../../../lib/db.ts", () => ({ db: mocks.db }));
 vi.mock("../../models/link.ts", () => ({ invalidateProductCache: vi.fn() }));
+const variants = vi.hoisted(() => ({
+  assertPlainVariantProduct: vi.fn(async () => undefined),
+  assertPlainVariant: vi.fn(async () => undefined),
+  Variants: { save: vi.fn(), withLock: vi.fn() },
+  buildVariant: vi.fn((attributes: object) => ({ attributes })),
+  loadVariantRecord: vi.fn(),
+}));
+vi.mock("../../models/variant-writes.ts", () => variants);
 
 const { registeredApiV2Routes } = await import("./base.ts");
 await import("./product-resource-writes.ts");
@@ -73,8 +81,16 @@ describe("PUT /v2/products/:link_id/variant_categories/:id", () => {
 });
 
 describe("version writes", () => {
-  const variants = "/v2/products/:link_id/variant_categories/:variant_category_id/variants";
-  const destroy = (variant: { deleted_at: Date | null }) => run("DELETE", `${variants}/:id`, {}, { variant });
+  const variantsPath = "/v2/products/:link_id/variant_categories/:variant_category_id/variants";
+  const destroy = (variant: { deleted_at: Date | null }) => run("DELETE", `${variantsPath}/:id`, {}, { variant });
+  const create = (params: Record<string, unknown>) => run("POST", variantsPath, params, { variantCategory: category });
+
+  beforeEach(() => {
+    variants.assertPlainVariantProduct.mockReset().mockResolvedValue(undefined);
+    variants.Variants.save.mockReset();
+    variants.Variants.withLock.mockReset();
+    variants.buildVariant.mockClear();
+  });
 
   it("answers a delete of a version that is already deleted with success and no write", async () => {
     mocks.db.$transaction.mockClear();
@@ -82,18 +98,53 @@ describe("version writes", () => {
 
     expect(rendered.status).toBe(200);
     expect(JSON.parse(String(rendered.body))).toMatchObject({ success: true });
+    expect(variants.Variants.withLock).not.toHaveBeenCalled();
     expect(mocks.db.$transaction).not.toHaveBeenCalled();
   });
 
-  it("hands the delete of a live version back to Rails", async () => {
-    await expect(destroy({ deleted_at: null })).rejects.toThrow("deleting a live version");
+  it("hands a version of a product the model refuses back to Rails before building anything", async () => {
+    variants.assertPlainVariantProduct.mockRejectedValueOnce(new Error("a version of a tiered membership"));
+
+    await expect(create({ name: "Gold" })).rejects.toThrow("a version of a tiered membership");
+    expect(variants.buildVariant).not.toHaveBeenCalled();
+    expect(variants.Variants.save).not.toHaveBeenCalled();
   });
 
-  it("hands a create back to Rails", async () => {
-    await expect(run("POST", variants, { name: "Large" }, {})).rejects.toThrow("saving a version");
+  it.each([
+    [
+      "a fractional price",
+      { name: "Large", price_difference_cents: 1.5 },
+      "a version amount that is not text or a whole number",
+    ],
+    [
+      "a price outside the column",
+      { name: "Large", price_difference_cents: "3000000000" },
+      "a version amount outside the column's range",
+    ],
+    [
+      "a limit that is a list",
+      { name: "Large", max_purchase_count: [1] },
+      "a version amount that is not text or a whole number",
+    ],
+    [
+      "a name that is a number",
+      { name: 5 },
+      "a version name or description that is not text, or too long for its column",
+    ],
+    [
+      "a description over 255 characters",
+      { name: "Large", description: "x".repeat(256) },
+      "a version name or description that is not text, or too long for its column",
+    ],
+  ])("hands %s back to Rails before the save", async (_name, params, reason) => {
+    await expect(create(params)).rejects.toThrow(reason);
+    expect(variants.Variants.save).not.toHaveBeenCalled();
   });
 
-  it.each(["PATCH", "PUT"])("hands a %s update back to Rails", async (method) => {
-    await expect(run(method, `${variants}/:id`, { name: "Large" }, {})).rejects.toThrow("saving a version");
+  it.each(["PATCH", "PUT"])("hands a %s update with rich content back to Rails", async (method) => {
+    await expect(
+      run(method, `${variantsPath}/:id`, { rich_content: "[]" }, { variant: { deleted_at: null } }),
+    ).rejects.toThrow("the rich content of a version");
+    expect(variants.assertPlainVariantProduct).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
-// ProductVariantDeletionAudit and AuditCorrelationId, for the one writer Node has: DELETE /v2/products/:link_id/variant_categories/:id.
+// ProductVariantDeletionAudit and AuditCorrelationId, for the writers Node has: DELETE /v2/products/:link_id/variant_categories/:id and
+// DELETE /v2/products/:link_id/variant_categories/:variant_category_id/variants/:id.
 import { createHmac, randomUUID } from "node:crypto";
 
 import type { PrismaClient } from "@prisma/client";
@@ -6,6 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { getConfig } from "../infra/config.ts";
 
 export const API_V2_VARIANT_CATEGORY_DESTROY = "api_v2_variant_category_destroy";
+export const API_V2_VARIANT_DESTROY = "api_v2_variant_destroy";
 export const API_EXPLICIT_DESTROY = "api_explicit_destroy";
 const CORRELATION_ID_LENGTH = 64;
 const REQUEST_ID_LENGTH = 255;
@@ -51,6 +53,45 @@ export async function recordVariantCategoryDeletion(
         affected_variant_external_ids: [],
         confirmed_affected_variant_external_ids: [],
         alive_child_variant_count: audit.aliveChildVariantCount,
+        correlation_id: correlationId,
+        created_at: new Date(),
+      },
+    });
+    console.warn(`[audit_correlation] request_id=${audit.requestId} correlation_id=${correlationId}`);
+  } catch (error) {
+    console.error("Failed to record a product variant deletion audit", error);
+  }
+}
+
+export type VariantDeletionAudit = {
+  actorUserId: bigint;
+  productId: bigint;
+  deletedVariantExternalId: string;
+  requestId: string;
+};
+
+// `record_deletion` for a version destroyed through the API: the deleted and the affected sets are the one version, none is confirmed.
+export async function recordVariantDeletion(
+  client: Pick<PrismaClient, "productVariantDeletionAudit">,
+  audit: VariantDeletionAudit,
+): Promise<void> {
+  try {
+    const correlationId = auditCorrelationId(audit.requestId);
+    await client.productVariantDeletionAudit.create({
+      data: {
+        actor_user_id: audit.actorUserId,
+        product_id: audit.productId,
+        route: API_V2_VARIANT_DESTROY,
+        intent_source: API_EXPLICIT_DESTROY,
+        deleted_variant_external_ids: [audit.deletedVariantExternalId],
+        deleted_variant_category_external_ids: [],
+        affected_variant_external_ids: [audit.deletedVariantExternalId],
+        confirmed_affected_variant_external_ids: [],
+        deleted_variant_count: 1,
+        affected_variant_count: 1,
+        confirmed_affected_variant_count: 0,
+        unconfirmed_affected_variant_count: 1,
+        alive_child_variant_count: 0,
         correlation_id: correlationId,
         created_at: new Date(),
       },

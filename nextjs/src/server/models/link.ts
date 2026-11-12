@@ -76,15 +76,29 @@ const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
   is_adult: ["rated_as_adult"],
 };
 // The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for PORTED_FLAG_BITS only.
-const PORTED_CHANGES = ["banned_at", "purchase_disabled_at", "flags", "deleted_at", "name"];
+const PORTED_CHANGES = [
+  "banned_at",
+  "purchase_disabled_at",
+  "flags",
+  "deleted_at",
+  "name",
+  "draft",
+  "first_published_at",
+];
 // The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index`.
 const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index"];
 const ARCHIVED_BIT = 1n << 4n;
-// Flag N is bit N - 1: archived, is_adult, display_product_reviews and should_show_sales_count.
+// Flag N is bit N - 1: archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase (set by a publish).
 const IS_ADULT_BIT = 1n << 15n;
 const DISPLAY_PRODUCT_REVIEWS_BIT = 1n << 16n;
 const SHOULD_SHOW_SALES_COUNT_BIT = 1n << 21n;
-const PORTED_FLAG_BITS = ARCHIVED_BIT | IS_ADULT_BIT | DISPLAY_PRODUCT_REVIEWS_BIT | SHOULD_SHOW_SALES_COUNT_BIT;
+const TRANSCODE_VIDEOS_ON_PURCHASE_BIT = 1n << 23n;
+const PORTED_FLAG_BITS =
+  ARCHIVED_BIT |
+  IS_ADULT_BIT |
+  DISPLAY_PRODUCT_REVIEWS_BIT |
+  SHOULD_SHOW_SALES_COUNT_BIT |
+  TRANSCODE_VIDEOS_ON_PURCHASE_BIT;
 const SEARCH_FLAG_BITS: Record<string, bigint> = {
   archived: ARCHIVED_BIT,
   is_adult: IS_ADULT_BIT,
@@ -351,7 +365,7 @@ const refuseUnportedSave: Callback<Link> = {
         throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
       if (link.attributeChanged("flags") && (flagsDiff(link) & ~PORTED_FLAG_BITS) !== 0n)
         throw new NotPortedError(
-          "Link#save changing flags other than archived, is_adult, display_product_reviews and should_show_sales_count",
+          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase",
           "app/models/link.rb",
         );
       if (link.get("unique_permalink") == null)
