@@ -210,4 +210,5 @@ export const PORTED_JOBS: readonly string[] = [
   "PushNotificationWorker",
   "FinalizeBuyerPresentmentPurchaseJob",
   "AttachPastPurchasesToUserWorker",
+  "StripeRestraintNoticeEmailJob",
 ];

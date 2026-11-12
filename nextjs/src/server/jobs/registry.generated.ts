@@ -3281,7 +3281,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SubmitPaypalDisputeEvidenceJob": {
     "file": "app/sidekiq/submit_paypal_dispute_evidence_job.rb",
