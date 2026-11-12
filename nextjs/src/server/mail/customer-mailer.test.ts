@@ -14,12 +14,17 @@ import {
   useGoldenEnvironment,
 } from "./__fixtures__/application-mailer-golden.ts";
 import { composeMail } from "./compose.ts";
-import { renderNodeMailer } from "./delivery.ts";
+import { renderNodeMailer, sendComposed } from "./delivery.ts";
 import type { MailerLevel } from "./mailer-info.ts";
 import { deserializeArgument } from "./ruby-value.ts";
 import { MailViewNotPortedError } from "./views.ts";
 
-type CustomerCase = MessageCase & { mailer_level?: { via: string; level: MailerLevel } };
+type CustomerCase = MessageCase & {
+  mailer_level?: { via: string; level: MailerLevel };
+  delivery_statements?: Statement[];
+};
+// Schema introspection is sent once per Ruby process, whichever statement touches the table first.
+const SCHEMA_STATEMENT = /^(SHOW FULL FIELDS|SELECT column_name)/u;
 type ErrorCase = {
   name: string;
   mailer: string;
@@ -66,6 +71,16 @@ describe("CustomerMailer", () => {
       const { address, domain, user_name, password } = delivered.settings;
       expect(composed.smtp).toEqual({ address, domain, user_name, password });
       expect(Object.fromEntries(router.redis)).toEqual(c.redis_after);
+      // EmailDeliveryObserver: what Rails writes after the SMTP hand-off.
+      if (c.delivery_statements) {
+        const delivery = sqlReplay(c.delivery_statements.filter((statement) => !SCHEMA_STATEMENT.test(statement.sql)));
+        await sendComposed(composed, {
+          send: () => Promise.resolve(),
+          log: () => undefined,
+          now: () => new Date(golden.now),
+        });
+        expect(delivery.log).toEqual(delivery.expected);
+      }
     });
   }
 

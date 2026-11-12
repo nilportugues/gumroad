@@ -4,12 +4,14 @@ import { Prisma } from "@prisma/client";
 
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
-import { selectRows } from "../../models/sql.ts";
+import { LinkFlags } from "../../models/link.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { isValidEmailFormat } from "../../models/user.ts";
-import { applicationMail, findRowOrRaise, type MailerDeps } from "../application-mailer.ts";
+import { applicationMail, findRow, findRowOrRaise, type MailerDeps } from "../application-mailer.ts";
 import type { RenderedMail } from "../compose.ts";
 import { randomDeliveryMethodOptions } from "../mailer-info.ts";
+import { displayableReleaseAtDateAndTime } from "../preorder-helper.ts";
 import type { RubyValue } from "../ruby-value.ts";
 import { linkTo } from "../view-helpers.ts";
 import { emailLayout, h, headerSection, MailViewNotPortedError, mailerUrl } from "../views.ts";
@@ -280,6 +282,103 @@ export async function filesReadyForDownload(
       subject,
       html: emailLayout(content),
       deliveryMethodOptions: await customersDeliveryOptions(seller, purchase.email, deps),
+    },
+    deps,
+  );
+}
+
+type PreorderRow = { id: number | bigint; preorder_link_id: number | bigint };
+type AuthorizationPurchaseRow = {
+  id: number | bigint;
+  email: string | null;
+  full_name: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+};
+type PreorderLinkRow = { id: number | bigint; link_id: number | bigint | null; release_at: Date | null };
+type SellerRow = UserRow & { timezone: string | null };
+
+// `Preorder#authorization_purchase`: `purchases.first`, which is ordered by id.
+const authorizationPurchase = async (preorderId: number | bigint) => {
+  const [purchase] = await selectRows<AuthorizationPurchaseRow>(
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "preorder_id")} = ${preorderId} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`,
+  );
+  return purchase ?? null;
+};
+
+export async function preorderReceipt(
+  preorderId: number | bigint | null,
+  args: RubyValue[],
+  deps: MailerDeps = {},
+): Promise<RenderedMail> {
+  // Without a preorder id Rails takes the link and address from its arguments, but the header builder then calls
+  // `Preorder.find(nil)` and no message is ever delivered.
+  if (preorderId === null) throw new MailViewNotPortedError("preorder receipt without a preorder");
+  const preorder = await findRow<PreorderRow>("preorders", preorderId);
+  const authorization = preorder === null ? null : await authorizationPurchase(preorder.id);
+  if (preorder === null) throw new TypeError("undefined method 'authorization_purchase' for nil");
+  if (authorization === null) throw new MailViewNotPortedError("preorder without an authorization purchase");
+  const preorderLink = await findRowOrRaise<PreorderLinkRow>(
+    "preorder_links",
+    "PreorderLink",
+    preorder.preorder_link_id,
+  );
+  if (preorderLink.link_id === null) throw new MailViewNotPortedError("preorder link without a product");
+  const product = await findRowOrRaise<LinkRow & { flags: number | bigint | null }>(
+    "links",
+    "Link",
+    preorderLink.link_id,
+  );
+  const physical = LinkFlags.isSet(product.flags ?? 0, "is_physical");
+  // The physical branch builds its shipping hash from a second `authorization_purchase`.
+  const shipped = physical ? await authorizationPurchase(preorder.id) : null;
+  const seller = await findRowOrRaise<SellerRow>("users", "User", product.user_id);
+  if (preorderLink.release_at === null) throw new MailViewNotPortedError("preorder link without a release date");
+  const releaseAt = displayableReleaseAtDateAndTime(preorderLink.release_at, seller.timezone);
+
+  const subject = `You pre-ordered ${product.name}!`;
+  const body =
+    physical && shipped
+      ? `    <p>You have successfully pre-ordered ${h(product.name)}. You'll be charged on ${h(releaseAt)}, and shipment will occur soon after.</p>
+    <p>If you need to update your address, contact the creator immediately with your updated address by replying to this email.</p>
+    <p>
+      <strong>Shipping address</strong>
+    </p>
+    <p>
+      ${h(shipped.full_name)}
+      <br>
+      ${h(shipped.street_address)}
+      <br>
+      ${h(shipped.city)}, ${h(shipped.state)} ${h(shipped.zip_code)}
+      <br>
+      ${h(shipped.country)}
+    </p>
+`
+      : `    <p>You have successfully pre-ordered ${h(product.name)}. The product is set to release on ${h(releaseAt)}.</p>
+`;
+  const content = `${headerSection(subject)}
+<div>
+${body}</div>
+`;
+  const options = await customersDeliveryOptions(seller, authorization.email, deps);
+  // HeaderBuilder#determine_receipt_record_ids: `Preorder.find(...).authorization_purchase.id`
+  await findRow<PreorderRow>("preorders", preorder.id);
+  const headerPurchase = await authorizationPurchase(preorder.id);
+  return applicationMail(
+    {
+      mailerClass: "CustomerMailer",
+      mailerMethod: "preorder_receipt",
+      args,
+      to: authorization.email,
+      from: fromEmailAddressWithName(seller.name, customersNoreply()),
+      ...optionalReplyTo(supportEmailOrDefault(product, seller)),
+      subject,
+      html: emailLayout(content),
+      deliveryMethodOptions: options,
+      recordIds: { purchaseId: headerPurchase!.id, emailName: "preorder_receipt" },
     },
     deps,
   );

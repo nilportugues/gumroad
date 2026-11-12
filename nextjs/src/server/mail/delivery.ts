@@ -21,6 +21,7 @@ import {
   filesReadyForDownload,
   partialRefund,
   paypalPurchaseFailed,
+  preorderReceipt,
   refund,
   subscriptionMagicLink,
 } from "./mailers/customer-mailer.ts";
@@ -191,6 +192,10 @@ const NODE_MAILERS: Record<string, Record<string, MailerMethod>> = {
       );
     },
     receipt: (args, deps) => receipt(args, deps),
+    preorder_receipt: (args, deps) =>
+      args.length === 1
+        ? preorderReceipt(args[0] === null ? null : integerArgument(args[0]), args, deps)
+        : Promise.reject(new MailJobArgumentsError("arity")),
     files_ready_for_download: (args, deps) =>
       args.length === 1
         ? filesReadyForDownload(integerArgument(args[0]), args, deps)

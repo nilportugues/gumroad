@@ -175,7 +175,8 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
   statements = capture_sql do
     rendered = delivery.message.is_a?(ActionMailer::Base::NullMail) ? nil : delivery.message.body.raw_source.dup
   end
-  result = delivery.deliver_now
+  result = nil
+  delivery_statements = capture_sql { result = delivery.deliver_now }
   {
     **meta,
     "name" => name,
@@ -183,6 +184,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
     "method" => method.to_s,
     "job_args" => ActiveJob::Arguments.serialize(args),
     "statements" => statements,
+    "delivery_statements" => delivery_statements,
     "features" => features.keys,
     "redis_before" => redis,
     "rands_used" => $rands_used.dup,
@@ -209,7 +211,7 @@ def record_error(name, mailer, method, args)
 end
 
 # --- fixtures --------------------------------------------------------------------------------------
-TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds].freeze
+TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds email_infos].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") }
@@ -252,7 +254,7 @@ def seed_mailer_level(user_id, via, level)
 end
 
 # Warm the schema cache so the recorded statements are the mailers' own.
-[User, Link, Purchase, Subscription, UrlRedirect, PurchasePresentment, Price].each { _1.columns; _1.first }
+[User, Link, Purchase, Subscription, UrlRedirect, PurchasePresentment, Price, Preorder, PreorderLink].each { _1.columns; _1.first }
 SidekiqExecutor.perform { User.first; User.transaction { User.first } }
 
 messages = []
@@ -378,6 +380,42 @@ insert_link(id: 301, user_id: 201, price_currency_type: "eur")
 insert_purchase(id: 401, link_id: 301, seller_id: 201, total_transaction_cents: 1234, displayed_price_currency_type: "eur", rate_converted_to_usd: "1.2")
 refused << record_message("refund_euro", CustomerMailer, :refund, ["buyer@example.com", 301, 401], meta: seed_mailer_level(201, :cache, :level_1))
 refused << record_message("partial_refund_euro", CustomerMailer, :partial_refund, ["buyer@example.com", 301, 401, 250, "partially"], meta: seed_mailer_level(201, :cache, :level_1))
+
+# CustomerMailer#preorder_receipt: the receipt of a preorder, read through its authorization purchase.
+def preorder_setup(seller: {}, link: {}, release_at: Time.utc(2026, 12, 25, 17, 0, 0), purchase: {})
+  reset!
+  %w[preorders preorder_links].each { ActiveRecord::Base.connection.execute("DELETE FROM #{_1}") }
+  insert_user(id: 201, email: "seller@example.com", username: "seller", name: "Seller Name", **seller)
+  insert_link(id: 301, user_id: 201, **link)
+  ActiveRecord::Base.connection.execute("INSERT INTO preorder_links (id, link_id, state, release_at, created_at, updated_at) VALUES (801, 301, 'unreleased', #{ActiveRecord::Base.connection.quote(release_at)}, '#{FIXED_NOW.to_fs(:db)}', '#{FIXED_NOW.to_fs(:db)}')")
+  ActiveRecord::Base.connection.execute("INSERT INTO preorders (id, preorder_link_id, seller_id, state, created_at, updated_at) VALUES (901, 801, 201, 'authorization_successful', '#{FIXED_NOW.to_fs(:db)}', '#{FIXED_NOW.to_fs(:db)}')")
+  insert_purchase(id: 401, link_id: 301, seller_id: 201, preorder_id: 901, purchase_state: "preorder_authorization_successful", flags: 1 << 12, **purchase)
+  seed_mailer_level(201, :cache, :level_1)
+end
+PREORDER_SHIPPING = { full_name: "Ada Lovelace", street_address: "1 Analytical Way", city: "London", state: "LDN", zip_code: "N1 9GU", country: "United Kingdom" }.freeze
+[
+  ["preorder_receipt_digital", {}, {}, Time.utc(2026, 12, 25, 17, 0, 0), {}, {}],
+  ["preorder_receipt_minutes", {}, {}, Time.utc(2026, 12, 25, 17, 30, 0), {}, {}],
+  ["preorder_receipt_utc_seller", { timezone: "UTC" }, {}, Time.utc(2026, 7, 1, 0, 0, 0), {}, {}],
+  ["preorder_receipt_summer_time", {}, {}, Time.utc(2026, 7, 4, 19, 15, 0), {}, {}],
+  ["preorder_receipt_eastern_zone", { timezone: "Eastern Time (US & Canada)" }, {}, Time.utc(2026, 7, 4, 19, 15, 0), {}, {}],
+  ["preorder_receipt_central_zone", { timezone: "Central Time (US & Canada)" }, {}, Time.utc(2026, 1, 4, 19, 15, 0), {}, {}],
+  ["preorder_receipt_mountain_zone", { timezone: "Mountain Time (US & Canada)" }, {}, Time.utc(2026, 1, 4, 19, 15, 0), {}, {}],
+  ["preorder_receipt_ordinals", {}, {}, Time.utc(2026, 11, 22, 20, 0, 0), {}, {}],
+  ["preorder_receipt_html_names", {}, { name: "Tom & Jerry's <Guide>" }, Time.utc(2026, 12, 25, 17, 0, 0), {}, {}],
+  ["preorder_receipt_link_support_email", {}, { support_email: "link-support@example.com" }, Time.utc(2026, 12, 25, 17, 0, 0), {}, {}],
+  ["preorder_receipt_resend", {}, {}, Time.utc(2026, 12, 25, 17, 0, 0), {}, { "resend" => true, "force_resend" => true }],
+  ["preorder_receipt_physical", {}, { flags: 128 }, Time.utc(2026, 12, 25, 17, 0, 0), PREORDER_SHIPPING, {}],
+  ["preorder_receipt_physical_html_address", {}, { flags: 128 }, Time.utc(2026, 12, 25, 17, 0, 0), PREORDER_SHIPPING.merge(full_name: "A & B <C>", street_address: "1 \"Main\" St"), {}],
+].each do |name, seller, link, release_at, purchase, features|
+  preorder_setup(seller:, link:, release_at:, purchase:)
+  messages << record_message(name, CustomerMailer, :preorder_receipt, [901], features:, meta: seed_mailer_level(201, :cache, :level_1))
+end
+preorder_setup
+preorder_setup
+errors << record_error("preorder_receipt_missing_preorder", CustomerMailer, :preorder_receipt, [404])
+preorder_setup(seller: { timezone: "Kolkata" })
+refused << record_message("preorder_receipt_kolkata_zone", CustomerMailer, :preorder_receipt, [901], meta: seed_mailer_level(201, :cache, :level_1))
 
 cases = { "messages" => messages, "errors" => errors, "refused" => refused }
 File.write(File.join(FIXTURES, "customer-mailer.golden.json"), JSON.pretty_generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
