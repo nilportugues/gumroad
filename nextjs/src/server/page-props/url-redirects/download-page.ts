@@ -252,6 +252,11 @@ async function recordVisit(loaded: Loaded, chain: Chain): Promise<void> {
     consumed_at: truncateToSeconds(chain.now),
     ip_address: remoteIp(chain.request.headers) ?? "127.0.0.1",
   });
+  await registerDownload(redirect, chain);
+}
+
+// #register_that_user_has_downloaded_product: the use count, the seen flag and the confirmation cookie.
+export async function registerDownload(redirect: Loaded["redirect"], chain: Chain): Promise<void> {
   // increment! leaves updated_at alone; mark_as_seen ORs the bit in so it keeps a concurrent flag write.
   await db.$executeRaw(Prisma.sql`UPDATE url_redirects SET uses = COALESCE(uses, 0) + 1 WHERE id = ${redirect.id}`);
   await db.$executeRaw(

@@ -9,11 +9,30 @@ import { cgiEscape, getS3Client, signedCloudfrontUrl } from "../../infra/signed-
 import { storageConfig } from "../../infra/storage.ts";
 import { InvalidSubtitleEncoding, subtitleToVtt } from "../../services/subtitle-to-vtt.ts";
 import { isStreamable } from "../../models/product-file.ts";
-import { HandBackToRails, RoutingError, type ActionContext, type ActionResult, type Rendered } from "../application-controller.ts";
+import {
+  HandBackToRails,
+  RoutingError,
+  type ActionContext,
+  type ActionResult,
+  type Rendered,
+} from "../application-controller.ts";
 import { json } from "../json-actions.ts";
 import { requestFormat } from "../rails-params.ts";
-import { checkPermissions, createConsumptionEvent, loadRedirect, requireSellerForTestPurchase, type Loaded } from "./access.ts";
-import { aliveProductFiles, fieldsOf, isFileDownloadable, signedUrl, StorageObjectMissing, type DeliveryFile } from "./files.ts";
+import {
+  checkPermissions,
+  createConsumptionEvent,
+  loadRedirect,
+  requireSellerForTestPurchase,
+  type Loaded,
+} from "./access.ts";
+import {
+  aliveProductFiles,
+  fieldsOf,
+  isFileDownloadable,
+  signedUrl,
+  StorageObjectMissing,
+  type DeliveryFile,
+} from "./files.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 
 const HLS_CONTENT_TYPE = "application/x-mpegurl; charset=utf-8";
@@ -23,7 +42,8 @@ const HLS_FLAG = 1;
 const plain = (body: string, contentType: string): Rendered => ({ status: 200, body, contentType, paramsRead: true });
 
 // Builder::XmlMarkup escapes attribute values
-const xmlAttribute = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+const xmlAttribute = (value: string) =>
+  value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 // UrlRedirect#product_file(external id)
 export function findFile(files: DeliveryFile[], externalId: string): DeliveryFile | undefined {
@@ -63,7 +83,10 @@ export async function smil(token: string, fileId: string, action: ActionContext)
 
 // ProductFile#hls_playlist: the transcoder's master playlist with every rendition's playlist behind a signed URL.
 async function hlsPlaylist(file: DeliveryFile["file"]): Promise<string | null> {
-  const transcoded = await db.transcodedVideo.findFirst({ where: { streamable_type: "ProductFile", streamable_id: file.id, deleted_at: null, state: "completed" }, orderBy: { id: "desc" } });
+  const transcoded = await db.transcodedVideo.findFirst({
+    where: { streamable_type: "ProductFile", streamable_id: file.id, deleted_at: null, state: "completed" },
+    orderBy: { id: "desc" },
+  });
   // The is_hls flag is a bit, so it is checked on the candidates in order: the last one that has it.
   const hls = transcoded && (transcoded.flags & HLS_FLAG) !== 0 ? transcoded : await lastHls(file);
   if (hls === null || hls.transcoded_video_key === null) return null;
@@ -72,13 +95,17 @@ async function hlsPlaylist(file: DeliveryFile["file"]): Promise<string | null> {
   const prefix = `${path.posix.dirname(playlistKey)}/`;
   let playlist: string;
   try {
-    const object = await getS3Client().send(new GetObjectCommand({ Bucket: storageConfig().s3Bucket, Key: playlistKey }));
+    const object = await getS3Client().send(
+      new GetObjectCommand({ Bucket: storageConfig().s3Bucket, Key: playlistKey }),
+    );
     playlist = await object.Body!.transformToString();
   } catch (error) {
     if ((error as { name?: string }).name === "NoSuchKey") return null;
     throw error;
   }
-  const original = prefix.includes("/original/") ? /\/original\/(.*?)\/hls/su.exec(prefix)?.[1] : /attachments\/.*\/(.*?)\/hls/su.exec(prefix)?.[1];
+  const original = prefix.includes("/original/")
+    ? /\/original\/(.*?)\/hls/su.exec(prefix)?.[1]
+    : /attachments\/.*\/(.*?)\/hls/su.exec(prefix)?.[1];
   const lines = playlist.split("\n");
   while (lines.length > 0 && lines.at(-1) === "") lines.pop();
   let signed = "";
@@ -95,7 +122,10 @@ async function hlsPlaylist(file: DeliveryFile["file"]): Promise<string | null> {
 }
 
 async function lastHls(file: DeliveryFile["file"]) {
-  const rows = await db.transcodedVideo.findMany({ where: { streamable_type: "ProductFile", streamable_id: file.id, deleted_at: null, state: "completed" }, orderBy: { id: "desc" } });
+  const rows = await db.transcodedVideo.findMany({
+    where: { streamable_type: "ProductFile", streamable_id: file.id, deleted_at: null, state: "completed" },
+    orderBy: { id: "desc" },
+  });
   return rows.find((row) => (row.flags & HLS_FLAG) !== 0) ?? null;
 }
 
@@ -116,7 +146,12 @@ export async function hlsPlaylistAction(token: string, fileId: string, action: A
 }
 
 // #download_subtitle_file
-export async function downloadSubtitleFile(token: string, fileId: string, subtitleId: string, action: ActionContext): Promise<ActionResult> {
+export async function downloadSubtitleFile(
+  token: string,
+  fileId: string,
+  subtitleId: string,
+  action: ActionContext,
+): Promise<ActionResult> {
   const loaded = await loadRedirect(token);
   const halted = await checkPermissions({ loaded, action, actionName: "download_subtitle_file" });
   if (halted) return halted;
@@ -124,7 +159,12 @@ export async function downloadSubtitleFile(token: string, fileId: string, subtit
   if (!delivery) throw new RoutingError("Not Found");
   if (!(await isFileDownloadable(loaded, delivery))) throw new RoutingError("Not Found");
   const id = decrypt(subtitleId);
-  const subtitle = id === null ? null : await db.subtitleFile.findFirst({ where: { id: BigInt(id), product_file_id: delivery.file.id, deleted_at: null } });
+  const subtitle =
+    id === null
+      ? null
+      : await db.subtitleFile.findFirst({
+          where: { id: BigInt(id), product_file_id: delivery.file.id, deleted_at: null },
+        });
   if (!subtitle) throw new RoutingError("Not Found");
   const fields = fieldsOf({ ...delivery.file, url: subtitle.url }, loaded);
   if (fields === null) throw new RoutingError("Not Found");
@@ -144,23 +184,36 @@ const VTT_CACHE_CONTROL = "max-age=3600, private";
 
 // #subtitle_file_vtt: the stored caption file as WebVTT. A file that went missing, or any S3 service error, is a 404 so the player
 // shows no captions instead of an error. Rails.cache memoizes the conversion for a day; that cache is not observable.
-export async function subtitleFileVtt(token: string, fileId: string, subtitleId: string, action: ActionContext): Promise<ActionResult> {
+export async function subtitleFileVtt(
+  token: string,
+  fileId: string,
+  subtitleId: string,
+  action: ActionContext,
+): Promise<ActionResult> {
   const loaded = await loadRedirect(token);
   const halted = await checkPermissions({ loaded, action, actionName: "subtitle_file_vtt" });
   if (halted) return halted;
   const delivery = findFile(await aliveProductFiles(loaded), fileId);
   if (!delivery) throw new RoutingError("Not Found");
   const id = decrypt(subtitleId);
-  const subtitle = id === null ? null : await db.subtitleFile.findFirst({ where: { id: BigInt(id), product_file_id: delivery.file.id, deleted_at: null } });
+  const subtitle =
+    id === null
+      ? null
+      : await db.subtitleFile.findFirst({
+          where: { id: BigInt(id), product_file_id: delivery.file.id, deleted_at: null },
+        });
   if (!subtitle) throw new RoutingError("Not Found");
   const fields = fieldsOf({ ...delivery.file, url: subtitle.url }, loaded);
   if (fields === null) throw new HandBackToRails("a subtitle file that is not in S3");
   let bytes: Uint8Array;
   try {
-    const object = await getS3Client().send(new GetObjectCommand({ Bucket: storageConfig().s3Bucket, Key: fields.key }));
+    const object = await getS3Client().send(
+      new GetObjectCommand({ Bucket: storageConfig().s3Bucket, Key: fields.key }),
+    );
     bytes = await object.Body!.transformToByteArray();
   } catch (error) {
-    if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== undefined) throw new RoutingError("Not Found");
+    if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode !== undefined)
+      throw new RoutingError("Not Found");
     throw error;
   }
   try {

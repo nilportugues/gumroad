@@ -22,6 +22,7 @@ describe "Url redirect players", type: :request do
   # Objects the files of the examples point at. The replay puts the same bytes in its own storage.
   PLAYER_OBJECTS = {
     "attachments/0123456789abcdef0123456789abcdef/original/movie.mov" => "player spec video",
+    "attachments/fedcba9876543210fedcba9876543210/original/second.mov" => "player spec second video",
     "specs/player-captions.srt" => "﻿1\r\n0:00:01,5 --> 0:00:02,000\r\nHello\r\n\r\n2\r\nnot a timing line\r\nlost\r\n\r\n3\r\n00:00:03,000 --> 00:00:04,000\r\nSecond line\r\nover two lines\r\n\r\n4\r\n00:00:05,000 --> 00:00:06,000\r\n   \r\n",
     "specs/player-captions.vtt" => "WEBVTT\n\nNOTE a note\n\nintro\n00:01.000 --> 00:02.000\nPlain cue\n\n00:03.000 --> 00:04.000 align:start\nPositioned cue\n",
     "specs/player-book.pdf" => "%PDF-1.4 player spec",
@@ -92,6 +93,109 @@ describe "Url redirect players", type: :request do
       get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
 
       expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "GET /s/:id" do
+    let(:second_key) { "attachments/fedcba9876543210fedcba9876543210/original/second.mov" }
+    let(:second_video) { create(:streamable_video, link: product, display_name: "Lesson two", url: "#{S3_BASE_URL}#{second_key}") }
+    let(:pdf) { create(:readable_document, link: product, display_name: "Notes") }
+
+    before { video }
+
+    it "lists the videos and counts the visit", parity: true do
+      second_video
+      log_in(buyer)
+
+      get url_redirect_stream_page_path(token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("index_to_play" => 0, "playlist" => have_attributes(size: 2))
+      expect(url_redirect.reload).to have_attributes(uses: 1, has_been_seen: true)
+    end
+
+    it "starts at the requested video and carries the captions and the last position", parity: true do
+      second_video
+      create(:subtitle_file, product_file: second_video, url: "#{S3_BASE_URL}specs/player-captions.srt", language: "English")
+      create(:media_location, product_file_id: second_video.id, url_redirect_id: url_redirect.id, purchase_id: purchase.id, product_id: product.id, location: 42, consumed_at: Time.current)
+      log_in(buyer)
+
+      get url_redirect_stream_page_for_product_file_path(token, second_video.external_id)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)).to include("index_to_play" => 1)
+    end
+
+    it "points the player at the HLS playlist of a transcoded video", parity: true do
+      create(:transcoded_video, streamable: video, key_base_path: "attachments/0123456789abcdef0123456789abcdef", original_video_key: video_key, is_hls: true)
+      log_in(buyer)
+
+      get url_redirect_stream_page_path(token)
+
+      expect(inertia_props_of(response)["playlist"].first["sources"].first).to include("index.m3u8")
+    end
+
+    it "streams a guest purchase to the address that bought it", parity: true do
+      purchase.update_columns(purchaser_id: nil)
+
+      get url_redirect_stream_page_path(token), headers: forwarded
+
+      expect(response).to be_successful
+    end
+
+    it "tells the seller about videos that are not transcoded yet", parity: true do
+      purchase.update_columns(purchaser_id: seller.id)
+      product.transcode_videos_on_purchase = true
+      product.update_columns(flags: product.flags)
+      log_in(seller)
+
+      get url_redirect_stream_page_path(token)
+
+      expect(inertia_props_of(response)).to include("should_show_transcoding_notice" => true, "transcode_on_first_sale" => true)
+    end
+
+    it "answers 404 for a purchase without videos", parity: true do
+      video.update_columns(deleted_at: Time.current)
+      pdf
+      log_in(buyer)
+
+      get url_redirect_stream_page_path(token)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a requested file that is not a video", parity: true do
+      log_in(buyer)
+
+      get url_redirect_stream_page_for_product_file_path(token, pdf.external_id)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "plays the first video for a file the redirect does not hold", parity: true do
+      log_in(buyer)
+
+      get url_redirect_stream_page_for_product_file_path(token, "unknown")
+
+      expect(response).to be_successful
+    end
+
+    it "asks a seen redirect's visitor to confirm the email", parity: true do
+      url_redirect.mark_as_seen
+      purchase.update_columns(purchaser_id: nil)
+
+      get url_redirect_stream_page_path(token), headers: { "X-Forwarded-For" => "198.51.100.4" }
+
+      expect(response).to redirect_to(confirm_page_path(id: token, destination: "stream"))
+    end
+
+    it "hands a product with rich content to Rails", parity: true do
+      create(:product_rich_content, entity: product)
+      log_in(buyer)
+
+      get url_redirect_stream_page_path(token)
+
+      expect(response).to be_successful
     end
   end
 end

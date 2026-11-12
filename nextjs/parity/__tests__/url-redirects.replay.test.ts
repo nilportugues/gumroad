@@ -38,6 +38,7 @@ const SPEC_OBJECTS: Record<string, string> = {
 // PLAYER_OBJECTS in url_redirect_player_pages_spec.rb
 Object.assign(SPEC_OBJECTS, {
   "attachments/0123456789abcdef0123456789abcdef/original/movie.mov": "player spec video",
+  "attachments/fedcba9876543210fedcba9876543210/original/second.mov": "player spec second video",
   "specs/player-captions.srt":
     "\uFEFF1\r\n0:00:01,5 --> 0:00:02,000\r\nHello\r\n\r\n2\r\nnot a timing line\r\nlost\r\n\r\n3\r\n00:00:03,000 --> 00:00:04,000\r\nSecond line\r\nover two lines\r\n\r\n4\r\n00:00:05,000 --> 00:00:06,000\r\n   \r\n",
   "specs/player-captions.vtt":
@@ -138,6 +139,12 @@ const COMPARE = {
     // Delayed jobs are scheduled seconds ahead of the clock, which the replay normalizes to the nearest bucket.
     "jobs.*.at",
     "http",
+    // Next.js owns the per-response random values and the asset preloads of an Inertia page.
+    "response.inertia.props.csp_nonce",
+    "response.inertia.props.authenticity_token",
+    "response.inertia.props._inertia_meta.2.content",
+    "response.inertia.props._inertia_meta.1.content",
+    "response.headers.x-original-headers-class",
   ],
 };
 
@@ -219,6 +226,8 @@ describe.skipIf(!url)("url redirect delivery", () => {
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       SECURE_ENCRYPT_KEY: testEnv("SECURE_ENCRYPT_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      // The meta tags of an Inertia page carry the Stripe publishable key.
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
@@ -339,7 +348,7 @@ describe.skipIf(!url)("url redirect delivery", () => {
         expect(cookie === undefined).toBe(recorded === undefined);
         if (cookie)
           expect(readEncryptedCookie(secrets, "confirmed_redirect", String(cookie.value))).toBe(
-            /^\/r\/([^/]+)/u.exec(want.request.path)?.[1] ??
+            /^\/(?:r|s|d|read)\/([^/]+)/u.exec(want.request.path)?.[1] ??
               new URLSearchParams(String(want.request.body ?? "")).get("id"),
           );
       } catch (error) {
