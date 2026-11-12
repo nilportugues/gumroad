@@ -174,6 +174,35 @@ describe.skipIf(!url)("Api::Internal::AgentCustomHtmlPreviewsController", () => 
           );
           if (request.body) expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body));
           expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
+          expect(await redis.keys("agent_custom_html_preview*")).toEqual([]);
+          return;
+        }
+        // A preview Node renders: the fixture ends with the GET of the staged document, which holds what Rails staged. Node replays the POST
+        // and must stage the same document, under a fresh token, with the same expiry and index entry.
+        const staged = fixture.exchanges.at(-1)!;
+        if (
+          /\/custom_html_previews\//u.test(staged.request.path) &&
+          fixture.exchanges.at(-2)?.request.path === "/internal/agent/custom_html_preview"
+        ) {
+          const [expectedKey = "", expectedEntry] =
+            Object.entries(staged.redis ?? {}).find(([key]) => key.startsWith("agent_custom_html_preview:")) ?? [];
+          const expectedDocument = (expectedEntry as { value: string } | undefined)?.value;
+          const postIndex = fixture.exchanges.length - 2;
+          const result = await replayFixtureExchange(fixture, postIndex, {
+            ...options(),
+            compare: { ignore: [...COMPARE.ignore, "response.json.preview_url"] },
+          });
+          assertParity(result);
+          const body = result.exchanges[0]!.actual.response.json as { preview_url: string };
+          expect(body.preview_url).toMatch(/^\/internal\/agent\/custom_html_previews\/[A-Za-z0-9_-]{32}$/u);
+          const token = body.preview_url.split("/").pop()!;
+          const sellerId = expectedKey.split(":")[1]!;
+          expect(await redis.keys("agent_custom_html_preview:*")).toEqual([
+            `agent_custom_html_preview:${sellerId}:${token}`,
+          ]);
+          expect(await redis.get(`agent_custom_html_preview:${sellerId}:${token}`)).toBe(expectedDocument);
+          expect(await redis.lrange(`agent_custom_html_preview_index:${sellerId}`, 0, -1)).toEqual([token]);
+          expect(await redis.ttl(`agent_custom_html_preview:${sellerId}:${token}`)).toBeGreaterThan(86_000);
           return;
         }
         assertParity(await replayFixtureExchange(fixture, index, options()));

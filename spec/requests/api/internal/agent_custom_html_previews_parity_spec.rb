@@ -4,8 +4,10 @@ require "spec_helper"
 
 # The store agent's custom HTML preview (Api::Internal::AgentCustomHtmlPreviewsController), recorded for the Next.js port (PARITY_RECORD=1)
 # and replayed by nextjs/parity/__tests__/agent-custom-html-previews.replay.test.ts, which sends the last request of each example.
-# Node answers the gates, every proposal the controller refuses before it sanitizes anything, and GET #show (a Redis read). The examples
-# that start "hands a" are the proposals whose preview needs Ai::PageSanitizer, Pages::Interpolator or Pages::ProfileData, which stay in Rails.
+# Node answers the gates, every proposal the controller refuses before it sanitizes anything, GET #show (a Redis read) and the previews it can
+# prove byte-equal: the examples that start "renders" post a proposal, then fetch the staged document, and the replay compares the document
+# Node stages with the one Rails staged. The examples that start "hands a" are the proposals that stay in Rails: a page that references
+# prices, a seller with products, a page that sanitizes to nothing, markup the sanitizer port cannot prove, a guarded undo.
 describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::AudienceSignedIn
 
@@ -26,6 +28,8 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
     create(:payment_completed, user:)
     product = create(:product, user:, name: "Earner", unique_permalink: "earner", created_at: Time.utc(2025, 1, 1))
     build(:purchase, link: product, seller: user, price_cents: 20_000).tap { |row| row.save!(validate: false) }
+    # The sales stay; the product no longer lists on the profile, which is the seller Node can preview (Pages::ProfileData lists live products).
+    product.update_columns(deleted_at: Time.utc(2025, 2, 1))
     index_model_records(Purchase)
   end
 
@@ -37,6 +41,14 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
       seller.save!
     end
     log_in(seller)
+  end
+
+  # The staged document, fetched the way the confirmation card's iframe does. The recording keeps it in the exchange that follows the POST.
+  def fetch_staged_preview
+    expect(response.parsed_body["success"]).to be(true)
+    expect(response.parsed_body["preview_url"]).to match(%r{\A/internal/agent/custom_html_previews/[A-Za-z0-9_-]{32}\z})
+    get response.parsed_body["preview_url"]
+    expect(response).to have_http_status(:ok)
   end
 
   def post_preview(params) = post(PREVIEWS_PATH, params: params.to_json, headers: JSON_ACCEPT_PREVIEWS.merge("X-CSRF-Token" => csrf_token, "Content-Type" => "application/json"))
@@ -126,13 +138,110 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
         expect(response.parsed_body).to eq("success" => false, "error" => "The edited page would be too long (maximum is 500000 characters).")
       end
 
-      it "hands a proposed page to Rails", parity: true do
+      it "renders a proposed page", parity: true do
         ready_seller
 
         post_preview(endpoint: "update_user_custom_html", custom_html: "<section><h1>New page</h1></section>")
 
+        fetch_staged_preview
+      end
+
+      it "renders a page with the markup the sanitizer removes", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: <<~HTML)
+          <!DOCTYPE html><html lang="en"><head><title>t</title><meta http-equiv="refresh" content="0"><style>p { color: red }</style></head>
+          <body onload="x()"><iframe src="https://example.com/embed"></iframe><script src="https://evil.example.com/x.js"></script>
+          <script src="https://cdn.jsdelivr.net/npm/x"></script><form action="https://evil.example.com"><input name="a" disabled></form>
+          <a href="javascript:alert(1)" target="_blank">x</a><img src="data:image/png;base64,AAAA" srcset="a.png 1x, javascript:1 2x" onerror="y()" data-x="1">
+          <svg viewBox="0 0 1 1"><path d="M0 0" fill="red"/><script>1</script></svg><marquee>old</marquee><!-- kept --></body></html>
+        HTML
+
+        fetch_staged_preview
+      end
+
+      it "renders a page that fills the seller's name and bio", parity: true do
+        seller.update!(bio: "I make <things> & \"stuff\"")
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<h1 data-gumroad-field="name">n</h1><p data-gumroad-field="bio">b</p><span data-gumroad-field="mystery">keep</span>')
+
+        fetch_staged_preview
+      end
+
+      it "renders a page that loads Tailwind v3", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<script src="https://cdn.tailwindcss.com"></script><div class="bg-gradient-to-r from-red-500">x</div>')
+
+        fetch_staged_preview
+      end
+
+      it "renders a page for a seller whose profile has tabs", parity: true do
+        ready_seller
+        SellerProfile.new(seller:, json_data: { "tabs" => [{ "name" => "Home", "sections" => [] }, { "name" => "Q&A <b>", "sections" => [] }] }).save!(validate: false)
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: "<p>Tabs</p>")
+
+        fetch_staged_preview
+      end
+
+      it "renders a page for a seller whose only extra product was deleted", parity: true do
+        ready_seller
+        create(:product, user: seller, name: "Gone", unique_permalink: "gone").update_columns(deleted_at: Time.utc(2025, 2, 1))
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: "<p>No products</p>")
+
+        fetch_staged_preview
+      end
+
+      it "hands a page that references prices to Rails", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<span data-gumroad-product="earner" data-gumroad-field="price">0</span>')
+
         expect(response.parsed_body["success"]).to be(true)
-        expect(response.parsed_body["preview_url"]).to match(%r{/internal/agent/custom_html_previews/[A-Za-z0-9_-]+\z})
+      end
+
+      it "hands a page that reads the prices blob to Rails", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<script>var p = document.getElementById("gumroad-prices")</script>')
+
+        expect(response.parsed_body["success"]).to be(true)
+      end
+
+      it "hands a page for a seller who lists a product to Rails", parity: true do
+        ready_seller
+        create(:product, user: seller, name: "Listed", unique_permalink: "listed")
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: "<p>Has products</p>")
+
+        expect(response.parsed_body["success"]).to be(true)
+      end
+
+      it "hands a page that sanitizes to nothing to Rails", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<iframe src="https://example.com"></iframe><marquee></marquee>')
+
+        expect(response.parsed_body["success"]).to be(true)
+      end
+
+      it "hands a page with an xml:lang attribute to Rails", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<div xml:lang="en" lang="en">x</div>')
+
+        expect(response.parsed_body["success"]).to be(true)
+      end
+
+      it "hands a page with a script URL the port cannot read to Rails", parity: true do
+        ready_seller
+
+        post_preview(endpoint: "update_user_custom_html", custom_html: '<script src="https://[cdn.jsdelivr.net]/x.js"></script><p>x</p>')
+
+        expect(response.parsed_body["success"]).to be(true)
       end
 
       it "hands a proposal that clears the page to Rails", parity: true do
@@ -225,20 +334,53 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
         expect(response.parsed_body).to eq("success" => false, "error" => "The edited page would be too long (maximum is 500000 characters).")
       end
 
-      it "hands an edit that matches once to Rails", parity: true do
+      it "renders an edit that matches once", parity: true do
         ready_seller(html: page_html)
 
         post_preview(endpoint: "edit_user_custom_html", find: "<h1>Old headline</h1>", replace: "<h1>New headline</h1>")
 
+        fetch_staged_preview
+      end
+
+
+      it "renders an edit that lands inside an attribute without the scroll marker", parity: true do
+        ready_seller(html: '<div class="old">x</div><p>after</p>')
+
+        post_preview(endpoint: "edit_user_custom_html", find: "old", replace: "new")
+
+        fetch_staged_preview
+      end
+
+      it "renders an edit whose replacement holds the marker text without the scroll marker", parity: true do
+        ready_seller(html: "<p>one</p><p>two</p>")
+
+        post_preview(endpoint: "edit_user_custom_html", find: "<p>two</p>", replace: "<!--gumroad-preview-changed--><p>2</p>")
+
+        fetch_staged_preview
+      end
+
+      it "renders an edit the sanitizer changes", parity: true do
+        ready_seller(html: "<p>one</p><div>two</div>")
+
+        post_preview(endpoint: "edit_user_custom_html", find: "<div>two</div>", replace: '<div onclick="x()"><iframe src="https://example.com"></iframe>2</div>')
+
+        fetch_staged_preview
+      end
+
+      it "hands an edit that sanitizes the page to nothing to Rails", parity: true do
+        ready_seller(html: "<p>one</p>")
+
+        post_preview(endpoint: "edit_user_custom_html", find: "<p>one</p>", replace: '<iframe src="https://example.com"></iframe>')
+
         expect(response.parsed_body["success"]).to be(true)
       end
 
-      it "hands an edit whose snippet differs from the page only in whitespace to Rails", parity: true do
+      it "renders an edit whose snippet differs from the page only in whitespace", parity: true do
         ready_seller(html: "<p>Keep me</p>")
 
         post_preview(endpoint: "edit_user_custom_html", find: "<p>Keep me</p>", replace: "<p>Changed</p>")
 
-        expect(response.parsed_body["success"]).to be(true)
+        fetch_staged_preview
       end
 
       it "hands a guarded undo to Rails", parity: true do

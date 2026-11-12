@@ -12,7 +12,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 
 export type ProfileDataFacts = {
-  // Links of the seller that are not deleted: a superset of `products.alive.not_archived.not_draft`.
+  // Links of the seller that are `alive` (not deleted, banned or purchase-disabled): a superset of `products.alive.not_archived.not_draft`.
   undeletedProducts: number;
   // Installments of the seller that are not deleted and have a publish time: a superset of `visible_on_profile`.
   publishedPosts: number;
@@ -73,7 +73,7 @@ export function profileDataJson(facts: ProfileDataFacts): string {
 
 export async function loadProfileDataFacts(sellerId: bigint): Promise<ProfileDataFacts> {
   const [undeletedProducts, publishedPosts, profile, reputationSummaryEnabled] = await Promise.all([
-    db.link.count({ where: { user_id: sellerId, deleted_at: null } }),
+    db.link.count({ where: { user_id: sellerId, deleted_at: null, banned_at: null, purchase_disabled_at: null } }),
     db.installment.count({ where: { seller_id: Number(sellerId), deleted_at: null, published_at: { not: null } } }),
     db.sellerProfile.findFirst({ where: { seller_id: sellerId }, orderBy: { id: "asc" } }),
     isFeatureEnabled(REPUTATION_SUMMARY_FEATURE, userActor(String(sellerId))),
