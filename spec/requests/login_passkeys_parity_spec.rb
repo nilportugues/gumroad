@@ -1,0 +1,294 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+require "webauthn/fake_client"
+
+# Passkey login (POST /login/passkey/options and POST /login/passkey), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
+# nextjs/parity/__tests__/login-passkeys.replay.test.ts, which sends the last request of each example with the session cookie of the
+# recording. An assertion is a deterministic function of the challenge in that session and the stored public key, so the replay
+# proves Node's WebAuthn verification by replaying a recorded valid assertion and the tampered variants of it. An example named
+# "hands ..." is one Node leaves to Rails.
+describe "Passkey login", type: :request do
+  include Parity::SignedInDashboard
+
+  let(:user) { create(:user, email: "passkey-user@example.com", password: "a-long-password-1", created_at: Time.utc(2025, 1, 1), updated_at: Time.utc(2025, 1, 1)) }
+  let(:origin) { "#{PROTOCOL}://#{DOMAIN}" }
+  let(:rp_id) { WebAuthn.configuration.rp_id }
+  # The relying party the authenticator registered the passkey for; a passkey of another one signs over another rp id hash.
+  let(:registered_rp_id) { rp_id }
+  let(:fake_client) { WebAuthn::FakeClient.new(origin) }
+  let(:stored_sign_count) { 0 }
+  let!(:stored_credential) do
+    creation_challenge = WebAuthn::Credential.options_for_create(user: { id: user.external_id, name: user.email }).challenge
+    created = fake_client.create(challenge: creation_challenge, rp_id: registered_rp_id, user_verified: true)
+    credential = WebAuthn::Credential.from_create(created)
+    user.webauthn_credentials.create!(webauthn_id: credential.id, public_key: credential.public_key, sign_count: stored_sign_count, nickname: "Test passkey", created_at: Time.utc(2025, 1, 2), updated_at: Time.utc(2025, 1, 2))
+  end
+
+  def json_headers(token)
+    { "Content-Type" => "application/json", "Accept" => "application/json", "X-CSRF-Token" => token }
+  end
+
+  # The challenge the options request stored in the session, and the CSRF token of the same browser.
+  def request_options
+    token = csrf_token
+    post "/login/passkey/options", params: "{}", headers: json_headers(token)
+    [token, response.parsed_body.dig("options", "challenge")]
+  end
+
+  def assertion(challenge, client: fake_client, **options)
+    client.get(challenge:, rp_id: registered_rp_id, user_verified: true, sign_count: 1, **options)
+  end
+
+  def sign_in_with(credential, token, **extra)
+    post "/login/passkey", params: { credential:, **extra }.to_json, headers: json_headers(token)
+  end
+
+  def tampered_signature(credential)
+    bytes = Base64.urlsafe_decode64(credential["response"]["signature"]).bytes
+    bytes[bytes.length - 1] ^= 0x01
+    credential.deep_merge("response" => { "signature" => Base64.urlsafe_encode64(bytes.pack("C*"), padding: false) })
+  end
+
+  def expect_refused
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(response.parsed_body).to eq("success" => false, "error_message" => Logins::PasskeysController::AUTHENTICATION_ERROR_MESSAGE)
+    expect(set_cookies).not_to include("remember_user_token=")
+  end
+
+  describe "POST /login/passkey/options" do
+    it "issues assertion options for the discoverable flow and keeps the challenge in the session", parity: true do
+      token = csrf_token
+
+      post "/login/passkey/options", params: "{}", headers: json_headers(token)
+
+      expect(response).to have_http_status(:ok)
+      options = response.parsed_body.fetch("options")
+      expect(response.parsed_body["success"]).to eq(true)
+      expect(options["allowCredentials"]).to eq([])
+      expect(options["userVerification"]).to eq("required")
+      expect(options["rpId"]).to eq(rp_id)
+      expect(Base64.urlsafe_decode64(options["challenge"]).bytesize).to eq(32)
+    end
+  end
+
+  describe "POST /login/passkey" do
+    it "signs the user in with a valid assertion and remembers the browser", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge), token)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/dashboard")
+      expect(set_cookies).to include("remember_user_token=")
+      expect(stored_credential.reload.sign_count).to eq(1)
+      expect(stored_credential.last_used_at).to be_present
+      expect(user.reload.sign_in_count).to eq(1)
+    end
+
+    it "signs in a user who has two-factor authentication on, without the challenge", parity: true do
+      user.update!(two_factor_authentication_enabled: true)
+      user.update_columns(updated_at: Time.utc(2025, 1, 1))
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge), token)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["redirect_location"]).to eq("/dashboard")
+    end
+
+    it "sends the user to the next path it was given", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge), token, next: "/products")
+
+      expect(response.parsed_body).to eq("success" => true, "redirect_location" => "/products")
+    end
+
+    it "accepts a counter above the stored one", parity: true do
+      stored_credential.update_columns(sign_count: 3)
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge, sign_count: 7), token)
+
+      expect(response).to have_http_status(:ok)
+      expect(stored_credential.reload.sign_count).to eq(7)
+    end
+
+    it "accepts an assertion with a user handle", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge, user_handle: user.external_id), token)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "refuses a request that follows no options request", parity: true do
+      token = csrf_token
+
+      sign_in_with(assertion(Base64.urlsafe_encode64(SecureRandom.random_bytes(32), padding: false)), token)
+
+      expect_refused
+    end
+
+    it "refuses a credential nobody registered", parity: true do
+      other = WebAuthn::FakeClient.new(origin)
+      other.create(challenge: Base64.urlsafe_encode64(SecureRandom.random_bytes(32), padding: false), rp_id:, user_verified: true)
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge, client: other), token)
+
+      expect_refused
+    end
+
+    it "refuses an assertion over another challenge", parity: true do
+      token, = request_options
+
+      sign_in_with(assertion(Base64.urlsafe_encode64(SecureRandom.random_bytes(32), padding: false)), token)
+
+      expect_refused
+    end
+
+    it "refuses a signature that does not verify", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(tampered_signature(assertion(challenge)), token)
+
+      expect_refused
+    end
+
+    # OpenSSL raises for a signature it cannot parse and nothing rescues it, so Rails answers 500; Node hands such a request back.
+    it "raises for a signature that is not a DER sequence" do
+      token, challenge = request_options
+      garbage = assertion(challenge).deep_merge("response" => { "signature" => Base64.urlsafe_encode64("not der at all", padding: false) })
+
+      expect { sign_in_with(garbage, token) }.to raise_error(OpenSSL::PKey::PKeyError)
+    end
+
+    it "refuses an assertion from another origin", parity: true do
+      token, challenge = request_options
+      fake_client.instance_variable_set(:@origin, "https://evil.example.com")
+
+      sign_in_with(assertion(challenge), token)
+
+      expect_refused
+    end
+
+    context "when the passkey was registered for another relying party" do
+      let(:registered_rp_id) { "evil.example.com" }
+
+      it "refuses an assertion signed over another rp id hash", parity: true do
+        token, challenge = request_options
+
+        sign_in_with(assertion(challenge), token)
+
+        expect_refused
+      end
+    end
+
+    it "refuses an authenticator that did not verify the user", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(fake_client.get(challenge:, rp_id: registered_rp_id, user_verified: false, sign_count: 1), token)
+
+      expect_refused
+    end
+
+    it "refuses an assertion with no user presence", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(fake_client.get(challenge:, rp_id: registered_rp_id, user_present: false, user_verified: false, sign_count: 1), token)
+
+      expect_refused
+    end
+
+    it "refuses a counter that did not advance", parity: true do
+      stored_credential.update_columns(sign_count: 10)
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge, sign_count: 5), token)
+
+      expect_refused
+      expect(stored_credential.reload.sign_count).to eq(10)
+    end
+
+    it "accepts a counter of zero from a credential that never counted", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge, sign_count: 0), token)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "refuses a deleted user", parity: true do
+      user.update_columns(deleted_at: Time.utc(2025, 2, 1))
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge), token)
+
+      expect_refused
+      expect(stored_credential.reload.last_used_at).to be_nil
+    end
+
+    it "refuses a credential id that is not base64url", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge).merge("id" => "not base64!"), token)
+
+      expect_refused
+    end
+
+    it "refuses a raw id that is not the credential id", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge).merge("rawId" => Base64.urlsafe_encode64("something else", padding: false)), token)
+
+      expect_refused
+    end
+
+    it "refuses a credential of another type", parity: true do
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge).merge("type" => "password"), token)
+
+      expect_refused
+    end
+
+    it "refuses a missing credential", parity: true do
+      token, = request_options
+
+      post "/login/passkey", params: "{}", headers: json_headers(token)
+
+      expect_refused
+    end
+
+    it "refuses a credential that is not an object", parity: true do
+      token, = request_options
+
+      post "/login/passkey", params: { credential: "passkey" }.to_json, headers: json_headers(token)
+
+      expect_refused
+    end
+
+    it "refuses a response with no signature", parity: true do
+      token, challenge = request_options
+      malformed = assertion(challenge)
+      malformed["response"].delete("signature")
+
+      sign_in_with(malformed, token)
+
+      expect_refused
+    end
+
+    it "hands a visitor with a guest cart to Rails", parity: true do
+      cart = create(:cart, :guest, browser_guid: "passkey-guid")
+      create(:cart_product, cart:, product: create(:product, user: create(:user), name: "In cart", created_at: Time.utc(2025, 1, 3)))
+      cookies[:_gumroad_guid] = "passkey-guid"
+      token, challenge = request_options
+
+      sign_in_with(assertion(challenge), token)
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+end
