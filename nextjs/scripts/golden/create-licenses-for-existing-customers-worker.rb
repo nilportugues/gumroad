@@ -81,5 +81,15 @@ cases << run("a sale with a variant of a deleted category", { links: [link_row],
 cases << run("two sales of variants", { links: [link_row], purchases: [sale(1), sale(2)], variant_categories: [category(1)], base_variants: [variant(1), variant(2)], base_variants_purchases: [chosen(1, 1), chosen(2, 2)], rich_contents: [page(1, 1, nodes: [text_node]), page(2, 2, nodes: [key_node])] })
 cases << run("a sale of a variant of a sku product", { links: [link_row], purchases: [sale(1)], variant_categories: [category(1)], base_variants: [variant(1, type: "Sku")], base_variants_purchases: [chosen(1, 1)] })
 
+# find_each reads sales 1000 at a time, the next batch after the last one's writes. Every sale but the named ones has a license, so a
+# case is a few writes between two reads of a thousand rows.
+BATCH = 1000
+def sales_with_licenses(count, unlicensed: [])
+  ids = (1..count).to_a
+  { links: [link_row], purchases: ids.map { sale(_1) }, licenses: (ids - unlicensed).map { license(_1, _1, serial: format("SEED%04X-BBBBBBBB-CCCCCCCC-DDDDDDDD", _1)) } }
+end
+cases << run("exactly one batch of sales, the last unlicensed", sales_with_licenses(BATCH, unlicensed: [BATCH]))
+cases << run("a batch and one more sale, both ends unlicensed", sales_with_licenses(BATCH + 1, unlicensed: [1, BATCH + 1]))
+
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

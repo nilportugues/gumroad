@@ -675,7 +675,7 @@ describe("Purchase#linked_license of a gift sender", () => {
       licenses: [{ id: 7, purchase_id: 2, serial: "KEY-1" }],
       purchases: [{ id: 2, link_id: 3 }],
       links: [{ id: 3, flags: LICENSED }],
-      base_variants_purchases: [],
+      base_variants: [],
     });
     expect((await gifteeLicensesOf(gifts)).get("1")).toMatchObject({ id: 7, serial: "KEY-1" });
   });

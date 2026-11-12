@@ -12,7 +12,7 @@ capture_elasticsearch!
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/delete-product-files-worker.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
 SEEDED_AT = "2026-01-01 00:00:00"
-TABLES = %w[links product_files versions transcoded_videos subtitle_files active_storage_blobs active_storage_attachments taxonomies taxonomy_hierarchies product_cached_values installments].freeze
+TABLES = %w[links product_files versions transcoded_videos subtitle_files active_storage_blobs active_storage_attachments taxonomies taxonomy_hierarchies taxonomy_attributes product_cached_values installments users prices].freeze
 S3 = S3_BASE_URL
 
 Rails.logger = ActiveSupport::Logger.new(nil)
@@ -126,6 +126,45 @@ cases << deleting("a product with empty inferred taxonomy values", { links: [lin
 cases << deleting("a product with other json data", { links: [link_row(1, json_data: { "x" => 1 }.to_json)], product_files: [file_row(1)] })
 cases << deleting("a file in a folder", { links: [link_row(1)], product_files: [file_row(1, folder_id: 4)] })
 cases << deleting("a file with a description and a display name", { links: [link_row(1)], product_files: [file_row(1, display_name: "Name", description: "Desc", position: 3, size: 100, pagelength: 5)] })
+
+# The classifier commit callback (Discover::TaxonomyAttributeClassifier.classify!) writing the product: the seller exists, so Link#save
+# validates. Fonts is the one classified taxonomy; any other taxonomy only clears values a prior classifier left.
+def user_row(id = 1) = { id:, email: "user#{id}@example.com", username: "user#{id}", external_id: (1000 + id).to_s, recommendation_type: "own_products", user_risk_state: "compliant", flags: 0, confirmed_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT }
+def attribute_rows(taxonomy: 2, only: nil)
+  rows = [
+    { id: 1, taxonomy_id: taxonomy, name: "format", label: "Format", value_type: "enum", values: %w[OTF TTF WOFF2].to_json, position: 0, active: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 2, taxonomy_id: taxonomy, name: "variable_font", label: "Variable font", value_type: "boolean", values: nil, position: 1, active: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 3, taxonomy_id: taxonomy, name: "weight", label: "Weight", value_type: "number", values: nil, position: 2, active: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+    { id: 4, taxonomy_id: taxonomy, name: "retired", label: "Retired", value_type: "enum", values: %w[a].to_json, position: 3, active: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+  ]
+  { taxonomy_attributes: only ? rows.select { only.include?(_1[:name]) } : rows }
+end
+def price_row(link) = { id: link, link_id: link, price_cents: 500, currency: "usd", created_at: SEEDED_AT, updated_at: SEEDED_AT }
+def font_file(id, ext, **overrides) = file_row(id, url: "#{S3}attachments/abc/original/#{id}-font.#{ext}", filetype: ext, **overrides)
+def classified(name, links:, files:, taxonomy: "fonts", attributes: attribute_rows, **seed)
+  deleting(name, { users: [user_row], prices: links.map { price_row(_1[:id]) }, links: links.map { _1.merge(unique_permalink: "perm#{('a'.ord + _1[:id]).chr}") }, product_files: files }.merge(TAXONOMY_ROWS.(taxonomy)).merge(attributes).merge(seed))
+end
+FONTS = { taxonomy_id: 2 }
+cases << classified("fonts: one otf file", links: [link_row(1, **FONTS)], files: [font_file(1, "otf")])
+cases << classified("fonts: two files, the second a ttf", links: [link_row(1, **FONTS)], files: [font_file(1, "otf"), font_file(2, "ttf")])
+cases << classified("fonts: three files of three types", links: [link_row(1, **FONTS)], files: [font_file(1, "otf"), font_file(2, "ttf"), font_file(3, "woff2")])
+cases << classified("fonts: empty inferred values stored", links: [link_row(1, **FONTS, json_data: { inferred_taxonomy_attribute_values: {} }.to_json)], files: [font_file(1, "pdf")])
+cases << classified("fonts: two files of the same type", links: [link_row(1, **FONTS)], files: [font_file(1, "otf"), font_file(2, "otf")])
+cases << classified("fonts: a woff2 file and a variable name", links: [link_row(1, **FONTS)], files: [font_file(1, "woff2", display_name: "Family VF"), font_file(2, "woff2", display_name: "Family VF Italic")])
+cases << classified("fonts: a variable-named file of another type", links: [link_row(1, **FONTS)], files: [font_file(1, "pdf", display_name: "Specimen"), font_file(2, "ttf", display_name: "Font-Variable")])
+cases << classified("fonts: inferred values already stored", links: [link_row(1, **FONTS, json_data: { inferred_taxonomy_attribute_values: { "format" => "OTF" } }.to_json)], files: [font_file(1, "otf")])
+cases << classified("fonts: stored inferred values the next pass keeps", links: [link_row(1, **FONTS, json_data: { inferred_taxonomy_attribute_values: { "format" => "TTF" } }.to_json)], files: [font_file(1, "otf"), font_file(2, "ttf")])
+cases << classified("fonts: other json data kept", links: [link_row(1, **FONTS, json_data: { custom_receipt_text: "Thanks", taxonomy_attribute_values: { "format" => "OTF" } }.to_json)], files: [font_file(1, "otf"), font_file(2, "ttf")])
+cases << classified("fonts: no attributes defined", links: [link_row(1, **FONTS)], files: [font_file(1, "otf"), font_file(2, "ttf")], attributes: { taxonomy_attributes: [] })
+cases << classified("fonts: only the format attribute defined", links: [link_row(1, **FONTS)], files: [font_file(1, "otf"), font_file(2, "ttf")], attributes: attribute_rows(only: %w[format]))
+cases << classified("fonts: a file already deleted", links: [link_row(1, **FONTS)], files: [font_file(1, "otf", deleted_at: SEEDED_AT), font_file(2, "ttf")])
+cases << classified("fonts: an uppercase filetype", links: [link_row(1, **FONTS)], files: [file_row(1, url: "#{S3}attachments/abc/original/1.OTF", filetype: "OTF"), font_file(2, "ttf")])
+cases << classified("a design taxonomy that has no classifier and stored values", links: [link_row(1, taxonomy_id: 2, json_data: { inferred_taxonomy_attribute_values: { "format" => "OTF" } }.to_json)], files: [file_row(1), file_row(2)], taxonomy: "3d")
+cases << classified("a design taxonomy that has no classifier and none stored", links: [link_row(1, taxonomy_id: 2)], files: [file_row(1)], taxonomy: "3d")
+cases << classified("a product with a missing taxonomy and stored values", links: [link_row(1, taxonomy_id: 77, json_data: { inferred_taxonomy_attribute_values: { "format" => "OTF" } }.to_json)], files: [file_row(1)], taxonomy: "fonts")
+cases << classified("inferred values stored and no taxonomy", links: [link_row(1, json_data: { inferred_taxonomy_attribute_values: { "format" => "OTF" }, "x" => 1 }.to_json)], files: [file_row(1), file_row(2)])
+cases << classified("the design root taxonomy", links: [link_row(1, taxonomy_id: 1)], files: [font_file(1, "otf")], taxonomy: "fonts")
+cases << classified("fonts: seller values and a custom permalink", links: [link_row(1, **FONTS, custom_permalink: "mine", json_data: { taxonomy_attribute_values: { "format" => "WOFF2" } }.to_json)], files: [font_file(1, "otf"), font_file(2, "ttf")])
 
 File.write(OUT, JSON.pretty_generate({ "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"
