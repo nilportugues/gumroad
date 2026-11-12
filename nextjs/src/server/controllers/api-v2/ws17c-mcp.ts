@@ -1,13 +1,17 @@
 // Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
 // Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call runs here only for the bodies in mcp/tool-bodies.ts,
 // dynamic client registration answers its refusals here and hands the row it would insert (random client id and secret) to Rails, and the product preview of the Notion unfurl stays in Rails.
+import { randomUUID } from "node:crypto";
+
 import { isFeatureEnabled } from "../../infra/flipper.ts";
 import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from "../../mcp/constants.ts";
 import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
 import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
+import { type PaperTrailRequest, withPaperTrailRequest } from "../../models/concerns/paper-trail.ts";
 import { isInvalidUriError, rubyUriParseParts } from "../../models/concerns/ruby-uri.ts";
 import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
+import { remoteIp } from "../mutation.ts";
 
 import { present } from "./base.ts";
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
@@ -121,6 +125,17 @@ export function mcpPreAuth({ request, rawBody }: Pick<ApiCall, "request" | "rawB
   }
 }
 
+// ApplicationController#set_paper_trail_whodunnit and #info_for_paper_trail, as the REST controllers apply them: a token request holds no
+// session, so nobody is the whodunnit, and every version a tool writes carries the request's ip, path and id.
+export const mcpPaperTrailRequest = (request: ApiCall["request"]): PaperTrailRequest => ({
+  whodunnit: null,
+  controllerInfo: {
+    remote_ip: remoteIp(request),
+    request_path: request.path,
+    request_uuid: request.headers.get("x-request-id") ?? randomUUID(),
+  },
+});
+
 export const MCP_AUTHORIZE_SCOPES = [...PUBLIC_SCOPES, "view_public"];
 
 // Api::V2::McpController#mcp. mcpPreAuth has checked that a POST body is JSON.
@@ -143,7 +158,9 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
     () => isFeatureEnabled(MCP_PROTOCOL_FLAG),
     { user: call.owner, token: call.token },
   );
-  const reply = await session.handle(JSON.parse(text));
+  const reply = await withPaperTrailRequest(mcpPaperTrailRequest(call.request), () =>
+    session.handle(JSON.parse(text)),
+  );
   // A tool call that hands back leaves before this point, so Rails records its own requests.
   await recordProtocolTelemetry(connector, session.counts);
   if (reply === null) return head(202, {}, false);

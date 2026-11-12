@@ -66,7 +66,7 @@ export function withPaperTrailRequest<T>(request: PaperTrailRequest, fn: () => T
   return requestStore.run({ ...requestStore.getStore(), ...request }, fn);
 }
 
-function currentRequest(): PaperTrailRequest {
+export function currentRequest(): PaperTrailRequest {
   return requestStore.getStore() ?? {};
 }
 
