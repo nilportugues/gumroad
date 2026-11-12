@@ -211,4 +211,10 @@ export const PORTED_JOBS: readonly string[] = [
   "FinalizeBuyerPresentmentPurchaseJob",
   "AttachPastPurchasesToUserWorker",
   "StripeRestraintNoticeEmailJob",
+  "EmailOutstandingBalancesCsvWorker",
+  "SendStripeCurrencyBalancesReportJob",
+  "SendDeferredRefundsReportWorker",
+  "SendFinancesReportWorker",
+  "SendStripeBalanceSummariesReportJob",
+  "SendDailyFinanceLedgerReportJob",
 ];
