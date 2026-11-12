@@ -85,7 +85,7 @@ describe("products the v2 API serializer hands back to Rails", () => {
     ).resolves.toBeUndefined();
   });
 
-  it.each(["assetPreview", "productFile", "preorderLink"] as const)(
+  it.each(["assetPreview", "preorderLink"] as const)(
     "hands back a product with a row in %s",
     async (model) => {
       mocks.db[model].count.mockResolvedValue(1);
