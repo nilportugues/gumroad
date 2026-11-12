@@ -4,7 +4,7 @@
 import type { Job } from "bullmq";
 
 import { type BridgedJobData, enqueueWith, resolveJobClass } from "../server/jobs/enqueue.ts";
-import { HandBackToRuby } from "../server/jobs/hand-back.ts";
+import { ExhaustedHandBack, HandBackToRuby } from "../server/jobs/hand-back.ts";
 import type { JobDefinition } from "../server/jobs/registry-types.ts";
 import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import { prepareServerItem, runtimeLockDigest, type SidekiqItem, serverLockType } from "../server/jobs/sidekiq/item.ts";
@@ -101,7 +101,9 @@ export function createProcessor(runtime: JobsRuntime, handlers: Record<string, J
       if (error instanceof HandBackToRuby) return handBack(runtime, fetched, error);
       // JobRetry#local wraps the server middleware, so the lock is already released here.
       const { definition } = resolveJobClass(String(fetched.class), runtime.registry);
-      throw await handleFailure(error, { item: fetched, definition, attemptsMade: job.attemptsMade, runtime, hooks });
+      const outcome = await handleFailure(error, { item: fetched, definition, attemptsMade: job.attemptsMade, runtime, hooks });
+      if (outcome instanceof ExhaustedHandBack) return handBack(runtime, outcome.item as SidekiqItem, outcome);
+      throw outcome;
     }
   };
 }

@@ -221,4 +221,12 @@ export const PORTED_JOBS: readonly string[] = [
   "HandleNewBankAccountWorker",
   "DeleteGuardianStripePersonJob",
   "GenerateCommunityChatRecapJob",
+  "ReverseDeferredInternalTransferJob",
+  "GenerateSubscribePreviewJob",
+  "ProductBuildUnpackJob",
+  "StampPdfForPurchaseJob",
+  "DeliverFilesReadyNotificationJob",
+  "CustomDomainVerificationWorker",
+  "Exports::AffiliateExportWorker",
+  "Exports::AudienceExportWorker",
 ];

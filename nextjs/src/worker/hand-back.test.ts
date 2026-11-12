@@ -2,12 +2,13 @@ import type { Job } from "bullmq";
 import { describe, expect, it, vi } from "vitest";
 
 import type { BridgedJobData } from "../server/jobs/enqueue.ts";
-import { beforeSideEffects, HandBackToRuby } from "../server/jobs/hand-back.ts";
+import { beforeSideEffects, ExhaustedHandBack, HandBackToRuby } from "../server/jobs/hand-back.ts";
 import type { JobDefinition } from "../server/jobs/registry-types.ts";
 import type { JobsRuntime } from "../server/jobs/runtime.ts";
 import { dumpRubyJson, parseRubyJson } from "../server/jobs/sidekiq/ruby-json.ts";
 import { NotPortedError } from "../server/models/user.ts";
 import { createProcessor } from "./processor.ts";
+import type { RetriesExhausted } from "./retry.ts";
 
 const definition = { file: "app/sidekiq/some_job.rb", sidekiqJob: true, options: {}, runtime: "node" } as unknown as JobDefinition;
 
@@ -54,3 +55,47 @@ describe("handing a job back to Rails", () => {
     await expect(beforeSideEffects(() => 7)).resolves.toBe(7);
   });
 });
+
+describe("handing a job back from sidekiq_retries_exhausted", () => {
+  const exhaustedJob = (item: Record<string, unknown>, attemptsMade: number) =>
+    ({ data: { sidekiq: dumpRubyJson(item as never) }, attemptsMade }) as unknown as Job<BridgedJobData>;
+  const failing = { SomeJob: async () => { throw new Error("transient"); } };
+  const handsBack: RetriesExhausted = async () => { throw new HandBackToRuby("the reversal is a Stripe call"); };
+
+  it("pushes the item to Ruby one retry short of the maximum instead of failing the BullMQ job", async () => {
+    const { runtime, commands } = fakeRuntime();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const process = createProcessor(runtime, failing, { retryIn: {}, retriesExhausted: { SomeJob: handsBack } });
+
+    await expect(process(exhaustedJob({ class: "SomeJob", jid: "abc", queue: "low", args: [1], retry: 5, at: 1_761_955_100 }, 5))).resolves.toBeUndefined();
+
+    const pushed = parseRubyJson(String(commands[1]![2])) as Record<string, unknown>;
+    expect(commands[1]![1]).toBe("queue:low");
+    expect(pushed).toMatchObject({ class: "SomeJob", jid: "abc", args: [1], retry: 5, retry_count: 4, error_message: "transient", error_class: "Error" });
+    expect(pushed).not.toHaveProperty("at");
+    info.mockRestore();
+  });
+
+  it("pushes nothing and fails the job while retries remain", async () => {
+    const { runtime, commands } = fakeRuntime();
+    const process = createProcessor(runtime, failing, { retryIn: {}, retriesExhausted: { SomeJob: handsBack } });
+    await expect(process(exhaustedJob({ class: "SomeJob", jid: "abc", queue: "low", args: [1], retry: 5 }, 4))).rejects.toThrow("transient");
+    expect(commands).toEqual([]);
+  });
+
+  it("still fails the job when the hook finishes in Node or raises something else", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const hook of [async () => {}, async () => { throw new TypeError("bad"); }] as RetriesExhausted[]) {
+      const { runtime, commands } = fakeRuntime();
+      const process = createProcessor(runtime, failing, { retryIn: {}, retriesExhausted: { SomeJob: hook } });
+      await expect(process(exhaustedJob({ class: "SomeJob", jid: "abc", queue: "low", args: [1], retry: 5 }, 5))).rejects.toThrow("transient");
+      expect(commands).toEqual([]);
+    }
+    error.mockRestore();
+  });
+
+  it("carries the msg for Ruby on the ExhaustedHandBack handleFailure returns", () => {
+    expect(new ExhaustedHandBack("x", { retry_count: 1 }).item).toEqual({ retry_count: 1 });
+  });
+});
+

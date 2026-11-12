@@ -18,3 +18,16 @@ export async function beforeSideEffects<T>(checks: () => T | Promise<T>): Promis
     throw error;
   }
 }
+
+// What a `sidekiq_retries_exhausted` hook that cannot finish in Node (its work is a Stripe call, or image generation) throws, after
+// running whatever it can read. `item` is the msg for Ruby's queue with `retry_count` one below the maximum, so the one attempt
+// Ruby makes either succeeds or exhausts and runs the Ruby hook.
+export class ExhaustedHandBack extends HandBackToRuby {
+  readonly item: Record<string, unknown>;
+
+  constructor(reason: string, item: Record<string, unknown> = {}) {
+    super(reason);
+    this.name = "ExhaustedHandBack";
+    this.item = item;
+  }
+}

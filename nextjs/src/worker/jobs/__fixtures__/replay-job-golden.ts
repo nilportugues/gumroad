@@ -7,7 +7,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { createJobsRuntime } from "../../../server/jobs/runtime.ts";
+import type { SidekiqItem } from "../../../server/jobs/sidekiq/item.ts";
 import { parseRubyJson, type JsonValue } from "../../../server/jobs/sidekiq/ruby-json.ts";
+import type { RetriesExhausted } from "../../retry.ts";
 import type { JobHandler } from "../types.ts";
 
 import {
@@ -77,6 +79,50 @@ export function replayJobGolden(
           expect(sql.log).toEqual(sql.expected);
           expect(withoutJobIds(recording.snapshot())).toEqual(withoutJobIds(c.redis));
         }
+      });
+    }
+  });
+}
+
+// The same for a `sidekiq_retries_exhausted` block recorded with `hook: true`. A block that hands back (`hands_back`, or an id Node
+// does not reproduce) throws HandBackToRuby, which the worker turns into a push to Ruby with `retry_count` one short of the maximum.
+export function replayHookGolden(
+  title: string,
+  golden: { now: number; cases: JobCase[] },
+  hook: RetriesExhausted,
+  handsBackEarly: (c: JobCase) => boolean = () => false,
+): void {
+  describe(title, () => {
+    for (const c of golden.cases) {
+      it(c.name, async () => {
+        const sql = sqlReplay(c.statements);
+        const recording = recordingSidekiqRedis();
+        const runtime = createJobsRuntime({
+          sidekiqRedis: recording.redis,
+          bullmqRedis: recording.redis,
+          registry: rubyRuntimeRegistry(),
+          now: () => golden.now,
+          newJid: sequentialJids(),
+        });
+        let error: unknown = null;
+        try {
+          const msg = { args: c.args, jid: "hook-jid" } as unknown as SidekiqItem;
+          await asSidekiqJob(() => hook(msg, new Error("boom"), { runtime }), golden.now);
+        } catch (e) {
+          error = e;
+        }
+
+        if (handsBackEarly(c)) {
+          expect((error as Error | null)?.name).toBe("HandBackToRuby");
+          expect(sql.log).toEqual([]);
+        } else if (c.hands_back) {
+          expect((error as Error | null)?.name).toBe("HandBackToRuby");
+          expect(sql.log).toEqual(sql.expected);
+        } else {
+          expect(error === null ? null : (error as Error).message).toEqual(c.error?.message ?? null);
+          expect(sql.log).toEqual(sql.expected);
+        }
+        expect(recording.snapshot()).toEqual({});
       });
     }
   });
