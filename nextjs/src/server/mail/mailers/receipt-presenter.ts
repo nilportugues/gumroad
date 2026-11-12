@@ -115,14 +115,19 @@ export type ReceiptData = {
   tipValueCents: number | null;
   customFields: ReceiptCustomField[];
   refundPolicy: ReceiptRefundPolicy | null;
-  // Purchase#gift_given, read only for a gift the buyer sent
+  // Purchase#gift_given for a gift the buyer sent, Purchase#gift_received for one the buyer got
   gift: ReceiptGift | null;
 };
 
-export type ReceiptGift = { giftee_email: string | null; gift_note: string | null; flags: number | bigint | null };
-// Set giftSender false once `receipt_gift_sender` is recorded from Ruby and the replay passes; until then a gift sender's receipt goes back to Rails.
-export const unproven = { giftSender: true };
+export type ReceiptGift = {
+  giftee_email: string | null;
+  gift_note: string | null;
+  flags: number | bigint | null;
+  gifter_email?: string | null;
+  gifter_purchase_id?: Id | null;
+};
 const GIFT_IS_RECIPIENT_HIDDEN = 1;
+const GIFT_IS_GIFTER_HIDDEN = 2;
 
 const purchaseFlag = (purchase: ReceiptPurchaseRow, name: Parameters<typeof PurchaseFlags.isSet>[1]) =>
   PurchaseFlags.isSet(purchase.flags ?? 0, name);
@@ -130,7 +135,6 @@ const linkFlag = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>
   LinkFlags.isSet(link.flags ?? 0, name);
 
 const NOT_PORTED_PURCHASE_FLAGS = [
-  "is_gift_receiver_purchase",
   "is_preorder_authorization",
   "is_free_trial_purchase",
   "is_upgrade_purchase",
@@ -170,17 +174,35 @@ export function assertSupported(data: ReceiptData): void {
   const refuse = (reason: string): never => {
     throw new MailViewNotPortedError(`receipt for ${reason}`);
   };
-  if (purchase.purchase_state !== "successful") refuse(`a purchase in state ${String(purchase.purchase_state)}`);
+  const giftReceived = purchaseFlag(purchase, "is_gift_receiver_purchase");
+  if (purchase.purchase_state !== (giftReceived ? "gift_receiver_purchase_successful" : "successful"))
+    refuse(`a purchase in state ${String(purchase.purchase_state)}`);
   for (const flag of NOT_PORTED_PURCHASE_FLAGS) if (purchaseFlag(purchase, flag)) refuse(`a purchase with ${flag}`);
   for (const flag of NOT_PORTED_LINK_FLAGS) if (linkFlag(link, flag)) refuse(`a product with ${flag}`);
   if (purchaseFlag(purchase, "is_gift_sender_purchase")) {
-    if (unproven.giftSender) refuse("a gift the buyer sent");
     // A hidden recipient is named from their account; a physical gift adds shipping wording; a licensed one its key rules.
     const { gift } = data;
     if (gift === null || (Number(gift.flags ?? 0) & GIFT_IS_RECIPIENT_HIDDEN) !== 0)
       refuse("a gift the buyer sent to a hidden recipient");
     if (gift?.giftee_email === null || gift?.gift_note === null) refuse("a gift without a recipient or note");
     if (linkFlag(link, "is_physical") || linkFlag(link, "is_licensed")) refuse("a physical or licensed gift");
+  }
+  if (giftReceived) {
+    // The receiver's own purchase is free; a priced, shipped or rented one renders sections that are not recorded.
+    const { gift } = data;
+    if (purchaseFlag(purchase, "is_gift_sender_purchase")) refuse("a purchase that is both sent and received");
+    if (
+      gift === null ||
+      isBlank(gift.gifter_email) ||
+      gift.gifter_purchase_id === null ||
+      gift.gifter_purchase_id === undefined
+    )
+      refuse("a gift without a gifter");
+    if ((Number(gift!.flags ?? 0) & GIFT_IS_RECIPIENT_HIDDEN) !== 0) refuse("a gift to a hidden recipient");
+    if (!PLAIN_EMAIL.test(gift!.gifter_email!)) refuse("a gifter address that needs escaping");
+    if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0 || (purchase.total_transaction_cents ?? 0) !== 0)
+      refuse("a gift receiver with a price");
+    if (linkFlag(link, "is_physical") || purchaseFlag(purchase, "is_rental")) refuse("a physical or rented gift");
   }
   if (purchase.subscription_id !== null || purchase.price_id !== null) refuse("a subscription purchase");
   if (purchase.preorder_id !== null) refuse("a preorder");
@@ -205,8 +227,13 @@ export function assertSupported(data: ReceiptData): void {
 
 // What `auto_link(text, html: { target: "_blank" })` returns unchanged apart from sanitizing: plain ASCII with
 // no markup, links, addresses or entities. Everything else (rails_autolink and the HTML sanitizer) is not ported.
+// A text that is one plain address, which rails_autolink wraps whole in a mailto link.
+export const PLAIN_EMAIL =
+  /^[A-Za-z0-9]+(?:[._+-][A-Za-z0-9]+)*@[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*(?:\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)*\.[A-Za-z]{2,}$/u;
 const AUTO_LINK_SAFE = /^[\x20-\x7e¢€£¥₩]*$/u;
+export const isGifterHidden = (gift: ReceiptGift) => (Number(gift.flags ?? 0) & GIFT_IS_GIFTER_HIDDEN) !== 0;
 export function autoLinkText(text: string): string {
+  if (PLAIN_EMAIL.test(text)) return `<a href="mailto:${text}" target="_blank">${text}</a>`;
   if (!AUTO_LINK_SAFE.test(text) || /[<>\\@]|:\/\/|www\.|&[#A-Za-z0-9]+;/iu.test(text))
     throw new MailViewNotPortedError(`auto_link of ${JSON.stringify(text)}`);
   return h(text);
@@ -242,6 +269,15 @@ export function displayName(seller: ReceiptSellerRow): string | null {
 // ReceiptPresenter::MailSubject for one purchase, which is all `assertSupported` lets through.
 export function mailSubject(data: ReceiptData): string {
   const { purchase, link } = data;
+  if (purchaseFlag(purchase, "is_gift_receiver_purchase")) {
+    const { gifter_email: gifterEmail, flags } = data.gift!;
+    if ((Number(flags ?? 0) & GIFT_IS_GIFTER_HIDDEN) !== 0) return `Someone bought ${link.name} for you!`;
+    // Purchase#gifter_full_name: with shipping info the full name is the giftee's, not the gifter's
+    const named = !isBlank(purchase.full_name) && !(link.require_shipping === true || link.require_shipping === 1);
+    return named
+      ? `${purchase.full_name} (${gifterEmail}) bought ${link.name} for you!`
+      : `${gifterEmail} bought ${link.name} for you!`;
+  }
   if (purchaseFlag(purchase, "is_gift_sender_purchase")) return `You bought ${data.gift!.giftee_email} ${link.name}!`;
   if (purchaseFlag(purchase, "is_rental")) return `You rented ${link.name}!`;
   if (purchase.price_cents === 0) return `You got ${link.name}!`;
@@ -440,7 +476,6 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
 }
 
 // shared/_download_button: a rental redirect gets "Watch" when the product has a video file and no button at all otherwise.
-// UNPROVEN: no Ruby golden covers a rental redirect yet (generate-receipt-mailer-golden.rb: receipt_rental_*).
 function downloadCta(data: ReceiptData): { label: string | null; path: string } | null {
   if (!data.urlRedirectIsRental) return { label: null, path: `/d/${data.urlRedirectToken}` };
   return data.linkStreamable ? { label: "Watch", path: `/s/${data.urlRedirectToken}` } : null;

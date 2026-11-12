@@ -1,7 +1,7 @@
 // The shapes `assertSupported` refuses that the golden cannot record: Rails raises while rendering a gift or a
 // preorder without the rows that go with it, so there is no message to compare. The refusal itself is a pure
 // function of the rows, checked here; receipt-mailer.test.ts replays everything Rails renders.
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { MailViewNotPortedError } from "../views.ts";
 
@@ -13,7 +13,6 @@ import {
   mailSubject,
   type ReceiptData,
   simpleFormat,
-  unproven,
 } from "./receipt-presenter.ts";
 
 const data = (
@@ -174,6 +173,9 @@ describe("mailSubject", () => {
 describe("text that goes through rails_autolink and the sanitizer", () => {
   it("escapes plain text and refuses anything the port cannot match", () => {
     expect(autoLinkText(`Tom & Jerry's "pick"`)).toBe("Tom &amp; Jerry&#39;s &quot;pick&quot;");
+    expect(autoLinkText("friend@example.com")).toBe(
+      `<a href="mailto:friend@example.com" target="_blank">friend@example.com</a>`,
+    );
     for (const text of [
       "see https://example.com",
       "mail me@example.com",
@@ -201,19 +203,7 @@ describe("gift the buyer sent", () => {
     gift: { giftee_email: "friend@example.com", gift_note: "  Enjoy!\n", flags: 0, ...gift },
     ...extra,
   });
-  afterEach(() => {
-    unproven.giftSender = true;
-  });
-
-  it("goes back to Rails while unproven", () => {
-    expect(() => assertSupported(sent())).toThrow(MailViewNotPortedError);
-  });
-
-  describe("once proven", () => {
-    beforeEach(() => {
-      unproven.giftSender = false;
-    });
-
+  describe("as recorded from Rails", () => {
     it("accepts a plain gift and names the giftee in the subject", () => {
       expect(() => assertSupported(sent())).not.toThrow();
       expect(mailSubject(sent())).toBe("You bought friend@example.com Guide!");
@@ -243,5 +233,52 @@ describe("gift the buyer sent", () => {
         MailViewNotPortedError,
       );
     });
+  });
+});
+
+describe("gift the buyer received", () => {
+  const received = (
+    gift: Partial<NonNullable<ReceiptData["gift"]>> | null = {},
+    purchase: Partial<ReceiptData["purchase"]> = {},
+  ): ReceiptData => ({
+    ...data({
+      flags: 1 << 5,
+      purchase_state: "gift_receiver_purchase_successful",
+      price_cents: 0,
+      total_transaction_cents: 0,
+      displayed_price_cents: 0,
+      ...purchase,
+    }),
+    gift:
+      gift === null
+        ? null
+        : {
+            giftee_email: "buyer@example.com",
+            gift_note: "Enjoy!",
+            flags: 0,
+            gifter_email: "gifter@example.com",
+            gifter_purchase_id: 402,
+            ...gift,
+          },
+  });
+
+  it("accepts the receiver's free purchase and names the gifter in the subject", () => {
+    expect(() => assertSupported(received())).not.toThrow();
+    expect(mailSubject(received())).toBe("gifter@example.com bought Guide for you!");
+    expect(mailSubject(received({}, { full_name: "Gina Gifter" }))).toBe(
+      "Gina Gifter (gifter@example.com) bought Guide for you!",
+    );
+    expect(mailSubject(received({ flags: 2 }, { full_name: "Gina Gifter" }))).toBe("Someone bought Guide for you!");
+  });
+
+  it("refuses what the golden does not record", () => {
+    expect(() => assertSupported(received(null))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({ gifter_purchase_id: null }))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({ gifter_email: "" }))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({ flags: 1 }))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({ gifter_email: "a+b'c@example.com" }))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({}, { price_cents: 500 }))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({}, { purchase_state: "successful" }))).toThrow(MailViewNotPortedError);
+    expect(() => assertSupported(received({}, { flags: (1 << 5) | (1 << 6) }))).toThrow(MailViewNotPortedError);
   });
 });

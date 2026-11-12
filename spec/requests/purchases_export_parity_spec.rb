@@ -334,4 +334,36 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
 
     expect(response).to have_http_status(:ok)
   end
+
+  it "writes the giftee's email and reads the review and license key of a gift from the giftee's purchase", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed gift", is_licensed: true)
+    sent = sell(of: licensed, price_cents: 700, email: "gifter@example.com", is_gift_sender_purchase: true)
+    received = sell(of: licensed, price_cents: 0, state: "gift_receiver_purchase_successful", email: "giftee@example.com", is_gift_receiver_purchase: true)
+    Gift.create!(link: licensed, gifter_purchase: sent, giftee_purchase: received, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+    ProductReview.new(purchase: received, link: licensed, rating: 5, message: "Lovely gift").save!(validate: false)
+    License.create!(purchase: received, link: licensed, serial: "GIFT-AAAA-BBBB-CCCC", uses: 2)
+    plain_sent = sell(price_cents: 300, email: "other-gifter@example.com", is_gift_sender_purchase: true)
+    plain_received = sell(price_cents: 0, state: "gift_receiver_purchase_successful", email: "other-giftee@example.com", is_gift_receiver_purchase: true)
+    Gift.create!(link: product, gifter_purchase: plain_sent, giftee_purchase: plain_received, gifter_email: "other-gifter@example.com", giftee_email: "other-giftee@example.com", state: "successful")
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Giftee Email")] }).to include("giftee@example.com", "other-giftee@example.com")
+    expect(csv.map { |row| row[csv.first.index("License Key")] }).to include("GIFT-AAAA-BBBB-CCCC")
+  end
+
+  it "flags a pre-order authorization and writes the authorization time on its charge", parity: true do
+    preordered = create(:product, user: seller, name: "Pre-ordered")
+    preorder_link = create(:preorder_link, link: preordered, release_at: 2.months.from_now)
+    preorder = create(:preorder, preorder_link:, seller:, state: "charge_successful", created_at: Time.utc(2026, 2, 3, 4, 5, 6))
+    sell(of: preordered, price_cents: 500, preorder:, state: "preorder_authorization_successful", is_preorder_authorization: true)
+    sell(of: preordered, price_cents: 500, preorder:)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Pre-order authorization?")] }).to include("1", "0")
+    expect(csv.map { |row| row[csv.first.index("Pre-order authorization time (UTC timezone)")] }).to include("2026-02-03 04:05:06 +0000")
+  end
 end

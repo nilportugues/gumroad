@@ -38,10 +38,10 @@ import {
 import {
   type Attribute,
   assertSupported,
-  unproven,
   autoLinkText,
   chargeInfo,
   displayName,
+  isGifterHidden,
   itemInfo,
   mailSubject,
   paymentInfo,
@@ -65,10 +65,6 @@ import {
 import { taxLines } from "./receipt-tax.ts";
 
 type Id = number | bigint;
-
-// The rental-redirect rendering (Watch button, product_files read) has no Ruby golden yet; receipt_rental_no_video and
-// receipt_rental_watch in the generator record it. Flip this once the golden is regenerated and the replay passes.
-const RENTAL_REDIRECT_PROVEN = false;
 
 const linkFlagSet = (link: ReceiptLinkRow, name: Parameters<typeof LinkFlags.isSet>[1]) =>
   LinkFlags.isSet(link.flags ?? 0, name);
@@ -119,16 +115,20 @@ async function loadReceiptData(
     refundPolicy: null,
     gift: null,
   };
-  // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent. UNPROVEN position (unproven.giftSender).
-  if (!unproven.giftSender && PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase")) {
+  // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent, and `gifter_email` reads
+  // `gift_received` for one the buyer got.
+  const giftSent = PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_sender_purchase");
+  if (giftSent || PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_receiver_purchase")) {
     const [gift] = await selectRows<Record<string, unknown>>(
-      Prisma.sql`SELECT ${star("gifts")} FROM ${table("gifts")} WHERE ${column("gifts", "gifter_purchase_id")} = ${purchase.id} LIMIT 1`,
+      Prisma.sql`SELECT ${star("gifts")} FROM ${table("gifts")} WHERE ${column("gifts", giftSent ? "gifter_purchase_id" : "giftee_purchase_id")} = ${purchase.id} LIMIT 1`,
     );
     if (gift)
       data.gift = {
         giftee_email: (gift.giftee_email as string | null) ?? null,
         gift_note: (gift.gift_note as string | null) ?? null,
         flags: (gift.flags as number | bigint | null) ?? 0,
+        gifter_email: (gift.gifter_email as string | null) ?? null,
+        gifter_purchase_id: (gift.gifter_purchase_id as Id | null) ?? null,
       };
   }
   return { data, supportEmails: supportEmails.map((row) => row.support_email) };
@@ -155,8 +155,6 @@ async function loadItemData(data: ReceiptData): Promise<void> {
   if (redirect) {
     data.urlRedirectToken = String(redirect.token);
     data.urlRedirectIsRental = UrlRedirectFlags.isSet(Number(redirect.flags ?? 0), "is_rental");
-    if (data.urlRedirectIsRental && !RENTAL_REDIRECT_PROVEN)
-      throw new MailViewNotPortedError("download button for a rental redirect");
   }
   if (linkFlagSet(data.link, "is_licensed")) {
     // Purchase#uses_license_key?: a licensed product with versions keeps its key only when the versions' content has a
@@ -196,7 +194,14 @@ async function loadItemData(data: ReceiptData): Promise<void> {
       return { name: String(row.name), value, type };
     },
   );
-  const [policy] = await byPurchase("purchase_refund_policies", purchase.id, true);
+  // A gift's refund policy is on the gifter's purchase, not the receiver's.
+  let policyPurchaseId = purchase.id;
+  if (PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_receiver_purchase")) {
+    const gifterPurchase = await findRow<{ id: Id }>("purchases", data.gift!.gifter_purchase_id!);
+    if (!gifterPurchase) throw new MailViewNotPortedError("gift whose gifter purchase is missing");
+    policyPurchaseId = gifterPurchase.id;
+  }
+  const [policy] = await byPurchase("purchase_refund_policies", policyPurchaseId, true);
   if (policy)
     data.refundPolicy = {
       title: String(policy.title),
@@ -283,7 +288,7 @@ function itemSection(item: ReturnType<typeof itemInfo>, card: Card, data: Receip
   const customNote = item.customReceiptNote === null ? "" : `    ${simpleFormat(item.customReceiptNote)}\n`;
   const cta = item.showDownloadButton ? item.downloadCta : null;
   const download = item.showDownloadButton
-    ? `    ${cta ? downloadButton(cta.label ?? viewContentButtonText(data.link), mailerUrl(cta.path)) : ""}\n`
+    ? `    ${cta ? downloadButton(cta.label ?? viewContentButtonText(data.link), mailerUrl(cta.path)) : "\n"}\n`
     : "";
   return `${cell}
 <div class="details">
@@ -295,6 +300,66 @@ ${download}
   ${attributesPartial(item.generalAttributes)}
 </div>
 `;
+}
+
+// customer_mailer/gift_receiver_receipt. The gift's receiver is a free, non-physical purchase, so the shipping partial is empty.
+function giftReceiverBody(
+  data: ReceiptData,
+  info: ReturnType<typeof chargeInfo>,
+  item: ReturnType<typeof itemInfo>,
+  card: Card,
+): string {
+  const gift = data.gift!;
+  const gifter = isGifterHidden(gift)
+    ? "Someone"
+    : `<a href="mailto:${h(gift.gifter_email)}">${h(gift.gifter_email)}</a>`;
+  // gift_note.present?
+  const note = isBlank(gift.gift_note)
+    ? ""
+    : `    <div>
+      <div class="promo" role="status">
+        <div>
+          <table class="reset">
+            <tr>
+              <td>
+                <img alt="Gift" src="${h(`${domainConfig().assetHost ?? ""}/images/illustrations/gift.png`)}" />
+              </td>
+              <td>
+                ${h(gift.gift_note)}
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+`;
+  const questions =
+    info.productQuestionsNote === null ? "" : `    <div>\n      ${info.productQuestionsNote}\n    </div>\n`;
+  return `<div class="receipt">
+  <div class="info-row">
+    <span class="info-label">Order ID:</span>
+    <span class="info-value">${h(info.orderId)}</span>
+  </div>
+  <div class="info-row with-top-margin">
+    <span class="info-label">Order date:</span>
+    <span class="info-value">${h(info.formattedCreatedAt)}</span>
+  </div>
+</div>
+
+<div>
+  <h2>You've received a gift!</h2>
+
+  <p>Hi! ${gifter} bought this as a gift for you. We hope you like it!</p>
+
+${note}
+    <div class="item">
+      ${itemSection(item, card, data)}
+    </div>
+
+
+${questions}</div>
+
+\n`;
 }
 
 // customer_mailer/receipt/sections/_recommended_products and _product_card
@@ -443,7 +508,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   );
   if (attachment) throw new MailViewNotPortedError("seller with an uploaded avatar");
   // shared/_download_button for a rental redirect: `link.streamable?` is `alive_product_files.map(&:filegroup).include?("video")`.
-  // UNPROVEN: the position of this read is not recorded from Ruby (receipt_rental_watch in the generator).
+  // Position recorded by receipt_rental_watch.
   if (data.urlRedirectIsRental && data.urlRedirectToken !== null && data.link.native_type !== "coffee") {
     const files = await rows(
       Prisma.sql`SELECT ${star("product_files")} FROM ${table("product_files")} WHERE ${column("product_files", "link_id")} = ${data.link.id} AND ${column("product_files", "deleted_at")} IS NULL ORDER BY ${column("product_files", "position")} ASC`,
@@ -462,6 +527,27 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
     sellerProfileUrl: sellerProfileUrl(seller),
     sellerAvatarUrl: avatar,
   };
+
+  if (PurchaseFlags.isSet(purchase.flags ?? 0, "is_gift_receiver_purchase")) {
+    // gift_receiver_receipt renders no payment section, recommendations or footer, so none of their reads happen.
+    const html = emailLayout(giftReceiverBody(data, info, item, card), {});
+    const options = await customersDeliveryOptions(seller as unknown as UserRow, purchase.email, deps);
+    return applicationMail(
+      {
+        mailerClass: "CustomerMailer",
+        mailerMethod: "receipt",
+        args,
+        to: purchase.email,
+        from,
+        ...(replyTo === null ? {} : { replyTo }),
+        subject,
+        html,
+        deliveryMethodOptions: options,
+        recordIds: { purchaseId: purchase.id, emailName: "receipt" },
+      },
+      deps,
+    );
+  }
 
   const shipping = shippingInfo(data);
   const invoiceLink = linkTo(

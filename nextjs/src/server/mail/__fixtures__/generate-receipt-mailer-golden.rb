@@ -236,7 +236,7 @@ end
 
 # --- fixtures --------------------------------------------------------------------------------------
 TABLES = %w[users links purchases subscriptions url_redirects purchase_presentments calls refunds prices charges charge_purchases orders order_purchases
-            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses].freeze
+            customer_email_infos email_infos product_files thumbnails gifts preorders base_variants base_variants_purchases purchase_custom_fields purchase_refund_policies tips cached_sales_related_products_infos bundle_products product_review_stats active_storage_attachments active_storage_blobs asset_previews custom_domains offer_codes variant_categories affiliates zip_tax_rates purchase_taxjar_infos licenses payment_options].freeze
 def reset!
   conn = ActiveRecord::Base.connection
   TABLES.each { |t| conn.execute("DELETE FROM #{t}") if conn.table_exists?(t) }
@@ -410,8 +410,7 @@ PRICE = { price_cents: 500, total_transaction_cents: 500, displayed_price_cents:
 setup(purchase: PRICE.merge(flags: 16384))
 messages << record_message("receipt_rental", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 # A rental redirect (UrlRedirect flag 3) is what checkout creates. "Watch" only when the product has a video file; with
-# none, the download button partial renders nothing. Not yet recorded from Ruby: the Node port of these two is unproven
-# until this script is run against the real application and the golden regenerated.
+# none, the download button partial renders nothing.
 RENTAL = PRICE.merge(flags: 16384)
 setup(purchase: RENTAL, redirect: false)
 insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
@@ -420,8 +419,7 @@ setup(purchase: RENTAL, redirect: false)
 insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
 ProductFile.insert!({ link_id: 301, url: "https://example.com/a.mp4", filetype: "mp4", filegroup: "video", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 messages << record_message("receipt_rental_watch", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
-# A gift the buyer sent (Purchase flag 7, is_gift_sender_purchase). Not yet recorded from Ruby: the Node port is
-# unproven (`unproven.giftSender` in receipt-presenter.ts) until this script is run and the golden regenerated.
+# A gift the buyer sent (Purchase flag 7, is_gift_sender_purchase).
 setup(purchase: PRICE.merge(flags: 64, quantity: 2), redirect: false)
 Gift.insert!({ gifter_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "friend@example.com", gifter_email: "buyer@example.com", gift_note: "  Enjoy!\n", created_at: FIXED_NOW, updated_at: FIXED_NOW })
 messages << record_message("receipt_gift_sender", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
@@ -732,6 +730,41 @@ $messages << record_message("receipt_presented_free", CustomerMailer, :receipt, 
 presented("presented_effective_refund", into: refused, extra: -> {
   Refund.insert!({ purchase_id: 401, amount_cents: 100, gumroad_tax_cents: 0, status: "succeeded", json_data: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
 })
+
+# The receipt the person receiving a gift gets (Purchase flag 6, state gift_receiver_purchase_successful): the
+# gift_receiver_receipt template, no footer, no payment section. 401 is the receiver's purchase, 402 the gifter's.
+GIFT_RECEIVER = { flags: 32, purchase_state: "gift_receiver_purchase_successful", price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0 }.freeze
+def gift_receiver(name, into: nil, link: {}, purchase: {}, gift: {}, redirect: true, extra: nil)
+  setup(link:, purchase: GIFT_RECEIVER.merge(purchase), redirect:)
+  insert_purchase(id: 402, link_id: 301, seller_id: 201, email: "gifter@example.com", flags: 64, **PRICE)
+  Gift.insert!({ gifter_purchase_id: 402, giftee_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "buyer@example.com", gifter_email: "gifter@example.com",
+                 gift_note: "Enjoy!", created_at: FIXED_NOW, updated_at: FIXED_NOW, **gift })
+  extra&.call
+  (into || $messages) << record_message("receipt_gift_receiver_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+gift_receiver("basic")
+gift_receiver("without_note", gift: { gift_note: "" })
+gift_receiver("nil_note", gift: { gift_note: nil })
+gift_receiver("hidden_gifter", gift: { flags: 2 })
+gift_receiver("gifter_full_name", purchase: { full_name: "Gina Gifter" })
+gift_receiver("html_note", gift: { gift_note: "Tom & Jerry <3" })
+gift_receiver("multiline_note", gift: { gift_note: "Line one\n\nLine two  " })
+gift_receiver("blank_note", gift: { gift_note: " \n" })
+gift_receiver("hidden_recipient", gift: { flags: 1 }, into: refused)
+gift_receiver("priced_receiver", purchase: { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 500 }, into: refused)
+gift_receiver("without_url_redirect", redirect: false)
+gift_receiver("licensed", link: { flags: LICENSED }, extra: -> { insert_license(purchase_id: 401, link_id: 301, serial: "AAAA-BBBB") })
+gift_receiver("physical", link: PHYSICAL.merge(require_shipping: true), redirect: false, purchase: SHIPPING, into: refused)
+gift_receiver("custom_receipt_text", link: { json_data: { "custom_receipt_text" => "Thanks for gifting!" } })
+gift_receiver("variant", extra: -> { insert_variant(id: 701, link_id: 301, name: "Large"); attach_variant(401, 701) })
+# The first receipt of a monthly membership: Rails renders it (subscription, price and payment-option reads, a manage
+# link instead of the unsubscribe link, an upcoming-payment section), and the port hands it back.
+ORIGINAL_SUBSCRIPTION = Purchase.flag_mapping["flags"][:is_original_subscription_purchase]
+setup(link: { flags: 2, native_type: "membership" }, purchase: PRICE.merge(flags: ORIGINAL_SUBSCRIPTION, subscription_id: 501, price_id: 701))
+insert_price(link_id: 301, price_cents: 500, recurrence: "monthly", id: 701)
+Subscription.insert!({ id: 501, link_id: 301, user_id: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+PaymentOption.insert!({ subscription_id: 501, price_id: 701, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+refused << record_message("receipt_membership_first_charge", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
 
 # Errors.
 reset!
