@@ -54,6 +54,12 @@ describe("HandleSendgridEventJob", () => {
         error = e;
       }
 
+      // A charge receipt for a charge that is gone fails the state machine after its reads, with the transaction rolled back.
+      if (c.error?.class === "StateMachines::InvalidTransition") {
+        expect((error as Error | null)?.message).toBe(c.error.message);
+        expect(sql.log).toEqual(sql.expected);
+        return;
+      }
       const handedBack = c.hands_back || c.error !== null;
       expect((error as Error | null)?.name ?? null).toBe(handedBack ? "HandBackToRuby" : null);
       // A hand-back leaves nothing written; otherwise Node sends the statements Rails sent.

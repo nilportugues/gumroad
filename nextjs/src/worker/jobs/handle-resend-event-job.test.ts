@@ -1,5 +1,5 @@
 // Replays handle-resend-event-job.golden.json (scripts/golden/handle-resend-event-job.rb): HandleResendEventJob run by the real app
-// as a Sidekiq job. Node drops the events Rails drops, runs the receipt events (the CustomerEmailInfo statements Rails sent) and the
+// as a Sidekiq job. Node drops the events Rails drops, runs the receipt events of a purchase or a charge (the CustomerEmailInfo statements Rails sent) and the
 // events no handler claims, and hands back the ones another handler acts on or Rails fails on, before any statement. A payload whose
 // date or workflow ids Node cannot judge exactly is handed back even where Rails drops it (CONSERVATIVE).
 import { readFileSync } from "node:fs";
@@ -63,6 +63,12 @@ describe("HandleResendEventJob", () => {
         error = e;
       }
 
+      // A charge receipt for a charge that is gone fails the state machine after its reads, with the transaction rolled back.
+      if (c.error?.class === "StateMachines::InvalidTransition") {
+        expect((error as Error | null)?.message).toBe(c.error.message);
+        expect(sql.log).toEqual(sql.expected);
+        return;
+      }
       const handedBack = c.hands_back || c.error !== null || CONSERVATIVE.has(c.name);
       expect((error as Error | null)?.name ?? null).toBe(handedBack ? "HandBackToRuby" : null);
       expect(sql.log).toEqual(handedBack ? [] : sql.expected);

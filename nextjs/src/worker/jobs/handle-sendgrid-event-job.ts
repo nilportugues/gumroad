@@ -1,5 +1,5 @@
 // Port of app/sidekiq/handle_sendgrid_event_job.rb: each event of the batch goes through SendgridEventInfo and, unless that is
-// `invalid?`, through HandleEmailEventInfo. Node drops the events Ruby drops and runs the receipt events and the events no handler
+// `invalid?`, through HandleEmailEventInfo. Node drops the events Ruby drops and runs the receipt events (of a purchase or of a charge) and the events no handler
 // claims (support/email-event-info.ts). The whole batch is parsed and planned first: an event another handler would act on, or one
 // whose parsing raises in Ruby, hands the job back before any statement, so Rails runs it from the start.
 // Golden: __fixtures__/handle-sendgrid-event-job.golden.json (scripts/golden/handle-sendgrid-event-job.rb).

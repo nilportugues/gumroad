@@ -3219,7 +3219,7 @@
       "hands_back": true
     },
     {
-      "name": "a delivered receipt event with a charge id",
+      "name": "a delivered receipt event with a charge id that is not an integer",
       "error": null,
       "statements": [],
       "redis": {},
@@ -3236,7 +3236,7 @@
               "mailer_class": "CustomerMailer",
               "mailer_method": "receipt",
               "mailer_args": "[3]",
-              "charge_id": 9
+              "charge_id": "x"
             }
           ]
         }
@@ -3244,7 +3244,7 @@
       "hands_back": true
     },
     {
-      "name": "a delivered receipt event with a zero charge id",
+      "name": "a delivered receipt event with a float charge id",
       "error": null,
       "statements": [],
       "redis": {},
@@ -3261,7 +3261,32 @@
               "mailer_class": "CustomerMailer",
               "mailer_method": "receipt",
               "mailer_args": "[3]",
-              "charge_id": 0
+              "charge_id": 9.5
+            }
+          ]
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered receipt event with a negative charge id",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": 3,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": -9
             }
           ]
         }
@@ -4619,6 +4644,116 @@
           "result": {
             "affected": 0
           }
+        },
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-11-01 12:26:40', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 2
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (2, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
         }
       ],
       "redis": {},
@@ -4645,6 +4780,152 @@
               "mailer_method": "receipt",
               "mailer_args": "[3]",
               "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a charge receipt followed by a charge receipt that is not an integer",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-11-01 12:26:40', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 2
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (2, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": 3,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            },
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": 3,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": "x"
             }
           ]
         }
@@ -4888,6 +5169,2535 @@
             "mailer_method": "receipt",
             "mailer_args": "[3]"
           }
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'receipt', 'delivered', NULL, '2025-11-01 12:26:40', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (1, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a open charge receipt event for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "open",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a open charge receipt event for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "open",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a open charge receipt event for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "open",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a open charge receipt event for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'opened', `email_infos`.`opened_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "open",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a open charge receipt event with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'receipt', 'opened', NULL, NULL, '2025-11-01 12:26:40')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (1, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "open",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a bounce charge receipt event for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "bounce",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a bounce charge receipt event for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "bounce",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a bounce charge receipt event for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'bounced' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "bounce",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a bounce charge receipt event for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "bounce",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a bounce charge receipt event with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'receipt', 'bounced', NULL, NULL, NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (1, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "bounce",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a click charge receipt event for a sent row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "click",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a click charge receipt event for a delivered row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "delivered",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "click",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a click charge receipt event for a opened row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-02T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-03T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "click",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a click charge receipt event for a bounced row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "bounced",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "click",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a click charge receipt event with no row",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "click",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a spamreport charge receipt event for a sent row",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "spamreport",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a spamreport charge receipt event for a delivered row",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "spamreport",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a spamreport charge receipt event for a opened row",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "spamreport",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a spamreport charge receipt event for a bounced row",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "spamreport",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a spamreport charge receipt event with no row",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "spamreport",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered charge receipt event for a charge that does not exist",
+      "error": {
+        "class": "StateMachines::InvalidTransition",
+        "message": "Cannot transition state via :mark_delivered from :created (Reason(s): Email info charge charge must exist, Email info charge charge can't be blank)"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event with a zero charge id",
+      "error": {
+        "class": "StateMachines::InvalidTransition",
+        "message": "Cannot transition state via :mark_delivered from :created (Reason(s): Email info charge charge must exist, Email info charge charge can't be blank)"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 0 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 0
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event with a charge id as a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": "9"
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event with a purchase id too",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2025-11-01 12:26:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": 3,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered charge receipt event before the second send",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                9,
+                2,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "sent",
+                {
+                  "$time": "2026-02-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "UPDATE `email_infos` SET `email_infos`.`state` = 'delivered', `email_infos`.`delivered_at` = '2026-01-09 23:06:40' WHERE `email_infos`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1768000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered preorder charge receipt event",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'preorder_receipt', 'delivered', NULL, '2025-11-01 12:26:40', NULL)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (1, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "preorder_receipt",
+              "mailer_args": "[8]",
+              "charge_id": 9
+            }
+          ]
+        }
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an opened charge receipt event followed by a delivered one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `charges`.* FROM `charges` WHERE `charges`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "order_id",
+              "seller_id",
+              "processor",
+              "processor_transaction_id",
+              "payment_method_fingerprint",
+              "credit_card_id",
+              "merchant_account_id",
+              "amount_cents",
+              "gumroad_amount_cents",
+              "processor_fee_cents",
+              "processor_fee_currency",
+              "paypal_order_id",
+              "stripe_payment_intent_id",
+              "stripe_setup_intent_id",
+              "created_at",
+              "updated_at",
+              "disputed_at",
+              "dispute_reversed_at",
+              "flags"
+            ],
+            "rows": [
+              [
+                9,
+                1,
+                1,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                0
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_info_charges` WHERE `email_info_charges`.`email_info_id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_infos` (`purchase_id`, `installment_id`, `type`, `email_name`, `state`, `sent_at`, `delivered_at`, `opened_at`) VALUES (NULL, NULL, 'CustomerEmailInfo', 'receipt', 'opened', NULL, NULL, '2025-11-01 12:26:40')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `email_info_charges` (`email_info_id`, `charge_id`) VALUES (1, 9)",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `email_info_charges`.`id` AS t0_r0, `email_info_charges`.`email_info_id` AS t0_r1, `email_info_charges`.`charge_id` AS t0_r2, `email_infos`.`id` AS t1_r0, `email_infos`.`purchase_id` AS t1_r1, `email_infos`.`installment_id` AS t1_r2, `email_infos`.`type` AS t1_r3, `email_infos`.`email_name` AS t1_r4, `email_infos`.`state` AS t1_r5, `email_infos`.`sent_at` AS t1_r6, `email_infos`.`delivered_at` AS t1_r7, `email_infos`.`opened_at` AS t1_r8 FROM `email_info_charges` LEFT OUTER JOIN `email_infos` ON `email_infos`.`id` = `email_info_charges`.`email_info_id` WHERE `email_info_charges`.`charge_id` = 9 AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`type` = 'CustomerEmailInfo'",
+          "result": {
+            "fields": [
+              "t0_r0",
+              "t0_r1",
+              "t0_r2",
+              "t1_r0",
+              "t1_r1",
+              "t1_r2",
+              "t1_r3",
+              "t1_r4",
+              "t1_r5",
+              "t1_r6",
+              "t1_r7",
+              "t1_r8"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                9,
+                1,
+                null,
+                null,
+                "CustomerEmailInfo",
+                "receipt",
+                "opened",
+                null,
+                null,
+                {
+                  "$time": "2025-11-01T12:26:40.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "HandleSendgridEventJob",
+      "args": [
+        {
+          "_json": [
+            {
+              "email": "buyer@example.com",
+              "event": "open",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            },
+            {
+              "email": "buyer@example.com",
+              "event": "delivered",
+              "timestamp": 1762000000,
+              "purchase_id": null,
+              "mailer_class": "CustomerMailer",
+              "mailer_method": "receipt",
+              "mailer_args": "[3]",
+              "charge_id": 9
+            }
+          ]
         }
       ],
       "hands_back": false

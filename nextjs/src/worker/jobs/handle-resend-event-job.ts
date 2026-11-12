@@ -1,5 +1,5 @@
 // Port of app/sidekiq/handle_resend_event_job.rb: `return if ResendEventInfo.new(event_json).invalid?`, then HandleEmailEventInfo.
-// Node drops the events Ruby drops and runs the receipt events and the events no handler claims (support/email-event-info.ts). An
+// Node drops the events Ruby drops and runs the receipt events (of a purchase or of a charge) and the events no handler claims (support/email-event-info.ts). An
 // event another handler would act on, one whose parsing raises in Ruby, and a payload the parser cannot judge with certainty
 // (`parseResendEvent` throws NotPortedError for those) are handed back before any statement.
 // Golden: __fixtures__/handle-resend-event-job.golden.json (scripts/golden/handle-resend-event-job.rb).

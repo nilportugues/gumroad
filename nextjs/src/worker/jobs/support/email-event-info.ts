@@ -1,12 +1,13 @@
-// HandleEmailEventInfo (app/services/handle_email_event_info.rb) for the events Node can run: a receipt event on a purchase's
-// CustomerEmailInfo row, and any event no handler claims (which does nothing). The installment, abandoned cart and piracy handlers
-// (DynamoDB engagement records, installment caches, report updates), a receipt of a charge, a Sendgrid complaint (it unsubscribes the
-// buyer) and a purchase id that is not a plain integer are handed back before the first statement of the batch.
+// HandleEmailEventInfo (app/services/handle_email_event_info.rb) for the events Node can run: a receipt event on a purchase's or
+// a charge's CustomerEmailInfo row, and any event no handler claims (which does nothing). The installment, abandoned cart and piracy handlers
+// (DynamoDB engagement records, installment caches, report updates), a Sendgrid complaint (it unsubscribes the
+// buyer) and a purchase or charge id that is not a plain integer are handed back before the first statement of the batch.
 // Golden: __fixtures__/handle-resend-event-job.golden.json and handle-sendgrid-event-job.golden.json.
 import { HandBackToRuby } from "../../../server/jobs/hand-back.ts";
 import {
   alreadyDelivered,
   alreadyOpened,
+  findOrInitializeForCharge,
   findOrInitializeForPurchase,
   isKnownState,
   markBounced,
@@ -36,17 +37,20 @@ export type EmailEventInfo = {
   createdAt: Date | null;
 };
 
-type Plan = { kind: "nothing" } | { kind: "receipt"; purchaseId: bigint };
+type Plan =
+  | { kind: "nothing" }
+  | { kind: "receipt"; purchaseId: bigint }
+  | { kind: "charge_receipt"; chargeId: bigint };
 
 // Decides, without a statement, what HandleEmailEventInfo.perform does for the event; hands back what Node does not run.
 export function planEmailEvent(info: EmailEventInfo): Plan {
   if (!isBlank(info.installmentId)) throw new HandBackToRuby("an email event for an installment");
   const isCustomerMailer = info.mailerClass === CUSTOMER_MAILER;
   if (isCustomerMailer && info.mailerMethod !== null && TRACKED_RECEIPT_MAILER_METHODS.includes(info.mailerMethod)) {
-    if (!isBlank(info.chargeId)) throw new HandBackToRuby("a receipt event for a charge");
     if (info.type === "complained" && info.provider === "sendgrid")
       throw new HandBackToRuby("a SendGrid spam report on a receipt unsubscribes the buyer");
-    return { kind: "receipt", purchaseId: purchaseIdFrom(info.purchaseId) };
+    if (!isBlank(info.chargeId)) return { kind: "charge_receipt", chargeId: idFrom(info.chargeId, "a charge id") };
+    return { kind: "receipt", purchaseId: idFrom(info.purchaseId, "a purchase id") };
   }
   if (isCustomerMailer && info.mailerMethod === ABANDONED_CART_MAILER_METHOD)
     throw new HandBackToRuby("an abandoned cart email event");
@@ -55,16 +59,23 @@ export function planEmailEvent(info: EmailEventInfo): Plan {
   return { kind: "nothing" };
 }
 
-// `where(purchase_id:)` casts a String or an Integer; anything else is not a cast Node reproduces.
-function purchaseIdFrom(value: unknown): bigint {
+// `where(purchase_id:)` and `where(charge_id:)` cast a String or an Integer; anything else is not a cast Node reproduces.
+function idFrom(value: unknown, what: string): bigint {
   if (typeof value === "string" && PLAIN_INTEGER.test(value)) return BigInt(value);
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return BigInt(value);
-  throw new HandBackToRuby(`a purchase id ${JSON.stringify(value)} that is not a plain integer`);
+  throw new HandBackToRuby(`${what} ${JSON.stringify(value)} that is not a plain integer`);
 }
 
 // HandleEmailEventInfo::ForReceiptEmail#perform
-async function performReceipt(info: EmailEventInfo, purchaseId: bigint, now: () => Date): Promise<void> {
-  const record = await findOrInitializeForPurchase(purchaseId, info.mailerMethod!, info.createdAt);
+async function performReceipt(
+  info: EmailEventInfo,
+  plan: Exclude<Plan, { kind: "nothing" }>,
+  now: () => Date,
+): Promise<void> {
+  const record =
+    plan.kind === "charge_receipt"
+      ? await findOrInitializeForCharge(plan.chargeId, info.mailerMethod!, info.createdAt)
+      : await findOrInitializeForPurchase(plan.purchaseId, info.mailerMethod!, info.createdAt);
   if (!isKnownState(record)) throw new HandBackToRuby("an email info in a state the machine does not name");
   switch (info.type) {
     case "bounced":
@@ -86,6 +97,6 @@ async function performReceipt(info: EmailEventInfo, purchaseId: bigint, now: () 
 export async function handleEmailEvents(infos: EmailEventInfo[], now: () => Date): Promise<void> {
   const plans = infos.map((info) => planEmailEvent(info));
   for (const [index, plan] of plans.entries()) {
-    if (plan.kind === "receipt") await performReceipt(infos[index]!, plan.purchaseId, now);
+    if (plan.kind !== "nothing") await performReceipt(infos[index]!, plan, now);
   }
 }

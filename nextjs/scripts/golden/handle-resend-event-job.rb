@@ -2,7 +2,7 @@
 
 # Produces nextjs/src/worker/jobs/__fixtures__/handle-resend-event-job.golden.json: HandleResendEventJob run by the real app
 # against a scratch database as a Sidekiq job (support/sidekiq_executor.rb). The receipt path of HandleEmailEventInfo runs for real
-# (CustomerEmailInfo rows and their state machine); the installment, abandoned cart and piracy handlers, a charge id and a purchase
+# (CustomerEmailInfo rows and their state machine, for a purchase or a charge); the installment, abandoned cart and piracy handlers and a purchase
 # id that is not a plain integer are what Node hands back to Rails, so those are recorded up to the call a marker exception
 # stands in for. An event whose parsing raises is handed back too. The headers are encrypted with MailerInfo under the key the
 # recorder boots with. Run it like publish-scheduled-post.rb:
@@ -13,7 +13,7 @@ include RailsCases
 
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/handle-resend-event-job.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
-TABLES = %w[users email_infos email_info_charges].freeze
+TABLES = %w[users email_infos email_info_charges charges].freeze
 CREATED_AT = "2025-01-02 00:14:11.140106+00"
 
 Rails.logger = ActiveSupport::Logger.new(nil)
@@ -26,7 +26,9 @@ class HandBackMarker < Exception; end # rubocop:disable Lint/InheritException
   end)
 end
 CustomerEmailInfo.singleton_class.prepend(Module.new do
-  def find_or_initialize_for_charge(**) = raise(HandBackMarker)
+  def find_or_initialize_for_charge(charge_id:, **)
+    charge_id.to_s.match?(/\A\d{1,15}\z/) ? super : raise(HandBackMarker)
+  end
 
   def find_or_initialize_for_purchase(purchase_id:, **)
     purchase_id.to_s.match?(/\A\d{1,15}\z/) ? super : raise(HandBackMarker)
@@ -99,7 +101,7 @@ def receipt_cases(cases)
   cases << run("a delivered receipt with a purchase id of leading zeros", event(headers: tracked(purchase_id: "005")), seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a delivered receipt with a purchase id that is not an integer", event(headers: tracked(purchase_id: "abc")))
   cases << run("a delivered receipt with no purchase id", event(headers: tracked(purchase_id: nil)))
-  cases << run("a delivered receipt with a charge id", event(headers: tracked(charge_id: "9")), seed: { email_infos: [info_row(1, "sent")] })
+  cases << run("a delivered receipt with a charge id that is not an integer", event(headers: tracked(charge_id: "abc")), seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a delivered receipt with a blank charge id", event(headers: tracked(charge_id: " ")), seed: { email_infos: [info_row(1, "sent")] })
   cases << run("a delivered event of another mailer", event(headers: tracked(mailer_class: "OtherMailer")))
   cases << run("a delivered event of another customer mailer method", event(headers: tracked(mailer_method: "something_else")))
@@ -117,6 +119,34 @@ receipt_cases(cases)
 cases << run("an untracked type with workflow ids that do not parse", event("email.sent", headers: tracked(workflow_ids: "{")))
 cases << run("a delivered event with workflow ids", event(headers: tracked(workflow_ids: "[1,2]")))
 cases << run("a delivered event with workflow ids that do not parse", event(headers: tracked(workflow_ids: "{")))
+def charge_cases(cases)
+  charge = { id: 9, order_id: 1, seller_id: 1, created_at: "2026-01-01 00:00:00", updated_at: "2026-01-01 00:00:00" }
+  link = ->(id, email_info_id, charge_id = 9) { { id:, email_info_id:, charge_id: } }
+  charged = ->(id, state, **o) { info_row(id, state, purchase_id: nil, **o) }
+  charged_headers = ->(**o) { tracked(charge_id: "9", purchase_id: nil, **o) }
+  %w[email.delivered email.opened email.bounced email.clicked email.complained].each do |type|
+    %w[sent delivered opened bounced].each do |state|
+      cases << run("#{type} for a charge receipt in a #{state} row", event(type, headers: charged_headers.()), seed: { charges: [charge], email_infos: [charged.(1, state, delivered_at: ("2026-01-02 00:00:00" if %w[delivered opened].include?(state)), opened_at: ("2026-01-03 00:00:00" if state == "opened"))], email_info_charges: [link.(1, 1)] })
+    end
+    cases << run("#{type} for a charge receipt with no row", event(type, headers: charged_headers.()), seed: { charges: [charge] })
+  end
+  cases << run("a delivered charge receipt with a charge that does not exist", event(headers: charged_headers.()))
+  cases << run("an opened charge receipt with a charge that does not exist", event("email.opened", headers: charged_headers.()))
+  cases << run("a bounced charge receipt with a charge that does not exist", event("email.bounced", headers: charged_headers.()))
+  cases << run("a delivered receipt with a charge id and a purchase id", event(headers: tracked(charge_id: "9", purchase_id: "5")), seed: { charges: [charge], email_infos: [info_row(2, "sent"), charged.(1, "sent")], email_info_charges: [link.(1, 1)] })
+  cases << run("a delivered preorder receipt for a charge", event(headers: charged_headers.(mailer_method: "preorder_receipt")), seed: { charges: [charge] })
+  cases << run("a delivered preorder receipt for a charge with a receipt row", event(headers: charged_headers.(mailer_method: "preorder_receipt")), seed: { charges: [charge], email_infos: [charged.(1, "sent")], email_info_charges: [link.(1, 1)] })
+  cases << run("a delivered charge receipt for another charge", event(headers: charged_headers.()), seed: { charges: [charge], email_infos: [charged.(1, "sent")], email_info_charges: [link.(1, 1, 8)] })
+  cases << run("a delivered charge receipt for a row of another type", event(headers: charged_headers.()), seed: { charges: [charge], email_infos: [charged.(1, "sent", type: "CreatorContactingCustomersEmailInfo")], email_info_charges: [link.(1, 1)] })
+  cases << run("a delivered charge receipt for a row of another email name", event(headers: charged_headers.()), seed: { charges: [charge], email_infos: [charged.(1, "sent", email_name: "other")], email_info_charges: [link.(1, 1)] })
+  cases << run("a delivered charge receipt with two sends, the event after both", event(headers: charged_headers.()), seed: { charges: [charge], email_infos: [charged.(1, "sent", sent_at: "2026-01-01 00:00:00"), charged.(2, "sent", sent_at: "2026-02-01 00:00:00")], email_info_charges: [link.(1, 1), link.(2, 2)] })
+  cases << run("a delivered charge receipt with two sends, the event between them", event(headers: charged_headers.(), data: { "created_at" => "2026-01-15 00:00:00.5+00" }), seed: { charges: [charge], email_infos: [charged.(1, "sent", sent_at: "2026-01-01 00:00:00"), charged.(2, "sent", sent_at: "2026-02-01 00:00:00")], email_info_charges: [link.(1, 1), link.(2, 2)] })
+  cases << run("a delivered charge receipt with two sends, the event before both", event(headers: charged_headers.(), data: { "created_at" => "2025-12-01 00:00:00+00" }), seed: { charges: [charge], email_infos: [charged.(1, "sent", sent_at: "2026-01-01 00:00:00"), charged.(2, "sent", sent_at: "2026-02-01 00:00:00")], email_info_charges: [link.(1, 1), link.(2, 2)] })
+  cases << run("a delivered charge receipt with the ids out of send order", event(headers: charged_headers.()), seed: { charges: [charge], email_infos: [charged.(2, "sent", sent_at: "2026-01-01 00:00:00"), charged.(1, "sent", sent_at: "2026-02-01 00:00:00")], email_info_charges: [link.(1, 2), link.(2, 1)] })
+  cases << run("a delivered charge receipt with a link to a missing row", event(headers: charged_headers.()), seed: { charges: [charge], email_info_charges: [link.(1, 5)] })
+  cases << run("a delivered charge receipt with a charge id of leading zeros", event(headers: tracked(charge_id: "009", purchase_id: nil)), seed: { charges: [charge], email_infos: [charged.(1, "sent")], email_info_charges: [link.(1, 1)] })
+end
+charge_cases(cases)
 cases << run("a delivered event with a charge id and purchase id", event(headers: tracked(charge_id: "7", purchase_id: "3")))
 cases << run("an untracked type with no created_at", event("email.sent", data: { "created_at" => nil }))
 cases << run("an untracked type with a created_at that does not parse", event("email.sent", data: { "created_at" => "yesterday" }))
