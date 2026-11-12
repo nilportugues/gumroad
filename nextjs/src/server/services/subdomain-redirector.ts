@@ -3,9 +3,9 @@
 // `update` stays in Rails (the admin form).
 import type { RailsCache } from "../cache/rails-cache.ts";
 import { railsCache } from "../cache/rails-cache.ts";
-import { domainConfig } from "../page-props/domain.ts";
-import { getNamespacedRedis } from "../infra/redis.ts";
 import { fullpath, type RailsRequest } from "../controllers/rails-request.ts";
+import { getNamespacedRedis } from "../infra/redis.ts";
+import { domainConfig } from "../page-props/domain.ts";
 
 const CACHE_KEY = "subdomain_redirects_cache_key";
 const REDIS_KEY = "subdomain_redirects_config";

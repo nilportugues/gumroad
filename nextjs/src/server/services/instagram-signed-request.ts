@@ -1,8 +1,8 @@
 // app/services/instagram_signed_request.rb: Meta's `signed_request` of the deauthorize and data-deletion callbacks.
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { getConfig } from "../infra/config.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { getConfig } from "../infra/config.ts";
 
 const ALGORITHM = "HMAC-SHA256";
 const CONFIRMATION_CODE_PATTERN = /^[0-9a-f]{48}$/u;
@@ -11,7 +11,8 @@ const BASE64_BODY = /^(?:[A-Za-z0-9+/_-]{4})*(?:[A-Za-z0-9+/_-]{2}==|[A-Za-z0-9+
 const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 // ActiveSupport's String#blank?
-export const isBlank = (value: string | null | undefined): boolean => value === null || value === undefined || /^[\s\u0085]*$/u.test(value);
+export const isBlank = (value: string | null | undefined): boolean =>
+  value === null || value === undefined || /^[\s\u0085]*$/u.test(value);
 
 // Base64.urlsafe_decode64(value.ljust((value.length + 3) & ~3, "=")): strict decoding, so a stray character, bad padding or
 // non-zero trailing bits raise ArgumentError (null here).
@@ -22,7 +23,11 @@ function decode(value: string): Buffer | null {
   const tail = /([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)$/u.exec(standard)?.[1];
   if (tail !== undefined) {
     const last = BASE64_ALPHABET.indexOf(tail.replaceAll("=", "").at(-1)!);
-    if ((tail.endsWith("==") && (last & 0xf) !== 0) || (tail.endsWith("=") && !tail.endsWith("==") && (last & 0x3) !== 0)) return null;
+    if (
+      (tail.endsWith("==") && (last & 0xf) !== 0) ||
+      (tail.endsWith("=") && !tail.endsWith("==") && (last & 0x3) !== 0)
+    )
+      return null;
   }
   return Buffer.from(standard, "base64");
 }
@@ -95,7 +100,8 @@ function payloadOf(text: string): InstagramPayload | null {
   }
   // A String payload answers nil to ["algorithm"]; the other scalars and an Array raise in Ruby.
   if (typeof parsed === "string") return null;
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new HandBackToRails("a payload that is not an object");
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+    throw new HandBackToRails("a payload that is not an object");
   const payload = parsed as Record<string, unknown>;
   const algorithm = payload.algorithm;
   if (typeof algorithm !== "string" || algorithm.toUpperCase() !== ALGORITHM) return null;

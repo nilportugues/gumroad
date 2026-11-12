@@ -7,12 +7,18 @@ export type ApplePayRegistrationResult = { active: boolean; message: string };
 
 // Staging branch deployments only. Reads ENV directly, as Ruby does (not GlobalConfig).
 export function applicable(): boolean {
-  return railsEnv() === "staging" && process.env.BRANCH_DEPLOYMENT === "true" && /[^\s]/u.test(process.env.CUSTOM_DOMAIN ?? "");
+  return (
+    railsEnv() === "staging" &&
+    process.env.BRANCH_DEPLOYMENT === "true" &&
+    /[^\s]/u.test(process.env.CUSTOM_DOMAIN ?? "")
+  );
 }
 
 // Object#try on a StripeObject: nil unless the key is there.
 function tryKey(object: unknown, key: string): unknown {
-  return object !== null && typeof object === "object" && key in object ? (object as Record<string, unknown>)[key] : null;
+  return object !== null && typeof object === "object" && key in object
+    ? (object as Record<string, unknown>)[key]
+    : null;
 }
 
 export async function register(opts: RequestOptions = {}): Promise<ApplePayRegistrationResult> {

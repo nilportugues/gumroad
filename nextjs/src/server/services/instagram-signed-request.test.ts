@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { HandBackToRails } from "../controllers/application-controller.ts";
+
 import { InstagramSignedRequest } from "./instagram-signed-request.ts";
 
 const SECRET = "secret";
@@ -12,7 +13,9 @@ const request = new InstagramSignedRequest(SECRET);
 
 describe("InstagramSignedRequest#parse", () => {
   it("reads an integer user id beyond 2^53 from the source text", () => {
-    expect(request.parse(sign('{"algorithm":"hmac-sha256","user_id":17841400000000001}'))).toEqual({ user_id: "17841400000000001" });
+    expect(request.parse(sign('{"algorithm":"hmac-sha256","user_id":17841400000000001}'))).toEqual({
+      user_id: "17841400000000001",
+    });
   });
 
   it("returns null for another algorithm, a bad signature and a missing secret", () => {
