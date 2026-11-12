@@ -19,7 +19,7 @@ vi.mock("../infra/active-storage.ts", () => ({
   isConfiguredService: (name: string) => name === "test",
   isVariable: (type: string) => type !== "image/svg+xml",
   publicStorageUrl: (key: string) => `https://bucket.example.com/${key}`,
-  resizeToLimitDigest: (_type: string, _name: string, width: number, height: number | null) =>
+  resizeToLimitDigest: (_type: string, _name: string, width: number | null, height: number | null) =>
     `digest-${width}-${height}`,
 }));
 vi.mock("../infra/cdn-url.ts", () => ({
@@ -90,9 +90,23 @@ describe("uploadedCoverAsJson", () => {
     expect(mocks.variantRecordId).not.toHaveBeenCalled();
   });
 
+  it("reads an image without analysed dimensions as unknown and limits its variant to [nil, nil]", async () => {
+    const json = await uploadedCoverAsJson(7n, row, [file({ metadata: null })]);
+
+    expect(json).toMatchObject({ width: null, height: null, native_width: null, native_height: null });
+    expect(mocks.variantRecordId).toHaveBeenCalledWith(9n, "digest-null-null");
+  });
+
+  it("reads a width without a height as an unknown display height", async () => {
+    const json = await uploadedCoverAsJson(7n, row, [file({ metadata: '{"analyzed":true,"width":25}' })]);
+
+    expect(json).toMatchObject({ width: 25, height: null, native_width: 25, native_height: null });
+  });
+
   it.each([
     ["a video", { content_type: "video/mp4" }],
-    ["an unanalyzed image", { metadata: null }],
+    ["a zero width", { metadata: '{"analyzed":true,"width":0,"height":10}' }],
+    ["a fractional height", { metadata: '{"analyzed":true,"width":10,"height":1.5}' }],
     ["a blob on another service", { service_name: "local" }],
   ])("hands back %s", async (_name, overrides) => {
     await expect(uploadedCoverAsJson(7n, row, [file(overrides)])).rejects.toThrow("is not ported");

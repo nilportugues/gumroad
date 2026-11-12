@@ -352,6 +352,37 @@ describe "Product page", type: :request do
       expect(cover["url"]).to eq(cover["original_url"])
     end
 
+    it "renders a product whose cover is an uploaded image the analyzer wrote no dimensions for", parity: true do
+      burn_attachment_ids(3)
+      product = create(:product, user: seller, name: "Unanalyzed cover")
+      preview = create(:asset_preview_jpg, link: product, guid: "pageunanalyzedcover")
+      blob = preview.file.blob
+      blob.update_column(:metadata, { identified: true, analyzed: true })
+      ProcessAssetPreviewRetinaWorker.jobs.clear
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("type" => "image", "width" => nil, "height" => nil, "native_width" => nil, "native_height" => nil)
+    end
+
+    it "renders a product whose cover is an uploaded image with a width and no height", parity: true do
+      burn_attachment_ids(4)
+      product = create(:product, user: seller, name: "Half analyzed cover")
+      preview = create(:asset_preview_jpg, link: product, guid: "pagehalfanalyzedcover")
+      blob = preview.file.blob
+      blob.update_column(:metadata, { identified: true, analyzed: true, width: 25 })
+      ProcessAssetPreviewRetinaWorker.jobs.clear
+
+      get "/l/#{product.unique_permalink}"
+
+      expect(response).to be_successful
+      cover = inertia_props_of(response)["product"]["covers"].first
+      expect(cover).to include("height" => nil, "native_height" => nil)
+      expect(cover["width"]).to be_present
+    end
+
     it "renders a product whose cover is a YouTube video", parity: true do
       product = create(:product, user: seller, name: "Video cover")
       create(:asset_preview_youtube, link: product, guid: "pageyoutubecover")
