@@ -1,0 +1,993 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "a warning that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find EarlyFraudWarning with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning that does not exist among others",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find EarlyFraudWarning with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an unresolved warning",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an unresolved warning among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                "issfr_2",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an unresolved warning that is not actionable",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                0,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a warning resolved as unknown",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning resolved as not_actionable_disputed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "not_actionable_disputed",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning resolved as not_actionable_refunded",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "not_actionable_refunded",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning resolved as resolved_customer_contacted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "resolved_customer_contacted",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning resolved as resolved_ignored",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "resolved_ignored",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning resolved as resolved_refunded_for_fraud",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "resolved_refunded_for_fraud",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a resolved warning with a different resolution than its time says",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a resolution without a resolved time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "resolved_ignored",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a warning id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an unresolved warning id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a warning id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find EarlyFraudWarning without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a warning id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "issfr_1",
+                null,
+                null,
+                "fraudulent",
+                1,
+                "normal",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "unknown",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a warning id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find EarlyFraudWarning with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `purchase_early_fraud_warnings`.* FROM `purchase_early_fraud_warnings` WHERE `purchase_early_fraud_warnings`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "processor_id",
+              "dispute_id",
+              "refund_id",
+              "fraud_type",
+              "actionable",
+              "charge_risk_level",
+              "processor_created_at",
+              "resolution",
+              "resolved_at",
+              "created_at",
+              "updated_at",
+              "resolution_message",
+              "charge_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ProcessEarlyFraudWarningJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    }
+  ]
+}

@@ -199,4 +199,5 @@ export const PORTED_JOBS: readonly string[] = [
   "RenewCustomDomainSslCertificates",
   "SendSignedPiracyNoticesJob",
   "GenerateLargeSellersAnalyticsCacheWorker",
+  "ProcessEarlyFraudWarningJob",
 ];
