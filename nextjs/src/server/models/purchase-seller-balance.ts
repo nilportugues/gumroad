@@ -56,6 +56,9 @@ async function lastAppliedSellerTransaction(record: PurchaseRecord): Promise<Bal
 export type SellerBalanceFacts = {
   // The flow of funds the processor charge produced (Purchase#flow_of_funds)
   flowOfFunds: SellerFlowOfFunds;
+  // The account `prepare_merchant_account` already assigned to the instance that was charged. Left out, the purchase's account is
+  // read, as it is for a purchase loaded with `find`.
+  merchantAccount?: ChargeMerchantAccount;
 };
 
 export async function incrementSellersBalanceBang(
@@ -69,9 +72,10 @@ export async function incrementSellersBalanceBang(
   if (String(record.get("json_data") ?? "").includes("direct_affiliate_id")) throw notPorted("a direct affiliate");
   const creditsAffiliate = (record.get("affiliate_credit_cents") ?? 0) > 0;
   const merchantAccountRow = async () =>
-    (await loadBelongsTo(record, MERCHANT_ACCOUNT, {
+    facts.merchantAccount ??
+    ((await loadBelongsTo(record, MERCHANT_ACCOUNT, {
       tx: (await connection()) as never,
-    })) as ChargeMerchantAccount | null;
+    })) as ChargeMerchantAccount | null);
 
   if (creditsAffiliate) {
     // Ruby credits the affiliate before it reads anything the seller's share could be refused for, so those are read first:

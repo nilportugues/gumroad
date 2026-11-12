@@ -1,4 +1,4 @@
-// Purchase#update_balance_and_mark_successful! for a free purchase (app/models/purchase.rb, Purchase::MarkSuccessfulService): the
+// Purchase#update_balance_and_mark_successful! for a free purchase, and for a charged one through markPaidPurchaseSuccessful (app/models/purchase.rb, Purchase::MarkSuccessfulService): the
 // succeeded_at save, then the `in_progress` to `successful` transition with the after_transition callbacks that apply to a
 // plain free download, in the order the state machine declares them. The jobs they enqueue are the ones the Rails recording
 // pushed (purchase-create.golden.json), in the same order against the statements.
@@ -11,11 +11,13 @@ import { Prisma, type UrlRedirect } from "@prisma/client";
 
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 
 import { defaultCheckoutEffects, type CheckoutEffects } from "./checkout-effects.ts";
 import { afterCommitEverywhere, currentJobsRuntime, performAsync } from "./concerns/job-runtime.ts";
 import { ago } from "./concerns/ruby-time.ts";
 import { Purchases, type PurchaseContext, type PurchaseRecord } from "./purchase-create.ts";
+import { incrementSellersBalanceBang, type SellerBalanceFacts } from "./purchase-seller-balance.ts";
 import { transaction } from "./runtime/transaction.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { findUrlRedirectForPurchase, UrlRedirects } from "./url-redirect.ts";
@@ -143,14 +145,55 @@ export async function markFreePurchaseSuccessful(
   record: PurchaseRecord,
   options: Options = {},
 ): Promise<MarkSuccessfulResult> {
+  if (record.get("price_cents") !== 0) throw notPorted("a priced purchase");
+  return markSuccessful(record, null, options);
+}
+
+// The same service for a purchase Stripe has charged and `save_charge_data` has filled in (purchase-paid-success.golden.json):
+// `increment_sellers_balance!` runs between the succeeded_at save and the transition.
+export async function markPaidPurchaseSuccessful(
+  record: PurchaseRecord,
+  facts: SellerBalanceFacts,
+  options: Options = {},
+): Promise<MarkSuccessfulResult> {
+  paidGuards(record);
+  return markSuccessful(record, facts, options);
+}
+
+// What would change the recorded shape, read from the row alone: an affiliate (notify_affiliate!, create_product_affiliate),
+// a recommended purchase, a membership charge and a purchase whose receipt is not the charge's.
+function paidGuards(record: PurchaseRecord): void {
+  if ((record.get("price_cents") ?? 0) <= 0) throw notPorted("a free purchase through the paid path");
+  if (record.get("affiliate_id") != null) throw notPorted("an affiliate");
+  if (record.get("subscription_id") != null) throw notPorted("a subscription");
+  if (PurchaseFlags.isSet(record.get("flags"), "was_product_recommended")) throw notPorted("a recommended purchase");
+  if (!contextOf(record).chargeReceipt) throw notPorted("a purchase without a charge receipt");
+}
+
+// Everything markPaidPurchaseSuccessful could still refuse after its first write (a cart on the order, a Gumroad Day date, the
+// waived fee, the high-volume fee), asked with reads only. Call it BEFORE the processor is reached: a refusal after the charge
+// would leave a charged card with an in-progress purchase.
+export async function assertPaidSuccessServable(record: PurchaseRecord): Promise<void> {
+  paidGuards(record);
+  const context = contextOf(record);
+  await scheduleOrderReviewReminder(record);
+  await saveGumroadDayTimezone(record);
+  if (await effectsOf(context).featureActive("high_volume_seller_fee", `User;${context.seller.id}`))
+    throw notPorted("a seller on the high-volume fee");
+}
+
+async function markSuccessful(
+  record: PurchaseRecord,
+  facts: SellerBalanceFacts | null,
+  options: Options,
+): Promise<MarkSuccessfulResult> {
   const context = contextOf(record);
   const effects = effectsOf(context);
-  if (record.get("price_cents") !== 0) throw notPorted("a priced purchase");
   if (!context.chargeReceipt) throw notPorted("a purchase without a charge receipt");
   const result: MarkSuccessfulResult = { urlRedirect: null };
 
   await setSucceededAt(record, options);
-  // increment_sellers_balance! returns for a price of 0
+  if (facts) await incrementSellersBalanceBang(record, facts, options);
 
   // mark_successful!: the transition runs in one transaction, so the after_commit callbacks wait for its end
   await transaction(async () => {
