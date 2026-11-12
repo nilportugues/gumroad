@@ -65,6 +65,19 @@ describe "Subscribing to a seller", type: :request do
       expect(Follower.find_by(email: "member@example.com").confirmed_at).to be_present
     end
 
+    it "schedules the workflow emails when a signed-in visitor with a verified email follows", parity: true do
+      workflow = create(:follower_workflow, seller:)
+      installment = create(:workflow_installment, workflow:, seller:, link: workflow.link, name: "Welcome", message: "<p>Hello</p>", published_at: Time.utc(2025, 2, 1))
+      installment.installment_rule.update_columns(delayed_delivery_time: 3600, time_period: "hour")
+      visitor = create(:user, email: "member@example.com")
+      log_in(visitor)
+
+      subscribe(follow_user_path, { seller_id: seller.external_id, email: "member@example.com" })
+
+      expect(response.parsed_body).to eq("success" => true, "message" => "You are now following Followed Seller!")
+      expect(SendWorkflowInstallmentWorker.jobs.size).to eq(1)
+    end
+
     it "revives a follower who had been removed", parity: true do
       follower = follow("returning@example.com", deleted_at: Time.utc(2025, 2, 5, 12), source: Follower::From::PROFILE_PAGE)
 

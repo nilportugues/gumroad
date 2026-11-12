@@ -9,15 +9,15 @@ import { Prisma, type Installment, type User } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { InstallmentFlags } from "../models/installment-post.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
-import { AUDIENCE_TYPE, paginatedComments } from "../page-props/storefront/post.ts";
+import { paginatedComments } from "../page-props/storefront/post.ts";
 import { commentContextPolicy, type CommentContextRecord } from "../policies/comment-context.ts";
-import { loadSellerContext, MembershipNotFoundError, type SellerContext } from "../policies/seller-context.ts";
+import { loadSellerContext, MembershipNotFoundError } from "../policies/seller-context.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { one, visibleToVisitor } from "./comment-post-visibility.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
@@ -31,8 +31,6 @@ const rubyToI = (value: string): number => {
   const match = /^\s*([+-]?\d+(?:_\d+)*)/u.exec(value);
   return match ? Number(match[1]!.replaceAll("_", "")) : 0;
 };
-
-const one = async (query: Prisma.Sql): Promise<boolean> => (await selectRows(query)).length > 0;
 
 // `Installment.published.find_by_external_id(id)`
 async function findPost(externalId: string): Promise<Installment | null> {
@@ -71,38 +69,6 @@ async function assertNoPurchase(input: MutationInput, user: User | null, post: I
     )
   )
     throw new HandBackToRails("a visitor who bought the post's product");
-}
-
-// `commentable.seller.visible_posts_for(pundit_user: context, shown_on_profile: false).include?(commentable)` for a published post.
-async function visibleToVisitor(sellerContext: SellerContext, post: Installment): Promise<boolean> {
-  const sellerId = BigInt(post.seller_id!);
-  // The seller's own account sees every post that is not a workflow's and not deleted.
-  if (sellerContext.seller !== null && sellerContext.seller.id === sellerId)
-    return post.workflow_id === null && post.deleted_at === null;
-  const user = sellerContext.user;
-  const publicPost =
-    post.installment_type === AUDIENCE_TYPE &&
-    InstallmentFlags.isSet(post.flags, "shown_on_profile") &&
-    post.workflow_id === null &&
-    post.deleted_at === null;
-  if (publicPost) return true;
-  if (user === null) return false;
-  // The posts a follower, a customer or an affiliate sees depend on the filters of each: only the visitor with none of the three is
-  // settled here.
-  const related =
-    (user.email !== null &&
-      user.email !== "" &&
-      (await one(
-        Prisma.sql`SELECT 1 AS one FROM ${table("followers")} WHERE ${column("followers", "followed_id")} = ${sellerId} AND ${column("followers", "email")} = ${user.email} LIMIT 1`,
-      ))) ||
-    (await one(
-      Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${sellerId} AND ${column("purchases", "purchaser_id")} = ${user.id} LIMIT 1`,
-    )) ||
-    (await one(
-      Prisma.sql`SELECT 1 AS one FROM ${table("affiliates")} WHERE ${column("affiliates", "seller_id")} = ${sellerId} AND ${column("affiliates", "affiliate_user_id")} = ${user.id} LIMIT 1`,
-    ));
-  if (related) throw new HandBackToRails("a visitor who follows, bought from or is an affiliate of the seller");
-  return false;
 }
 
 async function index(input: MutationInput): Promise<ActionResult> {

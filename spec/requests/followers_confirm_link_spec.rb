@@ -58,13 +58,48 @@ describe "Follow confirmation link", type: :request do
     expect(follower.reload.confirmed_at).to be_nil
   end
 
-  it "hands a seller with follower workflows to Rails", parity: true do
+  def add_installment(workflow, name:, delay_seconds:, published: false)
+    installment = create(:workflow_installment, workflow:, seller:, link: workflow.link, name:, message: "<p>Hello</p>", published_at: published ? Time.utc(2025, 2, 1) : nil)
+    installment.installment_rule.update_columns(delayed_delivery_time: delay_seconds, time_period: "hour")
+    installment
+  end
+
+  it "schedules the emails of the follower workflows of the seller", parity: true do
     follower = follow("workflow@example.com")
-    create(:follower_workflow, seller:)
+    follower_workflow = create(:follower_workflow, seller:)
+    audience_workflow = create(:audience_workflow, seller:)
+    other_workflow = create(:follower_workflow, seller:, deleted_at: Time.utc(2025, 1, 5))
+    add_installment(follower_workflow, name: "Welcome", delay_seconds: 3600, published: true)
+    add_installment(follower_workflow, name: "Draft follow-up", delay_seconds: 7200)
+    add_installment(audience_workflow, name: "Audience hello", delay_seconds: 86_400)
+    add_installment(other_workflow, name: "Deleted flow", delay_seconds: 3600)
+
+    get confirm_follow_path(follower.external_id)
+
+    expect(response).to have_http_status(:found)
+    expect(follower.reload.confirmed_at).to be_present
+    expect(SendWorkflowInstallmentWorker.jobs.size).to eq(3)
+  end
+
+  it "schedules nothing for workflows that wait for another trigger", parity: true do
+    follower = follow("trigger@example.com")
+    workflow = create(:follower_workflow, seller:)
+    workflow.update!(workflow_trigger: Workflow::MEMBER_CANCELLATION_WORKFLOW_TRIGGER)
+    add_installment(workflow, name: "On cancellation", delay_seconds: 3600)
 
     get confirm_follow_path(follower.external_id)
 
     expect(follower.reload.confirmed_at).to be_present
+    expect(SendWorkflowInstallmentWorker.jobs.size).to eq(0)
+  end
+
+  it "schedules nothing when the follow was already confirmed", parity: true do
+    follower = follow("again@example.com", confirmed_at: Time.utc(2025, 1, 2, 12))
+    add_installment(create(:follower_workflow, seller:), name: "Welcome", delay_seconds: 3600)
+
+    get confirm_follow_path(follower.external_id)
+
+    expect(SendWorkflowInstallmentWorker.jobs.size).to eq(0)
   end
 
   it "hands a seller with a newsletter cutover to Rails", parity: true do

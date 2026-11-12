@@ -2,16 +2,18 @@
 // host: the post's seller (and an admin or marketing team member) and the author of a comment.
 //
 // Left to Rails, before anything is written: a signed-out visitor, a purchase_id param or a visitor who bought the post's product
-// (purchase-based access), a visitor who is neither the seller nor the author of a comment they create (User#visible_posts_for),
-// a root comment that notifies the seller (mail), a comment that fails validation, and deleting a comment that has replies.
+// (purchase-based access) and a reader who follows the seller, bought from them or is their affiliate (User#visible_posts_for).
 import { Prisma, type Comment, type Installment, type User } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { autoLink } from "../html/rinku.ts";
 import { CommentDeletable, Comments, COMMENT_TYPES } from "../models/comment.ts";
+import { setJsonDataForAttr } from "../models/concerns/json-data.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
+import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { NotPortedError } from "../models/user.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { avatarUrl, displayName } from "../page-props/signed-in/presenters.ts";
 import { timeAgoInWords } from "../page-props/storefront/time-ago.ts";
@@ -20,10 +22,12 @@ import { MembershipNotFoundError } from "../policies/seller-context.ts";
 import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { visibleToVisitor } from "./comment-post-visibility.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
 const UNAUTHORIZED = 401;
+const UNPROCESSABLE_ENTITY = 422;
 const NOT_FOUND = 404;
 const DEFAULT_COMMENT_AVATAR = "gumroad-default-avatar-5.png";
 const LINK_ATTRIBUTES = 'target="_blank" rel="noopener noreferrer nofollow"';
@@ -155,6 +159,9 @@ async function findComment(post: Installment, externalId: string): Promise<Model
   return row ? Comments.load(castRow<Comment>("Comment", row)) : null;
 }
 
+const invalid = (comment: ModelRecord<Comment>): ActionResult =>
+  jsonResponse({ success: false, error: comment.errors.fullMessages()[0] ?? null }, UNPROCESSABLE_ENTITY);
+
 const NOT_FOUND_JSON = (): ActionResult => ({
   ...jsonResponse({ success: false, error: "Not found" }, NOT_FOUND),
   rescued: true,
@@ -188,12 +195,18 @@ async function create(input: MutationInput): Promise<ActionResult> {
     comment_type: COMMENT_TYPES.USER_SUBMITTED,
   } as Partial<Comment>);
 
-  if (!allowed(() => commentContextPolicy.create(sellerContext, commentContext(snapshot(comment), post))))
-    return refused(sellerContext);
-  // notify_seller_of_new_comment: a root comment by anyone but the post's seller mails the seller.
-  if (ancestry === null && post.seller_id !== null && BigInt(post.seller_id) !== user.id)
-    throw new HandBackToRails("a root comment that notifies the seller");
-  if (!(await Comments.save(comment))) throw new HandBackToRails("a comment that fails validation");
+  const record = commentContext(snapshot(comment), post);
+  // The roles of the seller settle it first; the visibility query only runs for the other visitors.
+  let permitted: boolean;
+  try {
+    permitted = allowed(() => commentContextPolicy.create(sellerContext, record));
+  } catch (error) {
+    if (!(error instanceof NotPortedError)) throw error;
+    const postVisible = await visibleToVisitor(sellerContext, post);
+    permitted = allowed(() => commentContextPolicy.create(sellerContext, { ...record, postVisible }));
+  }
+  if (!permitted) return refused(sellerContext);
+  if (!(await Comments.save(comment))) return invalid(comment);
   return jsonResponse({ success: true, comment: await commentProps(comment, sellerContext, post) });
 }
 
@@ -209,9 +222,29 @@ async function update(input: MutationInput): Promise<ActionResult> {
     return refused(sellerContext);
   const params = commentParams(input);
   if (typeof params.content !== "string") throw new HandBackToRails("a comment whose content is not text");
-  if (!(await Comments.update(comment, { content: params.content } as Partial<Comment>)))
-    throw new HandBackToRails("a comment that fails validation");
+  if (!(await Comments.update(comment, { content: params.content } as Partial<Comment>))) return invalid(comment);
   return jsonResponse({ success: true, comment: await commentProps(comment, sellerContext, post) });
+}
+
+// Comment#mark_subtree_deleted!: every live comment of the subtree is deleted, the replies tagged so an undelete restores only them.
+// The query keeps ancestry's condition order and has no ORDER BY: the id list is in the order MySQL's sort_union returns it.
+async function markSubtreeDeleted(comment: ModelRecord<Comment>): Promise<string[]> {
+  const ancestry = comment.get("ancestry");
+  const id = comment.get("id");
+  const path = ancestry === null || ancestry === "" ? String(id) : `${ancestry}/${id}`;
+  return transaction(async () => {
+    const rows = await selectRows(
+      Prisma.sql`SELECT ${Prisma.raw("`comments`.*")} FROM ${table("comments")} WHERE (${column("comments", "ancestry")} LIKE ${`${path}/%`} OR ${column("comments", "ancestry")} = ${path} OR ${column("comments", "id")} = ${id}) AND ${column("comments", "deleted_at")} IS NULL`,
+    );
+    const deleted: string[] = [];
+    for (const row of rows) {
+      const record = Comments.load(castRow<Comment>("Comment", row));
+      if (record.get("id") !== id) setJsonDataForAttr(record, "was_alive_before_marking_subtree_deleted", true);
+      await CommentDeletable.markDeletedBang(record);
+      deleted.push(encrypt(record.get("id")));
+    }
+    return deleted;
+  });
 }
 
 async function destroy(input: MutationInput): Promise<ActionResult> {
@@ -224,18 +257,7 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
 
   if (!allowed(() => commentContextPolicy.destroy(sellerContext, commentContext(snapshot(comment), post))))
     return refused(sellerContext);
-  // mark_subtree_deleted! tags each reply it deletes in its json_data, which the Comment model leaves to Rails.
-  const ancestry = comment.get("ancestry");
-  const path = ancestry === null || ancestry === "" ? String(comment.get("id")) : `${ancestry}/${comment.get("id")}`;
-  const replies = await selectRows(
-    Prisma.sql`SELECT 1 AS one FROM ${table("comments")} WHERE ${column("comments", "deleted_at")} IS NULL AND (${column("comments", "ancestry")} = ${path} OR ${column("comments", "ancestry")} LIKE ${`${path}/%`}) LIMIT 1`,
-  );
-  if (replies.length > 0) throw new HandBackToRails("a comment with replies");
-  const deleted: string[] = [];
-  if (comment.get("deleted_at") === null) {
-    await CommentDeletable.markDeletedBang(comment);
-    deleted.push(encrypt(comment.get("id")));
-  }
+  const deleted = await markSubtreeDeleted(comment);
   return jsonResponse({ success: true, deleted_comment_ids: deleted });
 }
 

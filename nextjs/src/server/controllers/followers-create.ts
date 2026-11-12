@@ -2,9 +2,8 @@
 // subscribe form of a seller and the embed form copied onto other sites. Both are throttled by Rack::Attack (controllers/rack-attack.ts).
 //
 // Left to Rails, before anything is written: a seller who needs a CAPTCHA (an unreviewed one: Google's verification is a call the
-// Rails test environment skips, so there is no recording of it), a waitlist product, a seller under a newsletter cutover, a visitor
-// whose verified session would confirm the follow while the seller has follower workflows to schedule, and the HTML answer of
-// #from_embed_form, which renders an Inertia page that a mutation cannot.
+// Rails test environment skips, so there is no recording of it), a waitlist product, a seller under a newsletter cutover, and the HTML
+// answer of #from_embed_form, which renders an Inertia page that a mutation cannot.
 import { Prisma, type User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
@@ -13,13 +12,7 @@ import { getConfig } from "../infra/config.ts";
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
-import {
-  confirmBang,
-  coveredByCutover,
-  Followers,
-  hasFollowerWorkflows,
-  type FollowerRecord,
-} from "../models/follower.ts";
+import { confirmBang, coveredByCutover, Followers, type FollowerRecord } from "../models/follower.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, isRecordNotUnique, selectRows, table } from "../models/sql.ts";
@@ -117,8 +110,6 @@ async function createFollower(input: MutationInput, source: string | null): Prom
 
   const visitor = railsLoggedInUser(input.context);
   const verifiedSession = visitor !== null && visitor.confirmed_at !== null && visitor.email === email;
-  if (verifiedSession && (await hasFollowerWorkflows(Number(sellerId))))
-    throw new HandBackToRails("a seller with follower workflows to schedule");
 
   const attributes = { follower_user_id: await userIdWithEmail(email), source };
   const [existing] = await selectRows(
