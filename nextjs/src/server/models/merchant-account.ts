@@ -9,6 +9,7 @@ import { readBelongsTo } from "./concerns/belongs-to-record.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
+import { loadBelongsTo, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { isBlank, validatesPresenceOf, validatesUniquenessOf } from "./runtime/validators.ts";
@@ -63,6 +64,7 @@ export async function stripeAccountOf(userId: unknown): Promise<MerchantAccountR
 export type MerchantAccountRecord = ModelRecord<MerchantAccount>;
 
 const PAYPAL_CHARGE_PROCESSOR_ID = "paypal";
+const USER: BelongsTo = { name: "user", foreignKey: "user_id", targetTable: "users", targetModel: "User" };
 const REFRESH_RECOMMENDABILITY_JOB = "RefreshMerchantAccountProductsRecommendationEligibilityJob";
 
 // `json_data.dig("meta", "stripe_connect") == "true"` on the stored column. A value that is not a Hash counts as a
@@ -121,12 +123,21 @@ export const MerchantAccounts = defineModel<MerchantAccount>({
   delegate: (tx) => tx.merchantAccount as never,
   validations: [
     validatesPresenceOf<MerchantAccount>(["charge_processor_id"]),
-    validatesPresenceOf<MerchantAccount>(["charge_processor_merchant_id"], {
-      if: (account) =>
-        account.get("user_id") != null &&
-        account.get("charge_processor_alive_at") != null &&
-        account.get("charge_processor_deleted_at") == null,
-    }),
+    {
+      // `presence: true, if: -> { user && charge_processor_alive? }`: the condition loads the user.
+      name: "validates_presence_of charge_processor_merchant_id",
+      async run(account, ctx) {
+        const user = await loadBelongsTo(account, USER, ctx);
+        if (
+          user === null ||
+          account.get("charge_processor_alive_at") == null ||
+          account.get("charge_processor_deleted_at") != null
+        )
+          return;
+        if (isBlank(account.get("charge_processor_merchant_id")))
+          account.errors.add("charge_processor_merchant_id", "blank");
+      },
+    },
     validatesUniquenessOf<MerchantAccount>("merchant_accounts", ["charge_processor_merchant_id"], {
       case_sensitive: true,
       message: "This account is already connected with another Gumroad account",

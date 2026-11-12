@@ -2,8 +2,10 @@
 
 # Produces nextjs/src/worker/jobs/__fixtures__/enforce-refund-policy-for-seller-job.golden.json: EnforceRefundPolicyForSellerJob run
 # by the real app against a scratch database as a Sidekiq job (support/sidekiq_executor.rb). A seller whose dispute rate calls for
-# the enforcement (the seller update, the refund policy bump and the admin comment) is what Node hands back to Rails; those cases
-# are recorded up to the seller's transaction, which a marker exception stands in for. Run it like publish-scheduled-post.rb:
+# the enforcement runs the whole seller.transaction (user update, refund policy bump, admin comment) and enqueues the notification
+# mail; those cases record every statement, the Sidekiq push and the Elasticsearch calls of the user save. Only the statements,
+# Redis and cache are kept: the purchases seeded to reach the volume gates stay out of the fixture. Run it like
+# publish-scheduled-post.rb:
 #
 #   bundle exec rails runner nextjs/scripts/golden/enforce-refund-policy-for-seller-job.rb   (env as in publish-scheduled-post.rb)
 require_relative "support/rails_cases"
@@ -12,20 +14,18 @@ include RailsCases
 OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/enforce-refund-policy-for-seller-job.golden.json")
 NOW = Time.utc(2026, 11, 4, 12, 30, 45, 123_000)
 SEEDED_AT = "2026-01-01 00:00:00"
-TABLES = %w[users purchases].freeze
+TABLES = %w[users purchases refund_policies comments versions seller_profiles links].freeze
 REFUND_POLICY_ENFORCED = 1 << 52
 CHARGEBACK_REVERSED = Purchase.flag_mapping["flags"][:chargeback_reversed]
 
 Rails.logger = ActiveSupport::Logger.new(nil)
 
-class HandBackMarker < Exception; end # rubocop:disable Lint/InheritException
-
-User.prepend(Module.new do
-  def transaction(*) = raise(HandBackMarker)
-end)
+ActiveJob::Base.queue_adapter = :sidekiq
+ActiveJob::Base.logger = Logger.new(nil)
+capture_elasticsearch!
 
 def user_row(id, **overrides)
-  { id:, email: "user#{id}@example.com", username: "user#{id}", external_id: (1000 + id).to_s, user_risk_state: "compliant", flags: 0, confirmed_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+  { id:, email: "user#{id}@example.com", username: "user#{id}", external_id: (1000 + id).to_s, user_risk_state: "compliant", recommendation_type: "own_products", flags: 0, confirmed_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
 end
 
 def sale(id, email: "buyer#{id}@example.com", seller: 1, **overrides)
@@ -39,16 +39,17 @@ def book(settled, disputes, first_id: 1)
   (0...settled).map { |i| sale(first_id + i, **(i < disputes ? disputed : {})) }
 end
 
-def run(name, args, sales: [], users: [user_row(1)])
-  hands_back = false
-  result = capture(name, now: NOW, tables: TABLES, seed: { users:, purchases: sales }, sidekiq: true, job: "EnforceRefundPolicyForSellerJob", args:) do
+def policy(seller, days, **overrides)
+  { id: 70 + seller, seller_id: seller, product_id: nil, max_refund_period_in_days: days, fine_print: nil, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def run(name, args, sales: [], users: [user_row(1)], policies: [])
+  result = capture(name, now: NOW, tables: TABLES, seed: { users:, purchases: sales, refund_policies: policies }, sidekiq: true, job: "EnforceRefundPolicyForSellerJob", args:) do
     EnforceRefundPolicyForSellerJob.new.perform(*args)
-  rescue HandBackMarker
-    hands_back = true
   end
   result.delete("rows")
   result.delete("seed")
-  result.merge("hands_back" => hands_back)
+  result
 end
 
 cases = []
@@ -75,6 +76,22 @@ cases << run("sales of another seller", [1], sales: book(30, 5, first_id: 100).m
 cases << run("sales with no email", [1], sales: book(30, 0) + (31..45).map { sale(_1, email: nil, **disputed) })
 cases << run("sales with an email in another case", [1], sales: book(300, 0) + (301..310).map { |id| sale(id, email: id.even? ? "Same@Example.com" : "same@example.com", **disputed) })
 cases << run("no id", [])
+
+# The enforcement itself. `book(30, 5)` is 5 of 30 buyers, 16.7%.
+cases << run("a seller without a refund policy", [1], sales: book(30, 5))
+cases << run("a seller whose policy offers no refunds", [1], sales: book(30, 5), policies: [policy(1, 0)])
+cases << run("a policy with no refunds and a fine print", [1], sales: book(30, 5), policies: [policy(1, 0, fine_print: "All sales are final")])
+cases << run("a policy that already guarantees refunds", [1], sales: book(30, 5), policies: [policy(1, 14, fine_print: "Ask nicely")])
+cases << run("a product level policy is not the seller policy", [1], sales: book(30, 5), policies: [policy(1, 0, id: 80, product_id: 3, seller_id: 1), policy(2, 0)])
+cases << run("a rate that rounds down at a tie", [1], sales: book(400, 5), policies: [policy(1, 7)])
+cases << run("a rate that rounds up at a tie", [1], sales: book(400, 15), policies: [policy(1, 7)])
+cases << run("a rate rounded to the tenth", [1], sales: book(299, 3), policies: [policy(1, 7)])
+cases << run("a rate of a hundred percent", [1], sales: book(30, 30))
+cases << run("a policy with no period rolls the enforcement back", [1], sales: book(30, 5), policies: [policy(1, nil)])
+cases << run("a seller who has other flags set", [1], sales: book(30, 5), users: [user_row(1, flags: 3)], policies: [policy(1, 0)])
+cases << run("a seller whose account is deleted", [1], sales: book(30, 5), users: [user_row(1, deleted_at: SEEDED_AT)], policies: [policy(1, 0)])
+cases << run("a seller with a name and a bio", [1], sales: book(30, 5), users: [user_row(1, name: "Seller One", bio: "Hi")], policies: [policy(1, 0)])
+cases << run("the digits of the id enforce too", ["1"], sales: book(30, 5), policies: [policy(1, 0)])
 
 File.write(OUT, JSON.pretty_generate({ "now" => NOW.to_f, "cases" => cases }) + "\n")
 puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

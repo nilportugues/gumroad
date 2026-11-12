@@ -9,7 +9,7 @@ import { belongsToRequired, type BelongsTo, validatesAssociationPresence } from 
 import { defineModel } from "./runtime/define-model.ts";
 import { validatesInclusionOf, validatesLengthOf } from "./runtime/validators.ts";
 import { column, table } from "./sql.ts";
-import { strippedField, UserFlags } from "./user.ts";
+import { strippedField } from "./user.ts";
 
 // RefundPolicy::ALLOWED_REFUND_PERIODS_IN_DAYS
 export const ALLOWED_REFUND_PERIODS_IN_DAYS = [0, 7, 14, 30, 183] as const;
@@ -17,6 +17,9 @@ export const DEFAULT_REFUND_PERIOD_IN_DAYS = 30;
 export const MAX_FINE_PRINT_LENGTH = 3_000;
 // SellerRefundPolicy#refund_period_meets_enforcement_minimum
 const ENFORCED_MINIMUM_REFUND_PERIOD_IN_DAYS = 7;
+
+// User.flag_mapping["flags"][:refund_policy_enforced]
+const ENFORCED_FLAG_MASK = 1n << 52n;
 
 const SELLER: BelongsTo = { name: "seller", foreignKey: "seller_id", targetTable: "users", targetModel: "User" };
 // STI subclasses version under their base class.
@@ -71,11 +74,11 @@ export const RefundPolicies = defineModel<RefundPolicy>({
       name: "refund_period_meets_enforcement_minimum",
       async run(record, { tx }) {
         const sellerId = record.get("seller_id");
-        // A fresh read: the flag can have been set earlier in the same request.
-        const rows = await tx.$queryRaw<{ flags: bigint }[]>(
-          Prisma.sql`SELECT ${column("users", "flags")} AS flags FROM ${table("users")} WHERE ${column("users", "id")} = ${sellerId}`,
+        // `User.where(id:).where("flags & ? != 0", ...).exists?`: a fresh read, the flag can have been set earlier in the same request.
+        const rows = await tx.$queryRaw<unknown[]>(
+          Prisma.sql`SELECT 1 AS one FROM ${table("users")} WHERE ${column("users", "id")} = ${sellerId} AND (flags & ${String(ENFORCED_FLAG_MASK)} != 0) LIMIT 1`,
         );
-        const enforced = rows.some((row) => UserFlags.isSet(BigInt(row.flags), "refund_policy_enforced"));
+        const enforced = rows.length > 0;
         const days = record.get("max_refund_period_in_days");
         if (enforced && !(days !== null && days >= ENFORCED_MINIMUM_REFUND_PERIOD_IN_DAYS)) {
           record.errors.add(

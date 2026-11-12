@@ -37,7 +37,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnBlockedEstablishedSubscribersJob": {
     "file": "app/sidekiq/alert_on_blocked_established_subscribers_job.rb",
@@ -3269,7 +3269,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "StripeRestraintNoticeEmailJob": {
     "file": "app/sidekiq/stripe_restraint_notice_email_job.rb",
@@ -3756,7 +3756,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "VerifyFinanceReportsDeliveryJob": {
     "file": "app/sidekiq/verify_finance_reports_delivery_job.rb",

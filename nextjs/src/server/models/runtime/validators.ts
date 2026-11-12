@@ -189,7 +189,7 @@ export function validatesUniquenessOf<R extends Row>(
         value == null
           ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} IS NULL`
           : opts.case_sensitive
-            ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = BINARY ${value}`
+            ? Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = CAST(${value} AS BINARY)`
             : Prisma.sql`${Prisma.raw(`\`${table}\`.\`${attribute}\``)} = ${value}`,
       ];
       for (const scope of opts.scope ?? []) {
