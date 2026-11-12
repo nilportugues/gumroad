@@ -83,8 +83,8 @@ describe "Payouts page when signed in", type: :request do
     it "includes the PayPal sales of the period", parity: true do
       seller.update!(payment_address: "seller-paypal@example.com")
       balance(amount_cents: 12_000, days_ago: 30)
-      sale(price: 4000, fee: 400, charge_processor_id: "paypal", succeeded_at: 5.days.ago)
-      refunded = sale(price: 2000, fee: 200, charge_processor_id: "paypal", succeeded_at: 6.days.ago)
+      sale(price: 4000, fee: 400, charge_processor_id: "paypal", succeeded_at: 8.days.ago)
+      refunded = sale(price: 2000, fee: 200, charge_processor_id: "paypal", succeeded_at: 9.days.ago)
       create(:refund, purchase: refunded, amount_cents: 2000, fee_cents: 200, seller_id: seller.id)
 
       visit_payouts
