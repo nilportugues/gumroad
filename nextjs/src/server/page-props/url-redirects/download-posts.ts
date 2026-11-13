@@ -1,6 +1,6 @@
 // UrlRedirectPresenter#posts for a purchase of a product without versions: Purchase.product_installments over the one purchase
 // the buyer's email maps to, and the view link of each post. Anything that would widen that set (another purchase of the
-// address, a product that shows every past post, a seller domain, equal sort keys) is Rails'.
+// address, a product that shows every past post, a seller domain, equal sort keys among more than two posts) is Rails'.
 import type { Installment, Link, Purchase, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -36,7 +36,8 @@ function displaysInstallments(purchase: Purchase): boolean {
   return notRefundedOrChargedBack(purchase) && !PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase");
 }
 
-type Listed = { post: Installment; sortKey: Date };
+// group is the position of the scope in Purchase.product_installments' concatenation, which is the order ties keep.
+type Listed = { post: Installment; sortKey: Date; group: number };
 
 async function emailInfos(purchaseIds: bigint[], installmentIds: bigint[]) {
   if (purchaseIds.length === 0 || installmentIds.length === 0) return [];
@@ -90,10 +91,9 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   });
   for (const post of emailed.filter(aliveAndPublished)) {
     if (!InstallmentFlags.isSet(post.flags, "send_emails")) continue;
-    const infos = ownInfos.filter((info) => Number(info.installment_id) === Number(post.id));
-    if (infos.length > 1) throw new HandBackToRails("a post with several email infos");
-    const info = infos[0]!;
-    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH });
+    // The scope joins email_infos, so a post emailed twice to the purchase is listed twice.
+    for (const info of ownInfos.filter((row) => Number(row.installment_id) === Number(post.id)))
+      listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH, group: 0 });
   }
 
   // profile_only_for_products
@@ -101,7 +101,7 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     where: { link_id: Number(product.id), base_variant_id: null, installment_type: "product" },
   });
   for (const post of profilePosts.filter(aliveAndPublished).filter(profileOnly))
-    listed.push({ post, sortKey: post.published_at! });
+    listed.push({ post, sortKey: post.published_at!, group: 1 });
 
   // seller_with_sent_emails_for_purchases and profile_only_for_sellers, narrowed by the buyer filters.
   const record = new PurchaseRecord(purchase, null);
@@ -121,20 +121,26 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     if (infos.length > 1) throw new HandBackToRails("a seller post with several email infos");
     if (!(await purchasePassesFilters(new InstallmentPost(post), record))) continue;
     const info = infos[0]!;
-    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH });
+    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH, group: 2 });
   }
   const sellerProfile = await db.installment.findMany({
     where: { seller_id: Number(purchase.seller_id), installment_type: "seller" },
   });
   for (const post of sellerProfile.filter(aliveAndPublished).filter(profileOnly)) {
     if (await purchasePassesFilters(new InstallmentPost(post), record))
-      listed.push({ post, sortKey: post.published_at! });
+      listed.push({ post, sortKey: post.published_at!, group: 3 });
   }
 
-  // sort_by is not stable, so two posts with one key are in an order only Ruby knows.
+  // sort_by(...).reverse: Ruby's sort is not stable, so a tie is only known for two posts, which no algorithm swaps.
+  // Two rows of one scope tie in the order of that scope's SQL, which is not rebuilt here.
   const keys = listed.map((entry) => entry.sortKey.getTime());
-  if (new Set(keys).size !== keys.length) throw new HandBackToRails("posts that share a sort time");
-  listed.sort((a, b) => b.sortKey.getTime() - a.sortKey.getTime());
+  if (new Set(keys).size !== keys.length) {
+    if (listed.length > 2) throw new HandBackToRails("more than two posts, two of which share a sort time");
+    if (listed[0]!.group === listed[1]!.group)
+      throw new HandBackToRails("two posts of one scope that share a sort time");
+  }
+  listed.sort((a, b) => a.sortKey.getTime() - b.sortKey.getTime());
+  listed.reverse();
 
   const externalPurchaseId = encrypt(purchase.id);
   const result: unknown[] = [];
@@ -152,13 +158,12 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   return result;
 }
 
-// Installment#action_at_for_purchases: the last email info of the purchase, else the publish time.
+// Installment#action_at_for_purchases: the last email info of the purchase, else the publish time, else now.
 async function actionAt(post: Installment, purchaseId: bigint): Promise<string | null> {
   const [info] = (await emailInfos([purchaseId], [BigInt(post.id)]))
     .filter((row) => row.type === EMAIL_INFO_TYPE)
     .sort((a, b) => Number(b.id - a.id));
   if (info === undefined) return jsonTime(post.published_at);
   const at = info.sent_at ?? info.delivered_at ?? info.opened_at;
-  if (at === null) throw new HandBackToRails("an email info without a time");
-  return jsonTime(at);
+  return jsonTime(at ?? new Date());
 }

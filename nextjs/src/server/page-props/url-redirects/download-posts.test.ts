@@ -161,13 +161,16 @@ describe("downloadPosts", () => {
     expect(mocks.db.installment.findMany).not.toHaveBeenCalled();
   });
 
-  it("hands back a seller without a username, who has no subdomain to link to", async () => {
-    mocks.db.purchase.findMany.mockResolvedValueOnce([purchase()]);
+  it("links a seller without a username by the external id of the seller", async () => {
+    arrange({ infos: [info(1n, at(10))], posts: [post(1n)] });
 
-    await expect(downloadPosts(purchase(), product(), { ...seller, username: null } as User)).rejects.toBeInstanceOf(
-      HandBackToRails,
-    );
-    expect(mocks.db.installment.findMany).not.toHaveBeenCalled();
+    const [entry] = (await downloadPosts(purchase(), product(), {
+      ...seller,
+      username: null,
+      external_id: "ext123",
+    } as User)) as Record<string, unknown>[];
+
+    expect(String(entry!.view_url)).toMatch(/^https?:\/\/ext123\.[^/]+\/p\/post-1\?.*&username=ext123$/u);
   });
 
   it("hands back an address that bought the product twice", async () => {
@@ -183,18 +186,68 @@ describe("downloadPosts", () => {
     await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back posts that share a sort time, since Ruby's sort_by is unstable", async () => {
+  it("lists the posts of two scopes that share a sort time in the reverse of the order Rails builds them", async () => {
+    arrange({
+      infos: [info(1n, at(10))],
+      posts: [post(1n)],
+      profile: [post(2n, { flags: SHOWN_ON_PROFILE, published_at: at(10) })],
+    });
+
+    const result = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(result.map((entry) => entry.name)).toEqual(["Post 2", "Post 1"]);
+  });
+
+  it("hands back two posts of one scope that share a sort time, whose order is the scope's SQL", async () => {
     arrange({ infos: [info(1n, at(10)), info(2n, at(10))], posts: [post(1n), post(2n)] });
 
     await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back a post with several email infos and an email info without a time", async () => {
-    arrange({ infos: [info(1n, at(10)), info(1n, at(11), { id: 99n })], posts: [post(1n)] });
-    await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
+  it("hands back a tie among more than two posts, since Ruby's sort_by is unstable", async () => {
+    arrange({
+      infos: [info(1n, at(10))],
+      posts: [post(1n)],
+      profile: [post(2n, { flags: SHOWN_ON_PROFILE, published_at: at(10) })],
+      sellerProfile: [post(4n, { installment_type: "seller", flags: SHOWN_ON_PROFILE, published_at: at(20) })],
+    });
 
-    vi.resetAllMocks();
-    arrange({ infos: [info(1n, null)], posts: [post(1n)] });
+    await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("lists a post once for each of its email infos", async () => {
+    arrange({
+      infos: [info(1n, at(10)), info(1n, at(20), { id: 99n }), info(2n, at(15))],
+      posts: [post(1n), post(2n)],
+    });
+
+    const result = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(result.map((entry) => entry.name)).toEqual(["Post 1", "Post 2", "Post 1"]);
+  });
+
+  it("sorts an email info without a time before every other post and stamps the post with the current time", async () => {
+    vi.useFakeTimers({ now: at(25) });
+    try {
+      arrange({ infos: [info(1n, null), info(2n, at(10))], posts: [post(1n), post(2n)] });
+
+      const result = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+      expect(result.map((entry) => [entry.name, entry.action_at])).toEqual([
+        ["Post 2", "2026-01-10T12:00:00Z"],
+        ["Post 1", "2026-01-25T12:00:00Z"],
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hands back a seller post with several email infos", async () => {
+    arrange({
+      infos: [info(4n, at(10)), info(4n, at(11), { id: 99n })],
+      sellerPosts: [post(4n, { installment_type: "seller", link_id: null })],
+    });
+
     await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

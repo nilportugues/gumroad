@@ -400,6 +400,76 @@ describe "Url redirect download page content", type: :request do
       expect(response).to be_successful
     end
 
+    it "lists a post whose email info has no time last", parity: true do
+      untimed = post_for("Untimed")
+      sent_to(untimed).update_columns(sent_at: nil, delivered_at: nil, opened_at: nil)
+      sent_to(post_for("Timed"), sent_at: 4.days.ago)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      posts = inertia_props_of(response).dig("content", "posts")
+      expect(posts.map { |entry| entry["name"] }).to eq(["Timed", "Untimed"])
+      expect(Time.zone.parse(posts.last["action_at"])).to be_within(1.minute).of(Time.current)
+    end
+
+    it "lists a post once for each email info of the purchase", parity: true do
+      repeated = post_for("Repeated")
+      sent_to(repeated, sent_at: 5.days.ago)
+      sent_to(repeated, sent_at: 3.days.ago)
+      sent_to(post_for("Between"), sent_at: 4.days.ago)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Repeated", "Between", "Repeated"])
+    end
+
+    it "lists two posts that share a sort time", parity: true do
+      shared = 3.days.ago.change(usec: 0)
+      sent_to(post_for("Emailed"), sent_at: shared)
+      post_for("Profile", send_emails: false, shown_on_profile: true, published_at: shared)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Profile", "Emailed"])
+    end
+
+    it "lists the posts of a seller without a username", parity: true do
+      seller.update_columns(username: nil)
+      sent_to(post_for("Update"))
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Update"])
+    end
+
+    it "hands three posts that share a sort time to Rails", parity: true do
+      shared = 3.days.ago.change(usec: 0)
+      sent_to(post_for("Emailed"), sent_at: shared)
+      post_for("Profile", send_emails: false, shown_on_profile: true, published_at: shared)
+      post_for("Other profile", send_emails: false, shown_on_profile: true, published_at: shared)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
+    it "hands a seller post with several email infos to Rails", parity: true do
+      news = create(:seller_installment, seller:, installment_type: "seller", name: "Seller news", published_at: 6.days.ago)
+      sent_to(news, sent_at: 6.days.ago)
+      sent_to(news, sent_at: 5.days.ago)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
     it "hands a seller with a custom domain to Rails", parity: true do
       create(:custom_domain, :verified_with_certificate, user: seller, domain: "content.example.com")
       post_for("Update").tap { |update| sent_to(update) }
