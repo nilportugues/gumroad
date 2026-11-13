@@ -184,8 +184,22 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response.parsed_body).to include("success" => true)
   end
 
-  it "hands a free product back to Rails", parity: true do
+  it "creates a free product", parity: true, parity_timeline: true do
     create_product({ name: "Notebook", price: 0 })
+
+    expect(response.parsed_body).to include("success" => true)
+    expect(created.customizable_price).to be true
+  end
+
+  it "creates a free product from a price given as text", parity: true do
+    create_product({ name: "Notebook", price: "0" })
+
+    expect(response.parsed_body).to include("success" => true)
+    expect(created.customizable_price).to be true
+  end
+
+  it "creates a free draft", parity: true do
+    create_product({ name: "Notebook", price: 0, draft: true })
 
     expect(response.parsed_body).to include("success" => true)
     expect(created.customizable_price).to be true
@@ -209,16 +223,108 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.custom_permalink).to eq("notebook")
   end
 
-  it "hands a purchase limit back to Rails", parity: true do
+  it "creates a product with a purchase limit", parity: true, parity_timeline: true do
     create_product({ name: "Notebook", price: 500, max_purchase_count: 5 })
 
     expect(created.max_purchase_count).to eq(5)
   end
 
-  it "hands a pay-what-you-want price back to Rails", parity: true do
+  it "creates a product with a purchase limit given as text", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: "7" })
+
+    expect(created.max_purchase_count).to eq(7)
+  end
+
+  it "creates a draft with a null purchase limit", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: nil, draft: true })
+
+    expect(created.max_purchase_count).to be_nil
+  end
+
+  it "clamps a negative purchase limit to zero", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: -3, draft: true })
+
+    expect(created.max_purchase_count).to eq(0)
+  end
+
+  it "clamps a purchase limit above ten million", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: 20_000_000, draft: true })
+
+    expect(created.max_purchase_count).to eq(10_000_000)
+  end
+
+  it "truncates a purchase limit given with a fraction", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: "5.5", draft: true })
+
+    expect(created.max_purchase_count).to eq(5)
+  end
+
+  it "reads a purchase limit of text without digits as zero", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: "abc", draft: true })
+
+    expect(created.max_purchase_count).to eq(0)
+  end
+
+  it "hands a purchase limit given as a boolean back to Rails", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: false })
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "hands a purchase limit past the integer range back to Rails", parity: true do
+    create_product({ name: "Notebook", price: 500, max_purchase_count: 3_000_000_000 })
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "creates a pay-what-you-want product with a suggested price", parity: true, parity_timeline: true do
     create_product({ name: "Notebook", price: 500, customizable_price: true, suggested_price_cents: 800 })
 
     expect(created.customizable_price).to be true
+    expect(created.suggested_price_cents).to eq(800)
+  end
+
+  it "creates a draft with a suggested price given as text", parity: true do
+    create_product({ name: "Notebook", price: 500, customizable_price: true, suggested_price_cents: "600", draft: true })
+
+    expect(created.suggested_price_cents).to eq(600)
+  end
+
+  it "keeps a suggested price below the price when the price is not customizable", parity: true do
+    create_product({ name: "Notebook", price: 500, suggested_price_cents: 100, draft: true })
+
+    expect(created.suggested_price_cents).to eq(100)
+    expect(created.customizable_price).to be_falsey
+  end
+
+  it "refuses a suggested price below the price of a customizable product", parity: true do
+    create_product({ name: "Notebook", price: 500, customizable_price: true, suggested_price_cents: 100 })
+
+    expect(message).to eq("The suggested price you entered was too low.")
+  end
+
+  it "makes a free product customizable even when the request says it is not", parity: true do
+    create_product({ name: "Notebook", price: 0, customizable_price: false, draft: true })
+
+    expect(created.customizable_price).to be true
+  end
+
+  it "creates a draft whose customizable price is switched off", parity: true do
+    create_product({ name: "Notebook", price: 500, customizable_price: false, draft: true })
+
+    expect(created.customizable_price).to be false
+  end
+
+  it "hands a customizable price given as text back to Rails", parity: true do
+    create_product({ name: "Notebook", price: 500, customizable_price: "true" })
+
+    expect(response).to have_http_status(:ok)
+  end
+
+  it "truncates a suggested price given with cents", parity: true do
+    create_product({ name: "Notebook", price: 500, customizable_price: true, suggested_price_cents: "850.5", draft: true })
+
+    expect(created.suggested_price_cents).to eq(850)
   end
 
   it "hands a refund policy back to Rails", parity: true do

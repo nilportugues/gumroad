@@ -14,17 +14,17 @@ import { existingS3KeyVariant, s3ObjectExists } from "../../infra/signed-urls.ts
 import { storageConfig } from "../../infra/storage.ts";
 import { setJsonDataForAttr } from "../../models/concerns/json-data.ts";
 import { nokogiriRoundtrip } from "../../models/html-fragment.ts";
-import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
-import { findLinkBang, LinkFlags, Links } from "../../models/link.ts";
-import { assertPlainPublish, publishBang } from "../../models/link-publish.ts";
 import { createApiLink, type CreateSeller } from "../../models/link-create.ts";
-import { UserFlags } from "../../models/user.ts";
+import LINK_DATA from "../../models/link-data.generated.json" with { type: "json" };
+import { assertPlainPublish, publishBang } from "../../models/link-publish.ts";
+import { findLinkBang, LinkFlags, Links } from "../../models/link.ts";
 import { MAX_PRICE_CENTS, planBuyPriceWrite, PRICE_TOO_LARGE, writeBuyPrice } from "../../models/price-writes.ts";
 import { saveFilesForNewProduct, type NewFileParams } from "../../models/product-file-save.ts";
 import { planTagChanges, saveTags } from "../../models/product-tags.ts";
 import { RecordInvalid } from "../../models/runtime/errors.ts";
 import { transaction } from "../../models/runtime/transaction.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
+import { UserFlags } from "../../models/user.ts";
 import { HandBackToRails, type Rendered } from "../application-controller.ts";
 import type { Params } from "../rails-body.ts";
 
@@ -298,15 +298,7 @@ async function create(input: ApiV2Input) {
 }
 
 // The params #create reads that the served shape does not write: each goes to Rails whole, before the first statement.
-const UNSERVED_CREATE_KEYS = [
-  "custom_permalink",
-  "max_purchase_count",
-  "customizable_price",
-  "suggested_price_cents",
-  "refund_period",
-  "refund_fine_print",
-  "rich_content",
-];
+const UNSERVED_CREATE_KEYS = ["custom_permalink", "refund_period", "refund_fine_print", "rich_content"];
 
 // ActiveModel::Type::Boolean#cast: nil for nil and "", false for the FALSE_VALUES, true for everything else.
 function castBoolean(value: unknown): boolean | null {
@@ -362,7 +354,9 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   const { params, owner, request } = input;
   if (nativeType !== NATIVE_TYPE_DIGITAL) throw new HandBackToRails(`the creation of a ${nativeType} product`);
   if (UNSERVED_CREATE_KEYS.some((key) => has(params, key)))
-    throw new HandBackToRails("a creation with attributes beyond name, description, price, taxonomy, tags and summary");
+    throw new HandBackToRails(
+      "a creation with attributes beyond name, description, price, limits, taxonomy, tags and summary",
+    );
   if (/^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? ""))
     throw new HandBackToRails("a command line tool");
   if (currency !== "usd") throw new HandBackToRails("a product priced in a currency other than USD");
@@ -371,9 +365,9 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   let priceCents: number | null = null;
   if (has(params, "price")) {
     const price = params.price;
-    if (typeof price === "number" && Number.isSafeInteger(price) && price > 0) priceCents = price;
-    else if (typeof price === "string" && /^[1-9]\d{0,15}$/u.test(price)) priceCents = Number(price);
-    else throw new HandBackToRails("a price that is not a positive whole number of cents");
+    if (typeof price === "number" && Number.isSafeInteger(price) && price >= 0) priceCents = price;
+    else if (typeof price === "string" && /^(?:0|[1-9]\d{0,15})$/u.test(price)) priceCents = Number(price);
+    else throw new HandBackToRails("a price that is not a whole number of cents");
     // `price_cents=` raises LinkInvalid ahead of the first save.
     if (priceCents > MAX_PRICE_CENTS) return errorWithCreatingObject("product", { errors: [PRICE_TOO_LARGE] });
   }
@@ -400,6 +394,15 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     const value = params.taxonomy_id;
     taxonomyId = typeof value === "string" ? rubyToI(value) : BigInt(value as number);
   }
+  const maxPurchaseCount = has(params, "max_purchase_count")
+    ? integerParam("max_purchase_count", params.max_purchase_count)
+    : undefined;
+  const suggestedPriceCents = has(params, "suggested_price_cents")
+    ? integerParam("suggested_price_cents", params.suggested_price_cents)
+    : undefined;
+  const customizablePrice = has(params, "customizable_price")
+    ? customizablePriceParam(params.customizable_price)
+    : undefined;
   const tagWork = has(params, "tags") ? await planTagChanges(0n, params.tags as string[]) : undefined;
   const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
 
@@ -432,6 +435,9 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
       currency,
       taxonomyId,
       customSummary,
+      maxPurchaseCount,
+      customizablePrice,
+      suggestedPriceCents,
     });
     if (!outcome.created) return;
     const id = outcome.link.get("id");
@@ -535,16 +541,27 @@ const UPDATE_FLAG_PARAMS = [
 const INT_RANGE = 2_147_483_647;
 const MAX_CUSTOM_RECEIPT_LENGTH = 10_000;
 
-// An integer attribute from a parameter: a JSON integer, a text of digits (with an optional sign) or nothing (null, ""). Anything else casts in ways
-// ActiveModel and String#to_i differ on, and goes to Rails.
+// An integer attribute from a parameter, as ActiveModel::Type::Integer casts it: nil for null and for blank text, `to_i` for other text
+// (leading digits, "_" between digits, 0 when there are none) and for a float (truncated). What the cast reads differently from here
+// (true and false, non-ASCII text, a value outside the column's range, which raises RangeError) goes to Rails.
 function integerParam(key: string, value: unknown): number | null {
-  if (value === null || value === "") return null;
+  if (value === null) return null;
   let cast: number;
-  if (typeof value === "number" && Number.isSafeInteger(value)) cast = value;
-  else if (typeof value === "string" && /^-?\d{1,10}$/u.test(value)) cast = Number(value);
-  else throw new HandBackToRails(`a ${key} that is not a whole number`);
-  if (Math.abs(cast) > INT_RANGE) throw new HandBackToRails(`a ${key} outside the integer range`);
+  if (typeof value === "number" && Number.isFinite(value)) cast = Math.trunc(value) + 0;
+  else if (typeof value === "string" && /^\p{ASCII}*$/u.test(value)) {
+    if (/^[ \t\n\v\f\r]*$/u.test(value)) return null;
+    const match = /^[ \t\n\v\f\r]*([-+]?\d+(?:_\d+)*)/u.exec(value);
+    cast = match ? Number(match[1]!.replaceAll("_", "")) : 0;
+  } else cast = Number.NaN;
+  if (!Number.isSafeInteger(cast) || Math.abs(cast) > INT_RANGE)
+    throw new HandBackToRails(`a ${key} that is not a number or text, or is outside the integer range`);
   return cast;
+}
+
+// FlagShihTzu's TRUE_VALUES and ActiveModel's boolean cast differ on everything but a JSON boolean.
+function customizablePriceParam(value: unknown): boolean {
+  if (typeof value !== "boolean") throw new HandBackToRails("a customizable_price that is not true or false");
+  return value;
 }
 
 // Link#published?
@@ -583,9 +600,7 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
 
   const columns: Partial<Link> = {};
   if (has(params, "customizable_price")) {
-    if (typeof params.customizable_price !== "boolean")
-      throw new HandBackToRails("a customizable_price that is not true or false");
-    columns.customizable_price = params.customizable_price;
+    columns.customizable_price = customizablePriceParam(params.customizable_price);
   }
   if (has(params, "suggested_price_cents"))
     columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents);
