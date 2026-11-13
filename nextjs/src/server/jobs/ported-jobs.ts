@@ -248,4 +248,8 @@ export const PORTED_JOBS: readonly string[] = [
   "RequeueTransientlyFailedPayoutsJob",
   "ReconcilePendingPaypalRefundsJob",
   "SendWorkflowEmailsToPastCanceledMembersJob",
+  "AnnualPayoutExportWorker",
+  "Exports::Sales::CompileChunksWorker",
+  "Exports::Sales::ProcessChunkWorker",
+  "ReissueSslCertificateForUpdatedCustomDomains",
 ];

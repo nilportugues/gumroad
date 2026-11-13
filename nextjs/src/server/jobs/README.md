@@ -293,3 +293,17 @@ guard), renders `CustomerMailer#receipt` with the Node port, sends over SMTP and
 `PublishScheduledPostJob` no longer hands back a post without a slug: `Installment` generates it (friendly_id) before the save. The post still hands back for files, a call to
 action, markup the sanitizer would judge, a "has not clicked" audience and a content-moderation review. `SaveInstallmentService` enqueues `PublishScheduledPostJob`
 (`perform_at`), `SendPostBlastEmailsJob` and the `ElasticsearchIndexerWorker` index/update jobs; see `models/README.md` (WS-82).
+
+## Ported small jobs that hand back whole (ws-jobs-small-1)
+
+`annual-payout-export-worker.ts`, `exports-sales-chunk-workers.ts` (`Exports::Sales::CompileChunksWorker` and
+`ProcessChunkWorker`) and `reissue-ssl-certificate-for-updated-custom-domains.ts` run only the reads that open the Ruby job and hand
+the whole job back before its first write: the user, the export or the chunk and its export, or the scan of alive custom domains with a
+certificate (an empty scan finishes in Node). What follows is S3, a mail with an attachment, DNS or the ACME order, or sits inside
+`WithMaxExecutionTime.timeout_queries` (a session `set max_execution_time` a pooled Node connection cannot hold). Goldens come from
+`scripts/golden/` run in a Ruby container; the replay accepts a hand-back after a prefix of Rails' statements, so
+`exports-sales-chunk-workers.test.ts` also pins the chunk worker to both of its reads.
+
+Left in Ruby: `PdfUnstampableNotifierWorker` is a constant alias of the already ported `PdfUnstampableNotifierJob` (the registry lists
+it as Ruby only because the file stays for items queued under the old name); `AnnualTaxSummaryExportWorker` has no branch short of the
+full user scan, the S3 upload and the mail; `ProcessPurchaseEarlyFraudWarningJob` is money-adjacent.

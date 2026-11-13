@@ -5,6 +5,9 @@ import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-mana
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
 import { backfillMembershipRenewalRemindersJob } from "./backfill-membership-renewal-reminders-job.ts";
+import { annualPayoutExportWorker } from "./annual-payout-export-worker.ts";
+import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
+import { reissueSslCertificateForUpdatedCustomDomains } from "./reissue-ssl-certificate-for-updated-custom-domains.ts";
 import { unstickStuckInProgressPurchasesJob } from "./unstick-stuck-in-progress-purchases-job.ts";
 import {
   generateFinancialReportsForPreviousMonthJob,
@@ -555,6 +558,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CustomDomainVerificationWorker: customDomainVerificationWorker,
   "Exports::AffiliateExportWorker": affiliateExportWorker,
   "Exports::AudienceExportWorker": audienceExportWorker,
+  "Exports::Sales::CompileChunksWorker": compileChunksWorker,
+  "Exports::Sales::ProcessChunkWorker": processChunkWorker,
+  AnnualPayoutExportWorker: annualPayoutExportWorker,
+  ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
   BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
   UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,
   GenerateMerchantCenterFeedWorker: generateMerchantCenterFeedWorker,
