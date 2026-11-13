@@ -30,7 +30,7 @@ export default defineConfig({
     {
       name: "chromium",
       testDir: "./e2e/specs",
-      testIgnore: /(base-url-guard\.spec|preflight\.setup)/u,
+      testIgnore: /(base-url-guard\.spec|preflight\.setup|mobile-buyer\.spec)/u,
       dependencies: ["preflight"],
       use: { ...devices["Desktop Chrome"] },
     },

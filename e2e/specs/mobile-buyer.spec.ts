@@ -2,7 +2,7 @@ import { buyFreeProduct } from "../support/buyer";
 import { SEED, uniqueEmail } from "../support/env";
 import { expect, test } from "../support/fixtures";
 
-// Runs in the `mobile` project (Pixel 7); also valid on desktop. Headings and the page title move on a phone, so
+// Runs only in the `mobile` project (Pixel 7). Headings and the page title move on a phone, so
 // these assertions stick to text that stays in the page at every width.
 test.describe("buyer flow on a phone", () => {
   test("the viewport is phone-sized", async ({ page }) => {
