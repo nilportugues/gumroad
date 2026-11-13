@@ -14,7 +14,12 @@ vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
 }));
 vi.mock("./products-mutations.ts", () => ({ find: mocks.find }));
-vi.mock("../models/sql.ts", () => ({ selectRows: mocks.selectRows, column: () => "", table: () => "", quoteName: (name: string) => name }));
+vi.mock("../models/sql.ts", () => ({
+  selectRows: mocks.selectRows,
+  column: () => "",
+  table: () => "",
+  quoteName: (name: string) => name,
+}));
 vi.mock("../policies/authorize.ts", () => ({ authorize: () => undefined }));
 vi.mock("../policies/link.ts", () => ({ linkPolicy: { create: () => true } }));
 vi.mock("./seller-json.ts", () => ({

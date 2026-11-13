@@ -20,7 +20,12 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
   encrypt: () => "ext",
 }));
 vi.mock("../models/link.ts", () => ({ LinkFlags: { isSet: mocks.isSet } }));
-vi.mock("../models/sql.ts", () => ({ selectRows: mocks.selectRows, column: () => "", table: () => "", quoteName: (name: string) => name }));
+vi.mock("../models/sql.ts", () => ({
+  selectRows: mocks.selectRows,
+  column: () => "",
+  table: () => "",
+  quoteName: (name: string) => name,
+}));
 vi.mock("../auth/resolve.ts", () => ({ railsLoggedInUser: mocks.loggedIn }));
 vi.mock("./rails-params.ts", () => ({ requestFormat: mocks.format }));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
