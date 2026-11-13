@@ -77,7 +77,7 @@ const EPICS: Epic[] = [
     title: "Paid checkout (card purchase, order, charge)",
     files:
       /orders|purchase-(create|success|fees|response|license)|charge-|order-|free-order|checkout|customer-surcharge|purchase-sales-tax|stripe\/(payment|charge|setup)/u,
-    fallback: /purchase-pricing|merge-carts|models\/(charge|order|credit)\.ts|cart-items/u,
+    fallback: /purchase-pricing|merge-carts|models\/(charge|order|credit)\.ts|cart-items|stripe-(payment-intent|chargeable)/u,
     state: "in progress (WS-20; free orders done, paid shape recorded, post-charge half being ported)",
     blocker:
       "Rails order recorded for one happy path only; ambiguous outcomes (timeout after intent create, 3DS, late client confirmation) have no recording, and a Node failure between intent create and purchase update would leave a charged card.",
@@ -120,6 +120,7 @@ const EPICS: Epic[] = [
     id: "E05",
     title: "PayPal, Braintree and processor webhooks",
     files: /paypal|braintree|foreign-webhooks|webhook/u,
+    fallback: /stripe-event-values/u,
     state:
       "started (HandleStripeEventWorker runs in Node for the deauthorization, capability.updated, standard account.updated, the charge, refund, payment_intent, capital and radar events that end before the ledger or a Stripe call, the seller plan subscription events and the events no branch routes; webhook receivers done; the ledger and Stripe-calling events, PayPal handlers and Braintree hand back)",
     blocker: "No recordings of PayPal/Braintree request sequences; their routes are not registered.",
@@ -244,7 +245,7 @@ const EPICS: Epic[] = [
     title: "Purchase management (customers, receipts JSON, license JSON)",
     files: /purchase-json|license-purchase|purchases-controller|purchases-|customer-actions|library|invoice/u,
     fallback:
-      /purchase-custom-field|purchase-product-updates|models\/purchase\.ts|purchase-access-writes|customer-details|shipment|buyer\/products/u,
+      /purchase-custom-field|purchase-product-updates|models\/purchase\.ts|purchase-access-writes|customer-details|shipment|buyer\/products|purchase-(contact-writes|integrations|product)|sale-details/u,
     state:
       "partial (revoke access, search, export done; refund, update, resend receipt, confirm and charge actions hand back)",
     blocker: "Refund and charge paths (E01, E03).",
@@ -269,7 +270,7 @@ const EPICS: Epic[] = [
     files:
       /internal|product-editor|editor|seller-products|product-props|links-mutations|bundle|secure-redirect|listing|presenters\//u,
     fallback:
-      /links?-(create|controller|metrics)|models\/link\.ts|products-mutations|rich-content-writes|upsell|product-tags|thumbnails|call-availab|models\/call\.ts/u,
+      /links?-(create|controller|metrics)|models\/link\.ts|products-mutations|rich-content-writes|upsell|product-tags|thumbnails?|call-availab|models\/call\.ts|products-publish-schedules/u,
     state: "partial (editor JSON and mutations mostly done; sections, files and rich content shapes hand back)",
     blocker: "ProductFile creation (E08), rich content writes.",
     scope: "Product editor mutations, bundle edits, internal admin endpoints, listing pages and presenters.",

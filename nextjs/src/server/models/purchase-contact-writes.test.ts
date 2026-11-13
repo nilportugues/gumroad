@@ -65,9 +65,16 @@ describe("castBoolean", () => {
     for (const value of [true, 1, "1", "true", "on", "no", "False", " false"]) expect(castBoolean(value)).toBe(true);
   });
 
-  it("hands a blank value and a non-scalar back to Rails", () => {
-    for (const value of [null, undefined, "", [], {}, ["false"]])
-      expect(() => castBoolean(value)).toThrow(HandBackToRails);
+  it("casts a blank value to null, which Rails stores as NULL", () => {
+    for (const value of [null, undefined, ""]) expect(castBoolean(value)).toBeNull();
+  });
+
+  it("reads a list or an object as true, since neither is a false value", () => {
+    for (const value of [[], {}, ["false"], { value: "off" }]) expect(castBoolean(value)).toBe(true);
+  });
+
+  it("hands a value that JSON cannot carry back to Rails", () => {
+    expect(() => castBoolean(10n)).toThrow(HandBackToRails);
   });
 });
 
@@ -76,6 +83,14 @@ describe("changeCanContact", () => {
     expect(await changeCanContact(freePurchase(), "false")).toBe("changed");
     expect(update).toHaveBeenCalledOnce();
     expect(update.mock.calls[0]![1]).toEqual({ can_contact: false });
+  });
+
+  it("stores NULL for a blank value and writes nothing when it is already NULL", async () => {
+    expect(await changeCanContact(freePurchase(), undefined)).toBe("changed");
+    expect(update.mock.calls[0]![1]).toEqual({ can_contact: null });
+    update.mockClear();
+    expect(await changeCanContact(freePurchase({ can_contact: null }), "")).toBe("unchanged");
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("writes nothing when the value is the stored one", async () => {

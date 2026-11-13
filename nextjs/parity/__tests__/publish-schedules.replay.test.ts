@@ -89,11 +89,32 @@ function expectedLabel(localTime: string, recordedLabel: string): string {
   return `${MONTHS[month! - 1]} ${day}, ${year} at ${hour! % 12 === 0 ? 12 : hour! % 12}:${String(minute).padStart(2, "0")} ${hour! < 12 ? "AM" : "PM"} ${abbreviation}`;
 }
 
+// A fixed `local_time` with a `parity_zone`: the label is compared as recorded, and the stored instant must be that wall-clock time in
+// the zone (the recording's `<now+Nh>` moves with the replay's clock, so it is ignored in favor of this check).
+function checkFixedTime(
+  sent: Record<string, unknown>,
+  actual: { response: { json?: unknown }; db: Record<string, unknown> },
+) {
+  const local = String(sent.local_time);
+  const zone = String(sent.parity_zone);
+  const [year, month, day, hour, minute] = local.split(/[-T:]/u).map(Number) as number[];
+  const wall = Date.UTC(year!, month! - 1, day, hour, minute);
+  const offsets = Array.from({ length: 113 }, (_, index) => (index - 56) * 15);
+  const instants = offsets.map((offset) => wall - offset * 60_000).filter((at) => wallClock(new Date(at), zone) === local);
+  expect(instants).toHaveLength(1);
+  const inserted = (actual.db.product_publish_schedules as { inserted: { publish_at: string }[] }).inserted[0]!.publish_at;
+  const hours = /^<now\+(\d+)h>$/u.exec(inserted)?.[1];
+  expect(hours).toBeDefined();
+  const expected = (instants[0]! - Date.now()) / 3_600_000;
+  expect(Math.abs(Number(hours) - expected)).toBeLessThanOrEqual(1);
+}
+
 function checkScheduledTime(
   exchange: { request: { body?: string }; response: { json?: unknown } },
   actual: { response: { json?: unknown }; db: Record<string, unknown> },
 ) {
   const sent = JSON.parse(exchange.request.body ?? "{}") as Record<string, unknown>;
+  if (sent.parity_hours_ahead === undefined && typeof sent.parity_zone === "string") return checkFixedTime(sent, actual);
   if (sent.parity_hours_ahead === undefined) return;
   const recorded = (exchange.response.json as { publish_schedule?: { label: string } } | undefined)?.publish_schedule;
   if (recorded === undefined) return;
@@ -184,8 +205,11 @@ describe.skipIf(!url)("Product publish schedules", () => {
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
       ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
     // The label and `publish_at` follow the replay's clock; `checkScheduledTime` judges them against the request instead.
-    if (readFileSync(file, "utf8").includes("parity_hours_ahead"))
-      ignore.push("response.json.publish_schedule.label", "db.product_publish_schedules.inserted.*.publish_at");
+    // A fixed time keeps its recorded label; only its stored instant moves with the clock.
+    const recorded = readFileSync(file, "utf8");
+    if (recorded.includes("parity_hours_ahead")) ignore.push("response.json.publish_schedule.label");
+    if (recorded.includes("parity_hours_ahead") || recorded.includes("parity_zone"))
+      ignore.push("db.product_publish_schedules.inserted.*.publish_at");
     return replayOptionsFor({ ignore });
   };
 

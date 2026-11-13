@@ -24,13 +24,15 @@ export type SkuRow = {
 
 // Purchase#variant_details_hash and the sku_id keys of a purchase whose only variant is a SKU.
 export async function skuDetails(sku: SkuRow) {
-  if ((sku.flags & BASE_VARIANT_IS_DEFAULT_SKU) !== 0) throw new NotPortedError("a default SKU", RUBY_REF);
-  // Link#sku_title joins the alive categories in an order only MySQL knows, so a second one is Rails'.
+  // A default SKU prints like any other (recorded with no custom SKU); a custom SKU on one is not recorded.
+  if ((sku.flags & BASE_VARIANT_IS_DEFAULT_SKU) !== 0 && !blank(sku.custom_sku))
+    throw new NotPortedError("a default SKU with a custom SKU", RUBY_REF);
+  // Link#sku_title joins `variant_categories_alive` (no ORDER BY) with " - "; InnoDB reads a `link_id` index in primary key order
+  // (recorded for "Size - Color" created in that order).
   const categories = await selectRows<{ title: string | null }>(
-    Prisma.sql`SELECT ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${sku.link_id} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 2`,
+    Prisma.sql`SELECT ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${sku.link_id} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC`,
   );
-  if (categories.length > 1) throw new NotPortedError("a SKU of a product with several categories", RUBY_REF);
-  const title = categories.length === 0 ? "Version" : categories[0]!.title;
+  const title = categories.length === 0 ? "Version" : categories.map((category) => category.title ?? "").join(" - ");
   const externalId = encrypt(BigInt(sku.id));
   return {
     variants: { [title ?? ""]: { is_sku: true, title, selected_variant: { id: externalId, name: sku.name } } },

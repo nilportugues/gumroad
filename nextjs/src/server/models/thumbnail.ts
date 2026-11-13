@@ -10,7 +10,9 @@ import { defineModel, type Callback } from "./runtime/define-model.ts";
 import { isBlank } from "./runtime/validators.ts";
 import { NotPortedError } from "./user.ts";
 
-// `validate :validate_file` checks an alive thumbnail that has no unsplash_url.
+// `validate :validate_file` checks an alive thumbnail that has no unsplash_url. Deliberate hand-back: the soft delete
+// sets `deleted_at` first and never reaches it; any other save of an uploaded thumbnail would need the attachment's content type,
+// size and dimensions, which no recording reads.
 const validateFile: Callback<Thumbnail> = {
   name: "validate_file",
   run(record) {
