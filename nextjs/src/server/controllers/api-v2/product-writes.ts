@@ -400,9 +400,9 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   const suggestedPriceCents = has(params, "suggested_price_cents")
     ? integerParam("suggested_price_cents", params.suggested_price_cents)
     : undefined;
-  if (has(params, "customizable_price") && typeof params.customizable_price !== "boolean")
-    throw new HandBackToRails("a customizable_price that is not true or false");
-  const customizablePrice = has(params, "customizable_price") ? (params.customizable_price as boolean) : undefined;
+  const customizablePrice = has(params, "customizable_price")
+    ? customizablePriceParam(params.customizable_price)
+    : undefined;
   const tagWork = has(params, "tags") ? await planTagChanges(0n, params.tags as string[]) : undefined;
   const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
 
@@ -552,10 +552,16 @@ function integerParam(key: string, value: unknown): number | null {
     if (/^[ \t\n\v\f\r]*$/u.test(value)) return null;
     const match = /^[ \t\n\v\f\r]*([-+]?\d+(?:_\d+)*)/u.exec(value);
     cast = match ? Number(match[1]!.replaceAll("_", "")) : 0;
-  } else throw new HandBackToRails(`a ${key} that is not a number or text`);
+  } else cast = Number.NaN;
   if (!Number.isSafeInteger(cast) || Math.abs(cast) > INT_RANGE)
-    throw new HandBackToRails(`a ${key} outside the integer range`);
+    throw new HandBackToRails(`a ${key} that is not a number or text, or is outside the integer range`);
   return cast;
+}
+
+// FlagShihTzu's TRUE_VALUES and ActiveModel's boolean cast differ on everything but a JSON boolean.
+function customizablePriceParam(value: unknown): boolean {
+  if (typeof value !== "boolean") throw new HandBackToRails("a customizable_price that is not true or false");
+  return value;
 }
 
 // Link#published?
@@ -594,9 +600,7 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
 
   const columns: Partial<Link> = {};
   if (has(params, "customizable_price")) {
-    if (typeof params.customizable_price !== "boolean")
-      throw new HandBackToRails("a customizable_price that is not true or false");
-    columns.customizable_price = params.customizable_price;
+    columns.customizable_price = customizablePriceParam(params.customizable_price);
   }
   if (has(params, "suggested_price_cents"))
     columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents);
