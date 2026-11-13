@@ -227,6 +227,18 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       expect(response.parsed_body["sale"]["affiliate"]).to eq("email" => "new-affiliate@example.com", "amount" => "$2")
     end
 
+    it "hands back a sale with a collaborator and a direct affiliate to Rails", parity: true do
+      collaborator = create(:collaborator, seller:, affiliate_user: create(:user), products: [product])
+      direct = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
+
+      referred = sold(product, affiliate: collaborator)
+      referred.update_columns(affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => direct.id })
+
+      show(referred)
+
+      expect(response).to have_http_status(:ok)
+    end
+
     it "prints a sale of a SKU", parity: true do
       sku = create(:sku, link: physical, name: "Large", price_difference_cents: 250)
       purchase = sold(physical)

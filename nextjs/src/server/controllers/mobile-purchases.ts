@@ -14,6 +14,7 @@ import { NOT_RECURRING_CHARGE, purchaseFlag, states } from "../models/offer-code
 import { canPingSales } from "../models/ping-notification.ts";
 import { type LibraryFlag, loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
+import { affiliateDetails, shipmentDetails, skuDetails } from "../models/sale-details.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
 import { buildCharges, buildCustomerEmails, findSellerSale } from "../page-props/customers/customer-details.ts";
@@ -538,45 +539,49 @@ function failNotPorted(what: string): never {
   throw new NotPortedError(what);
 }
 
-// Purchase#variant_details_hash for a purchase with one variant of a category; a SKU, several variants and a missing category are Rails'.
-async function saleVariants(purchase: Purchase): Promise<Record<string, unknown> | null> {
+// Purchase#variant_details_hash for a purchase with one variant of a category or one SKU; several variants and a missing category are Rails'.
+async function saleVariants(purchase: Purchase) {
   const variants = await selectRows<{
     id: bigint;
     type: string | null;
     name: string | null;
     variant_category_id: bigint | null;
+    custom_sku: string | null;
+    flags: number;
+    link_id: number | null;
   }>(
-    Prisma.sql`SELECT ${column("base_variants", "id")}, ${column("base_variants", "type")}, ${column("base_variants", "name")}, ${column("base_variants", "variant_category_id")} FROM ${table("base_variants")} INNER JOIN ${table("base_variants_purchases")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id}`,
+    Prisma.sql`SELECT ${column("base_variants", "id")}, ${column("base_variants", "type")}, ${column("base_variants", "name")}, ${column("base_variants", "variant_category_id")}, ${column("base_variants", "custom_sku")}, ${column("base_variants", "flags")}, ${column("base_variants", "link_id")} FROM ${table("base_variants")} INNER JOIN ${table("base_variants_purchases")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id}`,
   );
-  if (variants.length === 0) return null;
+  if (variants.length === 0) return { variants: null, sku: null };
   const [variant] = variants;
   if (variants.length > 1) failNotPorted("a sale with several variants");
+  if (variant!.type === "Sku") return skuDetails({ ...variant!, id: Number(variant!.id) });
   if (variant!.type !== "Variant" || variant!.variant_category_id === null)
-    failNotPorted("a sale of a SKU or a variant without a category");
+    failNotPorted("a variant without a category");
   const [category] = await selectRows<{ title: string | null }>(
     Prisma.sql`SELECT ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} = ${variant!.variant_category_id} LIMIT 1`,
   );
   if (category === undefined) failNotPorted("a variant whose category row is missing");
   return {
-    [encrypt(BigInt(variant!.variant_category_id))]: {
-      title: category.title,
-      selected_variant: { id: encrypt(BigInt(variant!.id)), name: variant!.name },
+    variants: {
+      [encrypt(BigInt(variant!.variant_category_id))]: {
+        title: category.title,
+        selected_variant: { id: encrypt(BigInt(variant!.id)), name: variant!.name },
+      },
     },
+    sku: null,
   };
 }
 
-// SalesController#show: the purchase as the seller sees it, its customer, charges and emails. A sale with an upsell, a shipment, an
-// affiliate, a purchasing power discount or a bundle goes to Rails whole, like everything the readers below do not serialize.
+// SalesController#show: the purchase as the seller sees it, its customer, charges and emails. A sale with an upsell, a purchasing power
+// discount or a bundle goes to Rails whole, like everything the readers below do not serialize.
 async function saleJson(sale: Purchase, input: MobileInput, auth: MobileAuth) {
   const seller = auth.owner;
   if (PurchaseFlags.isSet(sale.flags, "is_bundle_purchase")) failNotPorted("a bundle purchase");
   if (PurchaseFlags.isSet(sale.flags, "is_purchasing_power_parity_discounted"))
     failNotPorted("a purchasing power discount");
-  if (sale.affiliate_id !== null) failNotPorted("a sale with an affiliate");
-  const [shipment] = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("shipments")} WHERE ${column("shipments", "purchase_id")} = ${sale.id} LIMIT 1`,
-  );
-  if (shipment !== undefined) failNotPorted("a sale with a shipment");
+  const affiliate = await affiliateDetails(sale);
+  const shipment = await shipmentDetails(sale);
   const [upsell] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("upsell_purchases")} WHERE ${column("upsell_purchases", "purchase_id")} = ${sale.id} LIMIT 1`,
   );
@@ -584,7 +589,8 @@ async function saleJson(sale: Purchase, input: MobileInput, auth: MobileAuth) {
   const link = sale.link_id === null ? null : await db.link.findUnique({ where: { id: sale.link_id } });
   if (link === null) failNotPorted("a sale without a product");
   const offerCode = (await offerCodeDisplays([sale], () => link.price_currency_type)).get(String(sale.id)) ?? null;
-  const saleDetails = { variants: await saleVariants(sale), offerCode };
+  const { variants, sku } = await saleVariants(sale);
+  const saleDetails = { variants, sku, shipment, offerCode, affiliate };
   const buyer = sale.purchaser_id === null ? null : await db.user.findUnique({ where: { id: sale.purchaser_id } });
   if (sale.purchaser_id !== null && buyer === null) failNotPorted("a sale whose purchaser row is missing");
 

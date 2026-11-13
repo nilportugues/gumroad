@@ -179,6 +179,12 @@ export type SaleDetails = {
   variants: Record<string, unknown> | null;
   // { code, displayed_amount_off } of a purchase with an offer code; null leaves the key out
   offerCode: { code: string | null; displayed_amount_off: string } | null;
+  // sku_id (the custom SKU or the external id) and sku_external_id of a purchase whose variant is a SKU
+  sku?: { id: string; externalId: string } | null;
+  // shipped, tracking_url and shipping_address of a purchase with a shipment
+  shipment?: { shipped: boolean; tracking_url: string | null; shipping_address: Record<string, string | null> } | null;
+  // { email, amount } of the purchase's affiliate
+  affiliate?: { email: string | null; amount: string } | null;
 };
 
 // Port of app/models/purchase.rb (Purchase#json_data_for_mobile) for a purchase with no url_redirect, preorder or subscription,
@@ -242,7 +248,17 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   if (input.saleDetails) {
     if (seller.timezone == null) throw new NotPortedError("a seller without a time zone");
     if (input.saleDetails.variants !== null) json.variants = input.saleDetails.variants;
+    if (input.saleDetails.sku) {
+      json.sku_id = input.saleDetails.sku.id;
+      json.sku_external_id = input.saleDetails.sku.externalId;
+    }
+    if (input.saleDetails.shipment) {
+      json.shipped = input.saleDetails.shipment.shipped;
+      json.tracking_url = input.saleDetails.shipment.tracking_url;
+      json.shipping_address = input.saleDetails.shipment.shipping_address;
+    }
     if (input.saleDetails.offerCode !== null) json.offer_code = input.saleDetails.offerCode;
+    if (input.saleDetails.affiliate) json.affiliate = input.saleDetails.affiliate;
     json.formatted_total_price = formattedTotalPrice(purchase);
     json.purchase_daystamp = longFormattedDatetime(purchase.created_at, seller.timezone);
   }

@@ -417,11 +417,6 @@ describe("GET /mobile/sales/:id", () => {
     expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
   });
 
-  it("hands a sale with an affiliate to Rails before reading anything else", async () => {
-    db.purchase.findFirst.mockResolvedValue({ id: 9n, flags: 0n, affiliate_id: 5n });
-    await expect(run(input({ id: "9" }), authFor())).rejects.toThrow("a sale with an affiliate");
-  });
-
   it("answers the blob_url collection route as blob_url, not as a sale id", async () => {
     selectRows.mockResolvedValue([]);
     const result = await run(input({ id: "blob_url", key: "missing" }), authFor());

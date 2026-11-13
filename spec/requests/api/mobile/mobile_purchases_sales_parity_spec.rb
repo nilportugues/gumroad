@@ -640,7 +640,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands a sale of a SKU to Rails", parity: true do
+      it "serves a sale of a SKU", parity: true do
         physical = create(:physical_product, user: seller, skus_enabled: true)
         sku = create(:sku, link: physical, name: "Large")
         sold = purchase_row(link: physical, seller:, purchase_state: "successful")
@@ -648,22 +648,112 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
 
         show(sold)
 
-        expect(response).to have_http_status(:ok)
+        purchase = response.parsed_body["purchase"]
+        expect(purchase["sku_id"]).to eq(sku.external_id)
+        expect(purchase["sku_external_id"]).to eq(sku.external_id)
+        expect(purchase["variants"]).to eq("Version" => { "is_sku" => true, "title" => "Version", "selected_variant" => { "id" => sku.external_id, "name" => "Large" } })
       end
 
-      it "hands a sale with a shipment to Rails", parity: true do
-        physical = create(:physical_product, user: seller)
-        sold = purchase_row(:physical_purchase, link: physical, seller:, purchase_state: "successful")
-        Shipment.new(purchase: sold).save!(validate: false)
+      it "serves a sale of a SKU with a custom SKU under the title of the product's only category", parity: true do
+        physical = create(:physical_product, user: seller, skus_enabled: true)
+        create(:variant_category, link: physical, title: "Size")
+        sku = create(:sku, link: physical, name: "Large", custom_sku: "LRG-1")
+        sold = purchase_row(link: physical, seller:, purchase_state: "successful")
+        sold.variant_attributes << sku
+
+        show(sold)
+
+        purchase = response.parsed_body["purchase"]
+        expect(purchase["sku_id"]).to eq("LRG-1")
+        expect(purchase["sku_external_id"]).to eq(sku.external_id)
+        expect(purchase["variants"].keys).to eq(["Size"])
+      end
+
+      it "hands a sale of a SKU of a product with two categories to Rails", parity: true do
+        physical = create(:physical_product, user: seller, skus_enabled: true)
+        create(:variant_category, link: physical, title: "Size")
+        create(:variant_category, link: physical, title: "Color")
+        sold = purchase_row(link: physical, seller:, purchase_state: "successful")
+        sold.variant_attributes << create(:sku, link: physical, name: "Large")
 
         show(sold)
 
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands a sale with an affiliate to Rails", parity: true do
-        affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
-        referred = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", affiliate:, affiliate_credit_cents: 10)
+      it "hands a sale of a default SKU to Rails", parity: true do
+        physical = create(:physical_product, user: seller, skus_enabled: true)
+        sold = purchase_row(link: physical, seller:, purchase_state: "successful")
+        sold.variant_attributes << create(:sku, link: physical, name: "Default", is_default_sku: true)
+
+        show(sold)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "serves a sale with a shipment that has not shipped", parity: true do
+        physical = create(:physical_product, user: seller)
+        sold = purchase_row(:physical_purchase, link: physical, seller:, purchase_state: "successful")
+        Shipment.new(purchase: sold).save!(validate: false)
+
+        show(sold)
+
+        purchase = response.parsed_body["purchase"]
+        expect(purchase["shipped"]).to eq(false)
+        expect(purchase["tracking_url"]).to be_nil
+        expect(purchase["shipping_address"].keys).to eq(%w[full_name street_address city state zip_code country])
+        expect(purchase["shipping_address"]["street_address"]).to eq(sold.street_address)
+      end
+
+      it "serves a sale with a shipped shipment and its tracking link", parity: true do
+        physical = create(:physical_product, user: seller)
+        sold = purchase_row(:physical_purchase, link: physical, seller:, purchase_state: "successful")
+        Shipment.new(purchase: sold, shipped_at: 1.day.ago, carrier: "UPS", tracking_number: "1Z999").save!(validate: false)
+
+        show(sold)
+
+        purchase = response.parsed_body["purchase"]
+        expect(purchase["shipped"]).to eq(true)
+        expect(purchase["tracking_url"]).to eq("http://wwwapps.ups.com/WebTracking/processInputRequest?TypeOfInquiryNumber=T&InquiryNumber1=1Z999")
+      end
+
+      it "hands a sale with a tracking link that is not http or https to Rails", parity: true do
+        physical = create(:physical_product, user: seller)
+        sold = purchase_row(:physical_purchase, link: physical, seller:, purchase_state: "successful")
+        Shipment.new(purchase: sold, tracking_url: "ftp://example.com/track").save!(validate: false)
+
+        show(sold)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "serves a sale with an affiliate and the credit it earned", parity: true do
+        affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user, email: "affiliate@example.com"), products: [product])
+        referred = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", affiliate:)
+        referred.update_column(:affiliate_credit_cents, 150)
+
+        show(referred)
+
+        expect(response.parsed_body["purchase"]["affiliate"]).to eq("email" => "affiliate@example.com", "amount" => "$1.50")
+      end
+
+      it "serves a sale with an affiliate's unconfirmed email and a credit in whole dollars", parity: true do
+        affiliate_user = create(:user, email: "affiliate@example.com")
+        affiliate_user.update_column(:unconfirmed_email, "new-affiliate@example.com")
+        affiliate = create(:direct_affiliate, seller:, affiliate_user:, products: [product])
+        referred = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", affiliate:)
+        referred.update_column(:affiliate_credit_cents, 200)
+
+        show(referred)
+
+        expect(response.parsed_body["purchase"]["affiliate"]).to eq("email" => "new-affiliate@example.com", "amount" => "$2")
+      end
+
+      it "hands a sale with a collaborator and a direct affiliate to Rails", parity: true do
+        collaborator = create(:collaborator, seller:, affiliate_user: create(:user), products: [product])
+        direct = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
+        referred = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", affiliate: collaborator)
+        referred.update_columns(affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => direct.id })
 
         show(referred)
 

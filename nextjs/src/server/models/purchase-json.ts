@@ -30,6 +30,7 @@ import {
 } from "./concerns/money-formatter.ts";
 import { instantInTimeZoneIso8601 } from "./concerns/rails-time-zone.ts";
 import { timeAgoInWords } from "./concerns/time-ago-in-words.ts";
+import { hasDirectAffiliateId } from "./json-direct-affiliate.ts";
 import { LinkFlags } from "./link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "./merchant-account.ts";
 import { type OfferCodeDisplay, offerCodeDisplays } from "./offer-code-display.ts";
@@ -278,7 +279,8 @@ async function load(purchases: Row[]): Promise<Loaded> {
   const affiliates = new Map<string, { email: string | null; amount: string }>();
   for (const purchase of purchases) {
     if (purchase.affiliate_id == null) continue;
-    if (purchase.direct_affiliate_id != null) throw notPorted("a collaborator sale with a direct affiliate");
+    if (hasDirectAffiliateId(purchase.json_data ?? null))
+      throw notPorted("a collaborator sale with a direct affiliate");
     const affiliate = affiliateRows.get(String(purchase.affiliate_id));
     const user = affiliate === undefined ? undefined : affiliateUsers.get(String(affiliate.affiliate_user_id));
     if (user === undefined) throw notPorted("an affiliate whose user row is missing");
