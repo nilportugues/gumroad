@@ -59,7 +59,7 @@ export async function contentProvider({
 
 // UrlRedirect#alive_product_files for the provider: its own files in order. With `embedded` (the file ids its rich content
 // pages embed, in order) only those are listed, as Rails does once a page embeds one; without it a provider with rich
-// content hands back. Only the download page proves a purchased version's files (`versions`); every other delivery hands it back.
+// content hands back. Only the download page and the caption actions prove a purchased version's files (`versions`); every other delivery hands it back.
 export async function aliveProductFiles(
   loaded: Loaded,
   embedded?: bigint[],

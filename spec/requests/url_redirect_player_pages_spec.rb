@@ -97,6 +97,123 @@ describe "Url redirect players", type: :request do
     end
   end
 
+  describe "captions of a purchased version" do
+    let(:category) { create(:variant_category, link: product, title: "Tier") }
+    let!(:basic) { create(:variant, variant_category: category, name: "Basic") }
+    let!(:premium) { create(:variant, variant_category: category, name: "Premium", price_difference_cents: 500) }
+    let(:second_key) { "attachments/fedcba9876543210fedcba9876543210/original/second.mov" }
+    let(:basic_video) { create(:streamable_video, link: product, display_name: "Basic lesson", url: "#{S3_BASE_URL}#{second_key}") }
+
+    def subtitle_for(file, key)
+      create(:subtitle_file, product_file: file, url: "#{S3_BASE_URL}#{key}", language: "English")
+    end
+
+    def buy(version)
+      purchase.variant_attributes << version
+    end
+
+    it "converts the captions of a video of the version bought", parity: true do
+      premium.product_files << video
+      basic.product_files << basic_video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to start_with("WEBVTT\n\n00:00:01.500 --> 00:00:02.000 align:center position:50%")
+    end
+
+    it "answers 404 for a video that only another version holds", parity: true do
+      premium.product_files << video
+      basic.product_files << basic_video
+      subtitle = subtitle_for(basic_video, "specs/player-captions.srt")
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, basic_video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a video of the product that no version holds", parity: true do
+      premium.product_files << basic_video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a video the version deleted", parity: true do
+      premium.product_files << video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      video.update_columns(deleted_at: Time.current)
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands a purchase of several versions to Rails", parity: true do
+      premium.product_files << video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      # Rails reads the first version it finds (here the one with no files), not the union.
+      buy(basic)
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands a version with pages of its own to Rails", parity: true do
+      premium.product_files << video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      create(:rich_content, entity: premium, title: "Welcome", description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Hello" }] }], position: 1)
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a purchase of versions that share one set of pages to Rails", parity: true do
+      product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:has_same_rich_content_for_all_variants])
+      premium.product_files << video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      buy(premium)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "redirects a download of the captions of the version bought to a signed URL", parity: true do
+      premium.product_files << video
+      basic.product_files << basic_video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      buy(premium)
+
+      get url_redirect_download_subtitle_file_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("player-captions.srt")
+    end
+
+    it "answers 404 to a download of the captions of another version's video", parity: true do
+      premium.product_files << video
+      basic.product_files << basic_video
+      subtitle = subtitle_for(basic_video, "specs/player-captions.srt")
+      buy(premium)
+
+      get url_redirect_download_subtitle_file_path(token, basic_video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   describe "GET /s/:id" do
     let(:second_key) { "attachments/fedcba9876543210fedcba9876543210/original/second.mov" }
     let(:second_video) { create(:streamable_video, link: product, display_name: "Lesson two", url: "#{S3_BASE_URL}#{second_key}") }

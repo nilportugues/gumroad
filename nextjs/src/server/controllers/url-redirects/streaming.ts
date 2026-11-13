@@ -155,7 +155,7 @@ export async function downloadSubtitleFile(
   const loaded = await loadRedirect(token);
   const halted = await checkPermissions({ loaded, action, actionName: "download_subtitle_file" });
   if (halted) return halted;
-  const delivery = findFile(await aliveProductFiles(loaded), fileId);
+  const delivery = findFile(await aliveProductFiles(loaded, undefined, { versions: true }), fileId);
   if (!delivery) throw new RoutingError("Not Found");
   if (!(await isFileDownloadable(loaded, delivery))) throw new RoutingError("Not Found");
   const id = decrypt(subtitleId);
@@ -193,7 +193,7 @@ export async function subtitleFileVtt(
   const loaded = await loadRedirect(token);
   const halted = await checkPermissions({ loaded, action, actionName: "subtitle_file_vtt" });
   if (halted) return halted;
-  const delivery = findFile(await aliveProductFiles(loaded), fileId);
+  const delivery = findFile(await aliveProductFiles(loaded, undefined, { versions: true }), fileId);
   if (!delivery) throw new RoutingError("Not Found");
   const id = decrypt(subtitleId);
   const subtitle =
