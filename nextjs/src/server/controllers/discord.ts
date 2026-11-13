@@ -1,10 +1,11 @@
 // Integrations::DiscordController (app/controllers/integrations/discord_controller.rb): #oauth_redirect, #join_server and #leave_server.
 // #server_info is not ported: it authenticates, then exchanges the OAuth code with Discord.
 //
-// Ported: the state redirect of #oauth_redirect (and its 404 for a seller that does not exist), and the guards of #join_server and
-// #leave_server that answer `{ success: false }` before Discord is called.
+// Ported: the state redirect of #oauth_redirect (and its 404 for a seller that does not exist), its empty application layout page when
+// the state names no seller (integrations-oauth-redirect.ts), and the guards of #join_server and #leave_server that answer
+// `{ success: false }` before Discord is called.
 // Handed to Rails whole, before any write:
-//   - #oauth_redirect without a redirect to make: it renders the application layout, whose CSRF token and shared meta tags are Rails'.
+//   - #oauth_redirect's empty page on a seller's subdomain (the layout was recorded on the main domain only).
 //   - #join_server once the request is authorized (the OAuth exchange comes next), and #leave_server once the purchase has a Discord
 //     membership to remove (the Discord API call and the soft delete).
 import { db } from "../../lib/db.ts";
@@ -15,6 +16,7 @@ import { domainConfig } from "../page-props/domain.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
 import { HandBackToRails, RoutingError, type ActionContext, type ActionResult } from "./application-controller.ts";
+import { integrationsOauthRedirectPage } from "./integrations-oauth-redirect.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { assertFlatQuery, cgiEscape, cgiUnescape } from "./rails-params.ts";
 import { queryParam, type RailsRequest } from "./rails-request.ts";
@@ -98,7 +100,7 @@ async function leaveServer(request: RailsRequest, action: ActionContext): Promis
   throw new HandBackToRails("removing a member through the Discord API");
 }
 
-async function oauthRedirect(request: RailsRequest): Promise<ActionResult> {
+async function oauthRedirect(request: RailsRequest, action: ActionContext): Promise<ActionResult> {
   assertFlatQuery(request.queryString);
   const stateParam = stringParam(request, "state");
   let state: unknown = null;
@@ -112,8 +114,11 @@ async function oauthRedirect(request: RailsRequest): Promise<ActionResult> {
     state !== null && typeof state === "object" && !Array.isArray(state)
       ? (state as Record<string, unknown>).seller_id
       : null;
-  if (typeof sellerId !== "string" || isBlank(sellerId))
-    throw new HandBackToRails("an empty page rendered in the application layout");
+  if (typeof sellerId !== "string" || isBlank(sellerId)) {
+    if (request.hostWithPort !== domainConfig(process.env).domain)
+      throw new HandBackToRails("an empty page rendered in the application layout of a seller's host");
+    return integrationsOauthRedirectPage(request, action);
+  }
 
   const id = decrypt(cgiUnescape(sellerId));
   // User.find(nil) and User.find(0) both raise RecordNotFound.
@@ -146,7 +151,7 @@ async function oauthRedirect(request: RailsRequest): Promise<ActionResult> {
 }
 
 export const discordHandlers = {
-  discord_oauth_redirect: (request: RailsRequest) => oauthRedirect(request),
+  discord_oauth_redirect: (request: RailsRequest, action: ActionContext) => oauthRedirect(request, action),
   discord_join_server: (request: RailsRequest, action: ActionContext) => joinServer(request, action),
   discord_leave_server: (request: RailsRequest, action: ActionContext) => leaveServer(request, action),
 };

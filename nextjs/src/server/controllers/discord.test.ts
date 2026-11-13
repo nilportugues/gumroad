@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HandBackToRails, RoutingError, type ActionContext } from "./application-controller.ts";
 import { railsRequest } from "./rails-request.ts";
 
-const { db, grantsAccess } = vi.hoisted(() => ({
+const { db, grantsAccess, emptyPage } = vi.hoisted(() => ({
   db: {
     purchase: { findUnique: vi.fn() },
     subscription: { findUnique: vi.fn() },
@@ -15,6 +15,7 @@ const { db, grantsAccess } = vi.hoisted(() => ({
     customDomain: { findFirst: vi.fn() },
   },
   grantsAccess: vi.fn(),
+  emptyPage: vi.fn(),
 }));
 
 vi.mock("../../lib/db.ts", () => ({ db }));
@@ -24,7 +25,8 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
 vi.mock("../models/user.ts", () => ({
   subdomainFromUsername: (name: string | null) => (name ? `${name}.example.com` : null),
 }));
-vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({ protocol: "https" }) }));
+vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({ protocol: "https", domain: "app.example.com" }) }));
+vi.mock("./integrations-oauth-redirect.ts", () => ({ integrationsOauthRedirectPage: emptyPage }));
 vi.mock("./url-redirects/access.ts", () => ({ grantsAccess }));
 
 const { discordHandlers } = await import("./discord.ts");
@@ -176,9 +178,11 @@ describe("GET /integrations/discord/leave_server", () => {
 });
 
 describe("GET /integrations/discord/oauth_redirect", () => {
-  const redirect = (query: string) => discordHandlers.discord_oauth_redirect(request(query));
+  const redirect = (query: string) => discordHandlers.discord_oauth_redirect(request(query), action(null));
 
   beforeEach(() => {
+    emptyPage.mockReset();
+    emptyPage.mockResolvedValue({ status: 200, body: "page" });
     db.user.findUnique.mockResolvedValue({ id: 11n, username: "gum_seller" });
   });
 
@@ -194,6 +198,7 @@ describe("GET /integrations/discord/oauth_redirect", () => {
     const state = stateQuery({ seller_id: "11", is_custom_domain: true });
     const result = await discordHandlers.discord_oauth_redirect(
       railsRequest(new Request(`https://app.example.com:31337/x${state}`)),
+      action(null),
     );
     expect(result).toMatchObject({
       location: "https://www.shop.example.net:31337/integrations/discord/oauth_redirect",
@@ -244,15 +249,32 @@ describe("GET /integrations/discord/oauth_redirect", () => {
   it.each([
     ["no parameters", ""],
     ["a code alone", "?code=x"],
-    ["a state that is not JSON", "?state=test"],
     ["a state that is not an object", "?state=123"],
     ["a state that is a list", `?state=${encodeURIComponent("[]")}`],
     ["a state without a seller id", stateQuery({ is_custom_domain: false })],
     ["a blank seller id", stateQuery({ seller_id: "  " })],
     ["a seller id that is not text", stateQuery({ seller_id: 12 })],
+  ])("renders the empty layout page for %s", async (_name, query) => {
+    expect(await redirect(query)).toEqual({ status: 200, body: "page" });
+    expect(emptyPage).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["a state that is not JSON", "?state=test"],
     ["a state sent as a list", "?state[]=test"],
   ])("hands %s to Rails", async (_name, query) => {
     await expect(redirect(query)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(emptyPage).not.toHaveBeenCalled();
+  });
+
+  it("hands the empty page of a request on another host to Rails", async () => {
+    await expect(
+      discordHandlers.discord_oauth_redirect(
+        railsRequest(new Request("https://seller.example.com/integrations/discord/oauth_redirect?code=x")),
+        action(null),
+      ),
+    ).rejects.toBeInstanceOf(HandBackToRails);
+    expect(emptyPage).not.toHaveBeenCalled();
   });
 
   it("hands a seller with no username to Rails", async () => {
