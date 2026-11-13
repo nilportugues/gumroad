@@ -475,7 +475,7 @@ describe "Settings main when signed in", type: :request do
         expect(seller.reload.unconfirmed_email).to be_nil
       end
 
-      it "hands a request without a user hash to Rails", parity: true do
+      it "sends a request without a user hash back with the generic alert", parity: true do
         log_in(seller)
 
         send_form(:put, settings_main_path, {})
