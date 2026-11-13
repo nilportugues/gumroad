@@ -14,7 +14,6 @@ import {
 import { FEATURE_ANNOUNCEMENT_OPTIONS, unsubscribeProps } from "../controllers/feature-announcements.ts";
 import { REVIEW_REMINDER_OPTIONS, reviewReminderProps } from "../controllers/review-reminders.ts";
 
-import { AGENT_PAGES } from "./agent/pages.ts";
 import { ANALYTICS_PAGES } from "./analytics/pages.ts";
 import { AUDIENCE_PAGES } from "./audience/pages.ts";
 import { loginPageProps, secureRedirectPageProps, signupPageProps, twoFactorPageProps } from "./auth-pages.ts";
@@ -201,7 +200,6 @@ export const PAGES: Record<string, PageSpec> = {
   ...CHECKOUT_FORM_PAGES,
   ...DISPUTE_EVIDENCE_PAGES,
   ...PIRACY_REPORT_PAGES,
-  ...AGENT_PAGES,
   ...SELLER_PRODUCTS_PAGES,
   ...BUNDLES_PAGES,
   ...URL_REDIRECT_PAGES,
