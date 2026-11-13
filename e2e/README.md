@@ -187,13 +187,27 @@ length of the request and response bodies. `.out/` is git-ignored.
 
 ## Replaying a recording against a server
 
-Built and unit-tested against a local stub server; not yet run against real Rails or the Node port (plan 4.4 to 4.6).
+Unit-tested against a stub server and run once against real Rails and the Node port on lane 1 (plan 4.4 to 4.6).
 
 ```shell
 node e2e/replay/replay-cli.ts e2e/.out/bot-1-<time>.jsonl http://localhost:3003 e2e/.out/replay-rails.jsonl
 node e2e/replay/replay-cli.ts e2e/.out/bot-1-<time>.jsonl http://localhost:3100 e2e/.out/replay-node.jsonl
 node e2e/replay/diff-cli.ts e2e/.out/replay-rails.jsonl e2e/.out/replay-node.jsonl      # exit 1 when they differ; --json for a report
 ```
+
+One command replays Rails then Node and writes `report.md` (one row per difference, with the request):
+
+```shell
+E2E_LANE=1 bin/e2e-up    # a lane other than the one another run uses; the Rails app is then on 3000+lane
+REPLAY_KEEP_HOST_PORT=1 node e2e/replay/compare-cli.ts <recording.jsonl> http://localhost:3001 http://localhost:3101 e2e/.out/compare
+```
+
+`REPLAY_KEEP_HOST_PORT=1` sends the Node replay with the recorded `Host` port: Node proxies to Rails, whose domain routes
+match `localhost:<lane port>`. The Node dev server (`next dev --port 3101` in `nextjs/`) needs, besides `DATABASE_URL`, `REDIS_HOST`,
+`RAILS_ORIGIN` and `NEXTJS_ROUTE_FLAGS` (every flag in `routes.json`): `DEV_LANE_PORT`, `SECRET_KEY_BASE` (the Rails app's, read with
+`rails runner`), `RACK_ATTACK_REDIS_HOST`, `ELASTICSEARCH_HOST`, `ES_INDEX_SUFFIX`, the DynamoDB endpoint and prefix, and
+`NEXTJS_ASSUME_SIGNED_OUT=1` (the replay is anonymous; without it `/settings` throws NotPortedError, a 500). A missing variable shows
+as a 500 with Rails' public error page and no log line, because `notifyError` is silent in development.
 
 Replay and restore both servers from the same seed snapshot first, or counters, ids and "already purchased" states
 diverge. Unit tests: `npx vitest run e2e` (`e2e/replay/replay.test.ts`).
