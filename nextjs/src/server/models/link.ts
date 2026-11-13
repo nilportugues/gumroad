@@ -849,13 +849,33 @@ async function installmentPlanError(
 
 // Product::Searchable#enqueue_index_update_for
 function enqueueIndexUpdateFor(link: LinkRecord, fields: string[], ctx: CallbackContext): Promise<void> {
-  const now = ctx.now ?? (() => new Date());
+  return enqueueIndexUpdateForProduct(link.get("id") as bigint, fields, ctx.now);
+}
+
+// The same, for a caller that holds the product's id and not its record (a review's stat update).
+export function enqueueIndexUpdateForProduct(
+  id: bigint,
+  fields: string[],
+  now: () => Date = () => new Date(),
+): Promise<void> {
   return import("../search/product-indexing.ts").then(({ enqueueIndexUpdatesFor }) =>
-    enqueueIndexUpdatesFor([link.get("id") as bigint], fields, {
+    enqueueIndexUpdatesFor([id], fields, {
       now,
       featureActive: (name, actor) => collaborators.isFeatureEnabled(name, actor),
     }),
   );
+}
+
+// User#bump_reputation_summary_version: a lost bump is bounded by the aggregate's TTL.
+export async function bumpReputationSummaryVersion(userId: bigint | number): Promise<void> {
+  if (!(await collaborators.isFeatureEnabled(REPUTATION_SUMMARY_FEATURE, userActor(String(userId))))) return;
+  await afterCommitEverywhere(async () => {
+    try {
+      await collaborators.redis().incr(`seller_reputation_summary/version/${String(userId)}`);
+    } catch (error) {
+      console.error(`Seller reputation summary bump failed for user ${String(userId)}: ${(error as Error).message}`);
+    }
+  });
 }
 
 // Product::Caching#invalidate_cache
@@ -924,17 +944,7 @@ export const Links = defineModel<Link>({
       async run(link, ctx) {
         const user = await loadUser(link, ctx);
         if (user === null) throw new NoMethodError("undefined method 'bump_reputation_summary_version' for nil");
-        // User#bump_reputation_summary_version: a lost bump is bounded by the aggregate's TTL.
-        if (!(await collaborators.isFeatureEnabled(REPUTATION_SUMMARY_FEATURE, userActor(String(user.id))))) return;
-        await afterCommitEverywhere(async () => {
-          try {
-            await collaborators.redis().incr(`seller_reputation_summary/version/${String(user.id)}`);
-          } catch (error) {
-            console.error(
-              `Seller reputation summary bump failed for user ${String(user.id)}: ${(error as Error).message}`,
-            );
-          }
-        });
+        await bumpReputationSummaryVersion(user.id);
       },
     },
   ],

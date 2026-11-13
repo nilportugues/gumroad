@@ -43,7 +43,10 @@ export async function drainRedisJobs(redis: Redis, ignored: ReadonlySet<string> 
   }
   for (const key of await redis.keys("queue:*"))
     for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as SidekiqItem);
-  for (const raw of await redis.zrange("schedule", "0", "-1")) items.push(JSON.parse(raw) as SidekiqItem);
+  // A scheduled item lost its `at` to the zset's score when it was pushed.
+  const scheduled = await redis.zrange("schedule", "0", "-1", "WITHSCORES");
+  for (let index = 0; index < scheduled.length; index += 2)
+    items.push({ ...(JSON.parse(scheduled[index]!) as SidekiqItem), at: Number(scheduled[index + 1]) });
   return items
     .map((item) => unwrapActiveJob(rawJob(item)))
     .filter((job) => !ignored.has(job.class))

@@ -9,7 +9,9 @@ describe "Review responses when signed in", type: :request do
 
   let(:seller) { create(:user, name: "Reviewed Seller") }
   let(:product) { create(:product, user: seller, name: "Reviewed product") }
-  let(:purchase) { create(:purchase, link: product, seller:) }
+  let(:purchase) do
+    build(:purchase, link: product, seller:, purchase_state: "successful").tap { _1.save!(validate: false) }
+  end
   let!(:review) { create(:product_review, purchase:, link: product, rating: 4, message: "Great") }
   let(:json_headers) { { "Accept" => "application/json, text/html", "Content-Type" => "application/json" } }
 
@@ -69,7 +71,7 @@ describe "Review responses when signed in", type: :request do
     end
 
     it "answers 404 with JSON when the purchase has no review", parity: true do
-      other = create(:purchase, link: product, seller:)
+      other = build(:purchase, link: product, seller:, purchase_state: "successful").tap { _1.save!(validate: false) }
       log_in(seller)
 
       send_json(:put, product_review_response_path(other.external_id), message: "Hello")
@@ -87,7 +89,7 @@ describe "Review responses when signed in", type: :request do
 
     it "does not let a seller reply to the review of another seller", parity: true do
       other_seller = create(:user)
-      other_purchase = create(:purchase, link: create(:product, user: other_seller), seller: other_seller)
+      other_purchase = build(:purchase, link: create(:product, user: other_seller), seller: other_seller, purchase_state: "successful").tap { _1.save!(validate: false) }
       create(:product_review, purchase: other_purchase, link: other_purchase.link)
       log_in(seller)
 
@@ -98,7 +100,7 @@ describe "Review responses when signed in", type: :request do
   end
 
   describe "replying for the first time" do
-    it "hands a first reply to Rails, which emails the reviewer", parity: true do
+    it "creates the response and queues the email to the reviewer", parity: true, parity_mail_jobs: true do
       log_in(seller)
 
       send_json(:put, product_review_response_path(purchase.external_id), message: "First reply")

@@ -1,7 +1,11 @@
-// app/models/product_review_response.rb, for the seller's edits (ProductReviewResponsesController). Creating a response
-// sends the reviewer an email (after_create_commit: CustomerMailer.review_response.deliver_later), which stays in Ruby.
+// app/models/product_review_response.rb (ProductReviewResponsesController). Creating a response queues the reviewer's email
+// (after_create_commit); the mail itself is rendered and sent by Ruby.
 import { Prisma, type ProductReviewResponse } from "@prisma/client";
 
+import { deliverLater, record as globalId } from "../mail/active-job.ts";
+import { mailRoute } from "../mail/delivery.ts";
+
+import { currentJobsRuntime } from "./concerns/job-runtime.ts";
 import { defineModel, type Callback } from "./runtime/define-model.ts";
 import { validatesPresenceOf } from "./runtime/validators.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
@@ -16,11 +20,29 @@ const belongsToRequired = (name: "user" | "product_review", tableName: string, f
   },
 });
 
+// `CustomerMailer.review_response(self).deliver_later`
+const notifyReviewerViaEmail: Callback<ProductReviewResponse> = {
+  name: "notify_reviewer_via_email",
+  on: "create",
+  async run(record) {
+    await deliverLater(
+      currentJobsRuntime(),
+      {
+        mailer: "CustomerMailer",
+        method: "review_response",
+        args: [globalId("ProductReviewResponse", record.get("id"))],
+      },
+      mailRoute("CustomerMailer", "review_response"),
+    );
+  },
+};
+
 export const ProductReviewResponses = defineModel<ProductReviewResponse>({
   rubyClass: "ProductReviewResponse",
   prismaModel: "ProductReviewResponse",
   delegate: (tx) => tx.productReviewResponse as never,
   validations: [belongsToRequired("user", "users", "user_id"), belongsToRequired("product_review", "product_reviews", "product_review_id"), validatesPresenceOf<ProductReviewResponse>(["message"])],
+  afterCommit: [notifyReviewerViaEmail],
 });
 
 // `product_review.response`: has_one with no ORDER BY.

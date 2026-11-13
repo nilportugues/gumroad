@@ -1,5 +1,5 @@
 // ProductReviewResponsesController#update and #destroy (app/controllers/product_review_responses_controller.rb): the seller's reply to a review.
-// The first reply of a review is created in Ruby (it emails the reviewer).
+// The first reply of a review is created here too and queues the reviewer's email.
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
@@ -47,9 +47,14 @@ async function update(input: MutationInput): Promise<ActionResult> {
   if (message !== undefined && message !== null && typeof message !== "string") throw new HandBackToRails("a message that is not a string");
   const response = await findResponseOfReview(loaded.reviewId);
   if (response === null) {
-    // A blank message fails validation before anything is written; any other first reply sends an email.
-    if (message == null || message.trim() === "") return json({ error: "Message can't be blank" }, UNPROCESSABLE_ENTITY);
-    throw new NotPortedError("ProductReviewResponse#notify_reviewer_via_email", "the first reply of a review");
+    // `@product_review.build_response`, saved by `update`.
+    const created = await ProductReviewResponses.create({
+      product_review_id: loaded.reviewId,
+      user_id: BigInt(railsLoggedInUser(input.context)!.id),
+      ...(message === undefined ? {} : { message }),
+    });
+    if (created.persisted) return noContent();
+    return json({ error: created.errors.fullMessages().join(", ") }, UNPROCESSABLE_ENTITY);
   }
   const attributes = { user_id: BigInt(railsLoggedInUser(input.context)!.id), ...(message === undefined ? {} : { message }) };
   if (await ProductReviewResponses.update(response, attributes)) return noContent();

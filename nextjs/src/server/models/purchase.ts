@@ -153,3 +153,6 @@ export function allowsReviewToBeCounted(purchase: Purchase, permitRecurringCharg
   allowed &&= !flag("is_commission_completion_purchase");
   return allowed;
 }
+
+// Purchase#allows_review?
+export const allowsReview = (purchase: Purchase) => allowsReviewToBeCounted(purchase, true);

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -25,6 +26,10 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
+const UUID_SLUG_CASE = "creates-a-new-launch-email-when-the-only-one-was-deleted";
+const UUID_SLUG =
+  /^waitlisted-product-is-out-now-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
 const COMPARE = {
   ignore: [
     "response.headers.x-original-headers-class",
@@ -34,6 +39,8 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    // Delayed jobs are scheduled seconds ahead of the clock.
+    "jobs.*.at",
     "http",
   ],
 };
@@ -101,6 +108,8 @@ describe.skipIf(!url)("WaitlistEmailsController", () => {
 
   const replayOptions = (file: string) => {
     const ignore = [...COMPARE.ignore];
+    // The slug of a name another email took ends in a fresh SecureRandom.uuid; the case checks its shape instead.
+    if (file.includes(UUID_SLUG_CASE)) ignore.push("db.installments.inserted.*.slug");
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
       ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
@@ -114,6 +123,7 @@ describe.skipIf(!url)("WaitlistEmailsController", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    jobs: redisJobsChannel(redis),
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
@@ -162,7 +172,12 @@ describe.skipIf(!url)("WaitlistEmailsController", () => {
           expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
           return;
         }
-        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        const result = await replayFixtureExchange(fixture, index, replayOptions(file));
+        assertParity(result);
+        if (file.includes(UUID_SLUG_CASE)) {
+          const inserted = result.exchanges.at(-1)!.actual.db?.installments?.inserted as { slug: string }[];
+          expect(inserted[0]!.slug).toMatch(UUID_SLUG);
+        }
       } catch (error) {
         const logs = server
           .output()
