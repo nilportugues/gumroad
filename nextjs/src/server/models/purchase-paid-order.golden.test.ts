@@ -203,7 +203,7 @@ describe("purchase-paid-order.golden.json", () => {
       expect(column(c, "charge_purchases", "purchase_id")).toEqual([1, 2]);
       expect(taxJar(c)).toEqual([200, 200]);
       expect(calls(c).filter((call) => call === "POST /v1/payment_intents")).toHaveLength(1);
-      expect(Object.keys(c.responses[0]!.line_items)).toEqual(["uid-0", "uid-1"]);
+      expect(Object.keys(c.responses[0]!.line_items as Record<string, unknown>)).toEqual(["uid-0", "uid-1"]);
     });
   });
 

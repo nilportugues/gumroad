@@ -51,10 +51,8 @@ export async function handleStripeAccountDeauthorized(stripeAccountId: string, n
         "merchant_account.rb clear_non_hash_json_data_for_disconnect!",
       );
     // `merchant_migration_enabled?` then reads the compliance info and its country rules: Node serves the sellers it is off for.
-    if (
-      found?.get("user_id") != null &&
-      (await isFeatureEnabled(MERCHANT_MIGRATION_FEATURE, userActor(found.get("user_id"))))
-    )
+    const userId = found?.get("user_id");
+    if (userId != null && (await isFeatureEnabled(MERCHANT_MIGRATION_FEATURE, userActor(userId))))
       throw new NotPortedError(
         "a seller on the merchant_migration feature",
         "user/feature_status.rb merchant_migration_enabled?",
