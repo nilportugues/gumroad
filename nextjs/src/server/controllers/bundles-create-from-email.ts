@@ -1,12 +1,16 @@
 // BundlesController#create_from_email (GET /bundles/create_from_email, app/controllers/bundles_controller.rb): the bundle link the
-// marketing email carries. Node answers the policy refusal and the links Rails cannot save (a type the email never sends, so no name,
-// or a price under the seller's currency minimum) ahead of the first write, as the same redirect with an alert. Creating the bundle
-// (the Link and Price rows and its bundle products) and a link without a whole-number price (Rails raises LinkInvalid, a 500) hand
-// back whole.
+// marketing email carries. Node answers the policy refusal, the links Rails cannot save (a type the email never sends, so no name; a
+// price under the seller's currency minimum, over the unverified maximum or a product a bundle cannot hold) ahead of the first write
+// as the redirect with an alert, and creates the draft bundle (Link, Price and bundle product rows) otherwise. A link without a
+// whole-number price (Rails raises LinkInvalid, a 500), a free bundle (set_customizable_price runs after the save), a products
+// parameter that is not a list of text and a product with SKUs hand back whole.
 import { Prisma } from "@prisma/client";
 
+import { encrypt as externalId } from "../../lib/obfuscate-ids.ts";
+import { bundleMarketingNames, createBundleFromEmail } from "../models/link-create.ts";
 import LINK_DATA from "../models/link-data.generated.json" with { type: "json" };
 import { column, selectRows, table } from "../models/sql.ts";
+import { UserFlags } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -19,11 +23,11 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 const FOUND = 302;
 const PRODUCTS_PATH = "/products";
 const STALE_LINK = "This bundle link is no longer valid. Use New product to create a bundle.";
-// Product::BundlesMarketing: YEAR_BUNDLE, BEST_SELLING_BUNDLE, EVERYTHING_BUNDLE
-const MARKETING_BUNDLE_TYPES = ["year", "best_selling", "everything"];
 const WHOLE_NUMBER = /^[0-9]{1,9}$/u;
 const CURRENCIES = LINK_DATA.currencies as Record<string, { min_price: number }>;
 const DEFAULT_CURRENCY = "usd";
+
+const stale = (): ActionResult => ({ status: FOUND, location: PRODUCTS_PATH, flash: { alert: STALE_LINK } });
 
 async function createFromEmail(input: MutationInput): Promise<ActionResult> {
   const current: { seller: SellerContext["seller"] } = { seller: null };
@@ -47,19 +51,44 @@ async function createFromEmail(input: MutationInput): Promise<ActionResult> {
 
   const { type, price } = input.params;
   if (typeof price !== "string" && typeof price !== "number") throw new HandBackToRails("a link without a price");
-  const cents = typeof price === "number" ? String(price) : price;
-  if (!WHOLE_NUMBER.test(cents)) throw new HandBackToRails("a price that is not a whole number");
+  const digits = typeof price === "number" ? String(price) : price;
+  if (!WHOLE_NUMBER.test(digits)) throw new HandBackToRails("a price that is not a whole number");
   if (type !== undefined && typeof type !== "string") throw new HandBackToRails("a type that is not text");
 
-  const [account] = await selectRows<{ currency_type: string | null }>(
-    Prisma.sql`SELECT ${column("users", "currency_type")} FROM ${table("users")} WHERE ${column("users", "id")} = ${current.seller.id} LIMIT 1`,
+  const [account] = await selectRows<{ currency_type: string | null; json_data: string | null }>(
+    Prisma.sql`SELECT ${column("users", "currency_type")}, ${column("users", "json_data")} FROM ${table("users")} WHERE ${column("users", "id")} = ${current.seller.id} LIMIT 1`,
   );
-  const currency = CURRENCIES[account?.currency_type ?? DEFAULT_CURRENCY];
+  const currencyType = account?.currency_type ?? DEFAULT_CURRENCY;
+  const currency = CURRENCIES[currencyType];
   if (currency === undefined) throw new HandBackToRails("a currency Rails has no configuration for");
 
-  const named = typeof type === "string" && MARKETING_BUNDLE_TYPES.includes(type);
-  if (named && Number(cents) >= currency.min_price) throw new HandBackToRails("creating the bundle");
-  return { status: FOUND, location: PRODUCTS_PATH, flash: { alert: STALE_LINK } };
+  const { products } = input.params;
+  if (products !== undefined && (!Array.isArray(products) || products.some((id) => typeof id !== "string")))
+    throw new HandBackToRails("products that are not a list of text");
+
+  const name = typeof type === "string" ? bundleMarketingNames(new Date())[type] : undefined;
+  if (name === undefined) return stale();
+  const cents = Number(digits);
+  // A price of zero passes price_must_be_within_range and is made pay-what-you-want after the save.
+  if (cents === 0) throw new HandBackToRails("a free bundle");
+  if (cents < currency.min_price) return stale();
+
+  const sellerRow = current.seller;
+  const outcome = await createBundleFromEmail(
+    {
+      id: sellerRow.id,
+      flags: sellerRow.flags,
+      verified: sellerRow.verified,
+      confirmed_at: sellerRow.confirmed_at,
+      created_at: sellerRow.created_at,
+      user_risk_state: sellerRow.user_risk_state,
+      json_data: account?.json_data ?? null,
+      isTeamMember: UserFlags.isSet(sellerRow.flags, "is_team_member"),
+    },
+    { name, priceCents: cents, currency: currencyType, externalIds: (products as string[] | undefined) ?? [] },
+  );
+  if (!outcome.created) return stale();
+  return { status: FOUND, location: `/bundles/${externalId(outcome.link.get("id"))}/product/edit` };
 }
 
 registerMutations({
