@@ -3,7 +3,8 @@
 //
 // A callback that gets past those checks carries a code, and the exchange for a token spends it; sign-in, sign-up and the Stripe account
 // lookup that follow cannot be redone by Rails once Node has made the call. Those callbacks go to Rails whole, before anything is asked
-// of the provider. Twitter (OAuth 1) and Apple (signed cookie, ES256 client secret, POST callback) are not registered.
+// of the provider, except where a handler is registered (Google: omniauth-google.ts; a signed-in seller's Stripe Connect:
+// omniauth-stripe-connect.ts). Twitter (OAuth 1) and Apple (signed cookie, ES256 client secret, POST callback) are not registered.
 //
 // YouTube, Instagram and TikTok (the social connects) add three things to the same phases: a feature flag that each strategy checks in the
 // middleware (a disabled one answers before the provider is asked), the `attempted` funnel event, and a failure action that records

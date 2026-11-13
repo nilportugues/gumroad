@@ -201,24 +201,5 @@ describe "OmniAuth phases", type: :request do
 
       expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
     end
-
-    it "hands a callback that carries a code to Rails", parity: true do
-      log_in(user)
-      state = begin_flow("stripe_connect")
-      stub_request(:post, "https://connect.stripe.com/oauth/token").to_return(
-        status: 200, headers: { "Content-Type" => "application/json" },
-        body: { access_token: "sk_test_connected", livemode: false, refresh_token: "rt_1", token_type: "bearer", stripe_publishable_key: "pk_test_1", stripe_user_id: "acct_1ParityTest", scope: "read_write" }.to_json
-      )
-      stub_request(:get, "https://api.stripe.com/v1/account").to_return(
-        status: 200, headers: { "Content-Type" => "application/json" }, body: { id: "acct_1ParityTest", email: "seller@example.com", country: "US" }.to_json
-      )
-      stub_request(:get, "https://api.stripe.com/v1/accounts/acct_1ParityTest").to_return(
-        status: 200, headers: { "Content-Type" => "application/json" }, body: { id: "acct_1ParityTest", object: "account", country: "US" }.to_json
-      )
-
-      get "/users/auth/stripe_connect/callback", params: { code: "ac_1", state: }
-
-      expect(response).to have_http_status(:found)
-    end
   end
 end

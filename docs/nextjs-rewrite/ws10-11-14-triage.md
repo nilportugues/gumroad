@@ -173,7 +173,7 @@ against the real OmniAuth middleware, provider HTTP stubbed with WebMock) serves
 - `GET /users/auth/{google_oauth2,stripe_connect}/callback` up to the token exchange: the CSRF state check, the provider's `error` parameter, and the
   failure action's redirect (`/users/sign_in` with Devise's flash, or `/settings/payments` with the provider's `error_description`).
 
-A callback that carries a code **hands back to Rails whole, before the provider is asked anything** (pinned by `hands ...` examples with the recorded
+A callback that carries a code (except Google's and a signed-in seller's Stripe Connect, ported later) **hands back to Rails whole, before the provider is asked anything** (pinned by `hands ...` examples with the recorded
 token, userinfo and Stripe account calls). The exchange spends the one-time code, so Node cannot try and fall back: whatever follows it (sign in,
 `User.find_or_create_for_google_oauth2` creating a user and fetching its avatar, `Stripe::Account.retrieve`, the Stripe Connect session data) has to be
 complete in Node before that callback can be flipped. That is the open debt, with user creation from the signup port as its first blocker.
