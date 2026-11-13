@@ -122,6 +122,8 @@ const COMPARE = {
     "db.media_locations.updated.*.changes.consumed_at.*",
     // Minute of the sale in the seller's time zone, stamped by the factory's clock.
     "response.json.purchases.*.daystamp",
+    // The same minute, for the sale a seller opens (include_sale_details).
+    "response.json.purchase.purchase_daystamp",
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.licenses.updated.*.changes.updated_at",
     "db.calls.updated.*.changes.updated_at",

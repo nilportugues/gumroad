@@ -4,16 +4,19 @@
 // whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence), and
 // purchase_attributes, archive, unarchive and destroy of a purchase that is not a membership or a gift (refunds, a review, a url
 // redirect and a preorder are serialized) whose seller and product have no post. Everything else (the rest of those, a non-empty
-// library page, sales#show) goes to Rails whole, because the posts of the product-updates preloader are not ported.
+// library page) goes to Rails whole, because the posts of the product-updates preloader are not ported.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { NOT_RECURRING_CHARGE, purchaseFlag, states } from "../models/offer-code.ts";
+import { canPingSales } from "../models/ping-notification.ts";
 import { type LibraryFlag, loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
+import { buildCharges, buildCustomerEmails } from "../page-props/customers/customer-details.ts";
+import { customersOfPurchases } from "../page-props/customers/customers.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { mobilePreview } from "../presenters/mobile-preview.ts";
@@ -23,7 +26,8 @@ import {
   ratingByPurchase,
   thumbnailUrlsByProduct,
 } from "../presenters/mobile-serializer-reads.ts";
-import { jsonTime, purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
+import { formattedTotalPrice, jsonTime, purchaseJsonDataForMobile } from "../presenters/mobile-serializers.ts";
+import { longFormattedDatetime } from "../presenters/mobile-time.ts";
 import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { linkOptions } from "../presenters/product-props.ts";
 import { findLink } from "../presenters/product-reads.ts";
@@ -31,6 +35,7 @@ import { PurchaseFlags } from "../search/flags.ts";
 import { PurchaseSearchService } from "../search/purchase-search.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
+import { receiptUrlOptions } from "./customer-details.ts";
 import { fetchError, FORBIDDEN, registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
 import { blobUrl } from "./mobile-sales-actions.ts";
 
@@ -340,8 +345,14 @@ function newShared(): Shared {
 async function plainPurchaseJson(
   purchase: Purchase,
   auth: MobileAuth | null,
-  { includeProductUpdates = true, shared = newShared() }: { includeProductUpdates?: boolean; shared?: Shared } = {},
+  {
+    includeProductUpdates = true,
+    shared = newShared(),
+    purchaserOverride,
+  }: { includeProductUpdates?: boolean; shared?: Shared; purchaserOverride?: User | null } = {},
 ) {
+  // The library serializes the caller's own purchase; sales#show serializes a buyer's, whose purchaser is its own row.
+  const purchaserOf = () => (purchaserOverride === undefined ? libraryOwner(auth) : purchaserOverride);
   const subscription =
     purchase.subscription_id === null
       ? null
@@ -388,7 +399,7 @@ async function plainPurchaseJson(
         : await urlRedirectMobileData({
             redirect,
             purchase,
-            purchaser: libraryOwner(auth),
+            purchaser: purchaserOf(),
             subscription: null,
             product: link,
             seller,
@@ -422,7 +433,7 @@ async function plainPurchaseJson(
         purchase: row,
         link: linkInput,
         seller,
-        purchaser: libraryOwner(auth),
+        purchaser: purchaserOf(),
         productRating,
         amountRefundedCents,
         productUpdatesData: productUpdates,
@@ -490,19 +501,83 @@ async function salesIndex(input: MobileInput, auth: MobileAuth | null) {
   });
 }
 
-// before_action :fetch_purchase: current_resource_owner.sales.find_by_external_id
+// Whether a sale has anything Purchase#json_data_for_mobile(include_sale_details: true) or the show's other keys read beyond what
+// Node proves: variants or a SKU, an upsell, a shipment, an offer code, an affiliate, a PPP discount, a review, a refund, and the
+// sales of a membership, preorder, gift, bundle or commission.
+const UNPROVEN_SALE_FLAGS = [
+  "is_bundle_purchase",
+  "is_bundle_product_purchase",
+  "is_commission_deposit_purchase",
+  "is_commission_completion_purchase",
+  "is_original_subscription_purchase",
+  "is_purchasing_power_parity_discounted",
+  "is_gift_sender_purchase",
+  "is_gift_receiver_purchase",
+  "is_upgrade_purchase",
+] as const;
+
+const UNPROVEN_SALE_ROWS: [string, string][] = [
+  ["base_variants_purchases", "a sale with variants"],
+  ["shipments", "a sale with a shipment"],
+  ["upsell_purchases", "a sale with an upsell"],
+  ["refunds", "a sale with refunds"],
+  ["product_reviews", "a sale with a review"],
+  ["charge_purchases", "a sale charged through a charge"],
+  ["order_purchases", "a sale of an order"],
+];
+
+async function saleNeedsRails(sale: Purchase): Promise<string | null> {
+  const flagged = UNPROVEN_SALE_FLAGS.find((name) => PurchaseFlags.isSet(sale.flags, name));
+  if (flagged !== undefined) return `a sale flagged ${flagged}`;
+  if (sale.subscription_id !== null) return "the sale of a membership";
+  if (sale.preorder_id !== null) return "the sale of a preorder";
+  if (sale.offer_code_id !== null) return "a sale with an offer code";
+  if (sale.affiliate_id !== null) return "a sale with an affiliate";
+  if (sale.stripe_refunded === true || sale.stripe_partially_refunded === true || sale.chargeback_date !== null)
+    return "a refunded or charged back sale";
+  for (const [name, reason] of UNPROVEN_SALE_ROWS) {
+    const found = await selectRows(
+      Prisma.sql`SELECT 1 FROM ${table(name)} WHERE ${column(name, "purchase_id")} = ${sale.id} LIMIT 1`,
+    );
+    if (found.length > 0) return reason;
+  }
+  return null;
+}
+
+// SalesController#show: fetch_purchase (current_resource_owner.sales.find_by_external_id), then the sale's mobile JSON with its sale
+// details, the customer, charges, emails and product purchases. A sale that needs one of the unproven branches goes to Rails whole.
 async function salesShow(input: MobileInput, auth: MobileAuth | null) {
   // `get :blob_url` on the collection is drawn before the member route, so it is not a sale id.
   if (input.params.id === "blob_url") return blobUrl(input, auth);
   const id = typeof input.params.id === "string" ? decrypt(input.params.id) : null;
-  const rows =
-    id === null
-      ? []
-      : await selectRows(
-          Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${BigInt(id)} AND ${column("purchases", "seller_id")} = ${auth!.owner.id} LIMIT 1`,
-        );
-  if (rows.length === 0) return fetchError("Could not find purchase");
-  throw new HandBackToRails("a sale that exists");
+  const sale =
+    id === null ? null : await db.purchase.findFirst({ where: { id: BigInt(id), seller_id: auth!.owner.id } });
+  if (sale === null) return fetchError("Could not find purchase");
+  const reason = await saleNeedsRails(sale);
+  if (reason !== null) throw new HandBackToRails(reason);
+
+  const seller = auth!.owner;
+  if (seller.timezone == null) throw new NotPortedError("a seller without a time zone");
+  const purchaser = sale.purchaser_id === null ? null : await db.user.findUnique({ where: { id: sale.purchaser_id } });
+  const plain = await plainPurchaseJson(sale, auth, { purchaserOverride: purchaser });
+  const purchase = {
+    ...plain.render(sale),
+    // include_sale_details, for a sale with none of the optional parts
+    formatted_total_price: formattedTotalPrice(sale),
+    purchase_daystamp: longFormattedDatetime(sale.created_at!, seller.timezone),
+  };
+  const sellerContext = { user: seller, seller, memberships: [] };
+  const saleRow = sale as unknown as Record<string, unknown>;
+  const [customer] = await customersOfPurchases(sellerContext, [String(sale.id)]);
+  return renderJson({
+    success: true,
+    purchase,
+    customer,
+    charges: await buildCharges(saleRow),
+    emails: await buildCustomerEmails(seller, saleRow, receiptUrlOptions(input.request)),
+    product_purchases: [],
+    can_ping: await canPingSales(seller),
+  });
 }
 
 // SalesController#options: before_action :fetch_purchase, then the product's options.

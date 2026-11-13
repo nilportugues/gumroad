@@ -523,12 +523,121 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["message"]).to eq("Could not find purchase")
     end
 
-    it "hands a read of the seller's own sale to Rails", parity: true do
-      sale = library_purchase
+    describe "reading a sale" do
+      def read(sale, as: seller) = get("/mobile/sales/#{sale.external_id}", params: auth(as))
 
-      get "/mobile/sales/#{sale.external_id}", params: auth(seller)
+      it "reads the seller's own sale", parity: true do
+        sale = library_purchase
 
-      expect(response).to have_http_status(:ok)
+        read(sale)
+
+        expect(response).to have_http_status(:ok)
+        body = response.parsed_body
+        expect(body.keys).to eq(%w[success purchase customer charges emails product_purchases can_ping])
+        expect(body["purchase"]["purchase_id"]).to eq(sale.external_id)
+        expect(body["charges"]).to eq([])
+        expect(body["emails"].map { _1["type"] }).to eq(["receipt"])
+        expect(body["can_ping"]).to eq(false)
+      end
+
+      it "reads a guest sale whose buyer has no account", parity: true do
+        sale = purchase_row(link: product, seller:, email: "guest@example.com", full_name: "  Guest Buyer ", quantity: 2, purchase_state: "successful")
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]).to include("purchase_email" => "guest@example.com", "full_name" => "Guest Buyer", "quantity" => 2)
+        expect(response.parsed_body["purchase"]).not_to have_key("user_id")
+      end
+
+      it "reads a free sale of a product with files and a url redirect", parity: true do
+        sale = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, price_cents: 0, purchase_state: "successful")
+        create(:readable_document, link: product, position: 0)
+        create(:url_redirect, purchase: sale, link: product)
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]["file_data"].size).to eq(1)
+        expect(response.parsed_body["purchase"]["formatted_total_price"]).to eq("$0")
+      end
+
+      it "reads a sale of a seller with a notification endpoint", parity: true do
+        seller.update_column(:notification_endpoint, "https://example.com/ping")
+
+        read(library_purchase)
+
+        expect(response.parsed_body["can_ping"]).to eq(true)
+      end
+
+      it "reads a sale whose receipt email was opened", parity: true do
+        sale = library_purchase
+        info = CustomerEmailInfo.build_for_purchase(purchase_id: sale.id, email_name: "receipt")
+        info.save!
+        info.mark_sent!
+        info.mark_delivered!
+        info.mark_opened!
+
+        read(sale)
+
+        expect(response.parsed_body["emails"].first["state"]).to eq("Opened")
+      end
+
+      it "hands a read of a sale whose seller has a post to Rails", parity: true do
+        sale = library_purchase
+        create(:installment, link: product, published_at: Time.current, shown_on_profile: true, send_emails: false)
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]["product_updates_data"].size).to eq(1)
+      end
+
+      it "hands a read of a sale with an offer code to Rails", parity: true do
+        code = create(:offer_code, user: seller, products: [product], amount_cents: 1)
+        sale = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, offer_code: code, purchase_state: "successful")
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]["offer_code"]["code"]).to eq(code.code)
+      end
+
+      it "hands a read of a sale with a variant to Rails", parity: true do
+        category = create(:variant_category, link: product, title: "Size")
+        variant = create(:variant, variant_category: category, name: "Large")
+        sale = library_purchase
+        sale.variant_attributes << variant
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]["variants"]).to be_present
+      end
+
+      it "hands a read of a partially refunded sale to Rails", parity: true do
+        sale = library_purchase
+        sale.update_columns(stripe_partially_refunded: true)
+        create(:refund, purchase: sale, amount_cents: 20)
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]["partially_refunded"]).to eq(true)
+      end
+
+      it "hands a read of a reviewed sale to Rails", parity: true do
+        sale = library_purchase
+        create(:product_review, purchase: sale, link: product, rating: 5)
+
+        read(sale)
+
+        expect(response.parsed_body["purchase"]["product_rating"]).to eq(5)
+      end
+
+      it "hands a read of the sale of a membership to Rails", parity: true do
+        membership = create(:membership_product, user: seller)
+        subscription = create(:subscription, link: membership, user: buyer)
+        sale = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, subscription:, is_original_subscription_purchase: true, purchase_state: "successful")
+
+        read(sale)
+
+        expect(response).to have_http_status(:ok)
+      end
     end
 
     it "serves a sales page of USD sales", parity: true do
