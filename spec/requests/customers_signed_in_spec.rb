@@ -709,4 +709,71 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     senders = customers_of(response).select { _1["is_gift_sender_purchase"] }
     expect(senders.to_h { [_1.dig("product", "name"), _1["license"].present?] }).to eq("Without key" => false, "With key" => true, "No pages" => true)
   end
+
+  # The installment_plan_purchase factory charges a card, so the same rows are built and saved without validation.
+  def sell_on_installments(link, days_ago:, paid: 1, **attributes)
+    original = build(:purchase, link:, seller:, created_at: at_midday(days_ago), purchase_state: "successful", is_original_subscription_purchase: true, is_installment_payment: true, **attributes)
+    original.installment_plan = link.installment_plan
+    original.set_price_and_rate
+    original.save!(validate: false)
+    original.subscription = create(:subscription, link:, is_installment_plan: true, user: nil, charge_occurrence_count: link.installment_plan.number_of_installments)
+    original.save!(validate: false)
+    plan = original.subscription
+    create(:installment_plan_snapshot, payment_option: plan.last_payment_option, number_of_installments: link.installment_plan.number_of_installments, recurrence: link.installment_plan.recurrence, total_price_cents: original.total_price_before_installments || original.price_cents)
+    (paid - 1).times do |index|
+      build(:purchase, link:, seller:, email: original.email, created_at: at_midday(days_ago - 1 - index), purchase_state: "successful", is_installment_payment: true, subscription: plan).tap do |charge|
+        charge.installment_plan = link.installment_plan
+        charge.save!(validate: false)
+      end
+    end
+    original
+  end
+
+  it "serves a customer paying in installments with the charges left", parity: true do
+    course = create(:product, :with_installment_plan, user: seller, name: "Course", price_cents: 3000)
+    sell_on_installments(course, days_ago: 9, paid: 2, email: "plan@example.com")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["subscription"]).to include("is_installment_plan" => true, "remaining_charges" => 1)
+    expect(customer.dig("price", "recurrence")).to eq("monthly")
+  end
+
+  it "serves a customer who finished paying in installments", parity: true do
+    course = create(:product, :with_installment_plan, user: seller, name: "Course", price_cents: 3000)
+    sell_on_installments(course, days_ago: 9, paid: course.installment_plan.number_of_installments, email: "done@example.com")
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["subscription"]).to include("is_installment_plan" => true, "remaining_charges" => 0)
+  end
+
+  it "serves a customer paying in installments with an offer code", parity: true do
+    course = create(:product, :with_installment_plan, user: seller, name: "Course", price_cents: 3000)
+    code = create(:percentage_offer_code, user: seller, products: [course], code: "HALF", amount_percentage: 50)
+    sell_on_installments(course, days_ago: 9, paid: 2, email: "coupon@example.com", offer_code: code)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["discount"]).to include("type" => "percent", "percents" => 50)
+    expect(customer["subscription"]).to include("is_installment_plan" => true)
+  end
+
+  it "serves a customer paying in installments whose purchase has no subscription", parity: true do
+    course = create(:product, :with_installment_plan, user: seller, name: "Course", price_cents: 3000)
+    stranded = build(:purchase, link: course, seller:, created_at: at_midday(9), purchase_state: "successful", is_original_subscription_purchase: true, is_installment_payment: true, email: "stranded@example.com")
+    stranded.installment_plan = course.installment_plan
+    stranded.set_price_and_rate
+    stranded.save!(validate: false)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["subscription"]).to be_nil
+  end
 end

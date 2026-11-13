@@ -219,7 +219,7 @@ describe "Product reviews", type: :request do
       expect(response.parsed_body["review"]).to include("purchase_id" => mine.purchase.external_id, "response" => { "message" => "Thanks" })
     end
 
-    it "hands a review without a message to Rails", parity: true do
+    it "answers 404 for a review without a message", parity: true do
       silent = review(rating: 4, message: nil)
 
       fetch_review(silent)
@@ -227,7 +227,7 @@ describe "Product reviews", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a removed review to Rails", parity: true do
+    it "answers 404 for a removed review", parity: true do
       removed = review(rating: 4, message: "Gone", deleted_at: frozen_at)
 
       fetch_review(removed)
@@ -235,7 +235,7 @@ describe "Product reviews", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a review that does not exist to Rails", parity: true do
+    it "answers 404 for a review that does not exist", parity: true do
       get "/product_reviews/unknown", headers: { "Accept" => "application/json" }
 
       expect(response).to have_http_status(:not_found)

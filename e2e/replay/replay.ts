@@ -36,7 +36,7 @@ export const readRecording = (file: string): ReplayedExchange[] =>
  * host and port are the target's. Throws for any host the suite's guard would refuse, so a tampered recording
  * cannot point the tool elsewhere.
  */
-export const mapHost = (recordedHost: string, base: URL) => {
+export const mapHost = (recordedHost: string, base: URL, keepRecordedPort = false) => {
   const recorded = new URL(`http://${recordedHost}`).hostname.toLowerCase();
   if (!isSafeHost(recorded)) throw new Error(`Refusing recorded host "${recorded}": not local or example.*`);
   const baseHost = base.hostname.toLowerCase();
@@ -45,7 +45,11 @@ export const mapHost = (recordedHost: string, base: URL) => {
   if (recorded === "localhost" || recorded === "127.0.0.1") hostname = baseHost;
   else if (recorded.endsWith(".localhost") && !loopback)
     hostname = `${recorded.slice(0, -".localhost".length)}.${baseHost}`;
-  return base.port ? `${hostname}:${base.port}` : hostname;
+  // A server that sits behind a host-routing proxy (Node in front of Rails) must see the port Rails' domain
+  // constraints were configured with, while the connection goes to the target's own port.
+  const recordedPort = new URL(`http://${recordedHost}`).port;
+  const port = keepRecordedPort && recordedPort ? recordedPort : base.port;
+  return port ? `${hostname}:${port}` : hostname;
 };
 
 type Cookies = Map<string, string>;
@@ -116,14 +120,14 @@ const pickHeaders = (headers: http.IncomingHttpHeaders) =>
 export const replay = async (
   exchanges: RecordedExchange[],
   baseUrl: string,
-  { timeoutMs = REPLAY_TIMEOUT_MS }: { timeoutMs?: number } = {},
+  { timeoutMs = REPLAY_TIMEOUT_MS, keepRecordedPort = false }: { timeoutMs?: number; keepRecordedPort?: boolean } = {},
 ): Promise<ReplayedExchange[]> => {
   const base = new URL(resolveBaseUrl(baseUrl));
   const jars = new Map<string, Cookies>();
   const out: ReplayedExchange[] = [];
 
   for (const exchange of exchanges) {
-    const host = mapHost(exchange.host, base);
+    const host = mapHost(exchange.host, base, keepRecordedPort);
     const blank = {
       ...exchange,
       ts: new Date().toISOString(),

@@ -52,9 +52,9 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [x] 4.1 Seeded bot with `BOT_SEED`, `BOT_SESSIONS`, `BOT_STEPS` (`e2e/bot/`)
 - [x] 4.2 Recorder writes request and response pairs as JSONL under `e2e/.out/`
 - [x] 4.3 Determinism check: the same seed gives the same request sequence twice (`e2e/bot/determinism.bot.ts`, `npm run e2e:determinism`)
-- [ ] 4.4 Replay tool sends a recording to a Rails server (tool built in `e2e/replay/`, unit-tested against a stub server; remaining: run it on a real bot recording against lane 3)
-- [ ] 4.5 Replay tool sends the same recording to the Node server (same tool; remaining: a running Node server and a restored seed snapshot)
-- [ ] 4.6 Diff report between the two replays, with known differences masked (`e2e/replay/diff.ts` and mask built and unit-tested; remaining: a real Rails-vs-Node diff, and checking the mask against real volatile fields)
+- [x] 4.4 Replay tool sends a recording to a Rails server (`e2e/replay/`; run on a real bot recording, seed 1, 2 sessions x 15 steps, 136 exchanges, against a seeded Rails on lane 1 (lane 3 belonged to another run): 103 GETs replayed, 33 requests with bodies skipped; statuses 200 x65, 302 x17, 301 x11, 500 x5, 404 x4, 303 x1)
+- [x] 4.5 Replay tool sends the same recording to the Node server (same 103 GETs against `next dev` with every `routes.json` flag on, proxying to the same Rails and database; no seed snapshot restore: both replays share one database, Rails first)
+- [ ] 4.6 Diff report between the two replays, with known differences masked (`e2e/replay/compare-cli.ts` writes `report.md`; a real diff was produced, see "Rails vs Node replay" below; stays open because the 52 body differences were not traced to volatile fields or real content, so the mask is not checked against real data)
 
 ## Phase 5: running it for real
 
@@ -70,3 +70,27 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 `npm run e2e:determinism` (bot project, not part of `bin/e2e-run`): 3 passed in each of 3 consecutive runs; with the RNG seed perturbed by `Math.random` the same-seed test fails.
 
 Unit tests of the replay, diff and quarantine code (`npx vitest run e2e`, no app): 20 passed, 0 failed. Mutation-checked (break, a test fails, revert): both host guards, the cookie jar, the body-skip rule, the csrf-meta, timestamp, id-key and numeric-path mask rules, each compared field, the skip handling, the quarantine anchor and reason check. The csrf-form-field and token-keys rules are covered by an assertion but were not mutated.
+
+## Rails vs Node replay (4.4 to 4.6, one run)
+
+Recording: bot seed 1, 2 sessions x 15 steps, made against Rails on lane 1. Compared with `compare-cli.ts`: 103 GETs paired, 33 skipped
+(request bodies are not recorded), 0 only on one side, 287 field differences. All 103 statuses agree (the Node server redirects and renders
+what Rails does for these requests). Two setup findings first, then the differences.
+
+Node dev server findings (environment, not a ported-route bug unless stated):
+- `/discover` and `/l/*` answered 500 on Node until `ELASTICSEARCH_HOST` (and `ES_INDEX_SUFFIX`) were set: `getElasticsearch` throws `key not found: "ELASTICSEARCH_HOST"` (`src/server/infra/elasticsearch.ts:22`, from `search/transport.ts`). Config gap.
+- Every route answered 500 before `SECRET_KEY_BASE` and `RACK_ATTACK_REDIS_HOST` were set. Config gap.
+- `GET /settings` with no session answered 500: `NotPortedError("authenticate_user! for a signed-out visitor")` at `src/server/page-props/seller-pages.ts:101`, where `connections-mutations.ts:27` and `seller-json-guard.ts:18` throw `HandBackToRails` for the same case. With the env route gate it reaches Node; production's `railsRouteGate` is expected to send a signed-out request to Rails, which was not run here. With `NEXTJS_ASSUME_SIGNED_OUT=1` it is a 302 like Rails. Possible real bug on that path: report, not fixed.
+- Node swallows the cause of a 500 in development (`notifyError`, Sentry off) and serves Rails' public 500 page.
+
+Differences, by request (counts are exchanges in this recording; R is Rails, N is Node):
+- Every pair (103): `vary` differs (Rails `X-Inertia, Origin`-style, Node `Origin, Accept-Encoding`).
+- 73 pairs: Rails sets the `__profilin` cookie (mini-profiler, development only); Node does not.
+- `/discover` x18, `/l/demo` x8, `/l/h` x2, `/l/b` x1: `cache-control` R `no-store, must-revalidate, private, max-age=0`, N `no-store`; `body` differs.
+- `/checkout` x13: `body` differs; `cache-control` x9 R `no-store, must-revalidate, private, max-age=0`, N `no-store`.
+- `/cart_items_count` x13 and `/checkout/upsells/products` x4: `cache-control` R `no-store, must-revalidate, private, max-age=0`, N `max-age=0, private, must-revalidate`.
+- `/login` x2 and `/signup` x2: `body`; `cache-control` R `max-age=0, private, must-revalidate`, N `no-store`; Node also sets `_gumroad_guid`.
+- `GET /` x1: `body`.
+- `/braintree/client_token` x5: `body` (both 500 with different pages; Braintree is not configured here).
+- Cookie-name differences only (`__profilin`): `/d/:id`, `/dashboard`, `/emails/...`, `/internal/:id/recipient_count`, `/library`, `/two-factor`, `/workflows/...`.
+- Not compared: the 33 requests with bodies (logins, sign-ups, buys, post and workflow creation), so no write path and no signed-in page was replayed.

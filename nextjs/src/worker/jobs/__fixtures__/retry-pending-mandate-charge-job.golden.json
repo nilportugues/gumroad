@@ -1,0 +1,329 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "an order that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an order that does not exist with a buyer currency quote",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        9,
+        "quote_1"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "another order only",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an order that exists",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an order that exists with a buyer currency quote",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        1,
+        "quote_1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an order id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        "1"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a missing order id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        "9"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an order id of nil",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an order id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                0,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an order id as a word",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `orders`.* FROM `orders` WHERE `orders`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "purchaser_id",
+              "created_at",
+              "updated_at",
+              "flags",
+              "review_reminder_scheduled_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "RetryPendingMandateChargeJob",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    }
+  ]
+}
