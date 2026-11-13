@@ -2339,7 +2339,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": true,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefundPurchaseForFraudWorker": {
     "file": "app/sidekiq/refund_purchase_for_fraud_worker.rb",
@@ -2695,7 +2695,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReverseDeferredInternalTransferJob": {
     "file": "app/sidekiq/reverse_deferred_internal_transfer_job.rb",
