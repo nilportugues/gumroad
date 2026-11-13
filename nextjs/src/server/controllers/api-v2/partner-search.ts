@@ -2,19 +2,23 @@
 // answered by the products index. Ordering and totals are Elasticsearch's own, from the same query body Rails builds.
 import { Prisma } from "@prisma/client";
 
-import { LinkFlags } from "../../models/link.ts";
-import { column, columnIn, columnNotIn, selectRows, table } from "../../models/sql.ts";
-import { nameOrUsername, username, Users, UserFlags } from "../../models/user.ts";
 import { isAdult } from "../../models/concerns/adult-keyword-detector.ts";
 import { formattedPrice } from "../../models/concerns/money-formatter.ts";
+import { LinkFlags } from "../../models/link.ts";
 import { RECURRENCE_LONG_INDICATOR } from "../../models/purchase-json.ts";
+import { column, columnIn, columnNotIn, selectRows, table } from "../../models/sql.ts";
+import { nameOrUsername, username, Users, UserFlags } from "../../models/user.ts";
 import { avatarUrl, profileUrl } from "../../page-props/buyer/users.ts";
-import { cardForWeb, longUrl } from "../../presenters/product.ts";
 import { remainingForSaleCount } from "../../presenters/product-props.ts";
 import { findLink, findUserById, type LinkRow, type UserRow } from "../../presenters/product-reads.ts";
+import { cardForWeb, longUrl } from "../../presenters/product.ts";
 import { MAX_RESULT_WINDOW, searchOptions, searchProducts } from "../../search/product-search.ts";
 import { type Params, intJson, isNil, toI } from "../../search/ruby-params.ts";
-import { defaultSearchProductsDeps, normalizeSearchParamValues, validFilterTokens } from "../../search/search-products.ts";
+import {
+  defaultSearchProductsDeps,
+  normalizeSearchParamValues,
+  validFilterTokens,
+} from "../../search/search-products.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
 import { type ApiV2Input, json, present, registerApiV2 } from "./base.ts";
@@ -42,7 +46,8 @@ async function partnerSellersInScope(applicationId: unknown, params: Params): Pr
   let narrowing = Prisma.empty;
   if (present(params.external_user_id)) {
     // A collection's `to_s` is its Ruby inspect form, which only Rails can build.
-    if (typeof params.external_user_id !== "string") throw new HandBackToRails("an external_user_id that is not a string");
+    if (typeof params.external_user_id !== "string")
+      throw new HandBackToRails("an external_user_id that is not a string");
     narrowing = Prisma.sql` AND ${column("partner_sellers", "external_user_id")} = ${params.external_user_id}`;
   }
   return selectRows<PartnerSeller>(
@@ -58,7 +63,8 @@ function permittedSearchParams(params: Params): Params {
   for (const key of ["query", "min_price", "max_price", "tags"]) {
     const value = params[key];
     if (isScalar(value) || value === null) permitted[key] = value;
-    else if (key === "tags" && Array.isArray(value) && value.every((element) => isScalar(element) || element === null)) permitted[key] = value;
+    else if (key === "tags" && Array.isArray(value) && value.every((element) => isScalar(element) || element === null))
+      permitted[key] = value;
   }
   return permitted;
 }
@@ -79,8 +85,12 @@ async function productIdsHiddenFromProfile(userIds: bigint[]): Promise<bigint[]>
   for (const section of sections) {
     const shown = shownBySeller.get(section.seller_id) ?? new Set<bigint>();
     shownBySeller.set(section.seller_id, shown);
-    const data = (typeof section.json_data === "string" ? JSON.parse(section.json_data) : section.json_data) as Record<string, unknown> | null;
-    if (section.type === "SellerProfileProductsSection") for (const id of jsonIds(data?.shown_products ?? [])) shown.add(id);
+    const data = (typeof section.json_data === "string" ? JSON.parse(section.json_data) : section.json_data) as Record<
+      string,
+      unknown
+    > | null;
+    if (section.type === "SellerProfileProductsSection")
+      for (const id of jsonIds(data?.shown_products ?? [])) shown.add(id);
     else if (section.type === "SellerProfileFeaturedProductSection") {
       if (data?.featured_product_id == null) throw new HandBackToRails("a featured product section without a product");
       shown.add(BigInt(data.featured_product_id as number));
@@ -101,7 +111,11 @@ async function productIdsHiddenFromProfile(userIds: bigint[]): Promise<bigint[]>
 
 // product_search_params: nil is Rails' "Unknown category" answer.
 async function productSearchParams(params: Params, partnerSellers: PartnerSeller[]): Promise<Params | null> {
-  const searchParams = await normalizeSearchParamValues(permittedSearchParams(params), { validFilterTokens }, { actionControllerParams: true });
+  const searchParams = await normalizeSearchParamValues(
+    permittedSearchParams(params),
+    { validFilterTokens },
+    { actionControllerParams: true },
+  );
   if (present(params.category)) {
     const category = typeof params.category === "string" ? await categoryForPath(params.category) : undefined;
     if (category === undefined) return null;
@@ -122,10 +136,14 @@ async function categoryForPath(path: string): Promise<ApiCategory | undefined> {
   return [...(await categoriesById()).values()].find((category) => category.path === path);
 }
 
-const idsForJson = (ids: unknown) => (Array.isArray(ids) ? ids.map((id) => (typeof id === "bigint" ? intJson(id) : id)) : ids);
+const idsForJson = (ids: unknown) =>
+  Array.isArray(ids) ? ids.map((id) => (typeof id === "bigint" ? intJson(id) : id)) : ids;
 
 async function runSearch(searchParams: Params) {
-  const body = await searchOptions({ ...searchParams, user_id: idsForJson(searchParams.user_id), exclude_ids: idsForJson(searchParams.exclude_ids) }, defaultSearchProductsDeps());
+  const body = await searchOptions(
+    { ...searchParams, user_id: idsForJson(searchParams.user_id), exclude_ids: idsForJson(searchParams.exclude_ids) },
+    defaultSearchProductsDeps(),
+  );
   return searchProducts(body);
 }
 
@@ -145,7 +163,9 @@ function ratedAsAdult(row: LinkRow, user: UserRow): boolean {
   if (LinkFlags.isSet(row.flags, "is_adult")) return true;
   const seller = Users.load(user as never);
   if (UserFlags.isSet(user.flags as bigint | number | null, "all_adult_products")) return true;
-  return [row.name, row.description, user.name, username(seller), user.bio].some((text) => isAdult(text as string | null));
+  return [row.name, row.description, user.name, username(seller), user.bio].some((text) =>
+    isAdult(text as string | null),
+  );
 }
 
 // CurrencyHelper#recurrence_label. A membership with a fixed duration ("once", "a year x 2") is not recorded, so Rails takes the request.
@@ -158,7 +178,12 @@ function recurrenceLabel(recurrence: unknown, durationInMonths: unknown): string
 }
 
 // PartnerProductPresenter#props
-async function productProps(row: LinkRow, user: UserRow, partnerSeller: PartnerSeller, category: ApiCategory | undefined) {
+async function productProps(
+  row: LinkRow,
+  user: UserRow,
+  partnerSeller: PartnerSeller,
+  category: ApiCategory | undefined,
+) {
   const card = await cardForWeb(row.id, { showSeller: false, computeDescription: false, computeInventory: false });
   const label = recurrenceLabel(card.recurrence, card.duration_in_months);
   return {
@@ -194,13 +219,18 @@ registerApiV2({
   ownerless: true,
   before: partnerGuards,
   async run({ token, params }: ApiV2Input) {
-    if (!integerParams(params, "page", "per_page")) return json({ success: false, message: "page and per_page must be integers." }, 400);
+    if (!integerParams(params, "page", "per_page"))
+      return json({ success: false, message: "page and per_page must be integers." }, 400);
 
     const page = clamp(toI(params.page), 1n, BigInt(Number.MAX_SAFE_INTEGER));
-    const perPage = Number(clamp(toI(present(params.per_page) ? params.per_page : DEFAULT_PER_PAGE), 1n, BigInt(MAX_PER_PAGE)));
+    const perPage = Number(
+      clamp(toI(present(params.per_page) ? params.per_page : DEFAULT_PER_PAGE), 1n, BigInt(MAX_PER_PAGE)),
+    );
     const offset = (page - 1n) * BigInt(perPage);
     if (offset >= BigInt(MAX_RESULT_WINDOW))
-      return badRequest(`Results are available up to ${MAX_RESULT_WINDOW}. Narrow the request with external_user_id or other filters.`);
+      return badRequest(
+        `Results are available up to ${MAX_RESULT_WINDOW}. Narrow the request with external_user_id or other filters.`,
+      );
 
     const partnerSellers = await partnerSellersInScope(token.application_id, params);
     const searchParams = await productSearchParams(params, partnerSellers);
@@ -266,7 +296,8 @@ registerApiV2({
     const creators = [];
     for (const bucket of buckets) {
       const partnerSeller = sellersByUserId.get(String(toI(bucket.key)));
-      if (partnerSeller !== undefined) creators.push(await sellerProps(partnerSeller, await requireUser(partnerSeller.user_id)));
+      if (partnerSeller !== undefined)
+        creators.push(await sellerProps(partnerSeller, await requireUser(partnerSeller.user_id)));
     }
     return json({ success: true, creators });
   },
