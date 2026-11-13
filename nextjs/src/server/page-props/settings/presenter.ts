@@ -10,6 +10,7 @@ import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { pingSigningSecretOf } from "../../models/ping-signing-setting.ts";
 import { formEmail, jsonDataForAttr, unpaidBalanceCents, UserFlags, Users } from "../../models/user.ts";
 import type { SellerContext } from "../../policies/seller-context.ts";
 import { settingsAdvancedUserPolicy } from "../../policies/settings/advanced-user.ts";
@@ -395,6 +396,7 @@ export async function advancedProps(context: SellerContext) {
     settings_pages: await settingsPages(context),
     user_id: externalId(seller.id),
     notification_endpoint: seller.notification_endpoint || "",
+    ping_signing_secret: await pingSigningSecretOf(seller.id),
     blocked_customer_emails: blocked.map((object) => object.object_value).join("\n"),
     custom_domain_verification_status: null,
     custom_domain_name: customDomain?.domain || "",
