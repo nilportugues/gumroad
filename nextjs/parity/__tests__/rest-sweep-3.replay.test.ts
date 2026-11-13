@@ -201,8 +201,8 @@ describe.skipIf(!url)("rest sweep 3", () => {
 
   // A seed token ("<now-2995h>") keeps only the hours between the sale and the recording, so a sale replays at the replay's clock time
   // and the CSV's dates and the day boundaries of the time zone examples drift with it. Seeding at the clock time of the recording
-  // (14:21:00 UTC on 2026-11-13, the middle of the recording run) and moving the expected dates by the days since keeps both.
-  const RECORDED_CLOCK_UTC = [14, 21, 0] as const;
+  // (15:26:00 UTC on 2026-11-13, the middle of the recording run) and moving the expected dates by the days since keeps both.
+  const RECORDED_CLOCK_UTC = [15, 26, 0] as const;
   const seedClock = () => {
     const pinned = new Date();
     pinned.setUTCHours(...RECORDED_CLOCK_UTC, 0);

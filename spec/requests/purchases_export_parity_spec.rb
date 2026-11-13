@@ -889,6 +889,17 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     end
 
     # Rails raises on these rows (a NoMethodError the request spec cannot record as a response), so Node leaves them to it.
+    it "hands a gifted membership whose receiver is not flagged as one to Rails", parity: true do
+      subscription = subscribed
+      sender = sell(of: membership, subscription:, is_original_subscription_purchase: true, is_gift_sender_purchase: true, price_cents: 300, email: "gifter@example.com")
+      receiver = sell(of: membership, subscription:, state: "gift_receiver_purchase_successful", price_cents: 0, email: "giftee@example.com")
+      Gift.create!(link: membership, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
     describe "Rails cannot export" do
       it "a sale whose subscription is gone" do
         charge(subscribed, original: true, price_cents: 300).update_columns(subscription_id: 0)
