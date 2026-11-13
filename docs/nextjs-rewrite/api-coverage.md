@@ -175,7 +175,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `POST /mobile/purchases/:id/unarchive` | `Api::Mobile::PurchasesController#unarchive` | native | `nextjs_mobile_purchases` | y |
 | `DELETE /mobile/purchases/:id` | `Api::Mobile::PurchasesController#destroy` | native | `nextjs_mobile_purchases` | y |
 | `GET /mobile/url_redirects/get_url_redirect_attributes/:id` | `Api::Mobile::UrlRedirectsController#url_redirect_attributes` | native | `nextjs_mobile_url_redirects` | y |
-| `GET /mobile/url_redirects/fetch_placeholder_products` | `Api::Mobile::UrlRedirectsController#fetch_placeholder_products` | native | `nextjs_mobile_url_redirects` | n |
+| `GET /mobile/url_redirects/fetch_placeholder_products` | `Api::Mobile::UrlRedirectsController#fetch_placeholder_products` | native | `nextjs_mobile_url_redirects` | y |
 | `GET /mobile/url_redirects/stream/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#stream` | native | `nextjs_mobile_url_redirect_delivery` | y |
 | `GET /mobile/url_redirects/hls_playlist/:token/:product_file_id/index.m3u8` | `Api::Mobile::UrlRedirectsController#hls_playlist` | native | `nextjs_mobile_url_redirect_delivery` | y |
 | `GET /mobile/url_redirects/download/:token/:product_file_id` | `Api::Mobile::UrlRedirectsController#download` | native | `nextjs_mobile_url_redirect_delivery` | y |

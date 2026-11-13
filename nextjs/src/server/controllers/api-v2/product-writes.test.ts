@@ -14,25 +14,10 @@ const mocks = vi.hoisted(() => ({
   saveTags: vi.fn(),
 }));
 vi.mock("../../../lib/db.ts", () => ({ db: { link: { findUnique: mocks.findUnique } } }));
-vi.mock("../../models/link.ts", async () => {
-  const { defineFlags } = await import("../../../lib/flags.ts");
-  return {
-    Links: { load: (row: object) => ({ row, errors: { fullMessages: () => [] } }), updateBang: mocks.updateBang },
-    LinkFlags: defineFlags(
-      "links",
-      {
-        1: "product_refund_policy_enabled",
-        2: "is_recurring_billing",
-        14: "quantity_enabled",
-        16: "is_adult",
-        17: "display_product_reviews",
-        19: "is_tiered_membership",
-        22: "should_show_sales_count",
-      },
-      { queryMode: "bit_operator" },
-    ),
-  };
-});
+vi.mock("../../models/link.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../models/link.ts")>()),
+  Links: { load: (row: object) => ({ row, errors: { fullMessages: () => [] } }), updateBang: mocks.updateBang },
+}));
 vi.mock("../../models/runtime/transaction.ts", () => ({ transaction: (fn: () => Promise<unknown>) => fn() }));
 vi.mock("../../models/price-writes.ts", () => ({
   planBuyPriceWrite: mocks.planPrice,
