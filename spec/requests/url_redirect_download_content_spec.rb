@@ -269,9 +269,9 @@ describe "Url redirect download page content", type: :request do
       expect(response).to redirect_to(url_redirect_expired_page_path(token))
     end
 
-    def epub_with_location(location, unit)
+    def epub_with_location(location, unit, pagelength: 20)
       epub = create(:readable_document, link: product, display_name: "Book", position: 1, url: "#{S3_BASE_URL}specs/player-book.epub")
-      epub.update_columns(filetype: "epub", pagelength: 20)
+      epub.update_columns(filetype: "epub", pagelength:)
       create(:media_location, product_id: product.id, product_file_id: epub.id, purchase_id: purchase.id, url_redirect_id: url_redirect.id, location:, consumed_at: 1.day.ago).update_columns(unit:)
       epub
     end
@@ -285,13 +285,41 @@ describe "Url redirect download page content", type: :request do
       expect(response.parsed_body.dig("props", "latest_media_locations", epub.external_id)).to include("location" => 50, "unit" => "percentage")
     end
 
-    it "hands a poll of an EPUB with a page number location to Rails", parity: true do
-      epub_with_location(4, "page_number")
+    it "answers the page number location of an EPUB as a percentage of its pages", parity: true do
+      epub = epub_with_location(7, "page_number", pagelength: 21)
       log_in(buyer)
 
       get url_redirect_download_page_path(token), headers: poll_headers
 
-      expect(response).to be_successful
+      expect(response.parsed_body.dig("props", "latest_media_locations", epub.external_id)).to include("location" => 33, "unit" => "percentage")
+      expect(response.parsed_body.dig("props", "latest_media_locations", epub.external_id)).not_to have_key("cfi")
+    end
+
+    it "rounds an EPUB page number down the way a float division does", parity: true do
+      epub = epub_with_location(29, "page_number", pagelength: 100)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token), headers: poll_headers
+
+      expect(response.parsed_body.dig("props", "latest_media_locations", epub.external_id)).to include("location" => 28, "unit" => "percentage")
+    end
+
+    it "keeps an EPUB page number below 100 percent", parity: true do
+      epub = epub_with_location(20, "page_number")
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token), headers: poll_headers
+
+      expect(response.parsed_body.dig("props", "latest_media_locations", epub.external_id)).to include("location" => 99, "unit" => "percentage")
+    end
+
+    it "answers nothing for the page number of an EPUB without pages", parity: true do
+      epub = epub_with_location(3, "page_number", pagelength: nil)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token), headers: poll_headers
+
+      expect(response.parsed_body.dig("props", "latest_media_locations")).to eq(epub.external_id => nil)
     end
   end
 
@@ -470,29 +498,104 @@ describe "Url redirect download page content", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands a seller with a custom domain to Rails", parity: true do
-      create(:custom_domain, :verified_with_certificate, user: seller, domain: "content.example.com")
-      post_for("Update").tap { |update| sent_to(update) }
-      log_in(buyer)
+    describe "custom domains" do
+      def listed_urls
+        get url_redirect_download_page_path(token)
+        inertia_props_of(response).dig("content", "posts").map { |entry| entry["view_url"] }
+      end
 
-      get url_redirect_download_page_path(token)
+      before do
+        sent_to(post_for("Update"))
+        log_in(buyer)
+      end
 
-      expect(response).to be_successful
+      it "links the posts to the seller's custom domain while it is verified with a certificate", parity: true do
+        create(:custom_domain, :verified_with_certificate, user: seller, domain: "content.example.com")
+
+        expect(listed_urls.first).to match(%r{\Ahttps?://content\.example\.com/p/})
+        expect(listed_urls.first).to include("username=contentseller")
+      end
+
+      it "links the posts to the subdomain while the custom domain is unverified", parity: true do
+        create(:custom_domain, :verified_with_certificate, user: seller, domain: "content.example.com").update_columns(state: "unverified")
+
+        expect(listed_urls.first).to match(%r{\Ahttps?://contentseller\.})
+      end
+
+      it "links the posts to the subdomain once the certificate has expired", parity: true do
+        create(:custom_domain, :verified_with_certificate, user: seller, domain: "content.example.com").update_columns(ssl_certificate_issued_at: 100.days.ago)
+
+        expect(listed_urls.first).to match(%r{\Ahttps?://contentseller\.})
+      end
+
+      it "ignores a deleted custom domain", parity: true do
+        create(:custom_domain, :verified_with_certificate, user: seller, domain: "content.example.com").update_columns(deleted_at: Time.current)
+
+        expect(listed_urls.first).to match(%r{\Ahttps?://contentseller\.})
+      end
+    end
+
+    describe "an address that bought the product twice" do
+      # The free_purchase factory refuses a second purchase of the address, so both rows are built; the viewed one is created last.
+      let(:purchase) do
+        build(:purchase, link: product, purchaser: buyer, email: "buyer@example.com", ip_address: "203.0.113.9", purchase_state: "successful", price_cents: 500, total_transaction_cents: 500).tap { _1.save!(validate: false) }
+      end
+
+      def second_purchase(price_cents: 500)
+        build(:purchase, link: product, email: "buyer@example.com", ip_address: "203.0.113.9", purchase_state: "successful", price_cents:, total_transaction_cents: price_cents).tap { _1.save!(validate: false) }
+      end
+
+      it "lists the posts emailed to either purchase, linked to the earlier one", parity: true do
+        earlier = second_purchase
+        first_post = post_for("Emailed to the first", published_at: 6.days.ago)
+        second_post = post_for("Emailed to both", published_at: 5.days.ago)
+        sent_to(first_post, earlier, sent_at: 5.days.ago)
+        sent_to(second_post, earlier, sent_at: 4.days.ago)
+        sent_to(second_post, purchase, sent_at: 3.days.ago)
+        post_for("Profile update", send_emails: false, shown_on_profile: true, published_at: 2.days.ago)
+        log_in(buyer)
+
+        get url_redirect_download_page_path(token)
+
+        posts = inertia_props_of(response).dig("content", "posts")
+        expect(posts.map { |entry| entry["name"] }).to eq(["Profile update", "Emailed to both", "Emailed to both", "Emailed to the first"])
+        expect(posts.map { |entry| entry["view_url"][/purchase_id=([^&]+)/, 1] }.uniq).to eq([CGI.escape(earlier.external_id)])
+      end
+
+      it "lists a seller post when only the other purchase passes its filters", parity: true do
+        earlier = second_purchase(price_cents: 1_000)
+        purchase.update_columns(price_cents: 300)
+        news = create(:seller_installment, seller:, installment_type: "seller", name: "Big spenders", published_at: 6.days.ago, paid_more_than_cents: 800)
+        sent_to(news, purchase, sent_at: 5.days.ago)
+        log_in(buyer)
+
+        get url_redirect_download_page_path(token)
+
+        posts = inertia_props_of(response).dig("content", "posts")
+        expect(posts.map { |entry| entry["name"] }).to eq(["Big spenders"])
+        expect(posts.first["view_url"]).to include("purchase_id=#{CGI.escape(purchase.external_id)}")
+        expect(earlier.id).to be < purchase.id
+      end
+
+      it "lists a seller post when only the viewed purchase passes its filters", parity: true do
+        earlier = second_purchase(price_cents: 300)
+        purchase.update_columns(price_cents: 1_000)
+        news = create(:seller_installment, seller:, installment_type: "seller", name: "Big spenders again", published_at: 6.days.ago, paid_more_than_cents: 800)
+        sent_to(news, purchase, sent_at: 5.days.ago)
+        log_in(buyer)
+
+        get url_redirect_download_page_path(token)
+
+        posts = inertia_props_of(response).dig("content", "posts")
+        expect(posts.map { |entry| entry["name"] }).to eq(["Big spenders again"])
+        expect(posts.first["view_url"]).to include("purchase_id=#{CGI.escape(purchase.external_id)}")
+        expect(earlier.id).to be < purchase.id
+      end
     end
 
     it "hands a product that shows every past post to Rails", parity: true do
       product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:should_show_all_posts])
       post_for("Update").tap { |update| sent_to(update) }
-      log_in(buyer)
-
-      get url_redirect_download_page_path(token)
-
-      expect(response).to be_successful
-    end
-
-    it "hands a buyer with a second purchase of the product to Rails", parity: true do
-      post_for("Update").tap { |update| sent_to(update) }
-      build(:purchase, link: product, email: "buyer@example.com", ip_address: "203.0.113.9", purchase_state: "successful").save!(validate: false)
       log_in(buyer)
 
       get url_redirect_download_page_path(token)

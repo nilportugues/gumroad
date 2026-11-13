@@ -1,6 +1,5 @@
 // UrlRedirectPresenter#download_attributes and #map_file: the `content_items` of the download page for a redirect whose files are the
-// product's own. What the port does not prove goes to Rails before any write: a file with a thumbnail, a promoted web build, an EPUB's
-// reading location, a stamped PDF (aliveProductFiles), a purchased variant, rich content, a commission's files.
+// product's own. What the port does not prove goes to Rails before any write: a file with a thumbnail, a promoted web build, a stamped PDF (aliveProductFiles), a purchased variant, rich content, a commission's files.
 import type { ProductFile, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -85,15 +84,23 @@ async function subtitleItems(
   );
 }
 
-// ProductFile#media_location_for_download_page; an EPUB's page number becomes a percentage by a rule Node does not prove.
+// ProductFile#media_location_for_download_page. An EPUB's page number only proves the reader entered a spine section, so it
+// is reported as a percentage that never reaches 100.
+const EPUB_MAX_PAGE_NUMBER_PERCENTAGE = 99;
 export function mediaLocationForDownloadPage(
   file: ProductFile,
   media: MediaLocationJson | null,
 ): MediaLocationJson | null {
   if (media === null) return null;
   if (isEpub(file)) {
-    if (media.unit === "page_number") throw new HandBackToRails("the page number of an EPUB's reading location");
-    return media.unit === "percentage" ? media : null;
+    if (media.unit === "percentage") return media;
+    if (media.unit !== "page_number" || !file.pagelength || file.pagelength < 1) return null;
+    const percentage = Math.floor((media.location / file.pagelength) * 100);
+    return {
+      ...media,
+      location: Math.min(Math.max(percentage, 0), EPUB_MAX_PAGE_NUMBER_PERCENTAGE),
+      unit: "percentage",
+    };
   }
   const compatible =
     isListenable(file) || isStreamable(file)

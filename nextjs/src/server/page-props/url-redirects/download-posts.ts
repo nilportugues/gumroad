@@ -1,7 +1,7 @@
-// UrlRedirectPresenter#posts for a purchase of a product without versions: Purchase.product_installments over the one purchase
-// the buyer's email maps to, and the view link of each post. Anything that would widen that set (another purchase of the
-// address, a product that shows every past post, a seller domain, equal sort keys among more than two posts) is Rails'.
-import type { Installment, Link, Purchase, User } from "@prisma/client";
+// UrlRedirectPresenter#posts for a purchase of a product without versions: Purchase.product_installments over every
+// purchase of the product the buyer's email maps to, and the view link of each post. A membership, a product that shows
+// every past post and equal sort keys among more than two posts are Rails'.
+import type { CustomDomain, Installment, Link, Purchase, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
@@ -14,7 +14,7 @@ import { purchasePassesFilters } from "../../models/with-filtering.ts";
 import { jsonTime } from "../../presenters/mobile-serializers.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { displayedName } from "../audience/installments.ts";
-import { userSubdomainWithProtocol, userUsername } from "../audience/support.ts";
+import { protocol, userSubdomainWithProtocol, userUsername } from "../audience/support.ts";
 
 const ALL_SUCCESS_STATES = [
   "preorder_authorization_successful",
@@ -29,12 +29,20 @@ const notRefundedOrChargedBack = (purchase: Purchase) =>
   !purchase.stripe_refunded &&
   (purchase.chargeback_date === null || PurchaseFlags.isSet(purchase.flags, "chargeback_reversed"));
 
+const CERTIFICATE_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
+
 // Purchase.for_displaying_installments (including test purchases) over the product's sales with this email.
 function displaysInstallments(purchase: Purchase): boolean {
   if (!(purchase.purchase_state && [...ALL_SUCCESS_STATES, "test_successful"].includes(purchase.purchase_state)))
     return false;
   return notRefundedOrChargedBack(purchase) && !PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase");
 }
+
+// CustomDomain#active?: verified, with a certificate issued within its lifetime.
+const isActive = (domain: CustomDomain) =>
+  domain.state === "verified" &&
+  domain.ssl_certificate_issued_at !== null &&
+  domain.ssl_certificate_issued_at.getTime() > Date.now() - CERTIFICATE_LIFETIME_MS;
 
 // group is the position of the scope in Purchase.product_installments' concatenation, which is the order ties keep.
 type Listed = { post: Installment; sortKey: Date; group: number };
@@ -61,17 +69,23 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   if (purchase.subscription_id !== null) throw new HandBackToRails("posts of a membership purchase");
 
   const sales = await db.purchase.findMany({ where: { link_id: product.id, email: purchase.email } });
+  // can_access_content also drops a deactivated membership, which is left to Rails along with the page of one.
   if (sales.some((sale) => sale.subscription_id !== null && displaysInstallments(sale)))
     throw new HandBackToRails("posts of an address with a membership purchase");
   const displayed = sales.filter(displaysInstallments);
-  if (!displayed.some((sale) => sale.id === purchase.id)) return [];
-  if (displayed.length > 1) throw new HandBackToRails("posts of an address that bought the product twice");
+  if (displayed.length === 0) return [];
+  if (!displayed.some((sale) => sale.id === purchase.id))
+    throw new HandBackToRails("posts of a purchase not displayed");
+  const displayedIds = displayed.map((sale) => sale.id);
 
   const username = userUsername(seller);
-  const host = userSubdomainWithProtocol(seller);
+  const domains = await db.customDomain.findMany({ where: { user_id: Number(seller.id), deleted_at: null } });
+  // has_one :custom_domain takes an unspecified row when there are several.
+  if (domains.length > 1) throw new HandBackToRails("posts of a seller with several custom domains");
+  const activeDomain = domains.find(isActive);
+  if (activeDomain && !activeDomain.domain) throw new HandBackToRails("posts of a custom domain without a name");
+  const host = activeDomain ? `${protocol()}://${activeDomain.domain}` : userSubdomainWithProtocol(seller);
   if (username === null || host === null) throw new HandBackToRails("posts of a seller without a subdomain");
-  if ((await db.customDomain.count({ where: { user_id: Number(seller.id) } })) > 0)
-    throw new HandBackToRails("posts of a seller with a custom domain");
 
   // Purchases of the seller with the same address, whose emails also reach a seller post.
   const sameAddress = (await db.purchase.findMany({ where: { email: purchase.email, seller_id: purchase.seller_id } }))
@@ -82,7 +96,10 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   const listed: Listed[] = [];
 
   // installments_with_sent_emails: product or variant posts emailed to the purchase.
-  const ownInfos = await db.emailInfo.findMany({ where: { purchase_id: purchase.id }, orderBy: { id: "asc" } });
+  const ownInfos = await db.emailInfo.findMany({
+    where: { purchase_id: { in: displayedIds } },
+    orderBy: { id: "asc" },
+  });
   const emailed = await db.installment.findMany({
     where: {
       id: { in: ownInfos.flatMap((info) => (info.installment_id === null ? [] : [Number(info.installment_id)])) },
@@ -91,7 +108,7 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   });
   for (const post of emailed.filter(aliveAndPublished)) {
     if (!InstallmentFlags.isSet(post.flags, "send_emails")) continue;
-    // The scope joins email_infos, so a post emailed twice to the purchase is listed twice.
+    // The scope joins email_infos, so a post emailed twice, or to two purchases, is listed twice.
     for (const info of ownInfos.filter((row) => Number(row.installment_id) === Number(post.id)))
       listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH, group: 0 });
   }
@@ -104,9 +121,14 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     listed.push({ post, sortKey: post.published_at!, group: 1 });
 
   // seller_with_sent_emails_for_purchases and profile_only_for_sellers, narrowed by the buyer filters.
-  const record = new PurchaseRecord(purchase, null);
+  const records = displayed.map((sale) => new PurchaseRecord(sale, null));
+  // Purchase.product_installments keeps a post when any of the purchases passes its filters.
+  const passes = async (post: Installment) => {
+    for (const record of records) if (await purchasePassesFilters(new InstallmentPost(post), record)) return true;
+    return false;
+  };
   const sellerInfos = await db.emailInfo.findMany({
-    where: { purchase_id: { in: [purchase.id, ...sameAddress] } },
+    where: { purchase_id: { in: [...displayedIds, ...sameAddress] } },
     orderBy: { id: "asc" },
   });
   const sellerEmailed = await db.installment.findMany({
@@ -119,7 +141,7 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     if (!InstallmentFlags.isSet(post.flags, "send_emails")) continue;
     const infos = sellerInfos.filter((info) => Number(info.installment_id) === Number(post.id));
     if (infos.length > 1) throw new HandBackToRails("a seller post with several email infos");
-    if (!(await purchasePassesFilters(new InstallmentPost(post), record))) continue;
+    if (!(await passes(post))) continue;
     const info = infos[0]!;
     listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH, group: 2 });
   }
@@ -127,8 +149,7 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     where: { seller_id: Number(purchase.seller_id), installment_type: "seller" },
   });
   for (const post of sellerProfile.filter(aliveAndPublished).filter(profileOnly)) {
-    if (await purchasePassesFilters(new InstallmentPost(post), record))
-      listed.push({ post, sortKey: post.published_at!, group: 3 });
+    if (await passes(post)) listed.push({ post, sortKey: post.published_at!, group: 3 });
   }
 
   // sort_by(...).reverse: Ruby's sort is not stable, so a tie is only known for two posts, which no algorithm swaps.
@@ -142,25 +163,27 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   listed.sort((a, b) => a.sortKey.getTime() - b.sortKey.getTime());
   listed.reverse();
 
-  const externalPurchaseId = encrypt(purchase.id);
+  // purchases.find { link_id == post.link_id } is the first row of the product's purchases, else the viewed one.
+  const firstOfProduct = displayed.reduce((first, sale) => (sale.id < first.id ? sale : first));
   const result: unknown[] = [];
   for (const { post } of listed) {
     if (post.slug === null || post.slug === "") throw new HandBackToRails("a post without a slug");
     const owner = post.seller_id ?? product.user_id;
     if (owner === null || Number(owner) !== Number(seller.id)) throw new HandBackToRails("a post of another seller");
+    const linked = post.link_id !== null && Number(post.link_id) === Number(product.id) ? firstOfProduct : purchase;
     result.push({
       id: encrypt(post.id),
       name: displayedName(post),
-      action_at: await actionAt(post, purchase.id),
-      view_url: `${host}/p/${post.slug}?purchase_id=${cgiEscape(externalPurchaseId)}&username=${cgiEscape(username)}`,
+      action_at: await actionAt(post, displayedIds),
+      view_url: `${host}/p/${post.slug}?purchase_id=${cgiEscape(encrypt(linked.id))}&username=${cgiEscape(username)}`,
     });
   }
   return result;
 }
 
-// Installment#action_at_for_purchases: the last email info of the purchase, else the publish time, else now.
-async function actionAt(post: Installment, purchaseId: bigint): Promise<string | null> {
-  const [info] = (await emailInfos([purchaseId], [BigInt(post.id)]))
+// Installment#action_at_for_purchases: the last email info of the purchases, else the publish time, else now.
+async function actionAt(post: Installment, purchaseIds: bigint[]): Promise<string | null> {
+  const [info] = (await emailInfos(purchaseIds, [BigInt(post.id)]))
     .filter((row) => row.type === EMAIL_INFO_TYPE)
     .sort((a, b) => Number(b.id - a.id));
   if (info === undefined) return jsonTime(post.published_at);

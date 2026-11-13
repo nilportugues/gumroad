@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
   return {
     db: {
       purchase: { findMany: vi.fn() },
-      customDomain: { count: vi.fn() },
+      customDomain: { findMany: vi.fn() },
       emailInfo: { findMany: vi.fn() },
       installment: { findMany: vi.fn() },
     },
@@ -81,15 +81,21 @@ function arrange({
   profile = [] as Installment[],
   sellerPosts = [] as Installment[],
   sellerProfile = [] as Installment[],
+  domains = [] as unknown[],
 } = {}) {
   mocks.db.purchase.findMany.mockResolvedValueOnce(sales).mockResolvedValueOnce(sales);
-  mocks.db.customDomain.count.mockResolvedValue(0);
-  mocks.db.emailInfo.findMany.mockImplementation(({ where }: { where: { installment_id?: unknown } }) =>
-    Promise.resolve(
-      where.installment_id === undefined
-        ? infos
-        : infos.filter((row) => (where.installment_id as { in: bigint[] }).in.includes(row.installment_id)),
-    ),
+  mocks.db.customDomain.findMany.mockResolvedValue(domains);
+  mocks.db.emailInfo.findMany.mockImplementation(
+    ({ where }: { where: { installment_id?: { in: bigint[] }; purchase_id: bigint | { in: bigint[] } } }) =>
+      Promise.resolve(
+        infos
+          .filter((row) => where.installment_id === undefined || where.installment_id.in.includes(row.installment_id))
+          .filter((row) =>
+            typeof where.purchase_id === "bigint"
+              ? row.purchase_id === where.purchase_id
+              : where.purchase_id.in.includes(row.purchase_id),
+          ),
+      ),
   );
   mocks.db.installment.findMany
     .mockResolvedValueOnce(posts)
@@ -153,9 +159,9 @@ describe("downloadPosts", () => {
   });
 
   it.each([
+    ["a membership purchase", () => downloadPosts(purchase({ subscription_id: 9n }), product(), seller)],
     ["a product that shows every past post", () => downloadPosts(purchase(), product({ flags: 1n << 19n }), seller)],
     ["a purchase without an email", () => downloadPosts(purchase({ email: null }), product(), seller)],
-    ["a membership purchase", () => downloadPosts(purchase({ subscription_id: 9n }), product(), seller)],
   ])("hands back %s before querying posts", async (_, run) => {
     await expect(run()).rejects.toBeInstanceOf(HandBackToRails);
     expect(mocks.db.installment.findMany).not.toHaveBeenCalled();
@@ -173,15 +179,107 @@ describe("downloadPosts", () => {
     expect(String(entry!.view_url)).toMatch(/^https?:\/\/ext123\.[^/]+\/p\/post-1\?.*&username=ext123$/u);
   });
 
-  it("hands back an address that bought the product twice", async () => {
-    mocks.db.purchase.findMany.mockResolvedValueOnce([purchase(), purchase({ id: 6n })]);
+  it("lists the posts emailed to either purchase of an address that bought twice, linked to the earlier purchase", async () => {
+    const earlier = purchase({ id: 4n });
+    arrange({
+      sales: [purchase(), earlier],
+      infos: [info(1n, at(10), { purchase_id: 4n }), info(2n, at(20)), info(2n, at(15), { id: 99n, purchase_id: 4n })],
+      posts: [post(1n), post(2n)],
+    });
+
+    const result = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(result.map((entry) => entry.name)).toEqual(["Post 2", "Post 2", "Post 1"]);
+    // The last email info of the post across both purchases is the one with the highest id.
+    expect(result.map((entry) => entry.action_at)).toEqual([
+      "2026-01-15T12:00:00Z",
+      "2026-01-15T12:00:00Z",
+      "2026-01-10T12:00:00Z",
+    ]);
+    expect(mocks.db.emailInfo.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { purchase_id: { in: [5n, 4n] } } }),
+    );
+    for (const entry of result)
+      expect(String(entry.view_url)).toContain(`purchase_id=${encodeURIComponent(encrypt(4n))}`);
+  });
+
+  it("keeps a post when any purchase of the address passes its filters", async () => {
+    arrange({
+      sales: [purchase(), purchase({ id: 6n })],
+      infos: [info(4n, at(10), { purchase_id: 6n })],
+      sellerPosts: [post(4n, { installment_type: "seller", link_id: null })],
+    });
+    mocks.passes.mockImplementation((_, record: { row: Purchase }) => Promise.resolve(record.row.id === 6n));
+
+    const [entry] = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(entry).toMatchObject({ name: "Post 4" });
+    expect(String(entry!.view_url)).toContain(`purchase_id=${encodeURIComponent(encrypt(5n))}`);
+  });
+
+  it("hands back an address with a displayed membership purchase of the product", async () => {
+    arrange({ sales: [purchase(), purchase({ id: 6n, subscription_id: 9n })] });
 
     await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back a seller with a custom domain", async () => {
-    mocks.db.purchase.findMany.mockResolvedValueOnce([purchase()]);
-    mocks.db.customDomain.count.mockResolvedValue(1);
+  it("lists the posts of an address whose other membership purchase is refunded", async () => {
+    arrange({
+      sales: [purchase(), purchase({ id: 6n, subscription_id: 9n, stripe_refunded: true })],
+      infos: [info(1n, at(10))],
+      posts: [post(1n)],
+    });
+
+    await expect(downloadPosts(purchase(), product(), seller)).resolves.toHaveLength(1);
+  });
+
+  it("hands back when the viewed purchase is not displayed but another purchase of the address is", async () => {
+    arrange({ sales: [purchase({ stripe_refunded: true }), purchase({ id: 6n })] });
+
+    await expect(downloadPosts(purchase({ stripe_refunded: true }), product(), seller)).rejects.toBeInstanceOf(
+      HandBackToRails,
+    );
+  });
+
+  it("links to the custom domain of the seller while it is verified with a current certificate", async () => {
+    arrange({
+      infos: [info(1n, at(10))],
+      posts: [post(1n)],
+      domains: [{ domain: "shop.example.com", state: "verified", ssl_certificate_issued_at: new Date() }],
+    });
+
+    const [entry] = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(String(entry!.view_url)).toMatch(
+      /^https?:\/\/shop\.example\.com\/p\/post-1\?purchase_id=.*&username=someseller$/u,
+    );
+  });
+
+  it.each([
+    ["unverified", { state: "unverified", ssl_certificate_issued_at: new Date() }],
+    ["without a certificate", { state: "verified", ssl_certificate_issued_at: null }],
+    [
+      "with an expired certificate",
+      { state: "verified", ssl_certificate_issued_at: new Date(Date.now() - 91 * 864e5) },
+    ],
+  ])("keeps the subdomain link while the custom domain is %s", async (_, domain) => {
+    arrange({ infos: [info(1n, at(10))], posts: [post(1n)], domains: [{ domain: "shop.example.com", ...domain }] });
+
+    const [entry] = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(String(entry!.view_url)).toMatch(/^https?:\/\/someseller\./u);
+  });
+
+  it("looks only at custom domains that were not deleted", async () => {
+    arrange({ infos: [info(1n, at(10))], posts: [post(1n)] });
+
+    await downloadPosts(purchase(), product(), seller);
+
+    expect(mocks.db.customDomain.findMany).toHaveBeenCalledWith({ where: { user_id: 2, deleted_at: null } });
+  });
+
+  it("hands back a seller with several custom domains", async () => {
+    arrange({ domains: [{ domain: "a.example.com" }, { domain: "b.example.com" }] });
 
     await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
   });
