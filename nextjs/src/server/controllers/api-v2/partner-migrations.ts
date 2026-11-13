@@ -1,5 +1,6 @@
 // Api::V2::Partner::BaseController's guards and Api::V2::Partner::MigrationsController#show, the partner's poll of an import it started.
-// `create` stays in Rails: it normalises the catalogue, issues the one-time link and sends mail.
+// `create` serves only the guards that run before the catalogue is validated; the rest stays in Rails: it normalises the catalogue,
+// issues the one-time link and sends mail.
 import { Prisma } from "@prisma/client";
 
 import { column, selectRows, table } from "../../models/sql.ts";
@@ -9,6 +10,8 @@ import { HandBackToRails } from "../application-controller.ts";
 import { json, present, registerApiV2, type ApiV2Input } from "./base.ts";
 
 const PARTNER_SCOPE = "partner_api";
+// PartnerMigration::MAX_EXTERNAL_USER_ID_LENGTH
+const MAX_EXTERNAL_USER_ID_LENGTH = 255;
 // Api::V2::Partner::BaseController::SORT_KEYS
 const SORT_KEYS = ["best_sellers", "newest", "hot_and_new", "highest_rated", "most_reviewed"];
 // PartnerMigration::PUBLIC_ID_FORMAT
@@ -91,5 +94,32 @@ registerApiV2({
     );
     if (row === undefined || Number(row.oauth_application_id) !== Number(token.application_id)) return notFound;
     return { status: 200, body: escapeHtmlInJson(showBody(row)), contentType: "application/json; charset=utf-8" };
+  },
+});
+
+// MigrationsController#create up to normalize_products: whatever follows (the catalogue, seller, part checks and the writes) is Rails'.
+registerApiV2({
+  method: "POST",
+  pattern: "/v2/partner/migrations",
+  scopes: [PARTNER_SCOPE],
+  requireScope: [PARTNER_SCOPE],
+  ownerless: true,
+  paramsReadBeforeScope: false,
+  before: guards,
+  run({ params }) {
+    const externalUserId = params.external_user_id;
+    if (
+      typeof externalUserId !== "string" ||
+      !present(externalUserId) ||
+      Array.from(externalUserId).length > MAX_EXTERNAL_USER_ID_LENGTH
+    )
+      return json(
+        {
+          success: false,
+          message: `external_user_id must be a string with 1 to ${MAX_EXTERNAL_USER_ID_LENGTH} characters, not only spaces.`,
+        },
+        400,
+      );
+    throw new HandBackToRails("a partner migration that passes the guards");
   },
 });
