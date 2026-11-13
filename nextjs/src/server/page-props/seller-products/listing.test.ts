@@ -122,8 +122,15 @@ describe("affiliatedParams", () => {
     });
   });
 
-  it("hands any other nested parameter to Rails", () => {
-    expect(() => affiliatedParams("filter[a]=1")).toThrow(HandBackToRails);
+  it("drops a one-level hash under a name the action does not permit", () => {
+    expect(affiliatedParams("other%5Bkey%5D=1&query=a")).toEqual({ query: "a", page: null, sort: null });
+  });
+
+  it("hands every other shape of nested parameter to Rails", () => {
+    expect(() => affiliatedParams("filter[a][b]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("filter[]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("query[a]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("filter=1&filter[a]=1")).toThrow(HandBackToRails);
     expect(() => affiliatedParams("sort=name")).toThrow(HandBackToRails);
   });
 });

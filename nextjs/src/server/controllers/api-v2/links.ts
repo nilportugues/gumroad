@@ -25,7 +25,7 @@ import {
   successWithObject,
   toSentence,
 } from "./base.ts";
-import { hasApplicableOfferCodes } from "./offer-codes.ts";
+import { enableWithValidOfferCodes } from "./offer-codes.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
 import { productsApiJson } from "./product-json.ts";
 
@@ -98,8 +98,7 @@ async function disable(input: ApiV2Input) {
 async function enable(input: ApiV2Input) {
   const product = productOf(input);
   // validate_product_price_against_all_offer_codes? checks every code that applies to the product.
-  if (await hasApplicableOfferCodes(input.owner, product))
-    throw new HandBackToRails("an enable of a product with discount codes");
+  await enableWithValidOfferCodes(input.owner, product);
   await assertPlainPublish(product, input.owner);
   // The response serializes the product: refuse what Node cannot before the write.
   await apiJson(input, product);

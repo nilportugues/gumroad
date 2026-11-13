@@ -24,10 +24,23 @@ const notPorted = (what: string): never => {
   throw new NotPortedError(what);
 };
 
+const IS_TEAM_MEMBER = 1n << 28n;
+const PAYOUT_SETUP_REJECTION_NOTE_FLAG = "payout_setup_rejection";
+export const PAYMENT_METHOD_MESSAGE =
+  "You must connect at least one payment method before you can publish this product for sale.";
+const isBlank = (value: string | null) => value == null || value.trim() === "";
+
 const exists = async (sql: Prisma.Sql) => {
   const [row] = await selectRows<{ found: number | bigint }>(sql);
   return Number(row?.found ?? 0) > 0;
 };
+
+// A route the port does not read: a team member, any merchant account row, or a payout setup rejection note of the seller.
+const hasPublishRoute = async (seller: User) =>
+  (BigInt(seller.flags ?? 0) & IS_TEAM_MEMBER) !== 0n ||
+  (await exists(
+    Prisma.sql`SELECT (EXISTS (SELECT 1 FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${seller.id}) OR EXISTS (SELECT 1 FROM ${table("comments")} WHERE ${column("comments", "commentable_type")} = 'User' AND ${column("comments", "commentable_id")} = ${seller.id} AND ${column("comments", "json_data")} LIKE ${`%${PAYOUT_SETUP_REJECTION_NOTE_FLAG}%`})) AS found`,
+  ));
 
 // What publish! does that Node does not follow, checked on the product and seller as loaded.
 export async function assertPlainPublish(product: Link, seller: User): Promise<void> {
@@ -41,8 +54,9 @@ export async function assertPlainPublish(product: Link, seller: User): Promise<v
   // enforce_seller_plan!: the offer of the paid-publish experiment is created (and charged for) on a first publish.
   if (product.draft && (await isFeatureEnabled("seller_plan_gate", userActor(seller.id))))
     notPorted("a first publish in the seller plan experiment");
-  // enforce_merchant_account_exits_for_new_users!: the message of a seller that cannot publish names their payout rejection.
-  if (seller.payment_address == null || seller.payment_address.trim() === "")
+  // enforce_merchant_account_exits_for_new_users!: publishable? is false for a seller with no payment address, team flag, merchant account
+  // or PayPal connection. The message then names a recorded payout rejection, which Node does not read.
+  if (isBlank(seller.payment_address) && (await hasPublishRoute(seller)))
     notPorted("the publication by a seller whose payment method is not a payment address");
   // auto_transcode_videos?: a tier 3 seller, or a product with sales (counted in Elasticsearch).
   if ((seller.tier_state ?? 0) >= TIER_3) notPorted("the publication by a seller whose videos are transcoded");
@@ -82,6 +96,8 @@ export async function publishBang(
 ): Promise<string | null> {
   const first = await refusal(product.flags, product, seller);
   if (first !== null) return first;
+  // enforce_merchant_account_exits_for_new_users!, after the email and seller plan gates: assertPlainPublish proved no other route exists.
+  if (isBlank(seller.payment_address)) return PAYMENT_METHOD_MESSAGE;
 
   const record = Links.load(product);
   const wasDraft = product.draft;

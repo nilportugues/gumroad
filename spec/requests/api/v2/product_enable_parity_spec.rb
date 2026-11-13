@@ -124,7 +124,7 @@ describe "API v2 product enable", type: :request, parity_timeline: true do
     expect(response.parsed_body["message"]).to eq("This product was unpublished by Gumroad and cannot be republished by the seller.")
   end
 
-  it "hands an enable of a seller with no payment method back to Rails", parity: true do
+  it "refuses a seller with no payment method", parity: true do
     seller.update_columns(payment_address: nil)
 
     enable
@@ -132,7 +132,7 @@ describe "API v2 product enable", type: :request, parity_timeline: true do
     expect(response.parsed_body["success"]).to be(false)
   end
 
-  it "hands an enable of a product with a discount code back to Rails", parity: true do
+  it "enables a product beside a discount code that keeps the price valid", parity: true do
     create(:offer_code, user: seller, products: [product], amount_cents: 1)
 
     enable

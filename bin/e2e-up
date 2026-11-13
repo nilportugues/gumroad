@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Brings up a seeded, running dev lane 3 app on http://localhost:3003 for the Playwright suite (e2e/README.md).
+# Brings up a seeded, running dev lane app (E2E_LANE=1..3, default 3; port 3000+lane) for the Playwright suite (e2e/README.md).
 # Idempotent: every step checks before it acts. `bin/e2e-down` removes what this creates.
 #
 #   bin/e2e-up            reuse the database as it is (seeds run once; a second suite run sees the first run's records)
@@ -31,7 +31,7 @@ mem_kb="$(awk '/MemAvailable/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
 # 2. The lane container. Only 127.0.0.1:3003 is published.
 if ! e2e_container_exists; then
   e2e_log "creating $E2E_CONTAINER from $E2E_IMAGE"
-  docker run -d --name "$E2E_CONTAINER" --label gumroad.e2e=lane3 --network "$E2E_NETWORK" \
+  docker run -d --name "$E2E_CONTAINER" --label gumroad.e2e=lane$E2E_LANE --network "$E2E_NETWORK" \
     -p "127.0.0.1:$E2E_PORT:$E2E_PORT" -v "$E2E_BUNDLE_VOLUME:/bundle" "$E2E_IMAGE" sleep infinity >/dev/null
 elif ! e2e_container_running; then
   docker start "$E2E_CONTAINER" >/dev/null
@@ -73,14 +73,14 @@ fi
 
 # 5b. --reseed: same lane 3 resources, same commands as bin/e2e-down, minus removing the container.
 if [[ "$reseed" == 1 ]]; then
-  e2e_log "reseed: wiping lane 3 data"
-  e2e_exec '[ -f tmp/pids/server-lane3.pid ] && kill $(cat tmp/pids/server-lane3.pid) 2>/dev/null; rm -f tmp/pids/server-lane3.pid; true'
-  e2e_runner 'name = EmailEngagementDynamoStore.table_name; abort("refusing #{name}") unless name.start_with?("lane3_"); begin; EmailEngagementDynamoStore.send(:client).delete_table(table_name: name); rescue Aws::DynamoDB::Errors::ResourceNotFoundException; end' ||
+  e2e_log "reseed: wiping lane $E2E_LANE data"
+  e2e_exec '[ -f tmp/pids/server-lane'"$E2E_LANE"'.pid ] && kill $(cat tmp/pids/server-lane'"$E2E_LANE"'.pid) 2>/dev/null; rm -f tmp/pids/server-lane'"$E2E_LANE"'.pid; true'
+  e2e_runner 'name = EmailEngagementDynamoStore.table_name; abort("refusing #{name}") unless name.start_with?("lane'"$E2E_LANE"'_"); begin; EmailEngagementDynamoStore.send(:client).delete_table(table_name: name); rescue Aws::DynamoDB::Errors::ResourceNotFoundException; end' ||
     e2e_log "warning: could not delete the DynamoDB table"
-  docker exec "$E2E_DB_CONTAINER" mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS gumroad_development_lane3' 2>/dev/null
-  for db in 8 9; do docker exec "$E2E_REDIS_CONTAINER" sh -c "valkey-cli -n $db flushdb 2>/dev/null || redis-cli -n $db flushdb" >/dev/null; done
+  docker exec "$E2E_DB_CONTAINER" mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS gumroad_development_lane'"$E2E_LANE" 2>/dev/null
+  for db in $E2E_REDIS_BASE $E2E_REDIS_SIDEKIQ; do docker exec "$E2E_REDIS_CONTAINER" sh -c "valkey-cli -n $db flushdb 2>/dev/null || redis-cli -n $db flushdb" >/dev/null; done
   for index in products purchases installments audience_members confirmed_follower_events product_page_views; do
-    docker exec "$E2E_ES_CONTAINER" curl -s -o /dev/null -XDELETE "http://localhost:9200/${index}_lane3"
+    docker exec "$E2E_ES_CONTAINER" curl -s -o /dev/null -XDELETE "http://localhost:9200/${index}_lane$E2E_LANE"
   done
 fi
 
@@ -102,9 +102,9 @@ e2e_runner 'begin; EmailEngagementDynamoStore.create_table!; rescue Aws::DynamoD
 # usernames), so they run once per database; to reseed, bin/e2e-down first. A reindex is always safe.
 reindex='DevTools.delete_all_indices_and_reindex_all'
 if e2e_runner 'exit(User.exists?(email: "seller@gumroad.com") ? 0 : 3)' 2>/dev/null; then
-  e2e_log "database already seeded, skipping db:seed; reindexing the *_lane3 indices"
+  e2e_log "database already seeded, skipping db:seed; reindexing the *_lane$E2E_LANE indices"
 else
-  e2e_log "creating Elasticsearch indices (suffix _lane3)"
+  e2e_log "creating Elasticsearch indices (suffix _lane$E2E_LANE)"
   e2e_runner "$reindex"
   e2e_log "seeding"
   e2e_exec 'bundle exec rails db:seed'
@@ -123,12 +123,12 @@ if [[ "${E2E_REBUILD:-0}" == 1 || "$(e2e_exec 'cat public/vite-test/.e2e-stamp 2
 fi
 
 # 9. Rails dev server on 3003.
-if e2e_exec "[ -f tmp/pids/server-lane3.pid ] && kill -0 \$(cat tmp/pids/server-lane3.pid) 2>/dev/null"; then
+if e2e_exec "[ -f tmp/pids/server-lane$E2E_LANE.pid ] && kill -0 \$(cat tmp/pids/server-lane$E2E_LANE.pid) 2>/dev/null"; then
   e2e_log "Rails already running"
 else
-  e2e_exec 'rm -f tmp/pids/server-lane3.pid'
+  e2e_exec 'rm -f tmp/pids/server-lane'"$E2E_LANE"'.pid'
   e2e_log "starting Rails on port $E2E_PORT (log: $E2E_CONTAINER:$E2E_APP_DIR/log/e2e-rails.log)"
-  docker exec -d -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; export PATH=$E2E_NODE_DIR/bin:\$PATH; exec bundle exec rails s -b 0.0.0.0 -p $E2E_PORT -P tmp/pids/server-lane3.pid >> log/e2e-rails.log 2>&1"
+  docker exec -d -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; export PATH=$E2E_NODE_DIR/bin:\$PATH; exec bundle exec rails s -b 0.0.0.0 -p $E2E_PORT -P tmp/pids/server-lane$E2E_LANE.pid >> log/e2e-rails.log 2>&1"
 fi
 for path in /discover /l/demo; do
   e2e_wait_http "http://localhost:$E2E_PORT$path" || e2e_die "GET $path did not answer 200 (see log/e2e-rails.log in the container)"
