@@ -161,7 +161,7 @@ describe "Seller pages", type: :request do
       expect(response.body).to include("og:image")
     end
 
-    it "hands a slug nobody owns to Rails", parity: true do
+    it "answers 404 to a slug nobody owns", parity: true do
       host! seller.subdomain
 
       get "/nope"
@@ -231,7 +231,7 @@ describe "Seller pages", type: :request do
       expect(response.body).to be_blank
     end
 
-    it "hands a slug nobody owns to Rails", parity: true do
+    it "answers 404 to a slug nobody owns", parity: true do
       host! seller.subdomain
 
       get "/nope/landing/embed"
@@ -268,7 +268,7 @@ describe "Seller pages", type: :request do
       expect(response.parsed_body).to eq("present" => false, "version" => nil)
     end
 
-    it "hands a slug nobody owns to Rails", parity: true do
+    it "answers 404 to a slug nobody owns", parity: true do
       host! seller.subdomain
 
       get "/nope/landing/version"

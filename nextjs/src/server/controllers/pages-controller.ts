@@ -3,17 +3,19 @@
 //
 // Ported: the RequireAccountEmail and `set_page` redirects, the policy refusals, the validation errors of #create and #update for a
 // page whose title and content are both blank (moderation returns before it calls the service), #update of the profile entry
-// when it has nothing to write, #destroy (the row and the touch of the seller; the profile entry has nothing to delete), and the
+// when it has nothing to write, the removal of its custom HTML (a page with no content or title of its own) and a change to its
+// search fields (a seller profile row that exists), #destroy (the row and the touch of the seller; the profile entry has nothing to delete), and the
 // 404 of #preview and #products for a profile with no custom HTML or a page that is not the profile, and the catalogue slices
 // of the profile preview for a page that references no price.
-// Handed to Rails whole, before any write: a save that passes validation (HTML sanitizing, content moderation, the slug), any
-// change to the profile entry, and the rendered preview.
+// Handed to Rails whole, before any write: a save that passes validation (HTML sanitizing, content moderation, the slug), the
+// other changes to the profile entry, and the rendered preview.
 import { Prisma } from "@prisma/client";
 
 import { isBlank } from "../models/compliance-countries.ts";
 import { transaction } from "../models/runtime/transaction.ts";
+import { findSellerProfile, SellerProfiles } from "../models/seller-profile.ts";
 import { column, execute, selectRows, table } from "../models/sql.ts";
-import { rubyStrip, Users } from "../models/user.ts";
+import { findUserBang, rubyStrip, setSellerProfileTarget, Users } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -39,6 +41,7 @@ const MAX_SEO_DESCRIPTION_LENGTH = 320;
 type Hash = Record<string, unknown>;
 
 type PageRow = { id: bigint; custom_html: string | null };
+type RootPageRow = PageRow & { title: string | null; content: string | null };
 
 const guardInput = (input: MutationInput) => ({
   context: input.context,
@@ -62,6 +65,54 @@ async function profileCustomHtml(sellerId: bigint): Promise<string | null> {
     Prisma.sql`SELECT ${column("pages", "id")}, ${column("pages", "custom_html")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} AND ${column("pages", "slug")} IS NULL LIMIT 1`,
   );
   return row?.custom_html ?? null;
+}
+
+// `current_seller.custom_html = nil; current_seller.save!`: the autosaved root page loses its HTML and touches the seller. A page that
+// holds a title or content of its own would go through the sanitizer and content moderation on that save.
+async function removeProfileTakeover(input: MutationInput): Promise<ActionResult> {
+  const seller = input.context.currentSeller!;
+  const [root] = await selectRows<RootPageRow>(
+    Prisma.sql`SELECT ${column("pages", "id")}, ${column("pages", "custom_html")}, ${column("pages", "title")}, ${column("pages", "content")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${seller.id} AND ${column("pages", "slug")} IS NULL LIMIT 1`,
+  );
+  if (root && root.custom_html !== null) {
+    if (root.content !== null || !isBlank(root.title))
+      throw new HandBackToRails("the removal of the custom HTML of a profile page that has a title or content");
+    await transaction(async () => {
+      await execute(
+        Prisma.sql`UPDATE ${table("pages")} SET ${column("pages", "custom_html")} = NULL, ${column("pages", "updated_at")} = ${new Date()} WHERE ${column("pages", "id")} = ${root.id}`,
+      );
+      await Users.touch(Users.load(seller), { deferred: true });
+    });
+  }
+  return {
+    status: SEE_OTHER,
+    location: `${PAGES_PATH}/${PROFILE_SLUG}/edit`,
+    flash: { notice: "Custom page removed — your profile is back on the default template." },
+  };
+}
+
+// `current_seller.with_locked_seller_profile { |profile| profile.update(seo_params) }` for a seller whose profile row exists; a first
+// save builds the row with its defaults, which is Rails'.
+async function saveProfileSearchFields(
+  input: MutationInput,
+  seo: ReturnType<typeof seoParams>,
+): Promise<ActionResult> {
+  const seller = input.context.currentSeller!;
+  if ((await findSellerProfile(seller.id)) === null)
+    throw new HandBackToRails("a change to the search fields of a seller with no profile row");
+  const editPath = `${PAGES_PATH}/${PROFILE_SLUG}/edit`;
+  return Users.withLock(await findUserBang(seller.id), async () => {
+    const owner = await findUserBang(seller.id);
+    const profile = (await findSellerProfile(seller.id, { lock: true }))!;
+    setSellerProfileTarget(owner, profile);
+    for (const [name, value] of seo) profile.set(name, value);
+    if (await SellerProfiles.save(profile)) {
+      return { status: SEE_OTHER, location: editPath, flash: { notice: "Changes saved!" } };
+    }
+    const errors: Record<string, string> = {};
+    for (const detail of profile.errors.details) errors[detail.attribute] ??= detail.message;
+    return withErrors(editPath, errors);
+  });
 }
 
 type Found = { profile: boolean; page: PageRow | null; sellerContext: SellerContext };
@@ -156,10 +207,10 @@ async function update(input: MutationInput): Promise<ActionResult> {
   if (profile) {
     // `if params[:remove_custom_html]` is Ruby truthiness; only a missing, null or false value reaches the SEO fields.
     const removal = input.params.remove_custom_html;
-    if (removal !== undefined && removal !== null && removal !== false)
-      throw new HandBackToRails("the removal of the custom HTML of the profile, which writes the user");
-    if (seoParams(input.params).size === 0) return { status: FOUND, location: PAGES_PATH };
-    throw new HandBackToRails("a change to the search fields of the profile, which writes the seller profile");
+    if (removal !== undefined && removal !== null && removal !== false) return removeProfileTakeover(input);
+    const seo = seoParams(input.params);
+    if (seo.size === 0) return { status: FOUND, location: PAGES_PATH };
+    return saveProfileSearchFields(input, seo);
   }
 
   const seo = seoParams(input.params);
