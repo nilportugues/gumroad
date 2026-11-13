@@ -175,6 +175,59 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]).to include("subscription_id" => subscription.external_id, "subscription_ended_at" => nil)
     end
 
+    describe "a membership's later charges" do
+      let(:membership) { create(:membership_product, user: seller, subscription_duration: :monthly) }
+      let(:subscription) { create(:subscription, link: membership, user: nil) }
+      let!(:original) { purchase_row(link: membership, seller:, subscription:, is_original_subscription_purchase: true, purchase_state: "successful") }
+
+      it "serializes a license held by a recurring charge", parity: true do
+        charge = purchase_row(link: membership, seller:, subscription:, email: "member@example.com", purchase_state: "successful")
+        charge_license = create(:license, link: membership, purchase: charge, serial: "11111111-22222222-33333333-44444444")
+
+        verify(product_id: membership.external_id, license_key: charge_license.serial)
+
+        expect(response.parsed_body["purchase"]).to include("subscription_id" => subscription.external_id, "recurrence" => "monthly", "is_recurring_charge" => true)
+        expect(response.parsed_body["purchase"]["id"]).to eq(ObfuscateIds.encrypt(charge.id))
+      end
+
+      it "lists no custom fields for a recurring charge whose original purchase has some, but keeps their place in the payload", parity: true do
+        PurchaseCustomField.create!(purchase: original, field_type: "text", name: "Company", value: "Example Inc")
+        PurchaseCustomField.create!(purchase: original, field_type: "checkbox", name: "Newsletter", value: true)
+        PurchaseCustomField.create!(purchase: original, field_type: "file", name: "Upload", value: nil)
+        charge = purchase_row(link: membership, seller:, subscription:, email: "member@example.com", purchase_state: "successful")
+        charge_license = create(:license, link: membership, purchase: charge, serial: "11111111-22222222-33333333-44444444")
+
+        verify(product_id: membership.external_id, license_key: charge_license.serial)
+
+        expect(response.parsed_body["purchase"]).to include("custom_fields" => [])
+        expect(response.parsed_body["purchase"]).not_to include("Company")
+        expect(response.parsed_body["purchase"].keys.index("custom_fields")).to be < response.parsed_body["purchase"].keys.index("recurrence")
+      end
+
+      it "leaves out the custom fields of an archived original purchase", parity: true do
+        PurchaseCustomField.create!(purchase: original, field_type: "text", name: "Company", value: "Example Inc")
+        original.update_column(:flags, original.flags | Purchase.flag_mapping["flags"][:is_archived_original_subscription_purchase])
+        charge = purchase_row(link: membership, seller:, subscription:, email: "member@example.com", purchase_state: "successful")
+        charge_license = create(:license, link: membership, purchase: charge, serial: "11111111-22222222-33333333-44444444")
+
+        verify(product_id: membership.external_id, license_key: charge_license.serial)
+
+        expect(response.parsed_body["purchase"]).to include("custom_fields" => [])
+        expect(response.parsed_body["purchase"].keys.index("custom_fields")).to be > response.parsed_body["purchase"].keys.index("recurrence")
+      end
+
+      it "serializes the custom fields of a charge ahead of the original purchase's", parity: true do
+        PurchaseCustomField.create!(purchase: original, field_type: "text", name: "Company", value: "Example Inc")
+        charge = purchase_row(link: membership, seller:, subscription:, email: "member@example.com", purchase_state: "successful")
+        PurchaseCustomField.create!(purchase: charge, field_type: "text", name: "Seat", value: "12")
+        charge_license = create(:license, link: membership, purchase: charge, serial: "11111111-22222222-33333333-44444444")
+
+        verify(product_id: membership.external_id, license_key: charge_license.serial)
+
+        expect(response.parsed_body["purchase"]).to include("Seat" => "12", "custom_fields" => ["Seat: 12"])
+      end
+    end
+
     it "serializes a license of an imported customer", parity: true do
       imported = imported_license
 
@@ -432,15 +485,40 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]["offer_code"]).to include("code" => "EUROS")
     end
 
-    it "hands a license of a gifted purchase to Rails", parity: true do
-      gifter = purchase_row(link: product, seller:, email: "gifter@example.com", purchase_state: "successful")
-      Gift.new(link: product, gifter_purchase: gifter, giftee_purchase: sale, gifter_email: "gifter@example.com", giftee_email: "buyer@example.com").save!(validate: false)
-      sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_gift_receiver_purchase])
+    describe "gifts" do
+      let(:gifter) { purchase_row(link: product, seller:, email: "gifter@example.com", price_cents: 700, purchase_state: "successful") }
 
-      verify(product_id: product.external_id, license_key: key)
+      def gift!(**attributes)
+        Gift.new(link: product, gifter_purchase: gifter, giftee_purchase: sale, gifter_email: "gifter@example.com", giftee_email: "buyer@example.com", **attributes).save!(validate: false)
+      end
 
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["purchase"]).to include("is_gift_receiver_purchase" => true)
+      it "serializes a license of a gifted purchase with the price the gifter paid", parity: true do
+        gift!
+        sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_gift_receiver_purchase])
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("is_gift_receiver_purchase" => true, "gift_price" => 700, "gifter_email" => "gifter@example.com")
+      end
+
+      it "serializes the email of the gifter's purchase, not the one the gift names", parity: true do
+        gift!(gifter_email: "named@example.com")
+        sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_gift_receiver_purchase])
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("gift_price" => 700, "gifter_email" => "gifter@example.com")
+      end
+
+      it "serializes a license of the purchase that was sent as a gift", parity: true do
+        gift!
+        sale.update_column(:flags, sale.flags | Purchase.flag_mapping["flags"][:is_gift_sender_purchase])
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("is_gift_receiver_purchase" => false)
+        expect(response.parsed_body["purchase"]).not_to include("gift_price")
+      end
     end
 
     it "serializes a license of a purchase with custom fields", parity: true do
@@ -479,15 +557,110 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]["42"]).to eq("answer")
     end
 
-    it "hands a license of a purchase with a file custom field to Rails", parity: true do
+    it "serializes a license of a purchase with a file custom field", parity: true do
       PurchaseCustomField.create!(purchase: sale, field_type: "file", name: "Upload", value: nil)
 
       verify(product_id: product.external_id, license_key: key)
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]).to include("Upload" => "", "custom_fields" => ["Upload: "])
     end
 
-    it "hands a license of a membership purchase with custom fields to Rails", parity: true do
+    it "serializes a file custom field that carries a value next to a text one", parity: true do
+      PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "Company", value: "Example Inc")
+      PurchaseCustomField.create!(purchase: sale, field_type: "file", name: "Upload", value: "  logo.png ")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("Upload" => "logo.png", "custom_fields" => ["Company: Example Inc", "Upload: logo.png"])
+    end
+
+    describe "preorders" do
+      let(:preorder) { create(:preorder, preorder_link: create(:preorder_link, link: product, release_at: Time.utc(2030, 1, 15, 12)), seller:, state: "authorization_successful") }
+
+      it "serializes a license of a preorder authorization", parity: true do
+        sale.update_columns(preorder_id: preorder.id, flags: sale.flags | Purchase.flag_mapping["flags"][:is_preorder_authorization])
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("is_preorder_authorization" => true)
+      end
+
+      it "serializes a license of the charge of a preorder", parity: true do
+        sale.update_columns(preorder_id: preorder.id)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).not_to include("is_preorder_authorization")
+      end
+    end
+
+    describe "affiliates" do
+      let(:affiliate_user) { create(:user, email: "affiliate@example.com") }
+      let(:affiliate) { create(:direct_affiliate, seller:, affiliate_user:, products: [product]) }
+
+      def credit(purchase, amount_cents, **attributes)
+        AffiliateCredit.new(purchase:, affiliate:, affiliate_user:, seller:, link: product, amount_cents:, fee_cents: 0, basis_points: 1000, **attributes).save!(validate: false)
+      end
+
+      it "serializes a license of an affiliate purchase with the credit it earned", parity: true do
+        sale.update_columns(affiliate_id: affiliate.id, affiliate_credit_cents: 150)
+        credit(sale, 150)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("affiliate" => "affiliate@example.com", "affiliate_credit_amount_cents" => 150)
+      end
+
+      it "serializes the unconfirmed email of the affiliate", parity: true do
+        affiliate_user.update_column(:unconfirmed_email, "new-affiliate@example.com")
+        sale.update_columns(affiliate_id: affiliate.id, affiliate_credit_cents: 200)
+        credit(sale, 200)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("affiliate" => "new-affiliate@example.com", "affiliate_credit_amount_cents" => 200)
+      end
+
+      it "serializes an affiliate purchase that has no credit row", parity: true do
+        sale.update_columns(affiliate_id: affiliate.id)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("affiliate" => "affiliate@example.com")
+        expect(response.parsed_body["purchase"]).not_to include("affiliate_credit_amount_cents")
+      end
+
+      it "serializes a credit row of a purchase that names no affiliate", parity: true do
+        credit(sale, 75)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("affiliate_credit_amount_cents" => 0)
+        expect(response.parsed_body["purchase"]).not_to include("affiliate")
+      end
+
+      it "leaves the direct affiliate's credit out of a collaborator's amount", parity: true do
+        collaborator = create(:collaborator, seller:, affiliate_user: create(:user, email: "collaborator@example.com"), products: [product])
+        sale.update_columns(affiliate_id: collaborator.id, affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => affiliate.id, "direct_affiliate_credit_cents" => 40 })
+        credit(sale, 60, affiliate: collaborator, affiliate_user: collaborator.affiliate_user)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("affiliate" => "collaborator@example.com", "affiliate_credit_amount_cents" => 60)
+      end
+
+      it "counts the whole credit when the direct affiliate of a collaborator sale is gone", parity: true do
+        collaborator = create(:collaborator, seller:, affiliate_user: create(:user, email: "collaborator@example.com"), products: [product])
+        sale.update_columns(affiliate_id: collaborator.id, affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => 0, "direct_affiliate_credit_cents" => 40 })
+        credit(sale, 100, affiliate: collaborator, affiliate_user: collaborator.affiliate_user)
+
+        verify(product_id: product.external_id, license_key: key)
+
+        expect(response.parsed_body["purchase"]).to include("affiliate_credit_amount_cents" => 100)
+      end
+    end
+
+    it "serializes a license of a membership purchase with custom fields", parity: true do
       membership = create(:membership_product, user: seller, name: "Membership", unique_permalink: "member", is_licensed: true)
       subscription = create(:subscription, link: membership, user: nil)
       member_sale = purchase_row(link: membership, seller:, email: "member@example.com", purchase_state: "successful", subscription:, is_original_subscription_purchase: true)
@@ -496,7 +669,7 @@ describe "API v2 licenses", type: :request do
 
       verify(product_id: membership.external_id, license_key: member_license.serial)
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["purchase"]).to include("Company" => "Example Inc", "custom_fields" => ["Company: Example Inc"])
     end
   end
 

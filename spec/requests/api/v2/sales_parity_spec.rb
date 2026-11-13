@@ -227,16 +227,74 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       expect(response.parsed_body["sale"]["affiliate"]).to eq("email" => "new-affiliate@example.com", "amount" => "$2")
     end
 
-    it "hands back a sale with a collaborator and a direct affiliate to Rails", parity: true do
-      collaborator = create(:collaborator, seller:, affiliate_user: create(:user), products: [product])
-      direct = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
+    describe "a collaborator's sale" do
+      let(:collaborator) { create(:collaborator, seller:, affiliate_user: create(:user, email: "collaborator@example.com"), products: [product]) }
+      let(:direct) { create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product]) }
 
-      referred = sold(product, affiliate: collaborator)
-      referred.update_columns(affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => direct.id })
+      def collaborated(json_data)
+        sold(product, affiliate: collaborator).tap { |referred| referred.update_columns(affiliate_credit_cents: 100, json_data:) }
+      end
 
-      show(referred)
+      it "prints the credit the collaborator earned, less the direct affiliate's part", parity: true do
+        show(collaborated("direct_affiliate_id" => direct.id, "direct_affiliate_credit_cents" => 40))
 
-      expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["sale"]["affiliate"]).to eq("email" => "collaborator@example.com", "amount" => "$0.60")
+      end
+
+      it "prints the whole credit when the direct affiliate's part is a numeral", parity: true do
+        show(collaborated("direct_affiliate_id" => direct.id.to_s, "direct_affiliate_credit_cents" => "25"))
+
+        expect(response.parsed_body["sale"]["affiliate"]["amount"]).to eq("$0.75")
+      end
+
+      it "prints the whole credit when the direct affiliate is gone", parity: true do
+        show(collaborated("direct_affiliate_id" => direct.id + 1000, "direct_affiliate_credit_cents" => 40))
+
+        expect(response.parsed_body["sale"]["affiliate"]["amount"]).to eq("$1")
+      end
+
+      it "prints the whole credit when the direct affiliate is not recorded", parity: true do
+        show(collaborated("direct_affiliate_credit_cents" => 40))
+
+        expect(response.parsed_body["sale"]["affiliate"]["amount"]).to eq("$1")
+      end
+
+      it "prints the whole credit of a direct affiliate's own sale whatever json_data says", parity: true do
+        own = create(:direct_affiliate, seller:, affiliate_user: create(:user, email: "own@example.com"), products: [product])
+        referred = sold(product, affiliate: own)
+        referred.update_columns(affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => direct.id, "direct_affiliate_credit_cents" => 40 })
+
+        show(referred)
+
+        expect(response.parsed_body["sale"]["affiliate"]).to eq("email" => "own@example.com", "amount" => "$1")
+      end
+
+      it "prints the credit when the direct affiliate's part is the whole of it", parity: true do
+        show(collaborated("direct_affiliate_id" => direct.id, "direct_affiliate_credit_cents" => 100))
+
+        expect(response.parsed_body["sale"]["affiliate"]["amount"]).to eq("$0")
+      end
+    end
+
+    describe "custom fields" do
+      it "prints a file custom field with no value", parity: true do
+        PurchaseCustomField.create!(purchase: sold(product), field_type: "file", name: "Upload", value: nil)
+
+        show(Purchase.last)
+
+        expect(response.parsed_body["sale"]).to include("has_custom_fields" => true, "custom_fields" => { "Upload" => "" })
+      end
+
+      it "prints a file custom field next to the others", parity: true do
+        purchase = sold(product)
+        PurchaseCustomField.create!(purchase:, field_type: "text", name: "Company", value: "Example Inc")
+        PurchaseCustomField.create!(purchase:, field_type: "file", name: "Upload", value: "  logo.png ")
+        PurchaseCustomField.create!(purchase:, field_type: "checkbox", name: "Newsletter", value: true)
+
+        show(purchase)
+
+        expect(response.parsed_body["sale"]["custom_fields"]).to eq("Company" => "Example Inc", "Upload" => "logo.png", "Newsletter" => true)
+      end
     end
 
     it "prints a sale of a SKU", parity: true do
