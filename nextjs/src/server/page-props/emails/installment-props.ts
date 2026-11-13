@@ -46,7 +46,7 @@ export type PostContext = InstallmentContext & {
 
 const toISO = (value: Date | null) => (value ? value.toISOString() : null);
 
-async function redisInt(key: string): Promise<number | null> {
+export async function redisInt(key: string): Promise<number | null> {
   const value = await getRedis("main").get(key);
   return value === null || value.trim() === "" ? null : Number.parseInt(value, 10) || 0;
 }
@@ -61,7 +61,7 @@ async function quotaDeferredUntil(blastId: number): Promise<Date | null> {
 }
 
 // PostEmailBlast#delivery_status
-async function deliveryStatus(blast: Blast, remaining: number | null, now: number): Promise<string> {
+export async function deliveryStatus(blast: Blast, remaining: number | null, now: number): Promise<string> {
   if (blast.completed_at) return "sent";
   if (blast.expired_at && blast.expiry_reason === EXPIRY_NEWSLETTER_RETIRED) return "stopped";
   if (remaining !== null && remaining <= 0) return "sent";
@@ -78,7 +78,7 @@ async function deliveryStatus(blast: Blast, remaining: number | null, now: numbe
 }
 
 // AlertOnStalledPostEmailBlastsJob.auto_resume_eligible?
-async function autoResumeEligible(blast: Blast, remaining: number | null, now: number): Promise<boolean> {
+export async function autoResumeEligible(blast: Blast, remaining: number | null, now: number): Promise<boolean> {
   if (!(await isFeatureEnabled(AUTO_RESUME_FEATURE))) return false;
   if (
     blast.completed_at ||

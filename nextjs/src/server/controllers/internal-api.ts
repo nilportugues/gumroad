@@ -18,6 +18,7 @@ import { urlClickCounts } from "../models/email-engagement-store.ts";
 import { audienceMembersFilterParams } from "../models/installment-audience.ts";
 import { InstallmentPost } from "../models/installment-post.ts";
 import { createBlast, RECIPIENT_FILTER_UNOPENED } from "../models/post-email-blast.ts";
+import { autoResumeEligible, deliveryStatus, redisInt, type Blast } from "../page-props/emails/installment-props.ts";
 import { findAliveVideo, setApprovalStatusBang } from "../models/product-review-video.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
@@ -517,9 +518,62 @@ const previewEmail = (input: MutationInput) =>
   );
 
 const NOT_WAITING_ON_RECIPIENTS = "This email is not waiting on any recipients.";
+const RETRYING_AUTOMATICALLY = "We are retrying this automatically.";
+const SEND_STARTED_RECENTLY = "A send was started recently. Check back in a few hours.";
+const ALREADY_SENDING = "This email is already sending.";
+const ENDED_UNSENT = ["expired", "abandoned"];
 
-// Api::Internal::Installments::RemainingSendsController#create. A post with no regular blast has nothing to resume or restart; every
-// other state claims a Redis marker and enqueues the send.
+const BLAST_COLUMNS = [
+  "id",
+  "requested_at",
+  "first_email_delivered_at",
+  "last_email_delivered_at",
+  "delivery_count",
+  "completed_at",
+  "recipient_filter",
+  "expired_at",
+  "expiry_reason",
+] as const;
+
+// `latest_regular_blast`: `blasts.reject(&:to_non_openers?).max_by(&:requested_at)`; the first of equal times wins.
+async function latestRegularBlast(postId: bigint | number): Promise<Blast | null> {
+  const rows = await selectRows<Blast>(
+    Prisma.sql`SELECT ${Prisma.join(BLAST_COLUMNS.map((name) => column("post_email_blasts", name)))} FROM ${table("post_email_blasts")} WHERE ${column("post_email_blasts", "post_id")} = ${postId} ORDER BY ${column("post_email_blasts", "id")} ASC`,
+  );
+  const regular = rows.filter((blast) => blast.recipient_filter !== RECIPIENT_FILTER_UNOPENED);
+  // `max_by` compares nil with a Time and raises.
+  if (regular.length > 1 && regular.some((blast) => blast.requested_at === null))
+    throw new HandBackToRails("a blast with no requested_at beside others");
+  return regular.reduce<Blast | null>(
+    (latest, blast) => (latest === null || (blast.requested_at?.getTime() ?? 0) > (latest.requested_at?.getTime() ?? 0) ? blast : latest),
+    null,
+  );
+}
+
+const blastStatus = async (blast: Blast) =>
+  deliveryStatus(blast, await redisInt(`blast:${blast.id}:pending_recipients`), Date.now());
+
+// `render json: { success: false, error: }, status: :unprocessable_entity`
+const unprocessable = (error: string) => json({ success: false, error }, UNPROCESSABLE_ENTITY);
+
+// Api::Internal::Installments::RemainingSendsController#send_again: a send that ended before reaching anyone gets a new blast.
+async function sendAgain(row: Installment): Promise<ActionResult> {
+  const blastId = await transaction(async () => {
+    await selectRows(
+      Prisma.sql`SELECT ${Prisma.raw("`installments`.*")} FROM ${table("installments")} WHERE ${column("installments", "id")} = ${row.id} LIMIT 1 FOR UPDATE`,
+    );
+    const latest = await latestRegularBlast(row.id);
+    if (latest === null || !ENDED_UNSENT.includes(await blastStatus(latest))) return null;
+    const created = await createBlast(new InstallmentPost(row), { requested_at: new Date() });
+    return Number(created.get("id"));
+  });
+  if (blastId === null) return unprocessable(ALREADY_SENDING);
+  await performAsync("SendPostBlastEmailsJob", [blastId]);
+  return json({ success: true });
+}
+
+// Api::Internal::Installments::RemainingSendsController#create. What it decides from the blast and Redis is answered here; claiming the
+// resume marker and scanning Sidekiq for a live sender go to Rails, before Node has written anything.
 async function remainingSend(input: MutationInput): Promise<ActionResult> {
   return handingBack(async () => {
     const refused = requireSignedIn(input);
@@ -530,12 +584,16 @@ async function remainingSend(input: MutationInput): Promise<ActionResult> {
       return { ...notFoundJson(), rescued: true };
     const denied = await authorizeJson(input, (context) => authorize(installmentPolicy.sendToRemaining, context));
     if (denied) return denied;
-    // `latest_regular_blast`: blasts that are not resends to non-openers
-    const [regular] = await selectRows<{ total: bigint | number }>(
-      Prisma.sql`SELECT COUNT(*) AS total FROM ${table("post_email_blasts")} WHERE ${column("post_email_blasts", "post_id")} = ${row.id} AND (${column("post_email_blasts", "recipient_filter")} IS NULL OR ${column("post_email_blasts", "recipient_filter")} != ${RECIPIENT_FILTER_UNOPENED})`,
-    );
-    if (Number(regular?.total ?? 0) === 0)
-      return json({ success: false, error: NOT_WAITING_ON_RECIPIENTS }, UNPROCESSABLE_ENTITY);
+    const blast = await latestRegularBlast(row.id);
+    if (blast === null) return unprocessable(NOT_WAITING_ON_RECIPIENTS);
+    const remaining = await redisInt(`blast:${blast.id}:pending_recipients`);
+    const now = Date.now();
+    const status = await deliveryStatus(blast, remaining, now);
+    if (ENDED_UNSENT.includes(status)) return sendAgain(row);
+    if (status !== "incomplete") return unprocessable(NOT_WAITING_ON_RECIPIENTS);
+    if (await autoResumeEligible(blast, remaining, now)) return unprocessable(RETRYING_AUTOMATICALLY);
+    // `$redis.set(marker, claim, nx: true)` fails while the marker is held; claiming it here would leave Rails' own attempt to fail.
+    if ((await getRedis("main").exists(`blast:${blast.id}:auto_resumed`)) > 0) return unprocessable(SEND_STARTED_RECENTLY);
     throw new HandBackToRails("a send to the remaining recipients");
   });
 }

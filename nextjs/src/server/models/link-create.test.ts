@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { cleanPriceCents, parseCreateParams, toSentence } from "./link-create.ts";
+import {
+  bundleMarketingNames,
+  cannotJoinBundle,
+  cleanPriceCents,
+  parseCreateParams,
+  toSentence,
+} from "./link-create.ts";
 import { NotPortedError } from "./user.ts";
 
 describe("cleanPriceCents", () => {
@@ -96,5 +102,32 @@ describe("parseCreateParams", () => {
     expect(() =>
       parseCreateParams({ ...form, number_of_content_pages: 3, release_at_date: "2026-01-01" }),
     ).not.toThrow();
+  });
+});
+
+describe("bundleMarketingNames", () => {
+  it("names the year bundle after the previous year and leaves other types unnamed", () => {
+    const names = bundleMarketingNames(new Date("2026-11-13T00:00:00Z"));
+    expect(names).toEqual({
+      year: "2025 Bundle",
+      best_selling: "Best Selling Bundle",
+      everything: "Everything Bundle",
+    });
+    expect(names.classic).toBeUndefined();
+  });
+});
+
+describe("cannotJoinBundle", () => {
+  const IS_BUNDLE = 1n << 25n;
+  const IS_RECURRING_BILLING = 1n << 1n;
+
+  it("refuses a bundle, a subscription and a call", () => {
+    expect(cannotJoinBundle({ flags: IS_BUNDLE, native_type: "bundle" })).toBe(true);
+    expect(cannotJoinBundle({ flags: IS_RECURRING_BILLING, native_type: "membership" })).toBe(true);
+    expect(cannotJoinBundle({ flags: 0n, native_type: "call" })).toBe(true);
+  });
+
+  it("accepts a plain product", () => {
+    expect(cannotJoinBundle({ flags: 65536, native_type: "digital" })).toBe(false);
   });
 });

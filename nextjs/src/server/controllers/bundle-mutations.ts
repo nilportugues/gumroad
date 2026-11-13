@@ -1,16 +1,21 @@
 // The writes of Bundles::{Product,Content,Share}Controller (app/controllers/bundles/): the sign-in check, the 404 for an id that is not a
 // bundle candidate, the policy, and the refusals each action decides before it saves.
 //
-// Ported: those guards, #share's redirect for an unpublished bundle, #content's "Products must be an array." refusal,
-// #update_purchases_content with no outdated purchases, and #remove_file's 404 for a file that is not attached.
-// Handed to Rails before any write: a bundle save (product, content and share updates all save, reindex or enqueue), removing a
-// file that is attached, and queueing the outdated-purchases job.
-import { Prisma } from "@prisma/client";
+// Ported: those guards, #share's redirect for an unpublished bundle, #content's "Products must be an array." refusal, the product
+// list save of #content (add, remove, re-add, reorder; models/bundle-products.ts), #update_purchases_content and #remove_file's 404
+// for a file that is not attached.
+// Handed to Rails before any write: the product and share saves, a content save that publishes, unpublishes or redirects, and
+// removing a file that is attached.
+import { Prisma, type Link } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { LinkFlags } from "../models/link.ts";
-import { column, selectRows, table } from "../models/sql.ts";
+import { performAsync } from "../models/concerns/job-runtime.ts";
+import { parseBundleProducts, updateBundleProducts, type BundleProductParams } from "../models/bundle-products.ts";
+import { LinkFlags, LinkInvalid, Links } from "../models/link.ts";
+import { RecordInvalid, RecordNotSaved } from "../models/runtime/errors.ts";
+import { transaction } from "../models/runtime/transaction.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { findBundle } from "../page-props/bundles/pages.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -19,7 +24,7 @@ import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 import type { LinkRow } from "../presenters/product-reads.ts";
 
-import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { allowedReferrer, HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { accountEmailRequired, authorizeJson, json, NOT_FOUND } from "./seller-json.ts";
@@ -85,32 +90,101 @@ async function updateShare(input: MutationInput): Promise<ActionResult> {
   throw new HandBackToRails("saving a bundle's share settings, which reindexes it and can enqueue jobs");
 }
 
+const SEE_OTHER = 303;
+const NATIVE_TYPE_BUNDLE = "bundle";
+const SAVED_NOTICE = "Changes saved!";
+const QUEUED_NOTICE = "Queued an update to the content of all outdated purchases.";
+const SCALAR_KEYS = ["product_id", "variant_id", "quantity", "position"] as const;
+
+const present = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false;
+
+// `redirect_back fallback_location:, notice:, status: :see_other`
+const redirectBack = (request: MutationInput["request"], fallback: string, flash: Record<string, string>): ActionResult => ({
+  status: SEE_OTHER,
+  location: allowedReferrer(request) ?? fallback,
+  flash,
+});
+
+async function loadBundleRecord(id: bigint) {
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} LIMIT 1`,
+  );
+  return Links.load(castRow<Link>("Link", row!));
+}
+
+// `params.permit(products: [...]).fetch(:products, [])` for a list of plain hashes.
+function productEntries(products: unknown): BundleProductParams[] {
+  if (products === undefined) return [];
+  if (!Array.isArray(products)) throw new HandBackToRails("a products parameter that is not a list");
+  return products.map((entry) => {
+    if (!isHash(entry) || SCALAR_KEYS.some((key) => entry[key] !== undefined && entry[key] !== null && typeof entry[key] !== "string" && typeof entry[key] !== "number"))
+      throw new HandBackToRails("a product entry whose shape Node does not reproduce");
+    return Object.fromEntries(SCALAR_KEYS.map((key) => [key, entry[key]])) as BundleProductParams;
+  });
+}
+
+async function hasInstallmentPlan(bundleId: bigint): Promise<boolean> {
+  const rows = await selectRows(
+    Prisma.sql`SELECT 1 AS one FROM ${table("product_installment_plans")} WHERE ${column("product_installment_plans", "link_id")} = ${bundleId} AND ${column("product_installment_plans", "deleted_at")} IS NULL LIMIT 1`,
+  );
+  return rows.length > 0;
+}
+
 // PATCH /bundles/:bundle_id/content
 async function updateContent(input: MutationInput): Promise<ActionResult> {
   const { redirect, bundle } = await guarded(input);
   if (redirect !== null) return redirect;
   const products = input.params.products;
-  // `params.permit(products: [...]).fetch(:products, [])` is an Array for a list; an index-keyed form hash stays a hash.
-  if (products === undefined || Array.isArray(products))
-    throw new HandBackToRails("replacing a bundle's products, which saves, reindexes and can enqueue jobs");
-  if (
-    !isHash(products) ||
-    Object.keys(products).length === 0 ||
-    !Object.entries(products).every(
-      ([key, entry]) => NUMERIC_KEY.test(key) && isHash(entry) && typeof entry.product_id === "string",
+  // An index-keyed form hash stays a hash under strong parameters.
+  if (isHash(products)) {
+    if (
+      Object.keys(products).length === 0 ||
+      !Object.entries(products).every(
+        ([key, entry]) => NUMERIC_KEY.test(key) && isHash(entry) && typeof entry.product_id === "string",
+      )
     )
+      throw new HandBackToRails("a products parameter whose strong-parameters shape Node does not reproduce");
+    return { status: FOUND, location: editContentPath(bundle), flash: { alert: PRODUCTS_NOT_AN_ARRAY } };
+  }
+  // Publishing, unpublishing and a redirect target run Link#publish!/unpublish! or a redirect to another host.
+  if (present(input.params.publish) || present(input.params.unpublish) || input.params.redirect_to !== undefined)
+    throw new HandBackToRails("a bundle content save that publishes, unpublishes or redirects");
+  const entries = productEntries(products);
+  // The save also flips is_bundle and native_type, and validates an installment plan against the new products.
+  if (
+    !LinkFlags.isSet(BigInt(bundle.flags ?? 0), "is_bundle") ||
+    bundle.native_type !== NATIVE_TYPE_BUNDLE ||
+    (await hasInstallmentPlan(bundle.id))
   )
-    throw new HandBackToRails("a products parameter whose strong-parameters shape Node does not reproduce");
-  return { status: FOUND, location: editContentPath(bundle), flash: { alert: PRODUCTS_NOT_AN_ARRAY } };
+    throw new HandBackToRails("a bundle that is converting or has an installment plan");
+
+  const parsed = await parseBundleProducts(entries);
+  const record = await loadBundleRecord(bundle.id);
+  try {
+    await transaction(() => updateBundleProducts(record, parsed));
+  } catch (error) {
+    if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid)) throw error;
+    const message = record.errors.fullMessages()[0] ?? error.message;
+    return { status: FOUND, location: editContentPath(bundle), flash: { alert: message } };
+  }
+  return redirectBack(input.request, editContentPath(bundle), { notice: SAVED_NOTICE });
 }
 
 // POST /bundles/:bundle_id/content/update_purchases_content
 async function updatePurchasesContent(input: MutationInput): Promise<ActionResult> {
   const { redirect, bundle } = await guarded(input);
   if (redirect !== null) return redirect;
-  if (LinkFlags.isSet(BigInt(bundle.flags ?? 0), "has_outdated_purchases"))
-    throw new HandBackToRails("queueing the update of outdated purchases, which clears a flag and enqueues a job");
-  return { status: FOUND, location: editContentPath(bundle), flash: { alert: NO_OUTDATED_PURCHASES } };
+  if (!LinkFlags.isSet(BigInt(bundle.flags ?? 0), "has_outdated_purchases"))
+    return { status: FOUND, location: editContentPath(bundle), flash: { alert: NO_OUTDATED_PURCHASES } };
+  const record = await loadBundleRecord(bundle.id);
+  try {
+    await Links.updateBang(record, { flags: LinkFlags.set(BigInt(bundle.flags ?? 0), "has_outdated_purchases", false) });
+  } catch (error) {
+    if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid)) throw error;
+    throw new HandBackToRails("a bundle that fails validation when its flag is cleared");
+  }
+  await performAsync("UpdateBundlePurchasesContentJob", [Number(bundle.id)]);
+  return { status: SEE_OTHER, location: editContentPath(bundle), flash: { notice: QUEUED_NOTICE } };
 }
 
 // POST /bundles/:bundle_id/product/remove_file

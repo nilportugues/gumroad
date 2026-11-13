@@ -125,6 +125,18 @@ const masked = (body: unknown) =>
 
 const HANDED_BACK = /hands-|through-rails/u;
 
+// An Elasticsearch write is not in the replay's db channel, so the document Rails PUT for the created bundle is read back from the
+// index Node wrote and compared with it, the recorded times standing for whatever the replay's clock stamped.
+const RECORDED_LINK_DOCUMENT = /\/[^/]*link-test\/_doc\/\d+$/u;
+const TIME = /^(<now[^>]*>|\d{4}-\d{2}-\d{2}T[\d:.]+Z)$/u;
+const maskTimes = (value: unknown): unknown => {
+  if (typeof value === "string") return TIME.test(value) ? "<time>" : value;
+  if (Array.isArray(value)) return value.map(maskTimes);
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, maskTimes(entry)]));
+  return value;
+};
+
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   if (!existsSync(dir)) return [];
@@ -205,6 +217,12 @@ describe.skipIf(!url)("rest sweep 4", () => {
     process.env = saved;
   });
 
+  // Both sides draw the new bundle's unique_permalink at random (Link#generate_unique_permalink).
+  const ignored = (name: string) =>
+    name.includes("bundles_create_from_email")
+      ? [...COMPARE.ignore, "db.links.inserted.*.unique_permalink"]
+      : COMPARE.ignore;
+
   const options = (name = "") => ({
     sql,
     redis: {
@@ -225,8 +243,8 @@ describe.skipIf(!url)("rest sweep 4", () => {
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     // Rails renders its debug page for these 404s in the test environment; only the status is compared.
     compare: name.includes("404")
-      ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
-      : { ignore: [...COMPARE.ignore, "response.body"] },
+      ? { ignore: [...ignored(name), "response.body", "response.json", "response.headers.content-type"] }
+      : { ignore: [...ignored(name), "response.body"] },
   });
 
   it("finds the fixtures", () => {
@@ -272,6 +290,12 @@ describe.skipIf(!url)("rest sweep 4", () => {
         if (!name.includes("404"))
           expect(masked(exchange.actual.response.body)).toBe(masked(exchange.expected.response.body));
         expect(mailJobs).toHaveLength(0);
+        const put = recorded.http.find((call) => call.method === "PUT" && RECORDED_LINK_DOCUMENT.test(call.url));
+        if (put) {
+          const id = put.url.split("/").pop()!;
+          const indexed = await es.get({ index: replayIndexName("products", ES_INDEX_SUFFIX), id });
+          expect(maskTimes(indexed.body._source)).toEqual(maskTimes(JSON.parse(put.body!)));
+        }
       } catch (error) {
         const logs = server
           .output()

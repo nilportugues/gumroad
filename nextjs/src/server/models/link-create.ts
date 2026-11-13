@@ -10,10 +10,12 @@ import { randomInt } from "node:crypto";
 
 import { Prisma, type Link } from "@prisma/client";
 
+import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled } from "../infra/flipper.ts";
 import { ProductRecord } from "../search/documents/product.ts";
 import { performProductIndexing } from "../search/product-indexing.ts";
 
+import { BundleProducts } from "./bundle-products.ts";
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import { mergeJsonDataWithCurrentRow } from "./concerns/json-data.ts";
@@ -590,6 +592,24 @@ export const LinkCreations = defineModel<Link>({
       },
     },
     {
+      // `bundle.bundle_products.build` in BundlesController#create_from_email: the has_many autosave inserts them once the Link and its Price exist.
+      name: "autosave_bundle_products",
+      async run(link, ctx) {
+        for (const member of (link.ivars.bundleMembers as BundleMember[] | undefined) ?? [])
+          await BundleProducts.createBang(
+            {
+              bundle_id: link.get("id"),
+              product_id: member.productId,
+              variant_id: member.variantId,
+              quantity: 1,
+              position: null,
+              deleted_at: null,
+            },
+            { now: ctx.now },
+          );
+      },
+    },
+    {
       name: "enqueue_search_index!",
       run: (link, ctx) => enqueueSearchIndex(link, ctx.now ?? (() => new Date())),
     },
@@ -754,5 +774,82 @@ export async function createApiLink(
     return { created: false, errors };
   }
   if (!(await LinkCreations.save(link, { now }))) return { created: false, errors: link.errors };
+  return { created: true, link, priceCents: params.priceCents };
+}
+
+export type BundleMember = { productId: bigint; variantId: bigint | null };
+
+export type BundleFromEmailParams = { name: string; priceCents: number; currency: string; externalIds: string[] };
+
+const NATIVE_TYPE_CALL = "call";
+const IS_BUNDLE_FLAG = LinkFlags.bit("is_bundle");
+const IS_RECURRING_BILLING_FLAG = LinkFlags.bit("is_recurring_billing");
+const SKUS_ENABLED_FLAG = LinkFlags.bit("skus_enabled");
+
+// BundleProduct's product_is_not_bundle, product_is_not_subscription and product_is_not_call.
+export const cannotJoinBundle = (product: { flags: bigint | number; native_type: string | null }): boolean =>
+  (BigInt(product.flags) & (IS_BUNDLE_FLAG | IS_RECURRING_BILLING_FLAG)) !== 0n ||
+  product.native_type === NATIVE_TYPE_CALL;
+
+// Product::BundlesMarketing::BUNDLE_NAMES, which Rails evaluates once at boot: "#{1.year.ago.year} Bundle".
+export const bundleMarketingNames = (now: Date): Record<string, string> => ({
+  year: `${now.getUTCFullYear() - 1} Bundle`,
+  best_selling: "Best Selling Bundle",
+  everything: "Everything Bundle",
+});
+
+// `current_seller.products.by_external_ids(ids)` (deleted products included, ordered as the primary key scan returns them) with
+// `product.alive_variants.first` for each. Null when a product would fail BundleProduct's validations, which fails the bundle's save.
+async function bundleMembers(sellerId: bigint, productIds: bigint[]): Promise<BundleMember[] | null> {
+  if (productIds.length === 0) return [];
+  const products = await selectRows<{ id: bigint; flags: bigint; native_type: string | null }>(
+    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "flags")}, ${column("links", "native_type")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${sellerId} AND ${column("links", "id")} IN (${Prisma.join(productIds)}) ORDER BY ${column("links", "id")} ASC`,
+  );
+  if (products.some((product) => (BigInt(product.flags) & SKUS_ENABLED_FLAG) !== 0n))
+    throw new NotPortedError("a bundle product with SKUs enabled", "app/controllers/bundles_controller.rb:26");
+  if (products.some(cannotJoinBundle)) return null;
+  const members: BundleMember[] = [];
+  for (const product of products) {
+    const [variant] = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL ORDER BY ${column("base_variants", "id")} ASC LIMIT 1`,
+    );
+    members.push({ productId: BigInt(product.id), variantId: variant === undefined ? null : BigInt(variant.id) });
+  }
+  return members;
+}
+
+// BundlesController#create_from_email from `current_seller.products.build` to `save`: a draft bundle (no purchase_disabled_at, taxonomy or
+// reviews flag, unlike POST /links) holding the seller's products. A false save is the stale-link redirect, whatever the cause.
+export async function createBundleFromEmail(
+  seller: CreateSeller,
+  params: BundleFromEmailParams,
+  now?: () => Date,
+): Promise<CreateOutcome> {
+  const decrypted = params.externalIds
+    .map((id) => decrypt(id))
+    .filter((id): id is number => id !== null)
+    .map(BigInt);
+  const members = await bundleMembers(seller.id, [...new Set(decrypted)]);
+  const link = LinkCreations.build({
+    user_id: seller.id,
+    name: params.name,
+    native_type: "bundle",
+    price_cents: params.priceCents,
+    price_currency_type: params.currency,
+    draft: true,
+    flags: LinkFlags.set(LinkFlags.set(0n, "is_bundle", true), "from_bundle_marketing", true),
+    json_data: rubyJsonGenerate(new RubyHash([])),
+  } as Partial<Link>);
+  link.ivars.sellerMaxProductPrice = seller.verified ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
+  link.ivars.sellerDiscoverBoost = UserFlags.isSet(seller.flags, "discover_boost_enabled");
+  link.ivars.tiered = false;
+  link.ivars.priceCopies = 1;
+  link.ivars.untieredFirstSave = false;
+  link.ivars.bundleMembers = members ?? [];
+  link.ivars.dailyCreationLimit = seller.isTeamMember
+    ? null
+    : (dailyProductCreationLimit(seller.json_data) ??
+      (seller.user_risk_state === "compliant" ? COMPLIANT_DAILY_CREATION_LIMIT : DEFAULT_DAILY_CREATION_LIMIT));
+  if (members === null || !(await LinkCreations.save(link, { now }))) return { created: false, errors: link.errors };
   return { created: true, link, priceCents: params.priceCents };
 }

@@ -181,16 +181,6 @@ describe "Bundle writes guards", type: :request do
       expect(response).to redirect_to(edit_bundle_content_path(bundle.external_id))
       expect(flash[:alert]).to eq("This bundle has no purchases with outdated content.")
     end
-
-    it "hands a bundle with outdated purchases to Rails", parity: true do
-      bundle.update_attribute(:has_outdated_purchases, true)
-      log_in(seller)
-
-      send_inertia(:post, "/bundles/#{bundle.external_id}/content/update_purchases_content")
-
-      expect(response).to have_http_status(:see_other)
-      expect(flash[:notice]).to start_with("Queued an update")
-    end
   end
 
   describe "POST /bundles/:bundle_id/product/remove_file" do
