@@ -330,10 +330,15 @@ describe "Profile landing embed", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a product priced in another currency to Rails", parity: true do
-      create(:product, user: seller, price_currency_type: "eur", price_cents: 500)
+    it "quotes products listed in euros, yen and pounds in their own currency", parity: true do
+      { "eur" => 1050, "jpy" => 1500, "gbp" => 99 }.each_with_index do |(currency, cents), i|
+        create(:product, user: seller, name: currency.upcase, created_at: (i + 1).days.ago).tap do |product|
+          product.update_columns(price_currency_type: currency, price_cents: cents)
+          product.prices.update_all(currency:, price_cents: cents)
+        end
+      end
 
-      expect(embedded_products["products"].first["price"]).to include("€")
+      expect(embedded_products["products"].map { |product| product["price"] }).to eq(["€10.50", "¥1,500", "£0.99"])
     end
 
     it "lists a product whose description has markup as text", parity: true do
