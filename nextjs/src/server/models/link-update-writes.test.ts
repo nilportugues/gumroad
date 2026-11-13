@@ -117,10 +117,10 @@ describe("tag and price saves of the v2 product update", () => {
 
   it("refuses names it cannot prove without reading further", async () => {
     answers = tagAnswers;
-    await expect(planTagChanges(1, ["Mango"])).rejects.toThrow("plain lowercase ASCII");
-    await expect(planTagChanges(1, ["a"])).rejects.toThrow("plain lowercase ASCII");
-    await expect(planTagChanges(1, ["a,b"])).rejects.toThrow("plain lowercase ASCII");
-    await expect(planTagChanges(1, ["mango", "mango"])).rejects.toThrow("repeats a name");
+    await expect(planTagChanges(1, ["Mango", "mango"])).rejects.toThrow("two spellings");
+    await expect(planTagChanges(1, ["two words"])).rejects.toThrow("printable ASCII without spaces");
+    await expect(planTagChanges(1, ["#tag"])).rejects.toThrow("no recording holds");
+    await expect(planTagChanges(1, ["a-very-long-tag-name-over-twenty"])).rejects.toThrow("no recording holds");
     expect(database.writes).toEqual([]);
   });
 

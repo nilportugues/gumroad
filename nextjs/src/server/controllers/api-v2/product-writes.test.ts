@@ -91,7 +91,7 @@ describe("PUT /v2/products/:id with simple attributes", () => {
     ["a taxonomy_id that is a list", { taxonomy_id: [1] }],
     ["a custom_summary that is a list", { custom_summary: ["a"] }],
     ["a custom_receipt that is a hash", { custom_receipt: { a: 1 } }],
-    ["a customizable_price given as text", { customizable_price: "true" }],
+    ["a customizable_price given as text no recording holds", { customizable_price: "off" }],
     ["a suggested_price_cents given as a boolean", { suggested_price_cents: true }],
     ["a suggested_price_cents given as non-ASCII text", { suggested_price_cents: "５" }],
     ["a max_purchase_count outside the integer range", { max_purchase_count: 3_000_000_000 }],
@@ -99,7 +99,7 @@ describe("PUT /v2/products/:id with simple attributes", () => {
     ["a description that is not text", { description: 5 }],
     ["a description that holds markup Nokogiri rewrites", { description: "<ul><li>a</li></ul>" }],
     ["a name that is not text", { name: 5 }],
-    ["a flag given as text", { is_adult: "true" }],
+    ["a flag given as text no recording holds", { is_adult: "yes" }],
     ["a flag given as a number", { display_product_reviews: 1 }],
   ])("hands %s back before writing", async (_label, params) => {
     await expect(run(params)).rejects.toThrow();
