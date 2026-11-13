@@ -136,8 +136,8 @@ export const ProductReviews = defineModel<ProductReview>({
       const [inserted] = await tx.$queryRaw<{ id: bigint }[]>(Prisma.sql`SELECT LAST_INSERT_ID() AS id`);
       return { id: inserted!.id } as ProductReview;
     },
-    update: (args) => tx.productReview.update(args),
-    delete: (args) => tx.productReview.delete(args),
+    update: ({ where, data }) => tx.productReview.update({ where: { id: where.id as bigint }, data }),
+    delete: ({ where }) => tx.productReview.delete({ where: { id: where.id as bigint } }),
   }),
   validations: [
     associationPresent("purchase", "purchases", "purchase_id"),
