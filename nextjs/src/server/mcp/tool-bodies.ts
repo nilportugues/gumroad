@@ -1,7 +1,7 @@
 // Bodies of the pure-read tools of app/services/mcp/server.rb: get_account, list_payouts, get_customers and get_sales_totals.
 // Every other tool still runs in Rails (toolBody returns undefined for it). A call whose token lacks the tool's scope also
 // stays in Rails, which owns the 403 scope challenge and the batch variant of that error. So do these sub-cases:
-// get_customers with a date in an ISO 8601 form other than YYYY-MM-DD, a whole-number days_to_convert or a query timeout,
+// get_customers with a date in an ISO 8601 form other than YYYY-MM-DD, YYYYMMDD or either with a time, or a query timeout,
 // and get_sales_totals with a country, day, week or month breakdown (tzinfo transitions, Compliance::Countries).
 import { Prisma } from "@prisma/client";
 import type { OauthAccessToken, ProductFile, User } from "@prisma/client";
@@ -512,12 +512,17 @@ export const readSales: SalesReader = {
 
 type CalendarDate = { year: number; month: number; day: number };
 
-// Date.iso8601 for the YYYY-MM-DD form. A string Ruby may still parse in another ISO 8601 form is Rails's to read;
-// a well-formed date that is not on the calendar is the tool's own error.
+// Date.iso8601 for YYYY-MM-DD, YYYYMMDD and YYYY-MM-DDThh:mm[:ss][Z|+hh:mm], where Ruby reads the date and ignores the time. A
+// string Ruby may still parse in another ISO 8601 form (week, ordinal, a two-digit year) is Rails's to read; a well-formed
+// date that is not on the calendar is the tool's own error.
+const DATE_ARGUMENT =
+  /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:\d{2})?)?$|^(\d{4})(\d{2})(\d{2})$/iu;
+
 function parseDate(value: string, name: string): CalendarDate {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  const match = DATE_ARGUMENT.exec(value);
   if (match === null) throw new HandBackToRails("an MCP date argument that is not YYYY-MM-DD");
-  const date = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  const [year, month, day] = match[1] === undefined ? match.slice(4, 7) : match.slice(1, 4);
+  const date = { year: Number(year), month: Number(month), day: Number(day) };
   if (date.year < 1 || date.year > MAX_SUPPORTED_YEAR)
     throw new HandBackToRails("an MCP date argument outside the supported years");
   const roundTrip = fromMs(dateMs(date));
@@ -576,13 +581,11 @@ async function getCustomers(args: Hash, context: ToolContext): Promise<Hash> {
     if (by === "conversion") {
       rows = (await readers.conversion(query)).map((row) => {
         const days = rubyRoundHalfUp((row.converted_at.getTime() - row.free_at.getTime()) / DAY_MS, 1);
-        // Ruby writes 3.0 where JSON.stringify writes 3.
-        if (Number.isInteger(days)) throw new HandBackToRails("a days_to_convert that is a whole number");
         return {
           email: row.email,
           free_at: iso8601(row.free_at),
           converted_at: iso8601(row.converted_at),
-          days_to_convert: days,
+          days_to_convert: new FloatValue(days),
         };
       });
     } else {
