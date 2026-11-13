@@ -20,8 +20,8 @@ import { standInDifferences, startStandIn, uncommittedReader, type StandIn } fro
 // Replays payouts_instant_notice_parity_spec.rb: the Payouts page of a seller whose bank account carries Stripe ids. Rails reads the
 // external account from Stripe twice (the instant payout props, then the notice); the stand-in answers what the fixture recorded and
 // the replay holds Node to the same reads. Elasticsearch calls are Rails' own (the sales totals) and are not routed through the stand-in.
-// A bank account Stripe lists instant payouts for gets the instant payout props, which Node does not build: it reads once, hands the
-// request back and writes nothing of its own.
+// A bank account Stripe lists instant payouts for also gets the instant payout props, built between the two reads from three reads of
+// the Stripe balance.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
@@ -112,7 +112,6 @@ function stripeOnly(exchange: Exchange): Exchange {
   return { ...exchange, http, timeline };
 }
 
-const INSTANT_LISTED = "-serves-the-instant-payout-data-and-no-notice-";
 const cases = readdirSync(path.join(FIXTURES_ROOT, SPEC_DIR))
   .filter((file) => file.endsWith(".json"))
   .map((file) => {
@@ -195,7 +194,7 @@ describe.skipIf(!url)("Payouts page instant payout notice parity", () => {
 
   it.each(cases)(
     "%s",
-    async (name, fixturePath, index) => {
+    async (_name, fixturePath, index) => {
       const fixture = loadFixture(fixturePath);
       const expected = stripeOnly(fixture.exchanges[index]!);
       handedBack.length = 0;
@@ -216,19 +215,6 @@ describe.skipIf(!url)("Payouts page instant payout notice parity", () => {
         compare: COMPARE,
       };
       try {
-        if (name.includes(INSTANT_LISTED)) {
-          // Rails builds the instant payout props from a third Stripe read of the balance; Node asks the bank account once, then Rails does.
-          const result = await replayFixtureExchange(fixture, index, options);
-          expect(handedBack.map(({ method, url }) => `${method} ${url}`)).toEqual(["GET /payouts"]);
-          // The nav promotions are seeded by the signed-in filters before any page decides to hand back, as for every dashboard page.
-          expect(Object.keys(result.exchanges[0]!.actual.db)).toEqual(["dashboard_nav_promotions"]);
-          const seen = await stripe.finish();
-          expect(seen.calls.map((call) => `${call.method} ${new URL(call.url).pathname}`)).toEqual([
-            `GET /v1/accounts/acct_parityinstant01/external_accounts/ba_parityinstant01`,
-          ]);
-          expect(seen.calls[0]).toMatchObject({ url: expected.http[0]!.url });
-          return;
-        }
         assertParity(await replayFixtureExchange(fixture, index, options));
         expect(handedBack).toEqual([]);
         const differences = standInDifferences(expected, await stripe.finish());
