@@ -1,8 +1,7 @@
 // The custom domain branch of Settings::AdvancedController#update: DNS is read before the first write, and a domain that points at
-// Gumroad (which Rails marks verified) goes back to Rails whole.
+// Gumroad is saved verified.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HandBackToRails } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -77,17 +76,36 @@ beforeEach(() => {
 });
 
 describe("PUT /settings/advanced with a custom domain", () => {
-  it("hands a domain that points at Gumroad to Rails before any write", async () => {
-    mocks.pointsToGumroad.mockResolvedValue(true);
+  it("looks the domain up before any write", async () => {
+    mocks.build.mockReturnValue(record("unverified"));
 
-    await expect(
-      advanced.run(input({ domain: "shop.example.com", user: { notification_endpoint: "" } })),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+    await advanced.run(input({ domain: "shop.example.com", user: { notification_endpoint: "" } }));
 
     expect(mocks.pointsToGumroad).toHaveBeenCalledWith("shop.example.com");
-    expect(mocks.unblockActive).not.toHaveBeenCalled();
-    expect(mocks.userUpdate).not.toHaveBeenCalled();
-    expect(mocks.save).not.toHaveBeenCalled();
+    expect(mocks.pointsToGumroad.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.unblockActive.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("verifies a new domain that points at Gumroad", async () => {
+    mocks.pointsToGumroad.mockResolvedValue(true);
+    const built = record("unverified");
+    mocks.build.mockReturnValue(built);
+
+    await advanced.run(input({ domain: "shop.example.com", user: { notification_endpoint: "" } }));
+
+    expect(built.values).toMatchObject({ state: "verified", failed_verification_attempts_count: 0 });
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a verified domain verified and leaves its failed attempts alone", async () => {
+    mocks.pointsToGumroad.mockResolvedValue(true);
+    const stored = record("verified");
+    mocks.stored.mockResolvedValue(stored);
+
+    await advanced.run(input({ domain: "new.example.com", user: { notification_endpoint: "" } }));
+
+    expect(stored.values).toEqual({ state: "verified", domain: "new.example.com" });
   });
 
   it("does not look a blank domain up", async () => {

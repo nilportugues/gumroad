@@ -110,12 +110,24 @@ describe "Settings main when signed in", type: :request do
       expect(flash[:alert]).to include("Support email")
     end
 
-    it "hands a purchasing power parity limit past 2**53 to Rails", parity: true do
+    it "refuses a purchasing power parity limit past 2**53 with the range error", parity: true do
       log_in(seller)
 
       send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: 12345678901234567890))
 
       expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Purchasing power parity limit must be less than or equal to 100")
+      expect(seller.reload.purchasing_power_parity_limit).to be_nil
+    end
+
+    it "refuses a purchasing power parity limit below -2**53 with the range error", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: -12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("Purchasing power parity limit must be greater than or equal to 1")
+      expect(seller.reload.purchasing_power_parity_limit).to be_nil
     end
 
     it "reads an integer feature announcements flag past 2**53 as subscribed", parity: true do
@@ -249,6 +261,28 @@ describe "Settings main when signed in", type: :request do
         expect(response).to have_http_status(:see_other)
         expect(flash[:notice]).to eq("Your account has been updated!")
         expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(version: 2, source: "newsletter_migration")
+      end
+
+      it "says the subscription changed when the version is an integer past 2**53", parity: true do
+        FeatureAnnouncementSubscription.create!(user_id: seller.id, subscribed: true, source: "settings", version: 3)
+        log_in(seller)
+
+        send_form(:put, settings_main_path, announcements(false, 12345678901234567890))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated, but Feature announcements changed elsewhere, so that setting was not saved.")
+        expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 3)
+      end
+
+      it "leaves a subscription alone when the form agrees with it and the version is past 2**53", parity: true do
+        FeatureAnnouncementSubscription.create!(user_id: seller.id, subscribed: true, source: "settings", version: 3)
+        log_in(seller)
+
+        send_form(:put, settings_main_path, announcements(true, 12345678901234567890))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 3)
       end
 
       it "reads a float version as unknown and says the subscription changed", parity: true do

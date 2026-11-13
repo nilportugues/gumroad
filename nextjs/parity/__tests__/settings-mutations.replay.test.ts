@@ -39,6 +39,13 @@ const ROUTE_FLAGS =
   "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_team_members_reads,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes,nextjs_settings_totp_writes,nextjs_settings_passkeys_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+// DNS as the spec's Resolv::DNS stub answers it (keep the two in sync): Gumroad's own targets resolve, and two names carry a CNAME to Gumroad.
+const CNAME_TARGET = "domains-staging.gumroad.com";
+const STATIC_IP_HOST = "staging-custom-domains-static-ip.gumroad.net";
+const DNS_ZONE = JSON.stringify({
+  cname: { "points.example.com": CNAME_TARGET, "verified-old.example.com": CNAME_TARGET },
+  a: { [CNAME_TARGET]: ["203.0.113.7"], [STATIC_IP_HOST]: ["203.0.113.7"] },
+});
 // Example name fragment, sends in the throttle's set and how long ago they were made (spec/requests/settings_team_invitations_signed_in_spec.rb).
 const THROTTLE_FILLS = [
   ["refuses-past-the-hourly-allowance", 10, 150],
@@ -240,6 +247,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      CUSTOM_DOMAIN_DNS_TEST_ZONE: DNS_ZONE,
       ELASTICSEARCH_HOST,
       ES_INDEX_SUFFIX,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
