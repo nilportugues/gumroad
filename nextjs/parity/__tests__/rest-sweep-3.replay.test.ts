@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
+import { withDriftedDates } from "../src/date-drift";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
@@ -194,7 +195,18 @@ describe.skipIf(!url)("rest sweep 3", () => {
     process.env = saved;
   });
 
+  // A seed token ("<now-2995h>") keeps only the hours between the sale and the recording, so a sale replays at the replay's clock time
+  // and the CSV's dates and the day boundaries of the time zone examples drift with it. Seeding at the clock time of the recording
+  // (10:22:40 UTC on 2026-11-13, all 48 examples within a minute of it) and moving the expected dates by the days since keeps both.
+  const RECORDED_CLOCK_UTC = [10, 22, 40] as const;
+  const seedClock = () => {
+    const pinned = new Date();
+    pinned.setUTCHours(...RECORDED_CLOCK_UTC, 0);
+    return pinned;
+  };
+
   const options = (name = "") => ({
+    seedClock: seedClock(),
     sql,
     redis: {
       reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {
@@ -236,7 +248,7 @@ describe.skipIf(!url)("rest sweep 3", () => {
     "%s",
     async (name, file, index) => {
       try {
-        const fixture = loadFixture(file);
+        const fixture = withDriftedDates(loadFixture(file), index, new Date(), ["body"]);
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options(name));

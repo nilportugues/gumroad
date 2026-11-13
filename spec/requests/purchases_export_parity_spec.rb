@@ -255,8 +255,8 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
 
   it "uses the seller's zone offset across daylight saving time", parity: true do
     seller.update_columns(timezone: "London")
-    sell(created_at: Time.utc(2026, 7, 10, 23, 30))
-    sell(created_at: Time.utc(2026, 7, 11, 12))
+    sell(created_at: Time.utc(2026, 7, 10, 23, 22))
+    sell(created_at: Time.utc(2026, 7, 11, 12, 22))
 
     export({ in_seller_time_zone: "1", start_time: "2026-07-11", end_time: "2026-07-11" })
 
