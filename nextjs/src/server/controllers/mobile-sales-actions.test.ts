@@ -16,7 +16,9 @@ const {
   findResponseOfReview,
   createResponse,
   updateResponse,
+  missedPostsOf,
 } = vi.hoisted(() => ({
+  missedPostsOf: vi.fn(),
   performAsync: vi.fn(),
   findResponseOfReview: vi.fn(),
   createResponse: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
   selectRows,
 }));
+vi.mock("../page-props/customers/customer-details.ts", () => ({ missedPosts: missedPostsOf }));
 vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
 vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync }));
 vi.mock("../models/product-review-response.ts", () => ({
@@ -75,6 +78,7 @@ const handedBack = (promise: Promise<unknown>) => expect(promise).rejects.toBeIn
 beforeEach(() => {
   selectRows.mockReset();
   eligibleToSendEmails.mockReset();
+  missedPostsOf.mockReset();
 });
 
 describe("member actions", () => {
@@ -211,20 +215,33 @@ describe("GET /mobile/sales/:id/product_purchases", () => {
 describe("GET /mobile/sales/:id/missed_posts", () => {
   const action = "/mobile/sales/:id/missed_posts";
 
-  it("lists nothing for a customer who cannot be contacted, without reading posts", async () => {
-    selectRows.mockResolvedValueOnce([sale({ can_contact: 0 })]);
-    expect(body(await run("GET", action, {}))).toEqual({ success: true, missed_posts: [] });
-    expect(selectRows).toHaveBeenCalledTimes(1);
+  it("renders the posts the customer has not been sent, read off the full purchase row", async () => {
+    const row = { id: 5n, email: "buyer@example.com" };
+    const posts = [
+      { id: "abc", name: "Update", url: "http://example.com/p/update", published_at: "2026-11-10T12:00:00.000Z" },
+    ];
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([row]);
+    missedPostsOf.mockResolvedValueOnce(posts);
+    expect(body(await run("GET", action, {}))).toEqual({ success: true, missed_posts: posts });
+    expect(missedPostsOf).toHaveBeenCalledWith(row);
   });
 
-  it("lists nothing when the seller has no published post", async () => {
-    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([]);
+  it("lists nothing when the posts query finds none", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ id: 5n }]);
+    missedPostsOf.mockResolvedValueOnce([]);
     expect(body(await run("GET", action, {}))).toEqual({ success: true, missed_posts: [] });
   });
 
-  it("hands a seller with a published post to Rails", async () => {
-    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ one: 1 }]);
+  it("hands Rails what the posts query cannot evaluate", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ id: 5n }]);
+    missedPostsOf.mockRejectedValueOnce(new HandBackToRails("a filter"));
     await handedBack(run("GET", action, {}));
+  });
+
+  it("hands a sale that vanished between the two reads to Rails", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([]);
+    await handedBack(run("GET", action, {}));
+    expect(missedPostsOf).not.toHaveBeenCalled();
   });
 });
 
