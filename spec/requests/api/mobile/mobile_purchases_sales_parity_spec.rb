@@ -119,10 +119,42 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["products"].first["file_data"].size).to eq(1)
       end
 
-      it "hands a library page past the last to Rails", parity: true do
+      it "answers a 400 for a library page past the last", parity: true do
         listed(alpha)
 
         get "/mobile/purchases/index", params: auth(buyer).merge(page: "3")
+
+        expect(response).to have_http_status(:bad_request)
+        expect(response.parsed_body["error"]["message"]).to eq("expected :page in 1..1; got 3")
+      end
+
+      it "answers a 400 for a library page below the first", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/index", params: auth(buyer).merge(page: "0")
+
+        expect(response).to have_http_status(:bad_request)
+      end
+
+      it "answers a 400 for a library page past the last of an empty library", parity: true do
+        get "/mobile/purchases/index", params: auth(buyer).merge(page: "2", per_page: "1")
+
+        expect(response).to have_http_status(:bad_request)
+      end
+
+      it "answers a 400 for a search page past the last", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(page: "2", items: "5")
+
+        expect(response).to have_http_status(:bad_request)
+        expect(response.parsed_body["error"]["message"]).to eq("expected :page in 1..1; got 2")
+      end
+
+      it "answers a 400 for a search with no items to a page", parity: true do
+        listed(alpha)
+
+        get "/mobile/purchases/search", params: auth(buyer).merge(items: "0")
 
         expect(response).to have_http_status(:bad_request)
       end
@@ -523,12 +555,147 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["message"]).to eq("Could not find purchase")
     end
 
-    it "hands a read of the seller's own sale to Rails", parity: true do
-      sale = library_purchase
+    describe "showing a sale" do
+      # Minted first so little time passes between the factories and the request: the fixture stores their timestamps relative to it.
+      let!(:credentials) { auth(seller) }
+      let(:sale) { library_purchase }
 
-      get "/mobile/sales/#{sale.external_id}", params: auth(seller)
+      def show(sale = self.sale) = get("/mobile/sales/#{sale.external_id}", params: credentials)
 
-      expect(response).to have_http_status(:ok)
+      it "serves the seller's own sale", parity: true do
+        show
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body.keys).to eq(%w[success purchase customer charges emails product_purchases can_ping])
+        expect(response.parsed_body["purchase"]["formatted_total_price"]).to be_present
+      end
+
+      it "serves a sale of a guest buyer", parity: true do
+        guest = purchase_row(link: product, seller:, purchase_state: "successful", email: "guest@example.com", full_name: " Gus Guest ")
+
+        show(guest)
+
+        expect(response.parsed_body["purchase"]["full_name"]).to eq("Gus Guest")
+      end
+
+      it "serves a sale with its files", parity: true do
+        create(:readable_document, link: product, position: 0)
+        create(:url_redirect, purchase: sale, link: product)
+
+        show
+
+        expect(response.parsed_body["purchase"]["file_data"].size).to eq(1)
+      end
+
+      it "serves a sale with a variant", parity: true do
+        variant = create(:variant, variant_category: create(:variant_category, link: product, title: "Tier"), name: "Gold")
+        sale.variant_attributes << variant
+
+        show
+
+        expect(response.parsed_body["purchase"]["variants"].values.first).to eq("title" => "Tier", "selected_variant" => { "id" => variant.external_id, "name" => "Gold" })
+      end
+
+      it "serves a sale with a percentage offer code", parity: true do
+        priced = create(:product, user: seller, price_cents: 1000)
+        code = create(:percentage_offer_code, user: seller, products: [priced], code: "quarter", amount_percentage: 25)
+        discounted = purchase_row(link: priced, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", offer_code: code)
+
+        show(discounted)
+
+        expect(response.parsed_body["purchase"]["offer_code"]).to eq("code" => "quarter", "displayed_amount_off" => "25%")
+      end
+
+      it "serves a sale with an offer code of a fixed amount", parity: true do
+        priced = create(:product, user: seller, price_cents: 1000)
+        code = create(:offer_code, user: seller, products: [priced], code: "fiver", amount_cents: 550)
+        discounted = purchase_row(link: priced, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", offer_code: code)
+
+        show(discounted)
+
+        expect(response.parsed_body["purchase"]["offer_code"]).to eq("code" => "fiver", "displayed_amount_off" => "$5.50")
+      end
+
+      it "serves a sale whose seller takes sale pings", parity: true do
+        seller.update_column(:notification_endpoint, "https://example.com/ping")
+
+        show
+
+        expect(response.parsed_body["can_ping"]).to eq(true)
+      end
+
+      it "hands a sale of a seller with an unpublished post to Rails", parity: true do
+        create(:installment, link: product, seller:, published_at: nil, shown_on_profile: true, send_emails: false)
+
+        show
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale of a seller with a published post to Rails", parity: true do
+        create(:installment, link: product, seller:, published_at: 2.days.ago, shown_on_profile: true, send_emails: false)
+
+        show
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale of a SKU to Rails", parity: true do
+        physical = create(:physical_product, user: seller, skus_enabled: true)
+        sku = create(:sku, link: physical, name: "Large")
+        sold = purchase_row(link: physical, seller:, purchase_state: "successful")
+        sold.variant_attributes << sku
+
+        show(sold)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale with a shipment to Rails", parity: true do
+        physical = create(:physical_product, user: seller)
+        sold = purchase_row(:physical_purchase, link: physical, seller:, purchase_state: "successful")
+        Shipment.new(purchase: sold).save!(validate: false)
+
+        show(sold)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale with an affiliate to Rails", parity: true do
+        affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
+        referred = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", affiliate:, affiliate_credit_cents: 10)
+
+        show(referred)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale with several variants to Rails", parity: true do
+        category = create(:variant_category, link: product)
+        sale.variant_attributes << create(:variant, variant_category: category, name: "One")
+        sale.variant_attributes << create(:variant, variant_category: create(:variant_category, link: product, title: "Other"), name: "Two")
+
+        show
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale of a membership to Rails", parity: true do
+        membership = create(:membership_product, user: seller)
+        recurring = purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
+
+        show(recurring)
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a sale in another currency to Rails", parity: true do
+        euro = purchase_row(link: product, seller:, purchase_state: "successful", displayed_price_currency_type: "eur")
+
+        show(euro)
+
+        expect(response).to have_http_status(:ok)
+      end
     end
 
     it "serves a sales page of USD sales", parity: true do

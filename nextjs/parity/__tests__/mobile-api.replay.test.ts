@@ -13,8 +13,8 @@ import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
-import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -99,9 +99,20 @@ function redisJobs(redis: Redis): JobsChannel {
       for (const key of await redis.keys("queue:*")) ruby.push(...(await redis.lrange(key, 0, -1)));
       ruby.push(...(await redis.zrange("schedule", "0", "-1")));
       for (const raw of ruby) {
-        const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number; wrapped?: string };
+        const item = JSON.parse(raw) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+          wrapped?: string;
+        };
         if (item.wrapped === "MailDeliveryJob") continue;
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
@@ -122,6 +133,7 @@ const COMPARE = {
     "db.media_locations.updated.*.changes.consumed_at.*",
     // Minute of the sale in the seller's time zone, stamped by the factory's clock.
     "response.json.purchases.*.daystamp",
+    "response.json.purchase.purchase_daystamp",
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.licenses.updated.*.changes.updated_at",
     "db.calls.updated.*.changes.updated_at",
@@ -265,6 +277,23 @@ describe.skipIf(!url)("Mobile API parity", () => {
           expect(handedBack[0]).toMatchObject({ method: request.method });
           expect(handedBack[0]!.url.split("?")[0]).toBe(request.path);
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          return;
+        }
+        // The cache job's date is the purchase's day in the seller's zone (Tokyo). The seed moves with the replay's clock but the
+        // recorded date moves by UTC days, so they disagree for part of every day; the date is checked against the seeded row instead.
+        if (name.includes("older-purchase-of-a-seller-in-another-time-zone")) {
+          const options = replayOptions();
+          const replayed = await replayFixtureExchange(fixture, index, {
+            ...options,
+            compare: { ...COMPARE, ignore: [...COMPARE.ignore, "jobs.1.args.1"] },
+          });
+          assertParity(replayed);
+          const purchase = await client.purchase.findFirstOrThrow({ orderBy: { id: "desc" } });
+          const tokyoDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(purchase.created_at!);
+          const job = replayed.exchanges[0]!.actual.jobs?.find(
+            (candidate) => candidate.class === "RegenerateCreatorAnalyticsCacheWorker",
+          );
+          expect((job?.args as unknown[] | undefined)?.[1]).toBe(tokyoDate);
           return;
         }
         assertParity(await replayFixtureExchange(fixture, index, replayOptions()));

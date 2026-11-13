@@ -78,6 +78,8 @@ const COMPARE = {
     // travel_to leaves the sale's updated_at on the second the factory stamped it, so Rails records no change; Node's clock keeps running.
     "db.purchases.updated.*.changes.updated_at",
     "jobs.*.at",
+    // A seeded sale is created at the replay's clock, which has run on since the recording froze it.
+    "response.json.sale.daystamp",
     "http",
     // Rails renders its debug exception page for a 404 in the test environment.
     "response.body",

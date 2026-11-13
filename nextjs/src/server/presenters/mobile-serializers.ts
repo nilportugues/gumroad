@@ -170,6 +170,15 @@ export type MobilePurchaseInput = {
     sourcePurchaser: User | null;
     preorderData: { external_id: string; release_at: string | null } | null;
   };
+  // include_sale_details: true. The price and the daystamp come from the purchase; the rest from rows the caller read.
+  saleDetails?: SaleDetails;
+};
+
+export type SaleDetails = {
+  // variant_details_hash of a purchase with one non-SKU variant; null leaves the key out
+  variants: Record<string, unknown> | null;
+  // { code, displayed_amount_off } of a purchase with an offer code; null leaves the key out
+  offerCode: { code: string | null; displayed_amount_off: string } | null;
 };
 
 // Port of app/models/purchase.rb (Purchase#json_data_for_mobile) for a purchase with no url_redirect, preorder or subscription,
@@ -230,5 +239,12 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   json.refunded = purchase.stripe_refunded === true;
   json.partially_refunded = purchase.stripe_partially_refunded;
   json.chargedback = chargedbackNotReversed(purchase);
+  if (input.saleDetails) {
+    if (seller.timezone == null) throw new NotPortedError("a seller without a time zone");
+    if (input.saleDetails.variants !== null) json.variants = input.saleDetails.variants;
+    if (input.saleDetails.offerCode !== null) json.offer_code = input.saleDetails.offerCode;
+    json.formatted_total_price = formattedTotalPrice(purchase);
+    json.purchase_daystamp = longFormattedDatetime(purchase.created_at, seller.timezone);
+  }
   return json;
 }

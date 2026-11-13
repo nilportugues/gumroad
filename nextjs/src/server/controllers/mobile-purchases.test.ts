@@ -50,7 +50,10 @@ vi.mock("../presenters/product-props.ts", () => ({ linkOptions }));
 vi.mock("../../lib/db.ts", () => ({ db }));
 vi.mock("../models/purchase-library-writes.ts", () => ({ setLibraryFlag, loadLibraryPurchase }));
 vi.mock("../models/purchase-product-updates.ts", () => ({ preloadProductUpdatesData }));
-vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
+vi.mock("../page-props/signed-in/presenters.ts", () => ({
+  avatarUrl: async () => "https://example.com/avatar.png",
+  signedInPresenters: {},
+}));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
 vi.mock("../presenters/mobile-preview.ts", () => ({ mobilePreview }));
 vi.mock("../presenters/mobile-url-redirect.ts", () => ({ urlRedirectMobileData }));
@@ -58,6 +61,8 @@ vi.mock("../presenters/mobile-serializers.ts", () => ({ purchaseJsonDataForMobil
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({
   creatorAppPurchasesJson,
   thumbnailUrlsByProduct: async () => new Map([[2n, "https://example.com/thumb.png"]]),
+  amountRefundedCentsByPurchase: async () => new Map(),
+  ratingByPurchase: async () => new Map(),
 }));
 vi.mock("../search/purchase-search.ts", () => ({ PurchaseSearchService: { process } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
@@ -140,9 +145,17 @@ describe("GET /mobile/purchases/index", () => {
     await expect(run(input(), authFor())).rejects.toThrow();
   });
 
-  it("hands back a page beyond the first", async () => {
+  it("answers the Pagy overflow 400 for a page beyond the first", async () => {
     selectRows.mockResolvedValue([]);
-    await expect(run(input({ page: "2" }), authFor())).rejects.toThrow();
+    const result = await run(input({ page: "2" }), authFor());
+    expect(status(result)).toBe(400);
+    expect(body(result)).toEqual({ error: { message: "expected :page in 1..1; got 2" } });
+  });
+
+  it("answers the Pagy 400 for page 0 before the overflow check", async () => {
+    selectRows.mockResolvedValue([]);
+    const result = await run(input({ page: "0" }), authFor());
+    expect(body(result)).toEqual({ error: { message: "expected :page >= 1; got 0" } });
   });
 });
 
@@ -219,7 +232,6 @@ describe("purchase member actions", () => {
   it.each([
     ["a membership purchase", { subscription_id: 3n }, []],
     ["a preorder purchase", { preorder_id: 3n }, []],
-    ["a purchase with refunds", {}, [[{ "1": 1 }]]],
   ])("hands %s to Rails before writing", async (_name, extra, rows) => {
     stubPlain(rows);
     db.purchase.findFirst.mockResolvedValue({ ...row, ...extra });
@@ -337,14 +349,6 @@ describe("GET /mobile/purchases/purchase_attributes/:id", () => {
     expect(purchaseJsonDataForMobile).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["refunds", [[{ "1": 1 }]]],
-    ["a review", [[], [{ "1": 1 }]]],
-  ])("hands a purchase with %s to Rails", async (_name, rows) => {
-    stub({ rows });
-    await expect(run(input({ id: "12" }), authFor())).rejects.toThrow();
-  });
-
   it("hands the purchase to Rails when the preloader cannot answer", async () => {
     stub();
     preloadProductUpdatesData.mockRejectedValue(new Error("Purchase.product_installments is not ported"));
@@ -407,15 +411,15 @@ describe("GET /mobile/sales/:id", () => {
   const run = find("GET", "/mobile/sales/:id").run;
 
   it("answers 404 for a sale that is not the seller's", async () => {
-    selectRows.mockResolvedValue([]);
+    db.purchase.findFirst.mockResolvedValue(null);
     const result = await run(input({ id: "9" }), authFor());
     expect(status(result)).toBe(404);
     expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
   });
 
-  it("hands a sale that exists to Rails", async () => {
-    selectRows.mockResolvedValue([{ "1": 1 }]);
-    await expect(run(input({ id: "9" }), authFor())).rejects.toThrow();
+  it("hands a sale with an affiliate to Rails before reading anything else", async () => {
+    db.purchase.findFirst.mockResolvedValue({ id: 9n, flags: 0n, affiliate_id: 5n });
+    await expect(run(input({ id: "9" }), authFor())).rejects.toThrow("a sale with an affiliate");
   });
 
   it("answers the blob_url collection route as blob_url, not as a sale id", async () => {

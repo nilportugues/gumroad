@@ -22,11 +22,18 @@ import { PurchaseFlags } from "../search/flags.ts";
 
 import { alpha2ByName } from "./compliance-countries.ts";
 import { usdCentsToCurrency } from "./concerns/currency-helper.ts";
-import { formatJustPriceInCents, moneyFormatterFormat, symbolFor } from "./concerns/money-formatter.ts";
+import {
+  formatJustPriceInCents,
+  moneyFormatterFormat,
+  moneyFormatWithGemSymbol,
+  symbolFor,
+} from "./concerns/money-formatter.ts";
 import { instantInTimeZoneIso8601 } from "./concerns/rails-time-zone.ts";
 import { timeAgoInWords } from "./concerns/time-ago-in-words.ts";
 import { LinkFlags } from "./link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "./merchant-account.ts";
+import { type OfferCodeDisplay, offerCodeDisplays } from "./offer-code-display.ts";
+import { calculatedTrackingUrl } from "./shipment-tracking.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { SubscriptionFlags } from "./subscription.ts";
 import { NotPortedError } from "./user.ts";
@@ -58,6 +65,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const TERMINAL_FAILURE_STATUSES = ["failed", "canceled"];
 // Compliance::Countries.find_by_name needs the exact name; a ChargeProcessor.charge_processor_ids member can be refunded.
 const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
+const BASE_VARIANT_IS_DEFAULT_SKU = 1;
 const PAYPAL_REFUND_WINDOW_MONTHS = 6;
 
 async function rowsBy(
@@ -89,6 +97,10 @@ type Loaded = {
   variants: Map<string, Row[]>;
   categories: Map<string, Row>;
   hasAliveCategories: Set<string>;
+  // Link#sku_title per link id, for a link with at most one alive category
+  skuTitles: Map<string, string>;
+  offerCodes: Map<string, OfferCodeDisplay>;
+  affiliates: Map<string, { email: string | null; amount: string }>;
   customFields: Map<string, Row[]>;
   tips: Map<string, Row>;
   utmLinks: Map<string, Row>;
@@ -121,8 +133,6 @@ async function load(purchases: Row[]): Promise<Loaded> {
   const ids = purchases.map((purchase) => purchase.id);
   for (const purchase of purchases) {
     const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
-    if (purchase.affiliate_id != null) throw notPorted("an affiliate");
-    if (purchase.offer_code_id != null) throw notPorted("an offer code");
     if (purchase.charge_processor_id === "braintree") throw notPorted("a Braintree sale");
     if (!present(purchase.displayed_price_currency_type)) throw notPorted("a purchase with no displayed currency");
     if (flags("is_commission_deposit_purchase") || flags("is_commission_completion_purchase"))
@@ -221,10 +231,14 @@ async function load(purchases: Row[]): Promise<Loaded> {
   for (const join of joins) {
     const variant = variantRows.get(String(join.base_variant_id));
     if (variant === undefined) continue;
-    if (variant.type === "Sku") throw notPorted("a SKU");
     variants.set(String(join.purchase_id), [...(variants.get(String(join.purchase_id)) ?? []), variant]);
   }
-  for (const list of variants.values()) if (list.length > 1) throw notPorted("several variants");
+  for (const list of variants.values()) {
+    // Purchase#sku reads the first variant only, so a SKU next to another variant is a mix the port does not read.
+    if (list.length > 1 && list.some((variant) => variant.type === "Sku")) throw notPorted("a SKU with other variants");
+    if (list.some((variant) => variant.type === "Sku" && (num(variant.flags ?? 0) & BASE_VARIANT_IS_DEFAULT_SKU) !== 0))
+      throw notPorted("a default SKU");
+  }
   const categories = byId(
     await rowsBy("variant_categories", "id", [
       ...new Set([...variantRows.values()].map((variant) => variant.variant_category_id).filter((id) => id != null)),
@@ -235,8 +249,46 @@ async function load(purchases: Row[]): Promise<Loaded> {
     linkIds.length === 0
       ? []
       : await selectRows<Row>(
-          Prisma.sql`SELECT DISTINCT ${column("variant_categories", "link_id")} AS link_id FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} IN (${inList(linkIds)}) AND ${column("variant_categories", "deleted_at")} IS NULL`,
+          Prisma.sql`SELECT ${column("variant_categories", "link_id")} AS link_id, ${column("variant_categories", "title")} AS title FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} IN (${inList(linkIds)}) AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC`,
         );
+  // Link#sku_title: the alive categories' titles joined, or "Version"; several categories come back in an order only MySQL knows.
+  const categoryTitles = new Map<string, string[]>();
+  for (const row of aliveCategoryRows)
+    categoryTitles.set(String(row.link_id), [...(categoryTitles.get(String(row.link_id)) ?? []), String(row.title)]);
+  const skuTitles = new Map<string, string>();
+  for (const [linkId, titles] of categoryTitles) {
+    if (titles.length > 1) continue;
+    skuTitles.set(linkId, titles[0]!);
+  }
+
+  const offerCodes = await offerCodeDisplays(purchases, (linkId) =>
+    linkId == null ? null : (links.get(String(linkId))?.price_currency_type ?? null),
+  );
+  // Purchase#affiliate, with the affiliate user's form_email and the credit it earned; a collaborator's credit is split with a direct affiliate
+  const affiliateRows = byId(
+    await rowsBy("affiliates", "id", [
+      ...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id) => id != null)),
+    ]),
+  );
+  const affiliateUsers = byId(
+    await rowsBy("users", "id", [
+      ...new Set([...affiliateRows.values()].map((affiliate) => affiliate.affiliate_user_id)),
+    ]),
+  );
+  const affiliates = new Map<string, { email: string | null; amount: string }>();
+  for (const purchase of purchases) {
+    if (purchase.affiliate_id == null) continue;
+    if (purchase.direct_affiliate_id != null) throw notPorted("a collaborator sale with a direct affiliate");
+    const affiliate = affiliateRows.get(String(purchase.affiliate_id));
+    const user = affiliate === undefined ? undefined : affiliateUsers.get(String(affiliate.affiliate_user_id));
+    if (user === undefined) throw notPorted("an affiliate whose user row is missing");
+    // User#form_email
+    const email = present(user.unconfirmed_email) ? user.unconfirmed_email : present(user.email) ? user.email : null;
+    affiliates.set(String(purchase.id), {
+      email,
+      amount: moneyFormatWithGemSymbol(num(purchase.affiliate_credit_cents ?? 0), "usd", { noCentsIfWhole: true }),
+    });
+  }
 
   const customRows = await rowsBy("purchase_custom_fields", "purchase_id", ids);
   if (customRows.some((field) => field.field_type === "fileUpload" || field.field_type === "file"))
@@ -356,6 +408,7 @@ async function load(purchases: Row[]): Promise<Loaded> {
     const price = prices.get(String(purchase.id));
     if (variant === undefined || !LinkFlags.isSet(links.get(String(purchase.link_id))!.flags, "is_tiered_membership"))
       continue;
+    if (variants.get(String(purchase.id))!.length > 1) throw notPorted("several tiers");
     const [found] = await selectRows<Row>(
       Prisma.sql`SELECT ${Prisma.raw("`prices`.*")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${variant.id} AND ${column("prices", "deleted_at")} IS NULL AND (${column("prices", "flags")} & 1) = 0 AND ${price?.recurrence == null ? Prisma.sql`${column("prices", "recurrence")} IS NULL` : Prisma.sql`${column("prices", "recurrence")} = ${price.recurrence}`} LIMIT 1`,
     );
@@ -370,6 +423,9 @@ async function load(purchases: Row[]): Promise<Loaded> {
     variants,
     categories,
     hasAliveCategories: new Set(aliveCategoryRows.map((row) => String(row.link_id))),
+    skuTitles,
+    offerCodes,
+    affiliates,
     customFields,
     tips: first(await rowsBy("tips", "purchase_id", ids), "purchase_id"),
     utmLinks,
@@ -463,8 +519,8 @@ async function one(
   const seller = loaded.sellers.get(String(purchase.seller_id))!;
   const purchaser =
     purchase.purchaser_id == null ? null : (loaded.purchasers.get(String(purchase.purchaser_id)) ?? null);
-  const variant = loaded.variants.get(id)?.[0];
-  const category = variant === undefined ? undefined : loaded.categories.get(String(variant.variant_category_id));
+  const variantList = loaded.variants.get(id) ?? [];
+  const variant = variantList[0];
   const currency = String(purchase.displayed_price_currency_type);
   const rate = present(purchase.rate_converted_to_usd) ? Number(purchase.rate_converted_to_usd) : undefined;
   const refunded = truthy(purchase.stripe_refunded);
@@ -492,7 +548,7 @@ async function one(
         COUNTRIES_THAT_COLLECT_TAX_ON_DIGITAL_PRODUCTS,
         GST_APPLICABLE_COUNTRY_CODES,
       ].some((codes) => codes.has(country));
-    taxLabel = named ? taxNameFor(country as string) : "Sales tax";
+    taxLabel = named ? taxNameFor(country) : "Sales tax";
   }
   const merchantAccount = loaded.merchantAccountOf(purchase);
   const paymentProcessor = present(purchase.paypal_order_id)
@@ -603,8 +659,8 @@ async function one(
     country_iso2: alpha2ByName(country) ?? undefined,
     paid: priceCents !== 0,
     has_variants: variant !== undefined,
-    variants: variant === undefined ? undefined : { [String(category?.title)]: variant.name },
-    variants_and_quantity: variantsAndQuantity(variant, quantity),
+    variants: variantsHash(variantList, link, loaded),
+    variants_and_quantity: variantsAndQuantity(variantList, quantity),
     has_custom_fields: customFields.length > 0,
     custom_fields: Object.fromEntries(customFields.map((field) => [field.name, field.value])),
     order_id: encryptNumeric(num(purchase.id)),
@@ -650,7 +706,7 @@ async function one(
         ? 0
         : LinkFlags.isSet(link.flags, "is_tiered_membership")
           ? num(loaded.tierPrices.get(id)?.price_cents ?? 0)
-          : num(variant.price_difference_cents ?? 0),
+          : variantList.reduce((sum, picked) => sum + num(picked.price_difference_cents ?? 0), 0),
     review: review === undefined ? undefined : review.message,
     preorder_authorization_time:
       preorder !== undefined && !flags("is_preorder_authorization") ? timeJson(preorder.created_at) : undefined,
@@ -713,12 +769,7 @@ async function one(
   }
   if (shipment !== undefined) {
     json.shipped = shipment.shipped_at != null;
-    json.tracking_url =
-      shipment.tracking_url == null || shipment.tracking_url === ""
-        ? null
-        : (() => {
-            throw notPorted("a tracking URL");
-          })();
+    json.tracking_url = calculatedTrackingUrl(shipment as Parameters<typeof calculatedTrackingUrl>[0]);
   }
   if (preorder !== undefined) {
     json.preorder_cancelled = preorder.state === "cancelled";
@@ -727,6 +778,16 @@ async function one(
   }
   if (flags("was_discover_fee_charged"))
     json.discover_fee_percentage = Math.trunc(num(purchase.discover_fee_per_thousand) / 10);
+  const offerCode = loaded.offerCodes.get(id);
+  if (offerCode !== undefined)
+    // Offer code `name` was renamed `code`; version 2 still prints both.
+    json.offer_code = {
+      code: offerCode.code,
+      displayed_amount_off: offerCode.displayed_amount_off,
+      name: offerCode.code,
+    };
+  const affiliate = loaded.affiliates.get(id);
+  if (affiliate !== undefined) json.affiliate = affiliate;
 
   if (license !== undefined) {
     json.license_key = license.serial;
@@ -739,6 +800,10 @@ async function one(
     json.formatted_shipping_amount = formatPrice(
       await usdCentsToCurrency(String(link.price_currency_type), num(purchase.shipping_cents), rate),
     );
+  if (variant?.type === "Sku") {
+    json.sku_id = present(variant.custom_sku) ? variant.custom_sku : encrypt(variant.id);
+    json.sku_external_id = encrypt(variant.id);
+  }
   json.quantity = quantity;
   return json;
 }
@@ -771,8 +836,28 @@ export const cgiEscape = (value: string): string =>
     .replaceAll("%20", "+")
     .replace(/[!'()*]/gu, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
 
-function variantsAndQuantity(variant: Row | undefined, quantity: number): string {
-  const names = variant === undefined ? [] : [String(variant.name)];
+// Purchase#variant_names_hash: a SKU is keyed by the product's SKU title, any other variant by its category's title.
+function variantsHash(variants: Row[], link: Row, loaded: Loaded): Record<string, unknown> | undefined {
+  if (variants.length === 0) return undefined;
+  if (variants[0]!.type === "Sku") {
+    const linkId = String(link.id);
+    const title = loaded.hasAliveCategories.has(linkId) ? loaded.skuTitles.get(linkId) : "Version";
+    if (title === undefined) throw notPorted("a SKU of a product with several categories");
+    return { [title]: variants[0]!.name };
+  }
+  const hash: Record<string, unknown> = {};
+  for (const picked of variants) {
+    const category = loaded.categories.get(String(picked.variant_category_id));
+    if (category === undefined) throw notPorted("a variant whose category row is missing");
+    // The later variant would overwrite the earlier one under the same title, and their order is MySQL's.
+    if (Object.hasOwn(hash, String(category.title))) throw notPorted("several variants of one category");
+    hash[String(category.title)] = picked.name;
+  }
+  return hash;
+}
+
+function variantsAndQuantity(variants: Row[], quantity: number): string {
+  const names = variants.map((variant) => String(variant.name));
   if (quantity > 1) names.push(`Qty: ${quantity}`);
   return names.length > 0 ? `(${names.join(", ")})` : "";
 }
