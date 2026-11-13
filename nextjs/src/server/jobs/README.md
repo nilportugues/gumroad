@@ -307,3 +307,17 @@ certificate (an empty scan finishes in Node). What follows is S3, a mail with an
 Left in Ruby: `PdfUnstampableNotifierWorker` is a constant alias of the already ported `PdfUnstampableNotifierJob` (the registry lists
 it as Ruby only because the file stays for items queued under the old name); `AnnualTaxSummaryExportWorker` has no branch short of the
 full user scan, the S3 upload and the mail; `ProcessPurchaseEarlyFraudWarningJob` is money-adjacent.
+
+## Ported small jobs, second batch (ws-jobs-small-2)
+
+Fully in Node: `DispatchPendingPartnerMigrationNotificationsJob` (the join and `find_each` push `PartnerMigrationNotificationJob`) and
+`ScheduleOpenedNoClickWorkflowEmailsJob` (the workflow join, batches of 200). `DispatchProductPublishSchedulesJob` queues the due publishes
+and the notices unsent for 2 minutes; a stale claim (`recover_stale_claim!` writes) goes back to Rails after the scan with nothing pushed, so
+the run is not half done. `ResumeStalledPartnerMigrationsJob`, `PublishScheduledProductJob` and `SendProductPublishScheduleNoticeJob` run only
+the read that opens the Ruby job (the `stalled` scan, `find_by(id:)`, `notice_unsent.find_by(id:)`) and hand the whole job back when it finds a
+row: what follows claims or locks rows, publishes the product, enqueues the import or mails through `CreatorMailer`. These tables have no
+Prisma model, so the reads are raw SQL. Goldens come from `scripts/golden/`; the dispatcher's replay needs `JOBS_REDIS_URL` for the notice
+job's unique-jobs lock.
+
+Left in Ruby: `HandlePaypalEventWorker`, `PerformDailyInstantPayoutsWorker`, `ProcessPurchaseEarlyFraudWarningJob` (money), `GenerateAvatarVariantJob`
+(its first read leads straight to an Active Storage resize), `AnnualTaxSummaryExportWorker` (see above).

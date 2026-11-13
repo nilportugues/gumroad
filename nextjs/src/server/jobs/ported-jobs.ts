@@ -252,4 +252,10 @@ export const PORTED_JOBS: readonly string[] = [
   "Exports::Sales::CompileChunksWorker",
   "Exports::Sales::ProcessChunkWorker",
   "ReissueSslCertificateForUpdatedCustomDomains",
+  "DispatchPendingPartnerMigrationNotificationsJob",
+  "DispatchProductPublishSchedulesJob",
+  "PublishScheduledProductJob",
+  "ResumeStalledPartnerMigrationsJob",
+  "ScheduleOpenedNoClickWorkflowEmailsJob",
+  "SendProductPublishScheduleNoticeJob",
 ];
