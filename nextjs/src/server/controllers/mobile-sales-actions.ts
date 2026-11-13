@@ -218,7 +218,7 @@ const updateReviewResponse = memberAction(async (sale, input, auth) => {
 });
 
 // Purchase#send_notification_webhook_from_ui: a gift's sender pings for the giftee's purchase (none yet: nothing), any other sale
-// for itself. The `url_parameters` of a sale that has some reach the job as `url_params`; no recording holds one, so it hands back.
+// for itself. The sale's `url_parameters` reach the job as `url_params`.
 const resendPing = memberAction(async (sale) => {
   let target = sale.id;
   if (PurchaseFlags.isSet(sale.flags, "is_gift_sender_purchase")) {
@@ -227,14 +227,30 @@ const resendPing = memberAction(async (sale) => {
     if (gift.giftee_purchase_id === null) return renderJson({ success: true });
     target = BigInt(gift.giftee_purchase_id);
   }
-  if (await rowExists(urlParametersOf(target))) throw new HandBackToRails("a sale with URL parameters");
   // `PostToPingEndpointsWorker.perform_in(10.seconds, id, url_parameters)`
-  await performAsync("PostToPingEndpointsWorker", [Number(target), null], { delaySeconds: SALE_PING_DELAY_SECONDS });
+  await performAsync("PostToPingEndpointsWorker", [Number(target), await urlParametersOf(target)], {
+    delaySeconds: SALE_PING_DELAY_SECONDS,
+  });
   return renderJson({ success: true });
 });
 
-const urlParametersOf = (purchaseId: bigint) =>
-  Prisma.sql`SELECT 1 FROM ${table("purchase_url_parameters")} WHERE ${column("purchase_url_parameters", "purchase_id")} = ${purchaseId} LIMIT 1`;
+// `purchase.url_parameters`: the `params` of its row, nil without one. `has_one` reads an arbitrary row when there are several, and
+// only a hash of text values is proven to reach the job as it is stored.
+async function urlParametersOf(purchaseId: bigint): Promise<Record<string, string> | null> {
+  const rows = await selectRows<{ params: unknown }>(
+    Prisma.sql`SELECT ${column("purchase_url_parameters", "params")} FROM ${table("purchase_url_parameters")} WHERE ${column("purchase_url_parameters", "purchase_id")} = ${purchaseId} LIMIT 2`,
+  );
+  if (rows.length === 0) return null;
+  if (rows.length > 1) throw new HandBackToRails("a sale with several URL parameter rows");
+  const params: unknown = typeof rows[0]!.params === "string" ? JSON.parse(rows[0]!.params) : rows[0]!.params;
+  const isTextHash =
+    typeof params === "object" &&
+    params !== null &&
+    !Array.isArray(params) &&
+    Object.values(params).every((value) => typeof value === "string");
+  if (!isTextHash) throw new HandBackToRails("URL parameters that are not a hash of text");
+  return params as Record<string, string>;
+}
 
 // SalesController#blob_url, whose 404 is the seller_owns_blob? check: a blob attached to a commission or a custom field of the
 // seller's sales. The found case builds a CDN URL from the blob's storage service.
