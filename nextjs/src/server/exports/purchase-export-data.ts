@@ -1,8 +1,8 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
-// the port can prove: a plain sale, or a sale of one variant or SKU, whose columns come from the purchase row, its buyer, its offer code, its
-// refunds and its custom fields. A sale that needs anything else (a gift's receiver, subscriptions,
-// carts, buyer-currency or PayPal and Connect charges, several variants, a GeoIP lookup or a transliterated address)
-// throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
+// the port can prove: a sale of one variant or SKU at most, whose columns come from the purchase row, its buyer, its offer code, its
+// refunds, its custom fields, its gift, pre-order, tip, review, license, UTM link, affiliate, buyer-currency charge, order's cart and
+// PayPal or Connect charge. A sale that needs anything else (a gift's receiver, subscriptions, several variants, a GeoIP lookup or
+// a row Rails would raise on) throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
 
 import type { CsvCell } from "../../lib/csv-safe.ts";
@@ -19,25 +19,25 @@ import {
   taxNameFor,
 } from "../mail/mailers/receipt-tax.ts";
 import { BaseVariantFlags } from "../models/base-variant.ts";
+import { chargeSubunitToUnit, UnknownCurrency } from "../models/concerns/money-formatter.ts";
 import { rubyInspect } from "../models/concerns/ruby-values.ts";
 import { LinkFlags } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
 import { type PurchaseDataRow, paymentTypeLabel, zipCodeForExport } from "./purchase-export.ts";
+import { pseudoTransliterate } from "./transliterate.ts";
 
 const CENTS_PER_DOLLAR = 100;
 // Refund::TERMINAL_FAILURE_STATUSES
 const TERMINAL_FAILURE_STATUSES = ["failed", "canceled"];
 // CustomField::BOOLEAN_TYPES
 const BOOLEAN_FIELD_TYPES = ["terms", "checkbox"];
-const NON_ASCII = /[^\x20-\x7e]/u;
-
-// Tables that make a sale leave the plain path when they hold a row for it. Each is read once for the whole export.
-const PURCHASE_ID_TABLES: readonly [string, string, string][] = [
-  ["purchase_presentments", "purchase_id", "a buyer-currency charge"],
-  ["order_purchases", "purchase_id", "a cart"],
-];
+// String#inspect prints a non-ASCII letter, mark, number, punctuation or symbol as it is. The recordings prove no other category
+// (control, format, separator, private use, unassigned), so a custom field holding one stays with Rails.
+const PRINTED_RAW = /^[\p{L}\p{M}\p{N}\p{P}\p{S}]$/u;
+const inspectsRaw = (value: string): boolean =>
+  [...value].every((char) => char.codePointAt(0)! < 0x80 || PRINTED_RAW.test(char));
 
 // convert_cents_to_dollars: (cents.to_f / 100).round(2)
 const dollars = (cents: number | null | undefined): RubyFloat =>
@@ -57,7 +57,14 @@ type UtmRow = {
   utm_content: string | null;
 };
 type GiftRow = { gifter_purchase_id: bigint | null; giftee_purchase_id: bigint | null; giftee_email: string | null };
-type RefundRow = { purchase_id: bigint; amount_cents: number | null };
+type RefundRow = {
+  purchase_id: bigint;
+  amount_cents: number | null;
+  json_data: string | null;
+};
+type PresentmentRow = { purchase_id: bigint; presentment_currency: string | null; presentment_total_cents: bigint };
+// The buyer-currency columns of a sale charged in the buyer's currency: the charged total and what its refunds returned.
+type Presentment = { currency: string; totalCents: number; refundedCents: number; refundsIncomplete: boolean };
 // The one BaseVariant (a Variant or a Sku) a purchase holds in `variant_attributes`.
 type VariantRow = {
   purchase_id: bigint;
@@ -82,12 +89,75 @@ const timeOf = (value: Date) =>
   `${dateOf(value)} ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}:${pad(value.getUTCSeconds())} +0000`;
 
 // Hash#inspect of {name => value}, for the "Custom Fields" cell.
-function hashInspect(entries: Map<string, string | boolean>): string {
+function hashInspect(entries: Map<string, string | boolean | null>): string {
   if (entries.size === 0) return "{}";
   const parts = [...entries].map(
-    ([name, value]) => `${rubyInspect(name)} => ${typeof value === "boolean" ? String(value) : rubyInspect(value)}`,
+    ([name, value]) =>
+      `${rubyInspect(name)} => ${typeof value === "boolean" ? String(value) : value === null ? "nil" : rubyInspect(value)}`,
   );
   return `{${parts.join(", ")}}`;
+}
+
+// Purchase#sent_abandoned_cart_email?: an email of the seller's abandoned cart workflow went to the cart of the sale's order.
+async function salesWithAbandonedCartEmail(
+  purchases: readonly Purchase[],
+  linkById: ReadonlyMap<string, { user_id: bigint | null }>,
+): Promise<Set<string>> {
+  const purchaseIds = purchases.map((purchase) => purchase.id);
+  const orderPurchases = await selectRows<{ purchase_id: bigint; order_id: bigint | null }>(
+    Prisma.sql`SELECT ${column("order_purchases", "purchase_id")}, ${column("order_purchases", "order_id")} FROM ${table("order_purchases")} WHERE ${column("order_purchases", "purchase_id")} IN (${Prisma.join(purchaseIds)}) ORDER BY ${column("order_purchases", "id")}`,
+  );
+  const orderOf = new Map<string, bigint>();
+  let ambiguous = false;
+  for (const row of orderPurchases) {
+    // has_one :order_purchase and has_one :cart have no order of their own.
+    if (orderOf.has(String(row.purchase_id))) ambiguous = true;
+    if (row.order_id !== null) orderOf.set(String(row.purchase_id), row.order_id);
+  }
+  if (orderOf.size === 0) return new Set();
+  const orderIds = [...new Set(orderOf.values())];
+  const orders = new Set(
+    (
+      await selectRows<{ id: bigint }>(
+        Prisma.sql`SELECT ${column("orders", "id")} FROM ${table("orders")} WHERE ${column("orders", "id")} IN (${Prisma.join(orderIds)})`,
+      )
+    ).map((row) => String(row.id)),
+  );
+  const cartOf = new Map<string, bigint>();
+  for (const cart of await selectRows<{ id: bigint; order_id: bigint }>(
+    Prisma.sql`SELECT ${column("carts", "id")}, ${column("carts", "order_id")} FROM ${table("carts")} WHERE ${column("carts", "order_id")} IN (${Prisma.join(orderIds)})`,
+  )) {
+    if (cartOf.has(String(cart.order_id))) ambiguous = true;
+    cartOf.set(String(cart.order_id), cart.id);
+  }
+  if (ambiguous) throw new HandBackToRails("a sale in several orders or an order with several carts");
+  const cartIds = [...cartOf.values()];
+  const emailSellers = new Map<string, (bigint | null)[]>();
+  if (cartIds.length > 0)
+    for (const email of await selectRows<{
+      cart_id: bigint;
+      installment_id: bigint;
+      installment_exists: bigint | null;
+      seller_id: bigint | null;
+    }>(
+      Prisma.sql`SELECT ${column("sent_abandoned_cart_emails", "cart_id")}, ${column("sent_abandoned_cart_emails", "installment_id")}, ${column("installments", "id")} AS installment_exists, ${column("installments", "seller_id")} FROM ${table("sent_abandoned_cart_emails")} LEFT JOIN ${table("installments")} ON ${column("installments", "id")} = ${column("sent_abandoned_cart_emails", "installment_id")} WHERE ${column("sent_abandoned_cart_emails", "cart_id")} IN (${Prisma.join(cartIds)})`,
+    )) {
+      // `_1.installment.seller_id` raises for an email whose installment is gone.
+      if (email.installment_exists === null)
+        throw new HandBackToRails("an abandoned cart email without its installment");
+      emailSellers.set(String(email.cart_id), [...(emailSellers.get(String(email.cart_id)) ?? []), email.seller_id]);
+    }
+  const sales = new Set<string>();
+  for (const purchase of purchases) {
+    const orderId = orderOf.get(String(purchase.id));
+    if (orderId === undefined || !orders.has(String(orderId))) continue;
+    const cartId = cartOf.get(String(orderId));
+    if (cartId === undefined) continue;
+    const productSeller = linkById.get(String(purchase.link_id))!.user_id;
+    if ((emailSellers.get(String(cartId)) ?? []).some((seller) => String(seller) === String(productSeller)))
+      sales.add(String(purchase.id));
+  }
+  return sales;
 }
 
 async function idsWithRows(
@@ -107,12 +177,6 @@ export type PurchaseExportData = { customFields: string[]; rows: PurchaseDataRow
 export async function purchaseExportData(purchases: readonly Purchase[]): Promise<PurchaseExportData> {
   if (purchases.length === 0) return { customFields: [], rows: [] };
   const purchaseIds = purchases.map((purchase) => purchase.id);
-
-  for (const [tableName, columnName, reason] of PURCHASE_ID_TABLES) {
-    const hits = await idsWithRows(tableName, columnName, purchaseIds);
-    if (purchases.some((purchase) => hits.has(String(purchase.id))))
-      throw new HandBackToRails(`an export that holds a sale with ${reason}`);
-  }
 
   // purchase.gift_given for the sales of a gift: its giftee's email, and its giftee's purchase for the review and the license key.
   const gifts = await selectRows<GiftRow>(
@@ -167,11 +231,18 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
 
   const linkIds = [...new Set(purchases.map((purchase) => purchase.link_id))];
   if (linkIds.some((id) => id === null)) throw new HandBackToRails("a sale whose product is missing");
-  const links = await selectRows<{ id: bigint; name: string | null; unique_permalink: string | null; flags: bigint }>(
-    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "name")}, ${column("links", "unique_permalink")}, ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} IN (${Prisma.join(linkIds)})`,
+  const links = await selectRows<{
+    id: bigint;
+    user_id: bigint | null;
+    name: string | null;
+    unique_permalink: string | null;
+    flags: bigint;
+  }>(
+    Prisma.sql`SELECT ${column("links", "id")}, ${column("links", "user_id")}, ${column("links", "name")}, ${column("links", "unique_permalink")}, ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} IN (${Prisma.join(linkIds)})`,
   );
   const linkById = new Map(links.map((link) => [String(link.id), link]));
   if (linkById.size !== linkIds.length) throw new HandBackToRails("a sale whose product is missing");
+  const abandonedCartEmailSales = await salesWithAbandonedCartEmail(purchases, linkById);
 
   // `variant_attributes` has no order of its own, so one variant per sale is proven. A tiered membership prices its variant from the
   // subscription's recurrence, and its sale holds a subscription, which hands back below.
@@ -211,7 +282,7 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   }
 
   const refunds = await selectRows<RefundRow>(
-    Prisma.sql`SELECT ${column("refunds", "purchase_id")}, ${column("refunds", "amount_cents")} FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} IN (${Prisma.join(purchaseIds)}) AND (${column("refunds", "status")} IS NULL OR ${column("refunds", "status")} NOT IN (${Prisma.join(TERMINAL_FAILURE_STATUSES)}) OR COALESCE(${column("refunds", "json_data")}->>'$.balance_reversed_on_failure', 'false') != 'true')`,
+    Prisma.sql`SELECT ${column("refunds", "purchase_id")}, ${column("refunds", "amount_cents")}, ${column("refunds", "json_data")} FROM ${table("refunds")} WHERE ${column("refunds", "purchase_id")} IN (${Prisma.join(purchaseIds)}) AND (${column("refunds", "status")} IS NULL OR ${column("refunds", "status")} NOT IN (${Prisma.join(TERMINAL_FAILURE_STATUSES)}) OR COALESCE(${column("refunds", "json_data")}->>'$.balance_reversed_on_failure', 'false') != 'true')`,
   );
   const refundedCents = new Map<string, number>();
   for (const refund of refunds)
@@ -219,6 +290,28 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       String(refund.purchase_id),
       (refundedCents.get(String(refund.purchase_id)) ?? 0) + Number(refund.amount_cents ?? 0),
     );
+
+  // Purchase#buyer_presentment_refunded_cents_incomplete? reads every sale's refunds, so a json_data Rails cannot read fails them all.
+  const snapshotsByPurchase = new Map<string, (number | null)[]>();
+  for (const refund of refunds)
+    snapshotsByPurchase.set(String(refund.purchase_id), [
+      ...(snapshotsByPurchase.get(String(refund.purchase_id)) ?? []),
+      snapshotCents(refund),
+    ]);
+  const presentments = new Map<string, Presentment>();
+  for (const row of await selectRows<PresentmentRow>(
+    Prisma.sql`SELECT ${column("purchase_presentments", "purchase_id")}, ${column("purchase_presentments", "presentment_currency")}, ${column("purchase_presentments", "presentment_total_cents")} FROM ${table("purchase_presentments")} WHERE ${column("purchase_presentments", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+  )) {
+    const key = String(row.purchase_id);
+    const snapshots = snapshotsByPurchase.get(key) ?? [];
+    presentments.set(key, {
+      currency: row.presentment_currency ?? "",
+      totalCents: Number(row.presentment_total_cents),
+      // Refund#presentment_snapshot?: a currency and a positive amount. Only snapshots add to the total.
+      refundedCents: snapshots.reduce<number>((sum, cents) => sum + (cents ?? 0), 0),
+      refundsIncomplete: snapshots.some((cents) => cents === null),
+    });
+  }
 
   const offerCodeIds = [
     ...new Set(purchases.map((purchase) => purchase.offer_code_id).filter((id): id is bigint => id !== null)),
@@ -313,16 +406,21 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       throw new HandBackToRails("a sale whose affiliate or its user is missing");
   }
 
-  // charged_using_stripe_connect_account?: the merchant account belongs to a seller.
+  // MerchantAccount#is_a_stripe_connect_account?
+  const connectAccountIds = new Set<string>();
   const merchantAccountIds = [
     ...new Set(purchases.map((purchase) => purchase.merchant_account_id).filter((id): id is bigint => id !== null)),
   ];
   if (merchantAccountIds.length > 0) {
-    const connected = await selectRows(
-      Prisma.sql`SELECT 1 FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "id")} IN (${Prisma.join(merchantAccountIds)}) AND ${column("merchant_accounts", "user_id")} IS NOT NULL LIMIT 1`,
-    );
-    if (connected.length > 0)
-      throw new HandBackToRails("an export that holds a sale charged on a seller's own merchant account");
+    for (const account of await selectRows<{
+      id: bigint;
+      user_id: bigint | null;
+      charge_processor_id: string | null;
+      json_data: string | null;
+    }>(
+      Prisma.sql`SELECT ${column("merchant_accounts", "id")}, ${column("merchant_accounts", "user_id")}, ${column("merchant_accounts", "charge_processor_id")}, ${column("merchant_accounts", "json_data")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "id")} IN (${Prisma.join(merchantAccountIds)})`,
+    ))
+      if (isStripeConnectAccount(account)) connectAccountIds.add(String(account.id));
   }
 
   const customFields: string[] = [];
@@ -337,16 +435,14 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     // main_or_giftee_purchase
     const readKey = gifteeOf.has(key) ? String(gifteeOf.get(key)) : key;
     const answered = answersByPurchase.get(key) ?? [];
-    const customFieldValues = new Map<string, string | boolean>();
+    const customFieldValues = new Map<string, string | boolean | null>();
     for (const answer of answered) {
       const name = answer.name ?? "";
       const value = BOOLEAN_FIELD_TYPES.includes(answer.field_type ?? "")
         ? castBoolean(answer.value)
         : (answer.value ?? "");
-      if (value === null) throw new HandBackToRails("a checkbox answer that casts to nil");
-      if (typeof value === "string" && NON_ASCII.test(value))
-        throw new HandBackToRails("a custom field value that is not ASCII");
-      if (NON_ASCII.test(name)) throw new HandBackToRails("a custom field name that is not ASCII");
+      if ((typeof value === "string" && !inspectsRaw(value)) || !inspectsRaw(name))
+        throw new HandBackToRails("a custom field whose String#inspect escapes a non-ASCII character");
       customFieldValues.set(name, value);
       addCustomField(name);
     }
@@ -368,6 +464,9 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         preorderTime: purchase.preorder_id === null ? undefined : preorderTimes.get(String(purchase.preorder_id)),
         upsold: upsold.has(key),
         utm: utmByPurchase.get(key),
+        connectAccountIds,
+        presentments,
+        abandonedCartEmailSales,
       }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
@@ -381,11 +480,6 @@ function castBoolean(value: string | null): boolean | null {
   return !["0", "f", "F", "false", "FALSE", "off", "OFF"].includes(value);
 }
 
-function ascii(value: string | null, what: string): string | null {
-  if (value !== null && NON_ASCII.test(value)) throw new HandBackToRails(`${what} that Rails transliterates`);
-  return value;
-}
-
 function purchaseFields(
   purchase: Purchase,
   link: { name: string | null; unique_permalink: string | null; flags: bigint },
@@ -393,7 +487,7 @@ function purchaseFields(
     purchasers: Map<string, { name: string | null; email: string | null }>;
     offerCodes: Map<string, string | null>;
     refundedCents: Map<string, number>;
-    customFieldValues: Map<string, string | boolean>;
+    customFieldValues: Map<string, string | boolean | null>;
     variant: VariantRow | undefined;
     taxCountries: Map<string, string | null>;
     affiliateEmails: Map<string, string | null>;
@@ -404,12 +498,14 @@ function purchaseFields(
     preorderTime: Date | undefined;
     upsold: boolean;
     utm: UtmRow | undefined;
+    connectAccountIds: ReadonlySet<string>;
+    presentments: ReadonlyMap<string, Presentment>;
+    abandonedCartEmailSales: ReadonlySet<string>;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [["is_gift_receiver_purchase", "a gift receiver"]] as const)
     if (flagSet(purchase, name)) throw new HandBackToRails(`an export that holds ${reason}`);
   if (purchase.subscription_id !== null) throw new HandBackToRails("an export that holds a subscription charge");
-  if (purchase.paypal_order_id !== null) throw new HandBackToRails("an export that holds a PayPal sale");
   if (
     purchase.price_cents === null ||
     purchase.fee_cents === null ||
@@ -421,6 +517,10 @@ function purchaseFields(
     throw new HandBackToRails("a sale whose state or country comes from its IP address");
   if (purchase.created_at === null) throw new HandBackToRails("a sale without a creation time");
 
+  const presentment = lookups.presentments.get(String(purchase.id));
+  const paypal = presence(purchase.paypal_order_id) !== null;
+  const connect =
+    purchase.merchant_account_id !== null && lookups.connectAccountIds.has(String(purchase.merchant_account_id));
   const priceDollars = dollars(purchase.price_cents);
   // Purchase#variant_extra_cost_dollars: the price differences, nil counting as nothing.
   const variantsPriceDollars = dollars(lookups.variant?.price_difference_cents ?? 0);
@@ -467,11 +567,11 @@ function purchaseFields(
     "Tip ($)": new RubyFloat((lookups.tipCents ?? 0) / CENTS_PER_DOLLAR),
     "Net Total ($)": dollars(purchase.price_cents - purchase.fee_cents),
     "Tax Included in Price?": taxable ? (flagSet(purchase, "was_tax_excluded_from_price") ? 0 : 1) : null,
-    "Street Address": ascii(purchase.street_address, "a street address"),
-    City: ascii(purchase.city, "a city"),
+    "Street Address": pseudoTransliterate(purchase.street_address),
+    City: pseudoTransliterate(purchase.city),
     "Zip Code": zipCodeForExport(purchase.zip_code),
-    State: ascii(purchase.state, "a state"),
-    Country: ascii(purchase.country, "a country"),
+    State: pseudoTransliterate(purchase.state),
+    Country: pseudoTransliterate(purchase.country),
     Referrer: purchase.referrer,
     "Refunded?": refunded || partiallyRefunded ? 1 : 0,
     "Partial Refund ($)": partiallyRefunded
@@ -515,24 +615,80 @@ function purchaseFields(
     "License Key Activation Count": lookups.license === undefined ? null : (lookups.license.uses ?? null),
     "License Key Enabled?": lookups.license === undefined ? null : lookups.license.disabled_at === null ? 1 : 0,
     "Payment Type": paymentTypeLabel(purchase.card_type) ?? null,
-    "PayPal Transaction ID": null,
-    "PayPal Fee Amount": null,
-    "PayPal Fee Currency": null,
-    "Stripe Transaction ID": null,
-    "Stripe Fee Amount": null,
-    "Stripe Fee Currency": null,
+    "PayPal Transaction ID": paypal ? purchase.stripe_transaction_id : null,
+    "PayPal Fee Amount": paypal ? dollars(purchase.processor_fee_cents) : null,
+    "PayPal Fee Currency": paypal ? purchase.processor_fee_cents_currency : null,
+    "Stripe Transaction ID": connect ? purchase.stripe_transaction_id : null,
+    "Stripe Fee Amount": connect ? dollars(purchase.processor_fee_cents) : null,
+    "Stripe Fee Currency": connect ? purchase.processor_fee_cents_currency : null,
     "Purchasing Power Parity Discounted?": flagSet(purchase, "is_purchasing_power_parity_discounted") ? 1 : 0,
     "Upsold?": lookups.upsold ? 1 : 0,
-    "Sent Abandoned Cart Email?": 0,
+    "Sent Abandoned Cart Email?": lookups.abandonedCartEmailSales.has(String(purchase.id)) ? 1 : 0,
     "UTM Source": lookups.utm?.utm_source ?? null,
     "UTM Medium": lookups.utm?.utm_medium ?? null,
     "UTM Campaign": lookups.utm?.utm_campaign ?? null,
     "UTM Term": lookups.utm?.utm_term ?? null,
     "UTM Content": lookups.utm?.utm_content ?? null,
-    "Buyer Currency": null,
-    "Buyer Total": null,
-    "Buyer Refunded Total": null,
+    "Buyer Currency": presentment === undefined ? null : presentment.currency.toUpperCase(),
+    "Buyer Total": presentment === undefined ? null : buyerMajorUnits(presentment.totalCents, presentment.currency),
+    "Buyer Refunded Total":
+      presentment === undefined || presentment.refundsIncomplete
+        ? null
+        : buyerMajorUnits(presentment.refundedCents, presentment.currency),
   };
+}
+
+// MerchantAccount#is_a_stripe_connect_account?: `stripe_charge_processor? && user_id.present? && json_data.dig("meta", "stripe_connect") == "true"`.
+// The dig is only reached for a Stripe account of a user; a json_data that is not a hash, or a meta that is not one, raises in Rails.
+function isStripeConnectAccount(account: {
+  user_id: bigint | null;
+  charge_processor_id: string | null;
+  json_data: string | null;
+}): boolean {
+  if (account.charge_processor_id !== "stripe" || account.user_id === null) return false;
+  let meta: unknown;
+  try {
+    const data: unknown = account.json_data === null ? null : JSON.parse(account.json_data);
+    if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error("not a hash");
+    meta = (data as Record<string, unknown>).meta;
+    if (meta !== undefined && meta !== null && (typeof meta !== "object" || Array.isArray(meta)))
+      throw new Error("not a hash");
+  } catch {
+    throw new HandBackToRails("a merchant account whose json_data or meta is not a hash");
+  }
+  return meta !== undefined && meta !== null && (meta as Record<string, unknown>).stripe_connect === "true";
+}
+
+const isBlank = (value: string | null): boolean => value === null || value.trim() === "";
+
+// Refund#presentment_snapshot? and #presentment_amount_cents.to_i, both read from the refund's json_data.
+function snapshotCents(refund: RefundRow): number | null {
+  let currency: unknown;
+  let cents: unknown;
+  try {
+    const data: unknown = refund.json_data === null || refund.json_data === "" ? {} : JSON.parse(refund.json_data);
+    if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error("not a hash");
+    ({ presentment_currency: currency, presentment_amount_cents: cents } = data as Record<string, unknown>);
+    if (((currency ?? "") !== "" && typeof currency !== "string") || (cents != null && !Number.isSafeInteger(cents)))
+      throw new Error("not a plain value");
+  } catch {
+    throw new HandBackToRails("a refund whose json_data Rails reads differently from plain JSON");
+  }
+  const amount = Number(cents ?? 0);
+  return typeof currency === "string" && !isBlank(currency) && amount > 0 ? amount : null;
+}
+
+// Purchase#buyer_presentment_major_units: Stripe's charge units to a plain number, a whole Integer for a zero-decimal currency.
+function buyerMajorUnits(cents: number, currency: string): number | RubyFloat {
+  let scaling: number;
+  try {
+    scaling = chargeSubunitToUnit(currency);
+  } catch (error) {
+    if (error instanceof UnknownCurrency)
+      throw new HandBackToRails("a buyer-currency charge in a currency Money does not know");
+    throw error;
+  }
+  return scaling === 1 ? cents : new RubyFloat(rubyRoundHalfUp(cents / scaling));
 }
 
 const presence = (value: string | null): string | null => (value === null || value.trim() === "" ? null : value);
