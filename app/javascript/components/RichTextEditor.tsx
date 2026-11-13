@@ -106,7 +106,7 @@ const MenuItemTooltip = ({
 }) => {
   const [showTooltip, setShowTooltip] = assertDefined(React.useContext(ToolbarTooltipContext));
 
-  const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const hoverTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onMouseEnter = () => {
     if (!showTooltip) {
       hoverTimeoutRef.current = setTimeout(() => setShowTooltip(true), TOOLBAR_TOOLTIP_DEFAULT_DELAY);

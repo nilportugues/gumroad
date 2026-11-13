@@ -111,7 +111,9 @@ const COMPARE = {
 
 // Hour-granular seed tokens move a sale's minutes and seconds: "2026-03-04 05:06:07 +0000" keeps its day and loses its clock time.
 const masked = (body: unknown) =>
-  typeof body === "string" ? body.replace(/(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2} \+0000/gu, "$1 <time>") : body;
+  typeof body === "string"
+    ? body.replace(/(\d{4}-\d{2}-\d{2}) \d{2}:\d{2}:\d{2}( \+0000| UTC)/gu, "$1 <time>$2")
+    : body;
 
 const HANDED_BACK = /hands-|through-rails/u;
 
@@ -171,6 +173,8 @@ describe.skipIf(!url)("rest sweep 3", () => {
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST,
       ES_INDEX_SUFFIX,
+      // The "from the IP address" examples stub Rails' GEOIP with this MaxMind test database.
+      GEOIP_DATABASE_PATH: path.join(process.cwd(), "src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb"),
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
@@ -197,8 +201,8 @@ describe.skipIf(!url)("rest sweep 3", () => {
 
   // A seed token ("<now-2995h>") keeps only the hours between the sale and the recording, so a sale replays at the replay's clock time
   // and the CSV's dates and the day boundaries of the time zone examples drift with it. Seeding at the clock time of the recording
-  // (10:22:40 UTC on 2026-11-13, all 48 examples within a minute of it) and moving the expected dates by the days since keeps both.
-  const RECORDED_CLOCK_UTC = [10, 22, 40] as const;
+  // (15:26:00 UTC on 2026-11-13, the middle of the recording run) and moving the expected dates by the days since keeps both.
+  const RECORDED_CLOCK_UTC = [15, 26, 0] as const;
   const seedClock = () => {
     const pinned = new Date();
     pinned.setUTCHours(...RECORDED_CLOCK_UTC, 0);

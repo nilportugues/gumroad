@@ -37,6 +37,27 @@ describe "ERB layout pages", type: :request do
       expect(response.body).to include("Technical details")
     end
 
+    it "renders the page of the ChatGPT connector listed in its plugin directory", parity: true do
+      get "/chatgpt"
+
+      expect(response).to be_successful
+      expect(response.body).to include("Add Gumroad to ChatGPT")
+    end
+
+    it "renders the page of the Cursor connector, which has no directory listing", parity: true do
+      get "/cursor"
+
+      expect(response).to be_successful
+      expect(response.body).to include("Add Gumroad to Cursor")
+    end
+
+    it "renders the page of the Antigravity connector, which has no directory listing", parity: true do
+      get "/antigravity"
+
+      expect(response).to be_successful
+      expect(response.body).to include("Add Gumroad to Antigravity")
+    end
+
     it "renders a connector page for a signed-in seller", parity: true do
       log_in(create(:user))
 

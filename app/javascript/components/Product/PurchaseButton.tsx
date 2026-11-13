@@ -15,7 +15,7 @@ import { showAlert } from "$app/components/server-components/Alert";
 
 type Props = Omit<React.ComponentPropsWithoutRef<typeof CtaButton>, "onClick"> & {
   setSelection?: React.Dispatch<React.SetStateAction<PriceSelection>> | undefined;
-  configurationSelectorRef?: React.RefObject<ConfigurationSelectorHandle> | undefined;
+  configurationSelectorRef?: React.RefObject<ConfigurationSelectorHandle | null> | undefined;
 };
 
 export const PurchaseButton = React.forwardRef<HTMLAnchorElement, Props>(

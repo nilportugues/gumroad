@@ -85,7 +85,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   AlertOnStalledAbandonedCartEmailsJob: {
     file: "app/sidekiq/alert_on_stalled_abandoned_cart_emails_job.rb",
@@ -160,7 +160,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   AnalyzeFileWorker: {
     file: "app/sidekiq/analyze_file_worker.rb",
@@ -1168,7 +1168,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Exports::Sales::ProcessChunkWorker": {
     file: "app/sidekiq/exports/sales/process_chunk_worker.rb",
@@ -1341,7 +1341,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   GenerateCanadaSalesReportJob: {
     file: "app/sidekiq/generate_canada_sales_report_job.rb",
@@ -1770,7 +1770,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Mcp::DeliverEventJob": {
     file: "app/sidekiq/mcp/deliver_event_job.rb",
@@ -1782,7 +1782,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   MillionDollarMilestoneCheckWorker: {
     file: "app/sidekiq/million_dollar_milestone_check_worker.rb",
@@ -1857,7 +1857,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   PayoutUsersWorker: {
     file: "app/sidekiq/payout_users_worker.rb",
@@ -2059,7 +2059,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 600,
-    runtime: "ruby",
+    runtime: "node",
   },
   PurgeOldDeletedAssetPreviewsWorker: {
     file: "app/sidekiq/purge_old_deleted_asset_previews_worker.rb",
@@ -2250,7 +2250,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RecoverAusBacktaxFromStripeAccountJob: {
     file: "app/sidekiq/recover_aus_backtax_from_stripe_account_job.rb",
@@ -3013,7 +3013,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendChargeReceiptJob: {
     file: "app/sidekiq/send_charge_receipt_job.rb",
@@ -3352,7 +3352,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendWorkflowEmailsToOpenedNonClickersJob: {
     file: "app/sidekiq/send_workflow_emails_to_opened_non_clickers_job.rb",

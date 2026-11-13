@@ -63,7 +63,7 @@ const US_COMPANY_STRUCTURES: Record<string, string> = {
 };
 
 const CROSS_BORDER_PAYOUTS_COUNTRIES = new Set<string>(DATA.cross_border_payouts_alpha2);
-const JAPAN_PREFECTURE_KANA = new Map(Object.entries(DATA.japan_prefecture_kana));
+const JAPAN_PREFECTURE_KANA = new Map<string, string>(Object.entries(DATA.japan_prefecture_kana));
 
 // Country#supports_stripe_cross_border_payouts?
 const supportsCrossBorderPayouts = (alpha2: string | null): boolean =>
