@@ -34,7 +34,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 ## Phase 3: coverage still missing
 
 - [ ] 3.1 Paid card checkout with a Stripe test card; needs test keys, currently skipped (`paid-checkout.stripe.spec.ts`)
-- [ ] 3.2 Discount code applied at checkout changes the total
+- [x] 3.2 Discount code applied at checkout changes the total (`checkout-discount.spec.ts`)
 - [ ] 3.3 Buying through an affiliate link records the affiliate
 - [ ] 3.4 Membership: subscribe, see it in the library, cancel
 - [ ] 3.5 Seller edits a product price and the product page follows
@@ -66,4 +66,4 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 
 ## Last measured result
 
-`bin/e2e-run` on lane 3: 49 passed, 1 skipped (the Stripe spec), 0 failed.
+`bin/e2e-run` on lane 3: 53 passed (19 guard, 34 chromium), 1 skipped (the Stripe spec), 0 failed.
