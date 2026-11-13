@@ -122,6 +122,7 @@ import "@/server/controllers/products-affiliated-mutations";
 import "@/server/controllers/marketing-abandoned-carts";
 import "@/server/controllers/payouts-guards";
 import "@/server/controllers/discover-categories";
+import "@/server/controllers/checkout-returns";
 import "@/server/controllers/remaining-call-availabilities";
 import "@/server/controllers/checkout-write-guards";
 import "@/server/controllers/recommended-products";
