@@ -5,6 +5,8 @@ export const SEED = {
   sellerUsername: "seller",
   freeProductPermalink: "demo",
   freeProductName: "Beautiful widget",
+  // A confirmed seeded account (same password) that can buy: the seller's own purchases are test purchases and never reach the library.
+  buyerEmail: "gumbo_audio@gumroad.com",
   membershipPermalink: "membershipdemo",
   // Development accepts this token on the two-factor page (User::DEFAULT_AUTH_TOKEN); the page prefills it.
   twoFactorToken: "000000",
