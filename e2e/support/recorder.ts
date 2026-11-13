@@ -4,7 +4,8 @@ import path from "node:path";
 
 import type { BrowserContext, Request, Response } from "@playwright/test";
 
-export const OUT_DIR = path.resolve(__dirname, "..", ".out");
+// Scripts run from the repo root (playwright.config.ts lives there).
+export const OUT_DIR = path.resolve(process.cwd(), "e2e", ".out");
 
 // Headers worth comparing between two servers. Everything else (date, server, cookies' values) is noise or secret.
 const REQUEST_HEADERS = ["accept", "content-type", "x-inertia", "x-inertia-version", "x-requested-with"];
