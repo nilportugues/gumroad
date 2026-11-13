@@ -2,8 +2,10 @@
 
 # Produces nextjs/src/server/services/__fixtures__/pages-profile-data.golden.json: the `gumroad-data` payload of Pages::ProfileData.build
 # (as pages are served with it: to_json, then ERB::Util.json_escape) for sellers set up in a scratch database, each case rolled back.
-# The Node port (services/pages-profile-data.ts) builds the payload only for a seller with no product and no published post and hands
-# every other seller back, so the cases that hold products or posts record Ruby's answer as the reason to hand back.
+# The Node port (services/pages-profile-data.ts) builds the payload for a seller with no published post and no reputation summary; the
+# product's formatted price and URL are read by the loader (and proved by the request recordings), so a case records them as Ruby wrote
+# them next to the stored description, the one field the builder derives. A seller with a post or the flag, or a description that goes
+# through the HTML parser, is handed back.
 #   docker exec gr-ruby-c25m bash -c 'source /tmp/env25.sh; cd /app && bundle exec rails runner nextjs/scripts/golden/pages-profile-data.rb'
 require "json"
 require "factory_bot_rails"
@@ -42,13 +44,17 @@ def seed_profile(seller, names)
   profile.save!(validate: false)
 end
 
-def scenario(name, tabs: nil, products: 0, deleted_products: 0, draft_products: 0, archived_products: 0, posts: 0, unpublished_posts: 0, feature: false)
+def scenario(name, tabs: nil, products: [], deleted_products: 0, draft_products: 0, archived_products: 0, posts: 0, unpublished_posts: 0, feature: false, hands_back: false)
   result = nil
-  hands_back = [products, draft_products, archived_products, posts].any?(&:positive?) || feature
+  hands_back ||= posts.positive? || feature
   ActiveRecord::Base.transaction do
-    seller = FactoryBot.create(:user, name: "Golden Seller")
+    seller = FactoryBot.create(:user, name: "Golden Seller", username: "goldenseller")
     seed_profile(seller, tabs)
-    products.times { |i| FactoryBot.create(:product, user: seller, name: "Product #{i}") }
+    created = products.each_with_index.map do |description, i|
+      product = Link.bypass_product_creation_limit { FactoryBot.create(:product, user: seller, name: "Product #{i}", description: nil) }
+      product.update_columns(description:)
+      product
+    end
     deleted_products.times { |i| FactoryBot.create(:product, user: seller, name: "Deleted #{i}").update_columns(deleted_at: Time.current) }
     draft_products.times { |i| FactoryBot.create(:product, user: seller, name: "Draft #{i}").update_columns(draft: true) }
     archived_products.times { |i| FactoryBot.create(:product, user: seller, name: "Archived #{i}").update_attribute(:archived, true) }
@@ -58,16 +64,18 @@ def scenario(name, tabs: nil, products: 0, deleted_products: 0, draft_products: 
     result = {
       "name" => name,
       "tabs" => tabs,
-      "products" => products,
+      "descriptions" => products,
       "deleted_products" => deleted_products,
       "draft_products" => draft_products,
       "archived_products" => archived_products,
       "posts" => posts,
       "unpublished_posts" => unpublished_posts,
       "reputation_summary_enabled" => feature,
-      # Whatever holds a product, a post or the flag is Rails': its payload carries random subdomains, so only the shape that is served is kept.
       "hands_back" => hands_back,
       "json" => hands_back ? nil : record(seller),
+      # What the loader reads for each listed product, in the payload's order: the fields Ruby derives that the builder does not.
+      "listed" => hands_back ? nil : Pages::ProfileData.products(seller).zip(created.reverse.first(Pages::ProfileData::MAX_ITEMS)).map { |entry, product| { "name" => entry[:name], "url" => entry[:url], "price" => entry[:price], "native_type" => entry[:native_type], "description" => product.reload.description } },
+      "products_total" => hands_back ? nil : Pages::ProfileData.products_total(seller),
     }
     raise ActiveRecord::Rollback
   end
@@ -76,12 +84,31 @@ def scenario(name, tabs: nil, products: 0, deleted_products: 0, draft_products: 
 end
 
 cases = TAB_NAME_SETS.map { |name, tabs| scenario(name, tabs:) }
+LONG = "word " * 60
 cases << scenario("a deleted product only", deleted_products: 1)
 cases << scenario("an unpublished post only", unpublished_posts: 1)
-cases << scenario("a product", products: 1)
-cases << scenario("a draft product", draft_products: 1)
-cases << scenario("an archived product", archived_products: 1)
+cases << scenario("a product", products: ["A plain description"])
+cases << scenario("a product without a description", products: [nil])
+cases << scenario("a blank description", products: ["  \n\t "])
+cases << scenario("two products, the newest first", products: %w[first second])
+cases << scenario("whitespace is squished", products: ["  two   spaces\nand\r\nlines\t\ttabs \u00a0nbsp\u3000ideographic  "])
+cases << scenario("a description of exactly the limit", products: ["x" * 200])
+cases << scenario("a description one past the limit", products: ["x" * 201])
+cases << scenario("a long description of words", products: [LONG])
+cases << scenario("a truncation that ends on a space", products: ["#{'x' * 196} yyyy"])
+cases << scenario("astral characters across the limit", products: ["😀" * 250])
+cases << scenario("quotes and punctuation survive", products: ["He said \"hi\" — it's 100% fine; a/b \\ c"])
+cases << scenario("unicode text", products: ["日本語 café ünïcode"])
+cases << scenario("a draft, an archived and a deleted product beside a live one", products: ["live"], draft_products: 1, archived_products: 1, deleted_products: 1)
+cases << scenario("a draft product only", draft_products: 1)
+cases << scenario("an archived product only", archived_products: 1)
+cases << scenario("a description with markup", products: ["<b>bold</b> text"], hands_back: true)
+cases << scenario("a description with an ampersand", products: ["Tom & Jerry"], hands_back: true)
+cases << scenario("a description with an entity", products: ["a &amp; b"], hands_back: true)
+cases << scenario("a description with a control character", products: ["a\u0001b"], hands_back: true)
+cases << scenario("more products than the payload lists", products: Array.new(101) { |i| "Described #{i}" })
 cases << scenario("a published post", posts: 1)
+cases << scenario("a product and a published post", products: ["x"], posts: 1)
 cases << scenario("the reputation summary on", feature: true)
 
 File.write(OUT, JSON.pretty_generate("cases" => cases) + "\n")

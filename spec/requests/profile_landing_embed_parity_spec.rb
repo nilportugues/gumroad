@@ -4,7 +4,8 @@ require "spec_helper"
 
 # The sandboxed document of a seller's custom HTML profile (UsersController#landing_iframe_content), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/profile-landing-embed.replay.test.ts, which sends the last request of each
-# example. Node renders the page of a seller who lists nothing; the examples named "hands ..." are what stays in Rails.
+# example. Node renders the page of a seller whose `gumroad-data` payload it can build (no post, no reputation summary, products with no
+# thumbnail or cover and a plain USD price); the examples named "hands ..." are what stays in Rails.
 describe "Profile landing embed", type: :request do
   include Parity::AudienceSignedIn
 
@@ -127,6 +128,126 @@ describe "Profile landing embed", type: :request do
 
       expect_sandboxed_document
       expect(response.headers["X-Robots-Tag"]).to be_nil
+    end
+  end
+
+  describe "GET landing/embed with live products" do
+    def embedded_products
+      get "/landing/embed"
+      expect_sandboxed_document
+      body = response.body[/<script[^>]*id="gumroad-data"[^>]*>(.*?)<\/script>/m, 1]
+      JSON.parse(body)
+    end
+
+    before do
+      publish
+      host! seller.subdomain
+    end
+
+    it "lists a live product with its price, type and description", parity: true do
+      create(:product, user: seller, name: "Guide", price_cents: 500, description: "A plain description").update_columns(description: "A plain description")
+
+      payload = embedded_products
+
+      expect(payload["products"].map { |product| product.slice("name", "price", "native_type", "description") }).to eq([{ "name" => "Guide", "price" => "$5", "native_type" => "digital", "description" => "A plain description" }])
+      expect(payload["products_total"]).to eq(1)
+    end
+
+    it "lists the newest products first and leaves out drafts, archived and deleted ones", parity: true do
+      create(:product, user: seller, name: "Old", created_at: 2.days.ago)
+      create(:product, user: seller, name: "New", created_at: 1.day.ago)
+      create(:product, user: seller, name: "Draft").update_columns(draft: true)
+      create(:product, user: seller, name: "Archived").update_attribute(:archived, true)
+      create(:product, user: seller, name: "Deleted").update_columns(deleted_at: Time.current)
+      create(:product, user: seller, name: "Disabled").update_columns(purchase_disabled_at: Time.current)
+
+      payload = embedded_products
+
+      expect(payload["products"].map { |product| product["name"] }).to eq(%w[New Old])
+      expect(payload["products_total"]).to eq(2)
+    end
+
+    it "quotes pay-what-you-want, 99 cent and free products (a free price is pay-what-you-want)", parity: true do
+      create(:product, user: seller, name: "Free", price_cents: 0, created_at: 3.days.ago)
+      create(:product, user: seller, name: "Cheap", price_cents: 99, created_at: 2.days.ago)
+      create(:product, user: seller, name: "Flexible", price_cents: 250, customizable_price: true, created_at: 1.day.ago)
+
+      expect(embedded_products["products"].map { |product| product["price"] }).to eq(["$2.50+", "99¢", "$0+"])
+    end
+
+    it "quotes a membership with its recurrence", parity: true do
+      create(:subscription_product, user: seller, name: "Club", price_cents: 700)
+
+      expect(embedded_products["products"].first["price"]).to eq("$7 a month")
+    end
+
+    it "quotes a tiered membership from its cheapest tier", parity: true do
+      create(:membership_product, user: seller, name: "Tiers")
+
+      expect(embedded_products["products"].first["price"]).to match(/\A\$\d/)
+    end
+
+    it "links a product by its custom permalink", parity: true do
+      create(:product, user: seller, name: "Linked", custom_permalink: "my-guide")
+
+      expect(embedded_products["products"].first["url"]).to end_with("/l/my-guide")
+    end
+
+    it "squishes and truncates a long description", parity: true do
+      create(:product, user: seller, name: "Wordy").update_columns(description: "  lots   of\nspace #{'word ' * 80}")
+
+      expect(embedded_products["products"].first["description"].length).to eq(200)
+    end
+
+    it "counts the products beyond the 100 it lists", parity: true do
+      Link.bypass_product_creation_limit do
+        101.times { |i| create(:product, user: seller, name: "Bulk #{i}", created_at: (i + 1).minutes.ago) }
+      end
+
+      payload = embedded_products
+
+      expect(payload["products"].size).to eq(100)
+      expect(payload["products_total"]).to eq(101)
+    end
+
+    it "hands a product with an uploaded thumbnail to Rails", parity: true do
+      create(:thumbnail, product: create(:product, user: seller))
+
+      get "/landing/embed"
+
+      expect(response.body).to include("thumbnail_url")
+    end
+
+    it "hands a product with a cover to Rails", parity: true do
+      create(:asset_preview, link: create(:product, user: seller))
+
+      get "/landing/embed"
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a product priced in another currency to Rails", parity: true do
+      create(:product, user: seller, price_currency_type: "eur", price_cents: 500)
+
+      expect(embedded_products["products"].first["price"]).to include("€")
+    end
+
+    it "hands a product with markup in its description to Rails", parity: true do
+      create(:product, user: seller).update_columns(description: "<p>Hello &amp; welcome</p>")
+
+      expect(embedded_products["products"].first["description"]).to eq("Hello &amp; welcome")
+    end
+
+    it "hands a seller with a published post to Rails", parity: true do
+      create(:audience_installment, seller:, name: "News", published_at: 1.day.ago, shown_on_profile: true)
+
+      expect(embedded_products["posts"].map { |post| post["name"] }).to eq(["News"])
+    end
+
+    it "hands a seller with the reputation summary to Rails", parity: true do
+      Feature.activate_user(:seller_reputation_summary, seller)
+
+      expect(embedded_products).to have_key("products")
     end
   end
 end

@@ -211,11 +211,11 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
         expect(response.parsed_body["success"]).to be(true)
       end
 
-      it "hands a page for a seller who lists a product to Rails", parity: true do
+      it "hands a page for a seller who lists a post to Rails", parity: true do
         ready_seller
-        create(:product, user: seller, name: "Listed", unique_permalink: "listed")
+        create(:audience_installment, seller:, name: "News", published_at: 1.day.ago, shown_on_profile: true)
 
-        post_preview(endpoint: "update_user_custom_html", custom_html: "<p>Has products</p>")
+        post_preview(endpoint: "update_user_custom_html", custom_html: "<p>Has posts</p>")
 
         expect(response.parsed_body["success"]).to be(true)
       end
