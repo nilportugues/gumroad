@@ -122,9 +122,11 @@ import {
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
+import { mcpDeleteExpiredEventSubscriptionsJob } from "./mcp-delete-expired-event-subscriptions-job.ts";
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
+import { partnerMigrationNotificationJob } from "./partner-migration-notification-job.ts";
 import {
   executeScheduledPayoutsJob,
   failAbandonedPurchaseWorker,
@@ -259,6 +261,7 @@ import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
 import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
 import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
+import { sendWorkflowEmailToOpenedNonClickerJob } from "./send-workflow-email-to-opened-non-clicker-job.ts";
 import { sendWorkflowEmailsToPastCanceledMembersJob } from "./send-workflow-emails-to-past-canceled-members-job.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import {
@@ -486,6 +489,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PayoutUsersWorker: payoutUsersWorker,
   DeleteWishlistProductsJob: deleteWishlistProductsJob,
   DeleteExpiredOauthDeviceAuthorizationsJob: deleteExpiredOauthDeviceAuthorizationsJob,
+  "Mcp::DeleteExpiredEventSubscriptionsJob": mcpDeleteExpiredEventSubscriptionsJob,
   FlushDeliveredEmailInfosJob: flushDeliveredEmailInfosJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
   PurgeOldDeletedAssetPreviewsWorker: purgeOldDeletedAssetPreviewsWorker,
@@ -581,7 +585,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DispatchPendingPartnerMigrationNotificationsJob: dispatchPendingPartnerMigrationNotificationsJob,
   DispatchProductPublishSchedulesJob: dispatchProductPublishSchedulesJob,
   PublishScheduledProductJob: publishScheduledProductJob,
+  PartnerMigrationNotificationJob: partnerMigrationNotificationJob,
   ResumeStalledPartnerMigrationsJob: resumeStalledPartnerMigrationsJob,
+  SendWorkflowEmailToOpenedNonClickerJob: sendWorkflowEmailToOpenedNonClickerJob,
   ScheduleOpenedNoClickWorkflowEmailsJob: scheduleOpenedNoClickWorkflowEmailsJob,
   SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
 };

@@ -1770,7 +1770,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Mcp::DeliverEventJob": {
     file: "app/sidekiq/mcp/deliver_event_job.rb",
@@ -1857,7 +1857,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   PayoutUsersWorker: {
     file: "app/sidekiq/payout_users_worker.rb",
@@ -3352,7 +3352,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendWorkflowEmailsToOpenedNonClickersJob: {
     file: "app/sidekiq/send_workflow_emails_to_opened_non_clickers_job.rb",
