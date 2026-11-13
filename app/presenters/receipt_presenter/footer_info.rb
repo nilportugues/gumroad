@@ -28,6 +28,8 @@ class ReceiptPresenter::FooterInfo
     # charge hasn't happened yet.
     if chargeable.subscription.single_charge? && !chargeable.is_free_trial_purchase?
       "You won't be charged again for this membership."
+    elsif chargeable.free_membership_purchase?
+      "Your free membership renews once #{recurrence_long_indicator(chargeable.subscription.recurrence)}."
     else
       "You'll be charged once #{recurrence_long_indicator(chargeable.subscription.recurrence)}."
     end
@@ -61,6 +63,28 @@ class ReceiptPresenter::FooterInfo
     )
   end
 
+  def show_refund_request_link?
+    # Flag first: it skips the purchases query on every receipt while the flag is off.
+    return false unless Feature.active?(:buyer_refund_requests, chargeable.seller)
+
+    purchase = refund_request_purchase
+    purchase.present? && PurchaseRefundRequest.purchase_eligible?(purchase)
+  end
+
+  def refund_request_link
+    link_to("Request a refund", PurchaseRefundRequest.page_link(refund_request_purchase))
+  end
+
   private
     attr_reader :chargeable
+
+    # Checkout receipts are usually built on a Charge. Link only when it holds a
+    # single charged purchase: a multi-item receipt spans purchases with different
+    # eligibility, so those buyers keep the support path.
+    def refund_request_purchase
+      return @refund_request_purchase if defined?(@refund_request_purchase)
+
+      purchases = chargeable.charged_purchases.reject(&:is_bundle_product_purchase?)
+      @refund_request_purchase = purchases.one? ? purchases.first : nil
+    end
 end

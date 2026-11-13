@@ -221,6 +221,7 @@ class LinksController < ApplicationController
 
     respond_to do |format|
       format.html do
+        set_product_page_crawl_fallback
         case params[:layout]
         when Product::Layout::PROFILE
           render inertia: "Products/Profile/Show", props: presenter.profile_product_props(**presenter_props)
@@ -611,7 +612,11 @@ class LinksController < ApplicationController
           begin
             Product::SaveCancellationDiscountService.new(@product, product_permitted_params[:cancellation_discount]).perform
           rescue ActiveRecord::RecordInvalid => e
-            return render json: { error_message: e.record.errors.full_messages.first }, status: :unprocessable_entity
+            # A `return` here would COMMIT the writes already made in this transaction
+            # (Rails 7+ non-local return), leaving a half-applied save behind the error.
+            # Roll back, then render once the transaction has unwound.
+            @cancellation_discount_error = e.record.errors.full_messages.first
+            raise ActiveRecord::Rollback
           end
         end
 
@@ -700,6 +705,10 @@ class LinksController < ApplicationController
         # Same lock and commit as the content change: a ready archive must not
         # outlive the content it was built from. Rebuilding is the job's work, below.
         @product.invalidate_stale_product_files_archives!
+      end
+
+      if @cancellation_discount_error
+        return render json: { error_message: @cancellation_discount_error }, status: :unprocessable_entity
       end
 
       # Stale archives were invalidated inside the save transaction above; the
@@ -1416,6 +1425,7 @@ class LinksController < ApplicationController
 
     def prepare_product_page
       @user                  = @product.user
+      set_analytics_meta_tags
       set_meta_tag(title: @product.name)
       set_product_page_meta(@product)
       set_custom_styles_meta_tag(@product.user.seller_profile)
@@ -1423,6 +1433,26 @@ class LinksController < ApplicationController
       @body_id               = "product_page"
       @is_on_product_page    = true
       @debug                 = params[:debug] && !Rails.env.production?
+    end
+
+    # Skipped where the served document is not the public product page (Inertia visit, embed,
+    # overlay, Discover layout) and for a product that is not published.
+    def set_product_page_crawl_fallback
+      return if request.inertia? || params[:embed] || params[:overlay]
+      return if params[:layout] == Product::Layout::DISCOVER
+      return if @product.draft || !@product.alive?
+
+      # Starts from the page's own scrubbed description so crawlers get only the copy buyers see;
+      # :prune drops the text inside the embed <script> tags it allows. to_text decodes entities,
+      # so html_escape is what keeps a "</noscript" in the copy from closing the element.
+      plain_description = Loofah.fragment(@product.html_safe_description.to_s).scrub!(:prune).to_text(encode_special_chars: false).strip
+      @seo_product_fallback = {
+        name: @product.name,
+        seller: @product.user.name_or_username,
+        # Legacy rows can have no currency, which the price formatter cannot quote.
+        price: (@product.price_formatted_verbose(for_default_duration: true, discounted: true) if @product.price_currency_type.present?),
+        description: helpers.simple_format(ERB::Util.html_escape(plain_description), {}, sanitize: false),
+      }
     end
 
     def link_params
@@ -2044,6 +2074,9 @@ class LinksController < ApplicationController
         rich_content_removed_file_embed_ids: save_id_mappings[:removed_file_embeds],
         **content_updated_at_response,
         **editor_revision_response,
+        # A failed flag lookup saves files without deleting any (SaveFilesService), so the editor
+        # must keep the seller's removals and send them again instead of treating them as done.
+        **(product_save_contract.degraded? ? { file_deletions_skipped: true } : {}),
       }
     end
 
@@ -2055,9 +2088,13 @@ class LinksController < ApplicationController
     #
     # Only emitted when the contract is enforced: with the flag off the client
     # has no use for it, and computing it would put the fingerprint queries back
-    # on the default path that must stay free of them.
+    # on the default path that must stay free of them. A degraded save gets one
+    # too, so the deletions it skipped are not refused as stale once they are
+    # resent — but only for a client whose own token was current, or a stale tab
+    # would have its deletion authorized after the flag store recovers.
     def editor_revision_response
-      return {} unless product_save_contract.enforced?
+      contract = product_save_contract
+      return {} unless contract.enforced? || (contract.degraded? && contract.may_delete?)
 
       {
         editor_revision: Product::EditorRevision.current(@product.reload),
@@ -2317,9 +2354,10 @@ class LinksController < ApplicationController
     end
 
     def custom_html_document(custom_html)
+      waitlist_open = @product.accepts_waitlist_signups?
       <<~HTML
         <!doctype html>
-        <html>
+        <html#{@product.published? ? " data-gumroad-launched" : ""}>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -2346,6 +2384,7 @@ class LinksController < ApplicationController
             </script>
             #{custom_html_navigation_bridge_script(allowed_hostnames: product_custom_html_store_hostnames(@product))}
             #{BACKGROUND_BRIDGE_SCRIPT}
+            #{waitlist_open ? WAITLIST_BRIDGE_SCRIPT : ""}
           </body>
         </html>
       HTML

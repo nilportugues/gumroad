@@ -111,6 +111,7 @@ export const Layout: React.FC<{
   className?: string;
   children: React.ReactNode;
   forceDomain?: boolean;
+  rootHeading?: string | undefined;
 }> = ({
   taxonomiesForNav,
   taxonomyPath,
@@ -121,6 +122,7 @@ export const Layout: React.FC<{
   className,
   children,
   forceDomain = false,
+  rootHeading,
 }) => {
   const { discoverDomain, appDomain } = useDomains();
   const isDesktop = useIsAboveBreakpoint("lg");
@@ -212,6 +214,8 @@ export const Layout: React.FC<{
               onClickTaxonomy={onTaxonomyChange}
             />
           </>
+        ) : rootHeading ? (
+          <h1 className="mt-4 text-xl leading-[1.3]">{rootHeading}</h1>
         ) : null}
       </header>
       {children}
@@ -229,7 +233,9 @@ const handleTaxonomyLinkClick = (
   onClickTaxonomy(taxonomySlugPath);
 };
 
-const TaxonomyCategoryBreadcrumbs = ({
+// Exported for tests. The trail is the page's <h1>, so its text has to stay equal to
+// Discover::CategoryPagePresenter#heading, which the noscript crawl fallback renders.
+export const TaxonomyCategoryBreadcrumbs = ({
   taxonomyPath,
   taxonomies,
   onClickTaxonomy,
@@ -239,36 +245,38 @@ const TaxonomyCategoryBreadcrumbs = ({
   onClickTaxonomy: (taxonomySlugPath?: string) => void;
 }) => (
   <div role="navigation" className="mt-4" aria-label="Breadcrumbs">
-    <ol
-      itemScope
-      itemType="https://schema.org/BreadcrumbList"
-      className="flex list-none flex-wrap p-0 text-xl leading-[1.3]"
-    >
+    <h1 itemScope itemType="https://schema.org/BreadcrumbList" className="text-xl leading-[1.3]">
       {taxonomyPath.split("/").map((slug, index, breadcrumbs) => {
         const taxonomySlugPath = breadcrumbs.slice(0, index + 1).join("/");
         const label = taxonomies.find((t) => t.slug === slug)?.label ?? slug;
         const isPage = index === breadcrumbs.length - 1;
         return (
-          <li key={taxonomySlugPath} itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-            {index > 0 ? (
-              <span aria-hidden="true" className="mx-2 select-none">
-                /
-              </span>
-            ) : null}
-            <a
-              href={`/${taxonomySlugPath}`}
-              onClick={(e) => handleTaxonomyLinkClick(e, taxonomySlugPath, onClickTaxonomy)}
-              aria-current={isPage ? "page" : undefined}
-              itemProp="item"
-              className={classNames({ "no-underline": isPage })}
-            >
-              <span itemProp="name">{label}</span>
-            </a>
-            <meta itemProp="position" content={(index + 1).toString()} />
-          </li>
+          <React.Fragment key={taxonomySlugPath}>
+            {index > 0 ? " " : null}
+            {/* inline-block keeps each label and its separator on one line */}
+            <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem" className="inline-block">
+              {index > 0 ? (
+                <>
+                  <span aria-hidden="true" className="mx-1">
+                    /
+                  </span>{" "}
+                </>
+              ) : null}
+              <a
+                href={`/${taxonomySlugPath}`}
+                onClick={(e) => handleTaxonomyLinkClick(e, taxonomySlugPath, onClickTaxonomy)}
+                aria-current={isPage ? "page" : undefined}
+                itemProp="item"
+                className={classNames({ "no-underline": isPage })}
+              >
+                <span itemProp="name">{label}</span>
+              </a>
+              <meta itemProp="position" content={(index + 1).toString()} />
+            </span>
+          </React.Fragment>
         );
       })}
-    </ol>
+    </h1>
   </div>
 );
 

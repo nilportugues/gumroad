@@ -12,6 +12,7 @@ class Order::PreparePaymentIntentService
   # it feeds is checked, and only for increases. See #direct_listed_allocations_match?.
   DIRECT_LISTED_AMOUNT_COMPARED_FIELDS = %w[permalink price_cents tip_cents shipping_cents].freeze
   GENERIC_CHARGE_ERROR = "There is a temporary problem, please try again (your card was not charged)."
+  WALLET_UNAVAILABLE_MESSAGE = "Apple Pay and Google Pay aren't available for this purchase right now. Please pay with a card instead (you were not charged)."
   # A Klarna amount-window rejection is deterministic — retrying Klarna on the same cart can
   # never succeed — so it must not reuse the retry-oriented generic message above. Tell the
   # buyer the one action that works: pick a different payment method.
@@ -54,6 +55,7 @@ class Order::PreparePaymentIntentService
     return responses if preview.nil?
 
     apply_previewed_card_country(preview)
+    return responses if block_chargeback_ring_signal
     return responses if block_unsupported_recurring_payment_method
     return responses if block_region_locked_payment_method_country_mismatch
     return responses if block_purchasing_power_parity_mismatches
@@ -210,6 +212,7 @@ class Order::PreparePaymentIntentService
       # a method-forced local method (iDEAL/Bancontact) changes the currency the deferred
       # intent must be created in (see client_confirm_presentment_for).
       @previewed_payment_method_type = preview[:type]
+      @previewed_wallet = preview[:card]&.[](:wallet).present?
       country = previewed_country(preview)
       purchases_to_charge.each do |purchase|
         purchase.card_country = country
@@ -430,9 +433,20 @@ class Order::PreparePaymentIntentService
         pix_payment_method_options,
         upi_payment_method_options(presentment),
         recurring_indian_card_payment_method_options(presentment),
+        card_three_d_secure_payment_method_options,
       ].compact.reduce({}) do |options, method_options|
         options.deep_merge(method_options)
       end.presence
+    end
+
+    # The buyer confirms this intent in the browser, so the Payment Element can run
+    # the challenge. Card-scoped: Stripe rejects card options on an intent that
+    # does not offer card.
+    def card_three_d_secure_payment_method_options
+      return unless @previewed_payment_method_type == "card"
+      return unless Checkout::ThreeDSecure.request?(seller)
+
+      Checkout::ThreeDSecure::REQUEST_PARAMS[:payment_method_options]
     end
 
     # Stripe rejects options for a method the intent doesn't list, so only when Pix was
@@ -456,6 +470,18 @@ class Order::PreparePaymentIntentService
     # the platform, outside Brazil.
     def pix_iof_applies?
       !merchant_account&.is_a_brazilian_stripe_connect_account?
+    end
+
+    # Server-confirm checkout refuses in Purchase#charge! / Charge::CreateService; here the browser
+    # confirms with Stripe directly, so this is the last check before money moves. Needs the
+    # previewed card_country, hence after apply_previewed_card_country.
+    def block_chargeback_ring_signal
+      refused = purchases_to_charge.find(&:refuse_charge_for_chargeback_ring_signal?)
+      return false if refused.nil?
+
+      purchases_to_charge.each { _1.error_code = PurchaseErrorCode::CHARGEBACK_RING_SIGNAL }
+      fail_purchases_with(refused.errors.first.message)
+      true
     end
 
     # Server-confirm checkout runs this at charge time; client-confirm combined charges skip it at
@@ -569,6 +595,13 @@ class Order::PreparePaymentIntentService
     # flags are off. A non-USD Element never falls back to USD after tokenization; the
     # caller turns a missing presentment into a synchronous failure.
     def client_confirm_presentment_for(charge)
+      # Eligibility gates wallets on the client's wallet_type. Stripe's preview is the record a
+      # client cannot leave out, so the buyer-currency wallet kill switch also holds without it.
+      if @previewed_wallet && !Checkout::BuyerCurrencyEligibility.wallets_enabled?(seller)
+        Rails.logger.info("Refusing client-confirm wallet payment for order #{order.id}: buyer-currency wallets off")
+        @client_confirm_presentment_failure_message = WALLET_UNAVAILABLE_MESSAGE
+        return nil
+      end
       return buyer_currency_quote_presentment_for(charge) if params[:buyer_currency_quote].present?
 
       method_type = @previewed_payment_method_type
@@ -771,7 +804,10 @@ class Order::PreparePaymentIntentService
       # A checkout tab opened before this snapshot shipped cannot send the token. Preserve the
       # pre-deploy server-computed behavior for those in-flight tabs; any client that sends a
       # token must still pass the exact comparison below.
-      return true if params[:direct_listed_amount_token].blank?
+      if params[:direct_listed_amount_token].blank?
+        @direct_listed_amount_rejection_reason = :wallet_without_token if wallet_payment?
+        return !wallet_payment?
+      end
 
       reported = Checkout::DirectListedAmountToken.verify(
         params[:direct_listed_amount_token],
@@ -803,9 +839,19 @@ class Order::PreparePaymentIntentService
       if reviewed_total_cents != prepare_total_cents
         Rails.logger.info("Direct-listed prepare total for order #{order.id} is #{prepare_total_cents} #{currency} cents against a reviewed #{reviewed_total_cents}")
       end
+      # A wallet sheet showed the buyer exactly the reviewed total, so a wallet charge must equal it.
+      if wallet_payment? && prepare_total_cents != reviewed_total_cents
+        @direct_listed_amount_rejection_reason = :wallet_total_changed
+        return false
+      end
       matches = prepare_total_cents <= reviewed_total_cents
       @direct_listed_amount_rejection_reason = :above_reviewed_total unless matches
       matches
+    end
+
+    # The ConfirmationToken preview is Stripe's record of a wallet; wallet_type is the client's.
+    def wallet_payment?
+      @previewed_wallet || params[:wallet_type].present?
     end
 
     # Legacy fallback for clients that did not report their Element's mount currency. It
@@ -1459,19 +1505,5 @@ class Order::PreparePaymentIntentService
 
     def gumroad_amount_cents
       @gumroad_amount_cents ||= purchases_to_charge.sum(&:total_transaction_amount_for_gumroad_cents)
-    end
-
-    def line_item_uid_for(purchase)
-      params[:line_items].find do |line_item|
-        purchase.link.unique_permalink == line_item[:permalink] &&
-          (line_item[:variants].blank? || purchase.variant_attributes.first&.external_id == line_item[:variants]&.first)
-      end&.dig(:uid) || cart_item_uid_for(purchase)
-    end
-
-    # Fallback when a purchase matches no line item in params (e.g. a bundle child): mirror the
-    # browser's getCartItemUid ("permalink variantId") and finalize's cart_item_uid so the response
-    # is never stored under a nil key, which silently drops it and collides across purchases.
-    def cart_item_uid_for(purchase)
-      "#{purchase.link.unique_permalink} #{purchase.variant_attributes.first&.external_id}"
     end
 end

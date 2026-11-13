@@ -259,6 +259,8 @@ describe("Discover", js: true, type: :system) do
       visit "#{discover_host}/3d"
 
       expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "3D")
+      expect(page).to have_selector("h1", count: 1)
+      expect(page).to have_selector("[aria-label='Breadcrumbs'] h1", text: "3D", exact_text: true)
 
       within_section "Featured products", section_element: :section do
         expect(page).to have_product_card(count: 5)
@@ -318,6 +320,8 @@ describe("Discover", js: true, type: :system) do
 
       # Should also work with client-side navigation
       visit "#{discover_host}/discover"
+      expect(page).to have_selector("h1", count: 1)
+      expect(page).to have_selector("h1", text: "Discover digital products from independent creators", exact_text: true)
       within "[role=menubar]" do
         find("[role=menuitem]", text: "3D").hover
         click_on "All 3D"
@@ -383,6 +387,27 @@ describe("Discover", js: true, type: :system) do
         expect(page).to have_product_card(count: 36)
       end
     end
+  end
+
+  it "shows the Discover heading on the root page but not on search or tag results" do
+    visit discover_url(host: discover_host)
+    expect(page).to have_selector("h1", count: 1, visible: :all)
+    expect(page).to have_selector("h1", text: "Discover digital products from independent creators", exact_text: true)
+
+    fill_in "Search products", with: "pine martens\n"
+    expect(page).to have_current_path(/query=pine\+martens/)
+    expect(page).not_to have_selector("h1", visible: :all)
+
+    page.go_back
+    expect(page).to have_selector("h1", text: "Discover digital products from independent creators", exact_text: true)
+
+    visit discover_url(host: discover_host, tags: "action")
+    expect(page).to have_text("On the market")
+    expect(page).not_to have_selector("h1", visible: :all)
+
+    visit discover_url(host: discover_host, query: " ", tags: ",")
+    expect(page).to have_selector("h1", count: 1, visible: :all)
+    expect(page).to have_selector("h1", text: "Discover digital products from independent creators", exact_text: true)
   end
 
   it "displays a link to the user's profile page with the recommended_by query parameter" do
@@ -471,7 +496,10 @@ describe("Discover", js: true, type: :system) do
       visit "#{discover_host}/software-development/programming/c-sharp?tags=some-tag"
 
       expect(page).to have_title("some tag | Software Development » Programming » C# | Gumroad")
-      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Programming\n/C#")
+      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Programming / C#")
+      expect(page).to have_selector("h1", count: 1, visible: :all)
+      expect(page).to have_selector("h1", text: "Software Development / Programming / C#", exact_text: true)
+      expect(find("h1").native.accessible_name).to eq("Software Development Programming C#")
     end
 
     it "shows breadcrumbs with taxonomy links and handles back and forward buttons" do
@@ -497,7 +525,7 @@ describe("Discover", js: true, type: :system) do
       end
       expect(page).to have_current_path("/software-development/programming")
       expect(page).to have_title("Software Development » Programming — digital products by independent creators | Gumroad")
-      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Programming")
+      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Programming")
 
       within_section "Featured products", section_element: :section do
         expect_product_cards_with_names("product 0", "product 2", "product 3")
@@ -512,7 +540,7 @@ describe("Discover", js: true, type: :system) do
       wait_for_ajax
       expect(page).to have_current_path("/software-development/programming/c-sharp?sort=featured")
       expect(page).to have_title("Software Development » Programming » C# | Gumroad")
-      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Programming\n/C#")
+      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Programming / C#")
       within_section "Featured products", section_element: :section do
         expect_product_cards_with_names("product 0", "product 3")
       end
@@ -523,7 +551,7 @@ describe("Discover", js: true, type: :system) do
       wait_for_ajax
       expect(page).to have_current_path("/software-development/programming")
       expect(page).to have_title("Software Development » Programming — digital products by independent creators | Gumroad")
-      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Programming")
+      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Programming")
       within_section "Featured products", section_element: :section do
         expect_product_cards_with_names("product 0", "product 2", "product 3")
       end
@@ -546,13 +574,13 @@ describe("Discover", js: true, type: :system) do
         click_on "Programming"
       end
       expect(page).to have_current_path("/software-development/programming")
-      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Programming")
+      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Programming")
 
       within("nav[aria-label='Subcategories']") do
         click_on "C#"
       end
       expect(page).to have_current_path("/software-development/programming/c-sharp")
-      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Programming\n/C#")
+      expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Programming / C#")
       expect(page).not_to have_selector("nav[aria-label='Subcategories']")
     end
 
@@ -575,7 +603,7 @@ describe("Discover", js: true, type: :system) do
         click_on "Entrepreneurship"
         click_on "Courses"
 
-        expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Business & Money\n/Entrepreneurship\n/Courses")
+        expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Business & Money / Entrepreneurship / Courses")
         within "[role=menubar]" do
           expect(page).to have_selector("[aria-current=true]", text: "Business & Money")
         end
@@ -609,7 +637,7 @@ describe("Discover", js: true, type: :system) do
 
         click_on "Raspberry Pi"
 
-        expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development\n/Hardware\n/Raspberry Pi")
+        expect(page).to have_selector("[aria-label='Breadcrumbs']", text: "Software Development / Hardware / Raspberry Pi")
       end
 
       it "places categories that didn't fit the screen under 'More', which becomes aria-current if one of those categories is selected" do

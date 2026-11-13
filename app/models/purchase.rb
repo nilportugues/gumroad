@@ -6,7 +6,7 @@ class Purchase < ApplicationRecord
   include Rails.application.routes.url_helpers
   include ActionView::Helpers::DateHelper, CurrencyHelper, ProductsHelper, PurchaseErrorCode,
           ExternalId, JsonData, TimestampScopes, Accounting, Blockable, CardCountrySource, Targeting,
-          Refundable, Reviews, PingNotification, Searchable, Risk,
+          Refundable, Reviews, PingNotification, Searchable, Risk, ChargebackRingSignal,
           CreatorAnalyticsCallbacks, FlagShihTzu, AfterCommitEverywhere, CompletionHandler, Integrations,
           ChargeEventsHandler, AudienceMember, Reportable, Recommended, CustomFields, Charge::Disputable,
           Charge::Chargeable, Charge::Refundable, DisputeWinCredits, Order::Orderable, Paypal, Receipt, UnusedColumns, SecureExternalId,
@@ -105,10 +105,10 @@ class Purchase < ApplicationRecord
   # Why `can_contact` is false. Only `BUYER_UNSUBSCRIBE`/`SPAM_REPORT` are first-party consent;
   # a restore must never reverse those, only `INHERITED`.
   attr_json_data_accessor :can_contact_reason
-  # Collab products with the :collab_and_affiliates flag: the direct affiliate who referred the sale,
-  # credited ON TOP of the collaborator (who stays in `affiliate`). `affiliate_credit_cents` then
-  # holds the sum of both credits, so every seller-side net (price - fee - affiliate_credit_cents)
-  # stays right; the direct affiliate's own part is `direct_affiliate_credit_cents`.
+  # Collab products: the direct affiliate who referred the sale, credited ON TOP of the collaborator
+  # (who stays in `affiliate`). `affiliate_credit_cents` then holds the sum of both credits, so every
+  # seller-side net (price - fee - affiliate_credit_cents) stays right; the direct affiliate's own
+  # part is `direct_affiliate_credit_cents`.
   attr_json_data_accessor :direct_affiliate_id
   attr_json_data_accessor :direct_affiliate_credit_cents
   attr_json_data_accessor :direct_affiliate_basis_points
@@ -183,6 +183,7 @@ class Purchase < ApplicationRecord
   has_one :purchasing_power_parity_info, dependent: :destroy
   has_one :upsell_purchase, dependent: :destroy
   has_one :purchase_refund_policy, dependent: :destroy
+  has_one :refund_request, class_name: "PurchaseRefundRequest", dependent: :destroy
   has_one :order_purchase, dependent: :destroy
   has_one :order, through: :order_purchase, dependent: :destroy
   has_one :charge_purchase, dependent: :destroy
@@ -415,6 +416,7 @@ class Purchase < ApplicationRecord
   before_create :validate_quantity
   before_create :assign_is_multiseat_license
   before_create :check_for_fraud
+  before_create :evaluate_chargeback_ring_signal
   before_create :toggle_off_can_contact_if_buyer_has_unsubscribed
 
   before_save :assign_default_rental_expired
@@ -451,6 +453,10 @@ class Purchase < ApplicationRecord
   after_create :mark_inventory_new_in_txn
   before_save :snapshot_inventory_pre_save_state
   after_commit :sync_inventory_counter_caches_on_create, on: :create
+  # Telemetry + containment for the chargeback-ring signal (see Purchase::ChargebackRingSignal).
+  # after_commit because the evaluation runs in a before_create and the row (refused or not)
+  # must exist before the telemetry row can reference it.
+  after_commit :record_chargeback_ring_signal, on: :create
   after_commit :sync_inventory_counter_cache_for_state_change, on: :update
   after_commit :sync_inventory_counter_cache_for_destroy, on: :destroy
   after_commit :auto_delete_single_use_offer_code, on: :create, if: -> { successful? && offer_code.present? }
@@ -1018,6 +1024,7 @@ class Purchase < ApplicationRecord
   #                   - `link_name` has been renamed to `product_name`
   #                   - `custom_fields` is no longer an array containing strings `"field: value"` and instead is now a proper hash.
   #                   - `variants` is no longer an string containing the list of variants `variant: selection, variant2: selection2` and instead is now a proper hash.
+  #                   - `url_params` carries the buyer's custom URL parameters when the caller opts in (Sales API).
   #           default - version 1
   #                   - changes made for later versions that do not change fields in previous versions may be included
   #
@@ -1114,7 +1121,10 @@ class Purchase < ApplicationRecord
       # Opt-in (Sales API only) so other version-2 serializations — like the audience
       # customers search, which renders up to 100 purchases without the Sales API
       # preloads — don't pick up per-purchase presentment/refund queries.
-      **(version == 2 && options[:include_buyer_presentment] ? { buyer_presentment: buyer_presentment_api_fields } : {})
+      **(version == 2 && options[:include_buyer_presentment] ? { buyer_presentment: buyer_presentment_api_fields } : {}),
+      # Opt-in for the same reason: url_parameters is a per-purchase association read, and the
+      # Ping already ships the same dictionary under this key.
+      **(version == 2 && options[:include_url_params] ? { url_params: url_parameters.presence } : {})
     ).delete_if { |_, v| v.nil? }
 
     json[:card] = {
@@ -1131,7 +1141,7 @@ class Purchase < ApplicationRecord
       json[:paypal_email] = card_visual
     end
 
-    json[:product_rating] = original_product_review.try(:rating)
+    json[:product_rating] = alive_original_product_review.try(:rating)
     if display_product_reviews?
       json[:reviews_count] = link.reviews_count
       json[:average_rating] = link.average_rating
@@ -1478,6 +1488,8 @@ class Purchase < ApplicationRecord
       is_following: purchase.try(:is_following?),
       currency_type: link.price_currency_type,
       has_third_party_analytics: link.has_third_party_analytics?("receipt"),
+      is_free_purchase: purchase.free_purchase?,
+      seller_name: purchase.seller.name_or_username,
       non_formatted_price: purchase.buyer_presentment? ? purchase.buyer_presentment_price_cents : Money.new(purchase.displayed_price_cents, purchase.displayed_price_currency_type).cents,
       subscription_has_lapsed: link.is_recurring_billing? && !purchase.subscription&.alive?,
       domain: DOMAIN,
@@ -2074,7 +2086,7 @@ class Purchase < ApplicationRecord
 
   # True when this purchase credits a direct affiliate on top of the collaborator in `affiliate`.
   # Decided once, at checkout (Purchase::CreateService), so later refunds and disputes follow the
-  # same split even if the :collab_and_affiliates flag changes in between.
+  # sale's split even if the product's collaborator or affiliates change.
   def credits_direct_affiliate?
     direct_affiliate_id.present? && affiliate.present? && affiliate.collaborator? && direct_affiliate.present?
   end
@@ -2084,12 +2096,11 @@ class Purchase < ApplicationRecord
     @direct_affiliate = direct_affiliate_id.present? ? DirectAffiliate.find_by(id: direct_affiliate_id) : nil
   end
 
-  # Records `candidate` as the direct affiliate of a collab purchase when the seller has the
-  # :collab_and_affiliates flag. Only a direct affiliate of this product's seller qualifies, never
-  # the collaborator or the seller themself. Returns whether it was recorded.
+  # Records `candidate` as the direct affiliate of a collab purchase. Only a direct affiliate of this
+  # product's seller qualifies, never the collaborator or the seller themself. Returns whether it was
+  # recorded.
   def assign_direct_affiliate_for_collab(candidate)
     return false unless candidate.is_a?(DirectAffiliate) && affiliate&.collaborator?
-    return false unless Feature.active?(:collab_and_affiliates, seller || link&.user)
     return false unless candidate.seller_id == link.user_id
     return false if candidate.affiliate_user_id.in?([link.user_id, affiliate.affiliate_user_id])
 
@@ -2176,7 +2187,8 @@ class Purchase < ApplicationRecord
   def notify_affiliate!
     notify_direct_affiliate_of_collab_sale!
     return unless affiliate.affiliate_user.enable_payment_email?
-    return if own_affiliate_credit_cents == 0
+    # Matches `increment_affiliates_balance!`: a cut that floors below zero is never posted.
+    return unless own_affiliate_credit_cents > 0
 
     after_commit do
       next if destroyed?
@@ -2493,6 +2505,10 @@ class Purchase < ApplicationRecord
 
   def charge!(off_session: true)
     return if chargeable.nil?
+    # Buyer-level ring refusal (see Purchase::ChargebackRingSignal). Checked here, before
+    # create_charge_intent, so a refused purchase provably never reaches the processor;
+    # card_country is set by prepare_chargeable_for_charge! which has already run.
+    return if refuse_charge_for_chargeback_ring_signal?
 
     self.charge_intent = create_charge_intent(chargeable, off_session:)
     return if errors.present?
@@ -3162,7 +3178,7 @@ class Purchase < ApplicationRecord
     json_data[:currency_symbol] = symbol_for(displayed_price_currency_type)
     json_data[:amount_refundable_in_currency] = amount_refundable_in_currency
     json_data[:refund_fee_notice_shown] = seller&.refund_fee_notice_shown? || false
-    json_data[:product_rating] = original_product_review.try(:rating)
+    json_data[:product_rating] = alive_original_product_review.try(:rating)
 
     json_data[:refunded] = stripe_refunded?
     json_data[:partially_refunded] = stripe_partially_refunded
@@ -3735,7 +3751,8 @@ class Purchase < ApplicationRecord
       # Cancellation posts belong to the subscription — Subscription#schedule_member_cancellation_workflow_jobs
       # schedules them on the next cancellation. Enqueueing them here sends them down the
       # purchase path, which never rechecks whether the membership is still cancelled.
-      next if workflow.member_cancellation_trigger?
+      # Opened-no-click posts run off the buyer's open of another email, not the purchase.
+      next if workflow.member_cancellation_trigger? || workflow.opened_no_click_trigger?
 
       active_workflow_installments = workflow.installments.includes(:installment_rule).alive.published
       has_any_past_workflow_installments = active_workflow_installments.any? do |installment|
@@ -4746,7 +4763,7 @@ class Purchase < ApplicationRecord
         access_revoked: is_access_revoked,
         preorder_authorization_time: (preorder.created_at if is_preorder_charge?),
         variants_price_cents: variant_extra_cost,
-        review: original_product_review&.message,
+        review: alive_original_product_review&.message,
         cancellation_date: subscription&.user_requested_cancellation_at,
         subscription_end_date: subscription&.termination_date,
         sent_abandoned_cart_email: sent_abandoned_cart_email?
@@ -5250,7 +5267,8 @@ class Purchase < ApplicationRecord
         mandate_options = mandate_options_for_stripe(with_currency: true)
         mark_indian_card_mandate_registration! if mandate_options.present?
         self.setup_intent = ChargeProcessor.setup_future_charges!(self.merchant_account, chargeable,
-                                                                  mandate_options:)
+                                                                  mandate_options:,
+                                                                  seller:)
         return unless setup_intent.present?
 
         self.processor_setup_intent_id = setup_intent.id
@@ -5432,6 +5450,7 @@ class Purchase < ApplicationRecord
                                                                          setup_future_charges:,
                                                                          mandate_options:,
                                                                          mandate_expected:,
+                                                                         seller:,
                                                                          **presentment_args)
 
         if charge_intent.id.present?

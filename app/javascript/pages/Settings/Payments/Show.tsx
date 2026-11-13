@@ -17,7 +17,13 @@ import {
 } from "$app/utils/dominicanRepublicCie";
 import { GUATEMALA_NIT_ERROR_MESSAGE, isValidGuatemalaNit } from "$app/utils/guatemalaNit";
 import { accountNumberFormatError } from "$app/utils/payoutAccountNumbers";
-import { normalizeUsTaxId, personalTaxIdError, usesHongKongPassport, usesUsTaxId } from "$app/utils/personalTaxId";
+import {
+  normalizeUsTaxId,
+  personalTaxIdError,
+  usesHongKongPassport,
+  usesUsTaxId,
+  usEntityWithForeignRepresentative,
+} from "$app/utils/personalTaxId";
 import { countryRequiresPostalCode } from "$app/utils/postalCodes";
 import { asyncVoid } from "$app/utils/promise";
 
@@ -68,6 +74,70 @@ const GAMBIA_SWIFT_BIC_REGEX = /^[0-9A-Za-z]{8,11}$/u;
 // directory, so a letter code saves here and then fails bank-sync with routing_number_invalid.
 const INDONESIA_BANK_CODE_REGEX = /^[0-9]{3}$/u;
 const BANGLADESH_BANK_CODE_REGEX = /^[0-9]{9}$/u;
+
+const BIC_EXAMPLE_MESSAGE = "That is the form's example, not a real code. Enter your own bank's SWIFT / BIC code.";
+
+// Example codes these fields have shown as placeholders. None is a real bank, so a copied one saves a payout
+// row that can never link. Keep the BIC entries in sync with BankAccount::EXAMPLE_BANK_CODES.
+const COPIED_EXAMPLE_ERRORS: Partial<
+  Record<BankAccount["type"], { field: "bank_code" | "branch_code"; example: string; message: string }[]>
+> = {
+  TaiwanBankAccount: [{ field: "bank_code", example: "AAAATWTXXXX", message: BIC_EXAMPLE_MESSAGE }],
+  MoroccoBankAccount: [{ field: "bank_code", example: "AAAAMAMAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  AntiguaAndBarbudaBankAccount: [{ field: "bank_code", example: "AAAAAGAGXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  SaintLuciaBankAccount: [{ field: "bank_code", example: "AAAALCLCXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  TanzaniaBankAccount: [{ field: "bank_code", example: "AAAATZTXXXX", message: BIC_EXAMPLE_MESSAGE }],
+  NamibiaBankAccount: [{ field: "bank_code", example: "AAAANANXXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  RwandaBankAccount: [{ field: "bank_code", example: "AAAARWRWXXX", message: BIC_EXAMPLE_MESSAGE }],
+  EcuadorBankAccount: [{ field: "bank_code", example: "AAAAECE1XXX", message: BIC_EXAMPLE_MESSAGE }],
+  BotswanaBankAccount: [{ field: "bank_code", example: "AAAABWBWXXX", message: BIC_EXAMPLE_MESSAGE }],
+  OmanBankAccount: [{ field: "bank_code", example: "AAAAOMOMXXX", message: BIC_EXAMPLE_MESSAGE }],
+  MadagascarBankAccount: [{ field: "bank_code", example: "AAAAMGMGXXX", message: BIC_EXAMPLE_MESSAGE }],
+  MoldovaBankAccount: [{ field: "bank_code", example: "AAAAMDMDXXX", message: BIC_EXAMPLE_MESSAGE }],
+  PanamaBankAccount: [{ field: "bank_code", example: "AAAAPAPAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  NigeriaBankAccount: [{ field: "bank_code", example: "AAAANGLAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  ArmeniaBankAccount: [{ field: "bank_code", example: "AAAAAMNNXXX", message: BIC_EXAMPLE_MESSAGE }],
+  EthiopiaBankAccount: [{ field: "bank_code", example: "AAAAETETXXX", message: BIC_EXAMPLE_MESSAGE }],
+  BruneiBankAccount: [{ field: "bank_code", example: "AAAABNBBXXX", message: BIC_EXAMPLE_MESSAGE }],
+  NorthMacedoniaBankAccount: [{ field: "bank_code", example: "AAAAMK2XXXX", message: BIC_EXAMPLE_MESSAGE }],
+  BhutanBankAccount: [{ field: "bank_code", example: "AAAABTBTXXX", message: BIC_EXAMPLE_MESSAGE }],
+  LaosBankAccount: [{ field: "bank_code", example: "AAAALALAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  MozambiqueBankAccount: [{ field: "bank_code", example: "AAAAMZMXXXX", message: BIC_EXAMPLE_MESSAGE }],
+  GabonBankAccount: [{ field: "bank_code", example: "AAAAGAGAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  BahamasBankAccount: [{ field: "bank_code", example: "AAAABSNSXXX", message: BIC_EXAMPLE_MESSAGE }],
+  MongoliaBankAccount: [{ field: "bank_code", example: "AAAAMNUBXXX", message: BIC_EXAMPLE_MESSAGE }],
+  AlgeriaBankAccount: [{ field: "bank_code", example: "AAAADZDZXXX", message: BIC_EXAMPLE_MESSAGE }],
+  MacaoBankAccount: [{ field: "bank_code", example: "AAAAMOMXXXX", message: BIC_EXAMPLE_MESSAGE }],
+  ElSalvadorBankAccount: [{ field: "bank_code", example: "AAAASVS1XXX", message: BIC_EXAMPLE_MESSAGE }],
+  PakistanBankAccount: [{ field: "bank_code", example: "AAAAPKKAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  GuatemalaBankAccount: [{ field: "bank_code", example: "AAAAGTGCXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  MauritiusBankAccount: [{ field: "bank_code", example: "AAAAMUMUXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  KazakhstanBankAccount: [{ field: "bank_code", example: "AAAAKZKZXXX", message: BIC_EXAMPLE_MESSAGE }],
+  AlbaniaBankAccount: [{ field: "bank_code", example: "AAAAALTXXXX", message: BIC_EXAMPLE_MESSAGE }],
+  BahrainBankAccount: [{ field: "bank_code", example: "AAAABHBMXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  JordanBankAccount: [{ field: "bank_code", example: "AAAAJOJOXXX", message: BIC_EXAMPLE_MESSAGE }],
+  AngolaBankAccount: [{ field: "bank_code", example: "AAAAAOAOXXX", message: BIC_EXAMPLE_MESSAGE }],
+  KuwaitBankAccount: [{ field: "bank_code", example: "AAAAKWKWXYZ", message: BIC_EXAMPLE_MESSAGE }],
+  TurkeyBankAccount: [{ field: "bank_code", example: "AAAAPKKAXXX", message: BIC_EXAMPLE_MESSAGE }],
+  BangladeshBankAccount: [
+    { field: "bank_code", example: "123456789", message: "Enter your own bank's 9-digit BEFTN routing number." },
+  ],
+  VietnamBankAccount: [
+    { field: "bank_code", example: "12345678", message: "Enter the 8-digit code of your own bank." },
+  ],
+  JamaicaBankAccount: [
+    { field: "bank_code", example: "123", message: "Enter the 3-digit code of your own bank." },
+    { field: "branch_code", example: "12345", message: "Enter the 5-digit branch code of your own bank branch." },
+  ],
+  AzerbaijanBankAccount: [
+    { field: "bank_code", example: "123456", message: "Enter the 6-digit code of your own bank." },
+    { field: "branch_code", example: "234567", message: "Enter the 6-digit branch code of your own bank branch." },
+  ],
+};
+
+// Same reason as Gambia above. 123456 is not a Ghanaian sort code: Stripe has no bank for it, so the
+// payout account can never link.
+const GHANA_NOT_A_SORT_CODE = "123456";
 
 const KANA_NAME_ERROR = "may only contain katakana characters, spaces, dashes, and dots.";
 const KANA_ADDRESS_ERROR = "may only contain katakana, latin characters, digits, spaces, dashes, and dots.";
@@ -228,6 +298,7 @@ type PaymentsPageProps = {
   payout_reserve_available: boolean;
   payouts_paused_by: "stripe" | "admin" | "system" | "user" | null;
   payout_reserve_percent?: number | null;
+  payouts_paused_for_failed_payouts?: boolean;
   account_status: AccountStatus;
   payouts_paused_by_user: boolean;
   payout_threshold_cents: number;
@@ -290,7 +361,7 @@ export default function PaymentsPage() {
   const [isUpdateCountryConfirmed, setIsUpdateCountryConfirmed] = React.useState(false);
   const [isPayoutMethodChangeConfirmed, setIsPayoutMethodChangeConfirmed] = React.useState(false);
   const [saveCounter, setSaveCounter] = React.useState(0);
-  const [hasIdDocumentAlternative, setHasIdDocumentAlternative] = React.useState(false);
+  const [hasIdDocumentAlternativeFromOwners, setHasIdDocumentAlternativeFromOwners] = React.useState(false);
 
   const form = useForm<{
     user: ComplianceInfo;
@@ -311,6 +382,14 @@ export default function PaymentsPage() {
     bank_account: props.bank_account_details.bank_account,
     payment_address: props.paypal_address,
   });
+
+  // Only a US company's non-US representative may save without the full SSN, so only they are offered
+  // the document instead. The sync also opens document requests for other fields, hence the SSN pairing.
+  const hasIdDocumentAlternative =
+    (usEntityWithForeignRepresentative(form.data.user) &&
+      props.user.has_outstanding_identity_document_requirement &&
+      props.user.has_outstanding_full_ssn_requirement) ||
+    hasIdDocumentAlternativeFromOwners;
 
   const [selectedPayoutMethod, setSelectedPayoutMethod] = React.useState<PayoutMethod>(() =>
     props.stripe_connect.has_connected_stripe
@@ -713,8 +792,13 @@ export default function PaymentsPage() {
     if (form.data.bank_account.type === "BoliviaBankAccount" && !form.data.bank_account.bank_code) {
       markFieldInvalid("bank_code");
     }
-    if (form.data.bank_account.type === "GhanaBankAccount" && !form.data.bank_account.bank_code) {
-      markFieldInvalid("bank_code");
+    if (form.data.bank_account.type === "GhanaBankAccount") {
+      if (!form.data.bank_account.bank_code) {
+        markFieldInvalid("bank_code");
+      } else if (form.data.bank_account.bank_code === GHANA_NOT_A_SORT_CODE) {
+        markFieldInvalid("bank_code");
+        setClientErrorMessage({ message: "Enter the 6-digit sort code of your own bank branch." });
+      }
     }
     if (form.data.bank_account.type === "AlbaniaBankAccount" && !form.data.bank_account.bank_code) {
       markFieldInvalid("bank_code");
@@ -760,6 +844,18 @@ export default function PaymentsPage() {
     }
     if (form.data.bank_account.type === "SriLankaBankAccount" && !form.data.bank_account.branch_code) {
       markFieldInvalid("branch_code");
+    }
+    const account = form.data.bank_account;
+    for (const { field, example, message } of (account.type && COPIED_EXAMPLE_ERRORS[account.type]) || []) {
+      if (
+        Object.entries<unknown>(account).some(
+          ([key, value]) => key === field && typeof value === "string" && value.trim().toUpperCase() === example,
+        )
+      ) {
+        markFieldInvalid(field);
+        // A country can match both fields: keep the first one's reason.
+        setClientErrorMessage((current: ErrorMessageInfo | null) => current ?? { message });
+      }
     }
     if (form.data.bank_account.type === "BangladeshBankAccount") {
       if (!form.data.bank_account.bank_code) {
@@ -987,8 +1083,12 @@ export default function PaymentsPage() {
       const typedSsnDigits = (form.data.user.individual_tax_id ?? "").replace(/\D/gu, "");
       // Only last-4 (or nothing) on file can never satisfy Stripe's id_number requirement, so the
       // seller must type a fresh full SSN; and any newly typed value must itself be 9 digits so a
-      // fresh 4-digit entry can't be saved into a full-SSN requirement.
-      const mustReenterFullSsn = props.user.individual_tax_id_is_last_four || !props.user.individual_tax_id_entered;
+      // fresh 4-digit entry can't be saved into a full-SSN requirement. A US company's non-US
+      // representative has no number Stripe would accept, so they are not held to it — Stripe's
+      // alternative for that account is a verification document, offered next to the field.
+      const mustReenterFullSsn =
+        !usEntityWithForeignRepresentative(form.data.user) &&
+        (props.user.individual_tax_id_is_last_four || !props.user.individual_tax_id_entered);
       if ((mustReenterFullSsn || form.data.user.individual_tax_id) && typedSsnDigits.length !== FULL_SSN_DIGIT_COUNT) {
         markFieldInvalid("individual_tax_id");
         setClientErrorMessage({
@@ -1409,6 +1509,7 @@ export default function PaymentsPage() {
           accountStatus={props.account_status}
           payoutsPausedBy={props.payouts_paused_by}
           payoutReservePercent={props.payout_reserve_percent ?? null}
+          failedPayoutsPause={props.payouts_paused_for_failed_payouts ?? false}
           canClearOwnPause={canClearOwnPayoutsPause}
         />
 
@@ -1515,9 +1616,11 @@ export default function PaymentsPage() {
                       ? "Your payouts have been paused by Gumroad."
                       : props.payouts_paused_by === "system" && props.payout_reserve_percent
                         ? "Payout pausing is managed automatically while the reserve hold is active."
-                        : props.payouts_paused_by === "system"
-                          ? "Your payouts have been paused for a security review."
-                          : null
+                        : props.payouts_paused_by === "system" && props.payouts_paused_for_failed_payouts
+                          ? "Your payouts are paused because recent transfers to your payout method were declined."
+                          : props.payouts_paused_by === "system"
+                            ? "Your payouts have been paused for a security review."
+                            : null
                 }
               >
                 {payoutsPausedToggle}
@@ -1579,7 +1682,7 @@ export default function PaymentsPage() {
           }
         >
           <section className="grid gap-8">
-            <Tabs variant="buttons" className="gap-4" role="radiogroup">
+            <Tabs variant="buttons" className="gap-4" role="radiogroup" aria-label="Payout method">
               {props.bank_account_details.show_bank_account ? (
                 <>
                   <Tab key="bank" isSelected={selectedPayoutMethod === "bank"} asChild>
@@ -1726,7 +1829,7 @@ export default function PaymentsPage() {
               countries={props.person_countries}
               states={props.states}
               defaultCountry={form.data.user.business_country ?? form.data.user.country}
-              onIdDocumentAlternativeChange={setHasIdDocumentAlternative}
+              onIdDocumentAlternativeChange={setHasIdDocumentAlternativeFromOwners}
               minDobYear={props.min_dob_year}
               isFormDisabled={props.is_form_disabled}
             />

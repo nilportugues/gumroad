@@ -220,6 +220,13 @@ class Rack::Attack
     req.remote_ip if req.path.match?(%r{\A/help/contact(?:\.[^/]+)?\z}) && req.post?
   end
 
+  # Same shape as the help-center form: each submission emails the seller and the buyer.
+  # The token segment differs per purchase, so key on IP only.
+  PURCHASE_REFUND_REQUEST_POSTS_PER_MINUTE = 3
+  throttle_with_exponential_backoff(name: "purchase_refund_request/ip", requests: PURCHASE_REFUND_REQUEST_POSTS_PER_MINUTE, period: 1.minute, max_level: 1) do |req|
+    req.remote_ip if req.path.match?(%r{\A/purchases/[^/]+/refund_request(?:\.[^/]+)?\z}) && req.post?
+  end
+
   # Each hit that matches purchases sends a grouped receipt email to the given address,
   # unauthenticated. Throttle by IP and, separately, by target email — the harm is to the
   # RECIPIENT, so an abuser rotating IPs must not be able to mailbomb one buyer
@@ -261,12 +268,12 @@ class Rack::Attack
   # The MCP connector aliases route to the same tokens controller as /oauth/token. Keyed on IP
   # alone (not the `throttle_by_ip` regex form, which keys per path) so all four share one bucket.
   throttle_with_exponential_backoff(name: "oauth_token/ip", requests: 3000, period: 60.seconds) do |req|
-    req.remote_ip if req.path.match?(%r{\A(?:/oauth/token|/(?:muse|claude|chatgpt)/v1/oauth2/token)(?:\.[^/]+)?\z})
+    req.remote_ip if req.path.match?(%r{\A(?:/oauth/token|/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/token)(?:\.[^/]+)?\z})
   end
   # Anonymous dynamic client registration inserts an oauth_applications row per call.
   # Initial: 20rpm, Max: 100 requests/9 hours (per IP, shared across the connector aliases)
   throttle_with_exponential_backoff(name: "oauth_dynamic_registration/ip", requests: 20, period: 60.seconds) do |req|
-    req.remote_ip if req.path.match?(%r{\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\.[^/]+)?\z}) && req.post?
+    req.remote_ip if req.path.match?(%r{\A/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/register(?:\.[^/]+)?\z}) && req.post?
   end
   throttle("oauth_device_token/ip/device_code", limit: 120, period: 60.seconds) do |req|
     if req.path.match?(%r{\A/oauth/token(?:\.[^/]+)?\z}) && req.post?
@@ -473,11 +480,13 @@ class Rack::Attack
                  period: 60.seconds
 
   # Throttle requests to resend receipts
-  # Initial: 2rpm, Max: 20 requests/9 hours (per purchase, per IP)
-  throttle_by_ip path: /\A\/(purchases|service_charges)\/.+\/resend_receipt\z/,
-                 method: :post,
-                 requests: 2,
-                 period: 60.seconds
+  # Initial: 2rpm, Max: 20 requests/9 hours (per purchase, per IP). Keyed on the path without its
+  # format suffix: `throttle_by_ip`'s regexp form keys on the whole path, so `/resend_receipt.json`
+  # would land in its own bucket and bypass the limit.
+  throttle_with_exponential_backoff(name: "/ip:resend_receipt", requests: 2, period: 60.seconds) do |req|
+    m = req.path.match(%r{\A(/(?:purchases|service_charges)/[^/]+/resend_receipt)(?:\.[^/]+)?\z})
+    "#{m[1]}:#{req.remote_ip}" if m && req.post?
+  end
 
   # Throttle community chat messages
   # 60 requests per 60 seconds (per community, per IP)
@@ -547,7 +556,7 @@ class Rack::Attack
 
   # Media uploads: each POST can synchronously download up to 10 MB from a remote URL
   # (CreatePublicMediaService), making this one of the priciest v2 endpoints — unthrottled,
-  # it ties up workers and bandwidth. 20/10min is plenty for a creator (or the store agent)
+  # it ties up workers and bandwidth. 20/10min is plenty for a creator (or an AI agent)
   # building a page. Keyed by OAuth token (IP-keyed fallback for tokenless probes) so
   # rotating IPs doesn't bypass it. Matches both `/api/v2/media` and `/v2/media` prefixes,
   # mirroring the products/custom_html throttles above.

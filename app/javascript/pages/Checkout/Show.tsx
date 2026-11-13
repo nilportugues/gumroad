@@ -127,6 +127,11 @@ type CheckoutIndexPageProps = {
   // contents: the page re-requests it alone after every cart edit so the mounted element always
   // matches the cart on screen. See CheckoutPresenter#checkout_payment_props.
   checkout_payment: CheckoutPaymentConfig;
+  // Set once, when a legacy /checkout link named a tier that is closed or sold out and so added
+  // nothing. See CheckoutPresenter#sold_out_arrival_notice.
+  sold_out_arrival?: { message: string; url: string } | null;
+  // Saved-cart products the buyer already owns. See CheckoutPresenter#owned_products_in_cart.
+  owned_in_cart?: { permalink: string; option_id: string | null; name: string }[];
 };
 
 const BUYER_CURRENCY_QUOTE_INVALID_ERROR_CODE = "buyer_currency_quote_invalid";
@@ -545,19 +550,19 @@ const CheckoutIndexPage = () => {
       return;
     }
     try {
-      await trackUserActionEvent("process_payment");
-      if (user) {
-        await Promise.all(
-          cartForm.data.cart.items.map((item) =>
-            trackUserProductAction({
-              name: "process_payment",
-              permalink: item.product.permalink,
-              fromOverlay: false,
-              wasRecommended: !!item.recommended_by,
-            }),
-          ),
-        );
-      }
+      await Promise.all([
+        trackUserActionEvent("process_payment"),
+        ...(user
+          ? cartForm.data.cart.items.map((item) =>
+              trackUserProductAction({
+                name: "process_payment",
+                permalink: item.product.permalink,
+                fromOverlay: false,
+                wasRecommended: !!item.recommended_by,
+              }),
+            )
+          : []),
+      ]);
       // Analytics and CAPTCHA may outlive the quote even when Pay started with a fresh one.
       // Stop before either order endpoint; refreshing must not reuse this payment authorization.
       if (hasExpiredBuyerCurrencyQuote(state) || hasExpiredDirectListedAmountToken(state)) {
@@ -839,8 +844,10 @@ const CheckoutIndexPage = () => {
 
       if (redirectTo === "content-page" && firstResult.success && firstResult.content_url) {
         const contentUrl = new URL(firstResult.content_url);
-        if (firstResult.native_type === "coffee") contentUrl.searchParams.set("purchase_email", state.email);
-        else contentUrl.searchParams.set("receipt", "true");
+        if (firstResult.native_type === "coffee") {
+          contentUrl.searchParams.set("purchase_email", state.email);
+          if (firstResult.is_free_purchase) contentUrl.searchParams.set("purchase_free", "true");
+        } else contentUrl.searchParams.set("receipt", "true");
         window.location.href = contentUrl.toString();
       } else if (redirectTo === "library-page") {
         const purchases = results.flatMap(({ result }) => (result.success ? result.id : []));
@@ -979,7 +986,7 @@ const CheckoutIndexPage = () => {
       // Asking for it in the same request means there is no window where the persisted cart and
       // the payment configuration on screen describe different carts. checkout_style rides along
       // for the same reason: branding cannot outlive a one-to-mixed-seller transition.
-      only: ["cart", "flash", "checkout_payment", "checkout_style"],
+      only: ["cart", "flash", "checkout_payment", "checkout_style", "owned_in_cart"],
       preserveUrl: true,
       preserveScroll: true,
       // The generation is captured when the save is issued, so this refuses exactly the saves that
@@ -1192,6 +1199,8 @@ const CheckoutIndexPage = () => {
             cart={cartForm.data.cart}
             updateCart={(updated) => cartForm.setData((prev) => ({ cart: { ...prev.cart, ...updated } }))}
             recommendedProducts={props.recommended_products ?? null}
+            soldOutArrival={props.sold_out_arrival ?? null}
+            ownedInCart={props.owned_in_cart ?? []}
           />
         </CheckoutThemeProvider>
       )}

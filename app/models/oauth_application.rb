@@ -9,6 +9,7 @@ class OauthApplication < Doorkeeper::Application
   has_many :affiliate_credits
   has_many :links, foreign_key: :affiliate_application_id
   has_many :device_authorizations, class_name: "OauthDeviceAuthorization", foreign_key: :oauth_application_id, dependent: :destroy
+  has_many :partner_sellers
 
   belongs_to :owner, class_name: "User", optional: true
 
@@ -24,6 +25,14 @@ class OauthApplication < Doorkeeper::Application
   LEGACY_MOBILE_API_OAUTH_APPLICATION_UID = "46410c2fb9aa741c1f03cdea099929c795d20de0282b352eac881dfa46b2b89c"
 
   scope :first_party_mobile, -> { where(uid: [MOBILE_API_OAUTH_APPLICATION_UID, LEGACY_MOBILE_API_OAUTH_APPLICATION_UID].compact) }
+
+  # The retired in-product Store Agent registered one first-party app per seller under this name.
+  # Those rows still exist (flagged is_first_party_agent_app), so the name stays reserved and the
+  # ping-notification exclusion that keys on the flag stays. Identity comes from the flag; the name
+  # carries no authorization meaning.
+  FIRST_PARTY_AGENT_APP_NAME = "Gumroad Store Agent (internal)"
+  FIRST_PARTY_AGENT_APP_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
+  FIRST_PARTY_AGENT_APP_SCOPES = Ai::StoreAgentScopes.all_scopes_string
 
   def validate_file
     return unless file.attached?
@@ -73,6 +82,7 @@ class OauthApplication < Doorkeeper::Application
         .where(status: [OauthDeviceAuthorization::STATUS_PENDING, OauthDeviceAuthorization::STATUS_APPROVED])
         .update_all(status: OauthDeviceAuthorization::STATUS_DENIED, denied_at: deleted_at, updated_at: deleted_at)
       resource_subscriptions.alive.update_all(deleted_at:)
+      McpEventSubscription.where(oauth_application_id: id).delete_all
       update!(deleted_at:)
     end
   end
@@ -118,6 +128,10 @@ class OauthApplication < Doorkeeper::Application
       deny_approved_device_authorizations_for(user, denied_at: revoked_at)
       Doorkeeper::AccessToken.revoke_all_for(id, user)
       resource_subscriptions.where(user:).alive.update_all(deleted_at: revoked_at)
+      McpEventSubscription.where(user_id: user.id, oauth_application_id: id).delete_all
+      # A seller who only linked through this partner leaves its listings. A seller who migrated keeps
+      # the link, which the revenue share reads.
+      partner_sellers.where(user:).alive.update_all(deleted_at: revoked_at) unless PartnerMigration.exists?(oauth_application_id: id, user_id: user.id)
     end
   end
 

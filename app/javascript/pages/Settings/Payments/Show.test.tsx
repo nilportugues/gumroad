@@ -61,7 +61,10 @@ const user = (overrides: Partial<User> = {}): User => ({
   individual_tax_id_last_four: "6789",
   individual_tax_id_is_last_four: false,
   has_outstanding_full_ssn_requirement: false,
+  has_outstanding_identity_document_requirement: false,
   has_outstanding_nationality_requirement: false,
+  has_outstanding_state_requirement: false,
+  has_outstanding_business_state_requirement: false,
   business_tax_id_entered: false,
   business_tax_id_last_four: null,
   requires_credit_card: false,
@@ -227,6 +230,62 @@ describe("US company representative tax ID", () => {
     save();
     expect(mocks.put).not.toHaveBeenCalled();
     expect(screen.getAllByText("Enter a 9-digit US ITIN or SSN.").length).toBeGreaterThan(0);
+  });
+
+  it("saves the form for a representative who has no US tax ID at all", () => {
+    renderPage({ individual_tax_id_entered: false, business_tax_id_entered: true }, business);
+    save();
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+    expect(mocks.put.mock.calls[0]?.[1]?.user).not.toHaveProperty("individual_tax_id");
+    expect(document.querySelectorAll('[aria-invalid="true"]').length).toBe(0);
+  });
+
+  it("offers Stripe's document upload when the account is waiting on one", () => {
+    renderPage(
+      {
+        individual_tax_id_entered: false,
+        business_tax_id_entered: true,
+        has_outstanding_identity_document_requirement: true,
+        has_outstanding_full_ssn_requirement: true,
+      },
+      business,
+    );
+    expect(screen.getByText("Upload a passport via Stripe instead")).toBeTruthy();
+  });
+
+  it("does not offer it as a tax ID substitute when the document request is for another field", () => {
+    renderPage(
+      {
+        individual_tax_id_entered: false,
+        business_tax_id_entered: true,
+        has_outstanding_identity_document_requirement: true,
+      },
+      business,
+    );
+    expect(screen.queryByText(/Upload a passport via Stripe instead/u)).toBeNull();
+  });
+
+  it.each([
+    ["a US representative", { country: "US" }],
+    ["a US individual", { is_business: false, country: "US", business_country: null }],
+  ])("does not offer the document as a tax ID substitute to %s", (_, overrides) => {
+    renderPage(
+      {
+        individual_tax_id_is_last_four: true,
+        individual_tax_id_entered: true,
+        business_tax_id_entered: true,
+        has_outstanding_identity_document_requirement: true,
+        has_outstanding_full_ssn_requirement: true,
+      },
+      { ...business, ...overrides },
+    );
+    expect(screen.getByLabelText(/^(Social Security Number|Last 4 digits of SSN)$/u)).toBeTruthy();
+    expect(screen.queryByText(/via Stripe instead/u)).toBeNull();
+  });
+
+  it("does not offer the document upload when Stripe has not asked for a document", () => {
+    renderPage({ individual_tax_id_entered: false, business_tax_id_entered: true }, business);
+    expect(screen.queryByText(/Upload a passport via Stripe instead/u)).toBeNull();
   });
 
   it.each(["000000000", "000-00-0000", "000 00 0000"])(
@@ -442,6 +501,55 @@ describe("stale payout threshold below the platform minimum", () => {
   });
 });
 
+describe("state Stripe asks for outside the listed countries", () => {
+  it("saves the state an Indonesian seller types", () => {
+    renderPage(
+      { country_code: "ID", payout_currency: "idr", has_outstanding_state_requirement: true },
+      {
+        country: "ID",
+        state: null,
+        street_address: "Jl. Asia Afrika No. 8",
+        city: "Bandung",
+        zip_code: "40111",
+        phone: "+6281234567890",
+      },
+    );
+
+    fireEvent.change(screen.getByLabelText("State / region"), { target: { value: "Jawa Barat" } });
+    save();
+
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+    expect(mocks.put.mock.lastCall).toMatchObject([
+      "/settings_payments",
+      { user: { country: "ID", state: "Jawa Barat" } },
+    ]);
+  });
+
+  it("saves a replacement typed after clearing a saved state", () => {
+    renderPage(
+      { country_code: "ID", payout_currency: "idr" },
+      {
+        country: "ID",
+        state: "Jawa Barat",
+        street_address: "Jl. Asia Afrika No. 8",
+        city: "Bandung",
+        zip_code: "40111",
+        phone: "+6281234567890",
+      },
+    );
+
+    fireEvent.change(screen.getByLabelText("State / region"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("State / region"), { target: { value: "Jawa Timur" } });
+    save();
+
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+    expect(mocks.put.mock.lastCall).toMatchObject([
+      "/settings_payments",
+      { user: { country: "ID", state: "Jawa Timur" } },
+    ]);
+  });
+});
+
 describe("full-SSN re-entry validation", () => {
   it("blocks saving when Stripe requires the full SSN and only last-4 is on file", () => {
     renderPage({
@@ -521,7 +629,7 @@ describe("full-SSN re-entry validation", () => {
     expect(fullSsnError()).toBeNull();
     expect(mocks.put).toHaveBeenCalledTimes(1);
   });
-  it("blocks saving for a US business whose individual country is not US (requirement follows business_country)", () => {
+  it("saves for a US business's non-US representative, who has no number Stripe would accept", () => {
     renderPage(
       {
         need_full_ssn: true,
@@ -532,8 +640,35 @@ describe("full-SSN re-entry validation", () => {
       {
         is_business: true,
         country: "CA",
-        // Complete business fields so no later validation overwrites the SSN error message.
-        business_type: "llc",
+        business_type: "single_member_llc",
+        business_name: "Test LLC",
+        business_street_address: "123 Main St",
+        business_city: "San Francisco",
+        business_state: "CA",
+        business_country: "US",
+        business_zip_code: "94103",
+        business_phone: "+14155552671",
+      },
+    );
+
+    save();
+
+    expect(fullSsnError()).toBeNull();
+    expect(mocks.put).toHaveBeenCalledTimes(1);
+  });
+
+  it("still blocks a US representative of that same US business", () => {
+    renderPage(
+      {
+        need_full_ssn: true,
+        has_outstanding_full_ssn_requirement: true,
+        individual_tax_id_is_last_four: true,
+        business_tax_id_entered: true,
+      },
+      {
+        is_business: true,
+        country: "US",
+        business_type: "single_member_llc",
         business_name: "Test LLC",
         business_street_address: "123 Main St",
         business_city: "San Francisco",
@@ -885,6 +1020,222 @@ describe("Bangladesh bank code validation", () => {
     expect(mocks.put).not.toHaveBeenCalled();
     expect(screen.getAllByText(beftnError).length).toBeGreaterThan(0);
     expect(screen.queryByText("Enter your 13 to 17 character account number")).toBeNull();
+  });
+});
+
+describe("copied example bank codes", () => {
+  const renderSeller = (country: string, currency: string, fields: [string, string][], supportsIban = false) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps(
+          { country_code: country, payout_currency: currency, country_supports_iban: supportsIban },
+          { country },
+        ),
+        countries: { [country]: country },
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: false,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+    for (const [label, value] of fields) fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.change(screen.getByLabelText("Pay to the order of"), { target: { value: "Test Seller" } });
+    const accountNumber = supportsIban ? "AZ21NABZ00000000137010001944" : "0000123456789";
+    fireEvent.change(screen.getByLabelText(supportsIban ? "IBAN" : "Account #"), { target: { value: accountNumber } });
+    fireEvent.change(screen.getByLabelText(supportsIban ? "Confirm IBAN" : "Confirm account #"), {
+      target: { value: accountNumber },
+    });
+    save();
+  };
+
+  it.each([
+    ["BD", "bdt", [["Bank code", "123456789"]], "Enter your own bank's 9-digit BEFTN routing number."],
+    ["VN", "vnd", [["Bank code", "12345678"]], "Enter the 8-digit code of your own bank."],
+    [
+      "JM",
+      "jmd",
+      [
+        ["Bank code", "123"],
+        ["Branch code", "00000"],
+      ],
+      "Enter the 3-digit code of your own bank.",
+    ],
+    [
+      "JM",
+      "jmd",
+      [
+        ["Bank code", "111"],
+        ["Branch code", "12345"],
+      ],
+      "Enter the 5-digit branch code of your own bank branch.",
+    ],
+  ] as const)("%s refuses the old example before the request is sent", (country, currency, fields, message) => {
+    renderSeller(
+      country,
+      currency,
+      fields.map(([l, v]) => [l, v]),
+    );
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(message).length).toBeGreaterThan(0);
+  });
+
+  it("JM names the bank code when both old examples are copied", () => {
+    renderSeller("JM", "jmd", [
+      ["Bank code", "123"],
+      ["Branch code", "12345"],
+    ]);
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Enter the 3-digit code of your own bank.").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Bank code").getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByLabelText("Branch code").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("AZ refuses the old branch example before the request is sent", () => {
+    renderSeller(
+      "AZ",
+      "azn",
+      [
+        ["Bank code", "200004"],
+        ["Branch code", "234567"],
+      ],
+      true,
+    );
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Enter the 6-digit branch code of your own bank branch.").length).toBeGreaterThan(0);
+  });
+
+  it("AZ refuses the old bank example before the request is sent", () => {
+    renderSeller(
+      "AZ",
+      "azn",
+      [
+        ["Bank code", "123456"],
+        ["Branch code", "123456"],
+      ],
+      true,
+    );
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Enter the 6-digit code of your own bank.").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Bank code").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("saves an 8-digit Vietnam bank code", () => {
+    renderSeller("VN", "vnd", [["Bank code", "01101100"]]);
+
+    expect(mocks.put).toHaveBeenCalled();
+  });
+});
+
+describe("Ghana bank code validation", () => {
+  const sortCodeError = "Enter the 6-digit sort code of your own bank branch.";
+
+  const renderGhanaSeller = (bank_code: string) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "GH", payout_currency: "ghs" }, { country: "GH" }),
+        countries: { GH: "Ghana" },
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: false,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+    fireEvent.change(screen.getByLabelText("Bank code"), { target: { value: bank_code } });
+    fireEvent.change(screen.getByLabelText("Pay to the order of"), { target: { value: "Test Seller" } });
+    fireEvent.change(screen.getByLabelText("Account #"), { target: { value: "1234567890" } });
+    fireEvent.change(screen.getByLabelText("Confirm account #"), { target: { value: "1234567890" } });
+    save();
+  };
+
+  // The input's `pattern` is never enforced on save — the page validates and posts through Inertia
+  // — so the refusal has to run here for the seller to see it before the request goes out.
+  it("refuses the 123456 example before the request is sent", () => {
+    renderGhanaSeller("123456");
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(sortCodeError).length).toBeGreaterThan(0);
+  });
+
+  it("saves a real 6-digit sort code", () => {
+    renderGhanaSeller("040101");
+
+    expect(mocks.put).toHaveBeenCalled();
+    expect(screen.queryByText(sortCodeError)).toBeNull();
+  });
+});
+
+describe("Algeria bank code example", () => {
+  const exampleError = "That is the form's example, not a real code. Enter your own bank's SWIFT / BIC code.";
+
+  const renderAlgeriaSeller = (bank_code: string) => {
+    mocks.usePage.mockReturnValue({
+      props: {
+        ...pageProps({ country_code: "DZ", payout_currency: "dzd" }, { country: "DZ" }),
+        countries: { DZ: "Algeria" },
+        bank_account_details: {
+          show_bank_account: true,
+          show_paypal: false,
+          is_a_card: false,
+          routing_number: null,
+          account_number_visual: null,
+          card: null,
+          card_data_handling_mode: null,
+          bank_account: null,
+        },
+      },
+    });
+    render(<PaymentsPage />);
+    fireEvent.change(screen.getByLabelText("SWIFT / BIC Code"), { target: { value: bank_code } });
+    fireEvent.change(screen.getByLabelText("Pay to the order of"), { target: { value: "Test Seller" } });
+    fireEvent.change(screen.getByLabelText("Account #"), { target: { value: "12345678901234567890" } });
+    fireEvent.change(screen.getByLabelText("Confirm account #"), { target: { value: "12345678901234567890" } });
+    save();
+  };
+
+  it("refuses the old AAAADZDZXXX example before the request is sent", () => {
+    renderAlgeriaSeller("AAAADZDZXXX");
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(exampleError).length).toBeGreaterThan(0);
+  });
+
+  it("refuses a lowercase example, which Stripe receives uppercased", () => {
+    renderAlgeriaSeller("aaaadzdzxxx");
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(exampleError).length).toBeGreaterThan(0);
+  });
+
+  it("refuses an example padded with whitespace, which Stripe receives stripped", () => {
+    renderAlgeriaSeller(" aaaadzdzxxx ");
+
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(screen.getAllByText(exampleError).length).toBeGreaterThan(0);
+  });
+
+  it("saves a real bank code", () => {
+    renderAlgeriaSeller("EPALDZAL");
+
+    expect(mocks.put).toHaveBeenCalled();
+    expect(screen.queryByText(exampleError)).toBeNull();
   });
 });
 

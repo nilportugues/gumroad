@@ -857,6 +857,14 @@ describe Purchase::Blockable do
           expect(PlatformBlock.active.find_by(object_value: blocked_value)).to be_nil
         end
       end
+
+      it "leaves every block in place when the grace cannot be recorded" do
+        purchase.block_buyer!
+        allow($redis).to receive(:setex).and_raise(Redis::CannotConnectError)
+
+        expect { purchase.unblock_buyer! }.to raise_error(Redis::CannotConnectError)
+        expect(PlatformBlock.active.pluck(:object_value)).to include(purchase.email, purchase.browser_guid, purchase.ip_address, purchase.stripe_fingerprint)
+      end
     end
 
     context "when the stripe_fingerprint is nil" do
@@ -1132,6 +1140,68 @@ describe Purchase::Blockable do
               @purchase.mark_failed!
             end.to change { PlatformBlock.count }.from(0).to(4)
             expect(PlatformBlock.pluck(:object_type, :object_value)).to match_array(@expected_blocked_objects)
+          end
+        end
+
+        context "when support unblocked the buyer within the last 24 hours" do
+          before do
+            @guid = SecureRandom.hex
+            3.times do |n|
+              create(:failed_purchase, purchaser: @purchaser, email: @purchaser.email, browser_guid: @guid, stripe_fingerprint: SecureRandom.hex, created_at: n.days.ago)
+            end
+            @purchase = create(:purchase, purchaser: @purchaser, email: @purchaser.email, browser_guid: @guid, purchase_state: "in_progress", stripe_fingerprint: "hij", charge_processor_id: StripeChargeProcessor.charge_processor_id)
+            @purchase.block_buyer!
+            @purchase.unblock_buyer!
+          end
+
+          it "re-blocks only the IP address and card" do
+            @purchase.mark_failed!
+
+            expect(PlatformBlock.active.pluck(:object_type, :object_value)).to match_array(
+              [["ip_address", @purchase.ip_address], ["charge_processor_fingerprint", "hij"]]
+            )
+            expect(@purchase.comments.pluck(:content)).to include("Buyer blocked; the 24 hours grace after a support unblock kept #{@guid}, #{@purchaser.email} unblocked")
+          end
+
+          it "also blocks the card on the buyer's newest purchase" do
+            create(:purchase, purchaser: @purchaser, stripe_fingerprint: "newest")
+
+            @purchase.mark_failed!
+
+            expect(PlatformBlock.active.charge_processor_fingerprint.pluck(:object_value)).to match_array(["hij", "newest"])
+          end
+
+          it "does not extend the grace on later declines" do
+            keys = $redis.keys("purchase_unblock_grace:*")
+            keys.each { |key| $redis.expire(key, 100) }
+
+            @purchase.mark_failed!
+
+            expect(keys.map { |key| $redis.ttl(key) }).to all(be <= 100)
+          end
+
+          it "still blocks a browser support did not clear" do
+            uncleared_purchase = create(:purchase, purchaser: @purchaser, email: @purchaser.email, browser_guid: SecureRandom.hex, purchase_state: "in_progress", stripe_fingerprint: "klm", charge_processor_id: StripeChargeProcessor.charge_processor_id)
+
+            uncleared_purchase.mark_failed!
+
+            expect(PlatformBlock.active.pluck(:object_type, :object_value)).to include(["browser_guid", uncleared_purchase.browser_guid])
+            expect(uncleared_purchase.comments.order(:id).last.content).not_to include(uncleared_purchase.browser_guid)
+          end
+
+          it "gives the grace keys a 24 hour expiry" do
+            keys = $redis.keys("purchase_unblock_grace:*")
+
+            expect(keys).not_to be_empty
+            expect(keys.map { |key| $redis.ttl(key) }).to all(be_within(5).of(Purchase::Blockable::UNBLOCK_GRACE_PERIOD.to_i))
+          end
+
+          it "blocks the email and browser again once the grace period lapses" do
+            $redis.del(*$redis.keys("purchase_unblock_grace:*"))
+
+            @purchase.mark_failed!
+
+            expect(PlatformBlock.active.pluck(:object_type)).to include("email", "browser_guid")
           end
         end
 
@@ -2427,6 +2497,83 @@ describe Purchase::Blockable do
         expect { purchase.block_buyer_based_on_chargeback_count! }.to change { PlatformBlock.count }
         expect(purchase.buyer_blocked?).to be true
       end
+    end
+  end
+
+  describe "#block_buyer_based_on_chargeback_count! across identifiers" do
+    let(:purchase) { create(:purchase, email: "fresh-alias@example.com", stripe_fingerprint: "fp_repeat", browser_guid: "guid-repeat") }
+
+    def chargeback_rows(count, **attrs)
+      count.times do |i|
+        create(:purchase).update_columns(chargeback_date: Time.current, email: "alias-#{i}-#{SecureRandom.hex(3)}@example.com", **attrs)
+      end
+    end
+
+    it "blocks the card and browser when the same card has 5 chargebacks under different emails and accounts" do
+      chargeback_rows(5, stripe_fingerprint: "fp_repeat", browser_guid: "guid-repeat")
+
+      expect { purchase.block_buyer_based_on_chargeback_count! }.to change { PlatformBlock.count }.by(2)
+      expect(purchase.blocked_by_charge_processor_fingerprint?).to be true
+      expect(purchase.blocked_by_browser_guid?).to be true
+      expect(purchase.blocked_by_email?).to be false
+      expect(purchase.blocked_by_ip_address?).to be false
+      expect(purchase.comments.last.content).to start_with("Auto-blocked card and browser: 5 chargebacks on this card")
+    end
+
+    it "blocks only the browser when only the guid reaches 5" do
+      chargeback_rows(5, browser_guid: "guid-repeat")
+
+      purchase.block_buyer_based_on_chargeback_count!
+
+      expect(purchase.blocked_by_browser_guid?).to be true
+      expect(purchase.blocked_by_charge_processor_fingerprint?).to be false
+      expect(purchase.comments.last.content).to start_with("Auto-blocked browser:")
+    end
+
+    [:is_gift_receiver_purchase, :is_bundle_product_purchase].each do |flag|
+      it "does not count the charged-back #{flag} rows that share the disputed purchase's browser" do
+        chargeback_rows(3, browser_guid: "guid-repeat")
+        3.times { create(:purchase, flag => true).update_columns(chargeback_date: Time.current, browser_guid: "guid-repeat") }
+
+        expect { purchase.block_buyer_based_on_chargeback_count! }.not_to change { PlatformBlock.count }
+      end
+    end
+
+    it "does not count the card off Stripe, where the blocked value is the masked card" do
+      purchase.update_columns(charge_processor_id: BraintreeChargeProcessor.charge_processor_id, browser_guid: "guid-other")
+      chargeback_rows(5, stripe_fingerprint: "fp_repeat")
+
+      expect { purchase.block_buyer_based_on_chargeback_count! }.not_to change { PlatformBlock.count }
+    end
+
+    it "does not block at 4 chargebacks per card" do
+      chargeback_rows(4, stripe_fingerprint: "fp_repeat")
+
+      expect { purchase.block_buyer_based_on_chargeback_count! }.not_to change { PlatformBlock.count }
+    end
+
+    it "ignores PayPal-processor chargebacks and the shared IP" do
+      chargeback_rows(5, stripe_fingerprint: "fp_repeat", charge_processor_id: PaypalChargeProcessor.charge_processor_id)
+      chargeback_rows(5, ip_address: purchase.ip_address)
+
+      expect { purchase.block_buyer_based_on_chargeback_count! }.not_to change { PlatformBlock.count }
+    end
+
+    it "still blocks the card and browser when the email is already blocked and has 5 chargebacks" do
+      chargeback_rows(5, stripe_fingerprint: "fp_repeat", browser_guid: "guid-repeat")
+      5.times { create(:purchase).update_columns(chargeback_date: Time.current, email: purchase.email) }
+      purchase.block_by_email!(by_user_id: nil)
+
+      expect { purchase.block_buyer_based_on_chargeback_count! }.to change { PlatformBlock.count }.by(2)
+      expect(purchase.blocked_by_charge_processor_fingerprint?).to be true
+      expect(purchase.blocked_by_browser_guid?).to be true
+    end
+
+    it "does not block again or comment twice once the card and browser are blocked" do
+      chargeback_rows(5, stripe_fingerprint: "fp_repeat", browser_guid: "guid-repeat")
+      purchase.block_buyer_based_on_chargeback_count!
+
+      expect { purchase.block_buyer_based_on_chargeback_count! }.not_to change { [PlatformBlock.count, Comment.count] }
     end
   end
 

@@ -19,7 +19,12 @@ class SettingsPresenter
     advanced
   ).freeze
 
-  private_constant :ALL_PAGES
+  BUSINESS_STATE_FIELDS = [
+    UserComplianceInfoFields::LegalEntity::Address::STATE,
+    UserComplianceInfoFields::Business::Address::STATE,
+  ].freeze
+
+  private_constant :ALL_PAGES, :BUSINESS_STATE_FIELDS
 
   def initialize(pundit_user:)
     @pundit_user = pundit_user
@@ -115,6 +120,7 @@ class SettingsPresenter
       settings_pages: pages,
       user_id: ObfuscateIds.encrypt(seller.id),
       notification_endpoint: seller.notification_endpoint || "",
+      ping_signing_secret: seller.ping_signing_secret,
       blocked_customer_emails: seller.blocked_customer_objects.active.email.pluck(:object_value).join("\n"),
       custom_domain_verification_status:,
       custom_domain_name: seller.custom_domain&.domain || "",
@@ -279,6 +285,7 @@ class SettingsPresenter
       payouts_paused_internally: seller.payouts_paused_internally?,
       payout_reserve_available: seller.chargeback_rate_payout_reserve_available?,
       payouts_paused_by: seller.payouts_paused_by_source,
+      payouts_paused_for_failed_payouts: seller.repeated_failed_payouts_hold_started_at.present?,
       payout_reserve_percent: seller.chargeback_rate_payout_reserve_active? ? User::CHARGEBACK_RATE_PAYOUT_RESERVE_PERCENT : nil,
       account_status: account_status_details(payments_policy),
       payouts_paused_by_user: seller.payouts_paused_by_user?,
@@ -434,17 +441,6 @@ class SettingsPresenter
         end
     end
 
-    def country_code_for_compliance_field(field, user_compliance_info)
-      case field
-      when UserComplianceInfoFields::Business::TAX_ID, UserComplianceInfoFields::Business::VAT_NUMBER
-        user_compliance_info.business_country_code
-      when UserComplianceInfoFields::Individual::TAX_ID
-        user_compliance_info.country_code
-      else
-        user_compliance_info.legal_entity_country_code
-      end
-    end
-
     def account_status_details(payments_policy)
       pending_compliance = seller.user_compliance_info_requests.requested.exists?
       is_suspended = seller.suspended?
@@ -526,7 +522,7 @@ class SettingsPresenter
           if request.verification_error_message.present?
             compliance_actions << { message: "#{request.verification_error_message.strip.sub(/[.!?]+\z/, "")}.", href: nil }
           else
-            country_code = country_code_for_compliance_field(request.field_needed, user_compliance_info)
+            country_code = user_compliance_info.country_code_for_field(request.field_needed)
             missing_fields << UserComplianceInfoFieldProperty.name_tag_for_field(request.field_needed, country: country_code)
           end
         end
@@ -649,7 +645,10 @@ class SettingsPresenter
         individual_tax_id_last_four: tax_id_last_four(user_compliance_info.individual_tax_id),
         individual_tax_id_is_last_four: tax_id_is_last_four_only?(user_compliance_info.individual_tax_id),
         has_outstanding_full_ssn_requirement: outstanding_full_ssn_requirement,
+        has_outstanding_identity_document_requirement: has_outstanding_identity_document_requirement?,
         has_outstanding_nationality_requirement: has_outstanding_nationality_requirement?,
+        has_outstanding_state_requirement: has_outstanding_state_requirement?(UserComplianceInfoFields::Individual::Address::STATE),
+        has_outstanding_business_state_requirement: has_outstanding_state_requirement?(BUSINESS_STATE_FIELDS),
         business_tax_id_entered: user_compliance_info.business_tax_id.present?,
         business_tax_id_last_four: tax_id_last_four(user_compliance_info.business_tax_id),
         requires_credit_card: seller.requires_credit_card?,
@@ -683,11 +682,26 @@ class SettingsPresenter
             .exists?
     end
 
+    # A US company's representative can be asked for a full SSN (Stripe's `id_number`) that a person
+    # living outside the US does not have, and Stripe offers `verification.document` as the alternative.
+    # The sync flattens alternatives without their original field, so this row only says a document is
+    # due; the page pairs it with the open SSN request before offering the upload beside the tax ID.
+    def has_outstanding_identity_document_requirement?
+      seller.user_compliance_info_requests
+            .requested
+            .where(field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID)
+            .exists?
+    end
+
     def has_outstanding_nationality_requirement?
       seller.user_compliance_info_requests
             .requested
             .where(field_needed: UserComplianceInfoFields::Individual::NATIONALITY_FIELDS)
             .exists?
+    end
+
+    def has_outstanding_state_requirement?(field_needed)
+      seller.user_compliance_info_requests.requested.where(field_needed:).exists?
     end
 
     # Stripe can require a full 9-digit SSN (individual.id_number) after onboarding, but sellers

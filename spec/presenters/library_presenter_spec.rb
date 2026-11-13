@@ -28,6 +28,7 @@ describe LibraryPresenter do
           avatar_url: ActionController::Base.helpers.image_url("gumroad-default-avatar-5.png")
         },
         thumbnail_url: nil,
+        preview_images: [],
         native_type: "membership",
       }
     end
@@ -61,6 +62,18 @@ describe LibraryPresenter do
         show_archived_only: false,
         subscriptions_only: false
       )
+    end
+
+    it "lists only the live image previews, in order, as the product page carousel does" do
+      second = create(:asset_preview, link: product)
+      first = create(:asset_preview, link: product)
+      second.update!(position: 1)
+      first.update!(position: 0)
+      create(:asset_preview_mov, link: product)
+      deleted = create(:asset_preview, link: product)
+      deleted.mark_deleted!
+
+      expect(results[0][:product][:preview_images]).to eq([first.as_json, second.as_json])
     end
 
     it "does not return the URL of a deleted thumbnail" do
@@ -1526,10 +1539,19 @@ describe LibraryPresenter do
                                                                 {
                                                                   id: purchase.external_id,
                                                                   email: purchase.email,
+                                                                  free: true,
+                                                                  seller_id: product.user.external_id,
+                                                                  seller_name: product.user.name_or_username,
                                                                   permalink: product.unique_permalink,
                                                                   has_third_party_analytics: false,
                                                                 }
                                                               ])
+    end
+
+    it "flags a paid purchase as not free" do
+      purchase.update_columns(price_cents: 500)
+
+      expect(receipt_purchases([purchase.external_id]).first[:free]).to eq(false)
     end
 
     it "returns nothing for ids that are not the buyer's purchases" do

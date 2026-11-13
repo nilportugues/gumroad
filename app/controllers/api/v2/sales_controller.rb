@@ -12,6 +12,10 @@ class Api::V2::SalesController < Api::V2::BaseController
   before_action :set_page, only: :index
 
   RESULTS_PER_PAGE = 10
+  # A deprecated `page` becomes the SQL offset `(@page - 1) * RESULTS_PER_PAGE`, and MySQL rejects
+  # an offset past its 64-bit range. The signed 64-bit ceiling holds on any server version, and the
+  # offset's `- 1` is why the page ceiling is one above this quotient.
+  MAX_DEPRECATED_PAGE = (2**63 - 1) / RESULTS_PER_PAGE + 1
   # Fallback for the Redis-tunable query timeouts in #index, matching the value both keys were
   # introduced with.
   DEFAULT_SALES_QUERY_TIMEOUT_SECONDS = 15
@@ -24,6 +28,7 @@ class Api::V2::SalesController < Api::V2::BaseController
     :seller,
     :variant_attributes,
     :purchase_custom_fields,
+    :purchase_url_parameter,
     :shipment,
     :product_review,
     :offer_code,
@@ -124,7 +129,7 @@ class Api::V2::SalesController < Api::V2::BaseController
 
   def show
     purchase = current_resource_owner.sales.find_by_external_id(params[:id])
-    purchase ? success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true)) : error_with_sale
+    purchase ? success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true, include_url_params: true)) : error_with_sale
   end
 
   def export
@@ -161,7 +166,7 @@ class Api::V2::SalesController < Api::V2::BaseController
     return error_with_sale(shipment) unless shipment.save
 
     shipment.mark_shipped
-    success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true))
+    success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true, include_url_params: true))
   end
 
   def refund
@@ -195,7 +200,7 @@ class Api::V2::SalesController < Api::V2::BaseController
     amount = params[:amount_cents].to_i / unit_scaling_factor(purchase.displayed_price_currency_type).to_f if params[:amount_cents].present?
 
     if purchase.refund!(refunding_user_id: current_resource_owner.id, amount:)
-      success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true))
+      success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true, include_url_params: true))
     else
       error_with_sale(purchase)
     end
@@ -219,7 +224,7 @@ class Api::V2::SalesController < Api::V2::BaseController
     end
 
     purchase.update!(is_access_revoked: true)
-    success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true))
+    success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true, include_url_params: true))
   end
 
   def undo_revoke_access
@@ -232,7 +237,7 @@ class Api::V2::SalesController < Api::V2::BaseController
     end
 
     purchase.update!(is_access_revoked: false)
-    success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true))
+    success_with_sale(purchase.as_json(version: 2, include_buyer_presentment: true, include_url_params: true))
   end
 
   private
@@ -261,6 +266,7 @@ class Api::V2::SalesController < Api::V2::BaseController
         sale.as_json(
           version: 2,
           include_buyer_presentment: true,
+          include_url_params: true,
           is_following: following_emails.include?(sale.email.to_s.downcase)
         )
       end
@@ -360,6 +366,6 @@ class Api::V2::SalesController < Api::V2::BaseController
     def set_page # DEPRECATED
       page = params[:page]
       @page = page.is_a?(Integer) || page.is_a?(String) ? page.to_i : 1
-      error_400("Invalid page number. Page numbers start at 1.") unless @page > 0
+      error_400("Invalid page number. Page numbers start at 1.") unless @page.between?(1, MAX_DEPRECATED_PAGE)
     end
 end

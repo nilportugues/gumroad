@@ -12,8 +12,11 @@ import {
   canonicalRichContentScope,
   copyRichContentPages,
   filesForSave,
+  filesOnNoPage,
+  markFileRemoved,
   prepareRichContentPagesForMove,
   reconcileConfirmedRemovalIds,
+  reconcileFileRemovalsWithEmbeds,
   removeFileEmbedsFromRichContent,
   removedFileEmbedIdsForPage,
   resolveServerIdMapping,
@@ -25,7 +28,10 @@ import {
   StaleDeletionConflictError,
   UnconfirmedSaveError,
   UnmarkedInstallmentPlanClearConflictError,
+  withoutFileEmbeds,
+  withoutFileEmbedsFromVariants,
 } from "$app/data/product_edit";
+import { buildDeletionOperations } from "$app/data/product_save_contract";
 import { cast } from "$app/utils/cast";
 import { ResponseError } from "$app/utils/request";
 
@@ -58,6 +64,70 @@ describe("filesForSave", () => {
     expect(filesForSave(editorFiles, new Set(["uploaded-id", "failed-id"]), false)).toEqual([uploaded]);
     expect(filesForSave(editorFiles, new Set(), true)).toEqual([uploaded]);
   });
+
+  it("keeps a file the seller removed out of the keep-all retry", () => {
+    const kept = { id: "kept-id", status: { type: "saved" } };
+    const removed = { id: "removed-id", status: { type: "removed", previousStatus: { type: "saved" } } };
+
+    // The legacy save deletes a file missing from the payload; sending this one would keep it attached.
+    expect(filesForSave([kept, removed], new Set(), true)).toEqual([kept]);
+  });
+});
+
+describe("markFileRemoved and withoutFileEmbeds", () => {
+  const embedGroup = (uid: string, ids: string[]) => ({
+    type: "fileEmbedGroup",
+    attrs: { uid },
+    content: ids.map((id) => ({ type: "fileEmbed", attrs: { id, uid: `${id}-uid` } })),
+  });
+  const savedFiles = (ids: string[]) =>
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only needs id and status
+    ids.map((id) => ({ id, status: { type: "saved" } })) as unknown as Parameters<typeof markFileRemoved>[0];
+  const variantWithPages = (rich_content: { id: string; description: object }[]) =>
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only needs id and rich_content
+    [{ id: "variant-a", rich_content }] as unknown as Parameters<typeof withoutFileEmbedsFromVariants>[0];
+
+  it("states the removal in the save and strips the file's embeds from the content", () => {
+    const files = savedFiles(["keep-me", "detach-me"]);
+    const pages = [
+      { id: "page-1", description: { type: "doc", content: [embedGroup("group-1", ["detach-me", "keep-me"])] } },
+      { id: "page-2", description: { type: "doc", content: [embedGroup("group-2", ["detach-me"])] } },
+    ];
+
+    const removed = markFileRemoved(files, "detach-me");
+
+    expect(removed).toEqual([
+      { id: "keep-me", status: { type: "saved" } },
+      { id: "detach-me", status: { type: "removed", previousStatus: { type: "saved" } } },
+    ]);
+    // The status is the contract's only client-side way to state a deletion.
+    expect(buildDeletionOperations({ files: removed }).deleted_ids.files).toEqual(["detach-me"]);
+
+    const stripped = withoutFileEmbeds(pages, "detach-me");
+    expect(stripped[0]?.description).toEqual({ type: "doc", content: [embedGroup("group-1", ["keep-me"])] });
+    // A group the removal emptied goes with it.
+    expect(stripped[1]?.description).toEqual({ type: "doc", content: [] });
+    // Nothing embeds the file any more, so the payload cannot re-create it.
+    expect(filesForSave(removed, new Set(["keep-me"]), false)).toEqual([{ id: "keep-me", status: { type: "saved" } }]);
+  });
+
+  it("leaves an already-removed file alone", () => {
+    const file = { id: "gone", status: { type: "removed", previousStatus: { type: "saved" } } };
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only needs id and status
+    const files = [file] as unknown as Parameters<typeof markFileRemoved>[0];
+
+    expect(markFileRemoved(files, "gone")).toEqual([file]);
+  });
+
+  it("strips the file's embeds from each variant's own pages", () => {
+    const variants = variantWithPages([
+      { id: "page", description: { type: "doc", content: [embedGroup("group", ["detach-me"])] } },
+    ]);
+
+    withoutFileEmbedsFromVariants(variants, "detach-me");
+
+    expect(variants[0]?.rich_content[0]?.description).toEqual({ type: "doc", content: [] });
+  });
 });
 
 const requestMock = vi.hoisted(() => vi.fn());
@@ -65,6 +135,82 @@ vi.mock("$app/utils/request", async (importOriginal) => ({
   ...(await importOriginal<typeof import("$app/utils/request")>()),
   request: requestMock,
 }));
+
+describe("removing a file by deleting its blocks", () => {
+  const embedPage = (id: string, fileIds: string[]) => ({
+    id,
+    description: { type: "doc", content: fileIds.map((fileId) => ({ type: "fileEmbed", attrs: { id: fileId } })) },
+  });
+  const product = (
+    files: { id: string; status: object }[],
+    rich_content: ReturnType<typeof embedPage>[],
+    variantPages: ReturnType<typeof embedPage>[] = [],
+  ) =>
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only needs files and pages
+    ({ files, rich_content, variants: [{ id: "variant-a", rich_content: variantPages }] }) as unknown as Parameters<
+      typeof reconcileFileRemovalsWithEmbeds
+    >[0];
+  const saved = (id: string) => ({ id, status: { type: "saved" } });
+  const removed = (id: string) => ({ id, status: { type: "removed", previousStatus: { type: "saved" } } });
+  const uploading = { id: "uploading", status: { type: "unsaved", uploadStatus: { type: "uploaded" }, url: "blob:x" } };
+
+  it("removes a file once its last block is gone, and keeps one another page still embeds", () => {
+    const files = reconcileFileRemovalsWithEmbeds(
+      product([saved("gone"), saved("elsewhere")], [embedPage("page-1", [])], [embedPage("page-2", ["elsewhere"])]),
+      { deleted: new Set(["gone", "elsewhere"]), inserted: new Set() },
+      new Set(),
+    );
+
+    expect(files).toEqual([removed("gone"), saved("elsewhere")]);
+    expect(buildDeletionOperations({ files }).deleted_ids.files).toEqual(["gone"]);
+  });
+
+  it("cancels the removal when the block comes back", () => {
+    const files = reconcileFileRemovalsWithEmbeds(
+      product([removed("back")], [embedPage("page-1", ["back"])]),
+      { deleted: new Set(), inserted: new Set(["back"]) },
+      new Set(),
+    );
+
+    expect(files).toEqual([saved("back")]);
+  });
+
+  it("leaves an upload that has not saved to its own controls", () => {
+    expect(
+      reconcileFileRemovalsWithEmbeds(
+        product([uploading], [embedPage("page-1", [])]),
+        { deleted: new Set(["uploading"]), inserted: new Set() },
+        new Set(),
+      ),
+    ).toEqual([uploading]);
+  });
+
+  it("lists the saved files no page embeds", () => {
+    expect(
+      filesOnNoPage(
+        product(
+          [saved("on-page"), saved("on-version-page"), saved("on-no-page"), removed("removed"), uploading],
+          [embedPage("page-1", ["on-page"])],
+          [embedPage("page-2", ["on-version-page"])],
+        ),
+        new Set(),
+      ),
+    ).toEqual([saved("on-no-page")]);
+  });
+
+  it("treats an upload a save stored this session as saved", () => {
+    const stored = { ...uploading, id: "canonical-upload" };
+
+    const files = reconcileFileRemovalsWithEmbeds(
+      product([stored], [embedPage("page-1", [])]),
+      { deleted: new Set(["canonical-upload"]), inserted: new Set() },
+      new Set(["canonical-upload"]),
+    );
+
+    expect(buildDeletionOperations({ files }).deleted_ids.files).toEqual(["canonical-upload"]);
+    expect(filesOnNoPage(product([stored], []), new Set(["canonical-upload"]))).toEqual([stored]);
+  });
+});
 
 describe("saveProduct with a failed upload", () => {
   const failedId = "failed-file";
@@ -248,6 +394,67 @@ describe("saveProduct with shipping exclusions", () => {
   });
 });
 
+describe("saveProduct with a free trial", () => {
+  const save = async (overrides: Record<string, unknown>, options = {}) => {
+    Object.assign(globalThis, { Routes: { link_path: () => "/p/demo" } });
+    requestMock.mockReset().mockResolvedValue({ ok: true, status: 204 });
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions -- fixture only carries the fields the save reads
+    const product = {
+      files: [],
+      public_files: [],
+      rich_content: [],
+      variants: [],
+      has_same_rich_content_for_all_variants: true,
+      covers: [],
+      availabilities: [],
+      confirmed_removed_variant_ids: [],
+      confirmed_removed_rich_content_ids: [],
+      preserved_rich_content_ids: [],
+      editor_revision: null,
+      allow_installment_plan: false,
+      custom_permalink: null,
+      description: "",
+      customizable_price: false,
+      price_cents: 100,
+      installment_plan: null,
+      free_trial_enabled: false,
+      free_trial_duration_amount: null,
+      free_trial_duration_unit: null,
+      ...overrides,
+    } as unknown as Parameters<typeof saveProduct>[2];
+
+    await saveProduct("demo", "product-id", product, "usd", options);
+
+    const [[{ data }]] = cast<[[{ data: Record<string, unknown> }]]>(requestMock.mock.calls);
+    return data;
+  };
+
+  it("leaves an untouched trial out of the payload", async () => {
+    const data = await save({}, { lastSavedFreeTrialEnabled: false });
+    expect(data).not.toHaveProperty("free_trial_enabled");
+    expect(data).not.toHaveProperty("free_trial_duration_amount");
+    expect(data).not.toHaveProperty("free_trial_duration_unit");
+  });
+
+  it("leaves an untouched enabled trial out of the payload", async () => {
+    const trial = { free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "month" };
+    const data = await save(trial, {
+      lastSavedFreeTrialEnabled: true,
+      lastSavedFreeTrialDurationAmount: 1,
+      lastSavedFreeTrialDurationUnit: "month",
+    });
+    expect(data).not.toHaveProperty("free_trial_enabled");
+    expect(data).not.toHaveProperty("free_trial_duration_amount");
+    expect(data).not.toHaveProperty("free_trial_duration_unit");
+  });
+
+  it("sends a disabled trial with a cleared duration when the caller has no baseline", async () => {
+    expect(
+      await save({ free_trial_enabled: false, free_trial_duration_amount: 1, free_trial_duration_unit: "month" }),
+    ).toMatchObject({ free_trial_enabled: false, free_trial_duration_amount: null, free_trial_duration_unit: null });
+  });
+});
+
 describe("scalarSettingsForSave", () => {
   const product = (overrides = {}) => ({
     custom_permalink: null,
@@ -257,6 +464,9 @@ describe("scalarSettingsForSave", () => {
     hasPaidVariantPricing: false,
     installment_plan: null,
     allow_installment_plan: false,
+    free_trial_enabled: false,
+    free_trial_duration_amount: null,
+    free_trial_duration_unit: null,
     ...overrides,
   });
   const lastSaved = (overrides = {}) => ({
@@ -267,6 +477,9 @@ describe("scalarSettingsForSave", () => {
     hasPaidVariantPricing: false,
     installment_plan: null,
     allow_installment_plan: false,
+    free_trial_enabled: false,
+    free_trial_duration_amount: null,
+    free_trial_duration_unit: null,
     ...overrides,
   });
 
@@ -453,6 +666,42 @@ describe("scalarSettingsForSave", () => {
         allow_installment_plan: null,
       }),
     ).toEqual({ installment_plan: null, installment_plan_changed: true });
+  });
+
+  it("sends the trial this session enabled", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "week" }),
+        lastSaved(),
+      ),
+    ).toEqual({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "week" });
+  });
+
+  it("sends the trial this session turned off, clearing its duration", () => {
+    expect(
+      scalarSettingsForSave(
+        product(),
+        lastSaved({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "month" }),
+      ),
+    ).toEqual({ free_trial_enabled: false, free_trial_duration_amount: null, free_trial_duration_unit: null });
+  });
+
+  it("sends a duration change made while the trial stayed on", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "month" }),
+        lastSaved({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "week" }),
+      ),
+    ).toEqual({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "month" });
+  });
+
+  it("sends an unchanged free trial when the caller has no baseline", () => {
+    expect(
+      scalarSettingsForSave(
+        product({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "week" }),
+        lastSaved({ free_trial_enabled: null }),
+      ),
+    ).toEqual({ free_trial_enabled: true, free_trial_duration_amount: 1, free_trial_duration_unit: "week" });
   });
 });
 

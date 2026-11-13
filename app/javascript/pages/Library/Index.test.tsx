@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DomainSettingsProvider } from "$app/components/DomainSettings";
 import { LoggedInUserProvider } from "$app/components/LoggedInUser";
+import { showAlert } from "$app/components/server-components/Alert";
 import { UserAgentProvider } from "$app/components/UserAgent";
 
 import LibraryPage, { Result, SearchParams } from "./Index";
@@ -44,6 +45,7 @@ const result = (id: string, name: string): Result => ({
     name,
     creator: { name: `${name} creator`, profile_url: `https://example.com/${id}`, avatar_url: null },
     thumbnail_url: null,
+    preview_images: [],
     native_type: "digital",
   },
   purchase: { id, is_archived: false, download_url: `https://example.com/d/${id}`, variants: null },
@@ -74,7 +76,15 @@ const defaultProps = (): {
   unarchived_count: number;
   search: SearchParams;
   purchase_analytics: Record<string, unknown>;
-  receipt_purchases: { id: string; email: string; permalink: string; has_third_party_analytics: boolean }[];
+  receipt_purchases: {
+    id: string;
+    email: string;
+    free: boolean;
+    seller_id: string;
+    seller_name: string;
+    permalink: string;
+    has_third_party_analytics: boolean;
+  }[];
 } => ({
   results: [result("p1", "Alpha"), result("p2", "Beta")],
   pagination: { page: 1, pages: 3, from: 1, to: 2, count: 6 },
@@ -148,7 +158,57 @@ const lastGetParams = (): Record<string, string> => {
   return Object.fromEntries(Object.entries(params).map(([key, value]) => [key, String(value)]));
 };
 
+const previewImage = (id: string) => ({
+  type: "image" as const,
+  filetype: "png",
+  id,
+  url: `https://example.com/${id}.png`,
+  original_url: `https://example.com/${id}-original.png`,
+  thumbnail: null,
+  width: 800,
+  height: 600,
+  native_width: 800,
+  native_height: 600,
+});
+
 describe("LibraryPage", () => {
+  it("opens a full-size gallery of a purchase's preview images and keeps the purchase link", () => {
+    const props = defaultProps();
+    props.results = props.results.map((r, i) =>
+      i === 0 ? { ...r, product: { ...r.product, preview_images: [previewImage("a"), previewImage("b")] } } : r,
+    );
+    renderPage(props);
+
+    expect(screen.queryByRole("button", { name: /images? for Beta$/u })).toBeNull();
+    const trigger = screen.getByRole("button", { name: "View 2 images for Alpha" });
+    expect(screen.getByRole("link", { name: "Alpha" }).getAttribute("href")).toBe("https://example.com/d/p1");
+
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.querySelectorAll('[role="tabpanel"]')).toHaveLength(2);
+    fireEvent.click(screen.getByRole("tab", { name: "Show cover 2" }));
+    expect(screen.getByRole("tab", { name: "Show cover 2" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: "Close" })).toBeTruthy();
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("returns keyboard focus to the card's gallery button when the gallery closes", async () => {
+    const props = defaultProps();
+    props.results = props.results.map((r, i) =>
+      i === 0 ? { ...r, product: { ...r.product, preview_images: [previewImage("a"), previewImage("b")] } } : r,
+    );
+    renderPage(props);
+
+    const trigger = screen.getByRole("button", { name: "View 2 images for Alpha" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
   it("renders the server-supplied page verbatim, without re-slicing", () => {
     const props = defaultProps();
     // A page-2-shaped payload: the counts say there are 6 products, but only these two were
@@ -525,5 +585,41 @@ describe("removal copy", () => {
     // (gumroad-private#1762).
     expect(screen.queryByText(/permanently/iu)).toBeNull();
     expect(screen.queryByText(/cannot be undone/iu)).toBeNull();
+  });
+});
+
+describe("receipt alert", () => {
+  const receiptPurchase = (id: string, free: boolean) => ({
+    id,
+    email: "buyer@example.com",
+    free,
+    seller_id: "seller-1",
+    seller_name: "Ana",
+    permalink: id,
+    has_third_party_analytics: false,
+  });
+
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/library?purchase_id[]=r1&purchase_id[]=r2");
+    vi.mocked(showAlert).mockClear();
+  });
+  afterEach(() => window.history.replaceState(null, "", "/"));
+
+  it("says the buyer signed up with the seller for free when every purchase is free", () => {
+    renderPage({ ...defaultProps(), receipt_purchases: [receiptPurchase("r1", true), receiptPurchase("r2", true)] });
+
+    expect(showAlert).toHaveBeenCalledWith(
+      "You signed up with Ana for free. We emailed the details to buyer@example.com.",
+      "success",
+    );
+  });
+
+  it("keeps the receipt sentence when any purchase is paid", () => {
+    renderPage({ ...defaultProps(), receipt_purchases: [receiptPurchase("r1", true), receiptPurchase("r2", false)] });
+
+    expect(showAlert).toHaveBeenCalledWith(
+      "Your purchase was successful! We sent a receipt to buyer@example.com.",
+      "success",
+    );
   });
 });

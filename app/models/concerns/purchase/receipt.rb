@@ -36,6 +36,12 @@ module Purchase::Receipt
     charge.split_receipt_sent?
   end
 
+  # The charge whose receipt page this purchase's buyer may see: only when every item on it went to this email.
+  # A two-item charge mails one receipt per item, but its receipt page still shows the whole order.
+  def whole_order_receipt_charge
+    charge if uses_charge_receipt? && charge.all_items_sent_to?(email)
+  end
+
   def send_receipt
     after_commit do
       next if destroyed?
@@ -116,7 +122,11 @@ module Purchase::Receipt
   end
 
   def has_invoice?
-    subscription.present? ? !is_free_trial_purchase? : !free_purchase?
+    subscription.present? ? !is_free_trial_purchase? && !free_membership_purchase? : !free_purchase?
+  end
+
+  def free_membership_purchase?
+    subscription&.original_purchase.present? && free_purchase? && !is_free_trial_purchase? && subscription.renews_free?
   end
 
   def invoice_url

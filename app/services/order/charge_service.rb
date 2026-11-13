@@ -161,7 +161,7 @@ class Order::ChargeService
     if purchase.in_progress? && (purchase.free_purchase? || (purchase.is_test_purchase? && !purchase.is_preorder_authorization?))
       Purchase::MarkSuccessfulService.new(purchase).perform
       handle_recommended_purchase(purchase)
-      line_item_uid = params[:line_items].select { |line_item| line_item[:permalink] == purchase.link.unique_permalink }[0][:uid]
+      line_item_uid = line_item_uid_for(purchase)
       charge_responses[line_item_uid] = purchase.purchase_response
     end
   end
@@ -206,7 +206,7 @@ class Order::ChargeService
     if merchant_account.stripe_charge_processor? && (!card_already_saved || saved_card_needs_indian_mandate)
       mandate_options = mandate_options_for_stripe(purchases:, with_currency: true)
       mandate_options = mandate_options_in_setup_currency(mandate_options, locked_quote)
-      self.setup_intent = ChargeProcessor.setup_future_charges!(merchant_account, chargeable, mandate_options:)
+      self.setup_intent = ChargeProcessor.setup_future_charges!(merchant_account, chargeable, mandate_options:, seller: purchases.first&.seller)
 
       if setup_intent.present?
         purchases.each do |purchase|
@@ -363,7 +363,7 @@ class Order::ChargeService
       chargeable.stripe_setup_intent_id = nil
     end
 
-    self.setup_intent = ChargeProcessor.setup_future_charges!(merchant_account, chargeable, mandate_options:)
+    self.setup_intent = ChargeProcessor.setup_future_charges!(merchant_account, chargeable, mandate_options:, seller: purchases.first&.seller)
     return unless setup_intent.present?
 
     # setup_future_charges! may clone another Connect PM inside prepare!; bind to the SI's PM
@@ -709,10 +709,7 @@ class Order::ChargeService
     return if purchases.nil?
 
     purchases.each do |purchase|
-      line_item_uid = params[:line_items].find do |line_item|
-        purchase.link.unique_permalink == line_item[:permalink] &&
-          (line_item[:variants].blank? || purchase.variant_attributes.first&.external_id == line_item[:variants]&.first)
-      end[:uid]
+      line_item_uid = line_item_uid_for(purchase)
 
       next if charge_responses[line_item_uid].present?
 

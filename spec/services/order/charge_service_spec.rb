@@ -1375,6 +1375,48 @@ describe Order::ChargeService, :vcr do
       expect(charge_responses[charge_responses.keys[1]]).to eq(order.purchases.last.purchase_response)
     end
 
+    it "keys a free purchase's response by the submitted uid when its permalink differs in case" do
+      params = {
+        line_items: [
+          {
+            uid: "unique-id-0",
+            permalink: free_product_1.unique_permalink.upcase,
+            perceived_price_cents: 0,
+            quantity: 1
+          }
+        ]
+      }.merge!(common_order_params_without_payment)
+
+      order, _ = Order::CreateService.new(params:).perform
+      expect(order.purchases.in_progress.count).to eq(1)
+
+      charge_responses = Order::ChargeService.new(order:, params:).perform
+
+      expect(order.reload.purchases.successful.count).to eq(1)
+      expect(charge_responses.keys).to contain_exactly("unique-id-0")
+    end
+
+    it "keys each free purchase's response by its own line when two lines share a permalink with different variants" do
+      category = create(:variant_category, title: "Tier", link: free_product_1)
+      variant_a = create(:variant, name: "A", variant_category: category)
+      variant_b = create(:variant, name: "B", variant_category: category)
+      params = {
+        line_items: [variant_a, variant_b].map do |variant|
+          { uid: "uid-#{variant.name}", permalink: free_product_1.unique_permalink, variants: [variant.external_id], perceived_price_cents: 0, quantity: 1 }
+        end
+      }.merge!(common_order_params_without_payment)
+
+      order, _ = Order::CreateService.new(params:).perform
+      expect(order.purchases.in_progress.count).to eq(2)
+
+      charge_responses = Order::ChargeService.new(order:, params:).perform
+
+      purchase_a, purchase_b = order.reload.purchases.successful.partition { _1.variant_attributes.first == variant_a }.map(&:sole)
+      expect(charge_responses.keys).to contain_exactly("uid-A", "uid-B")
+      expect(charge_responses["uid-A"]).to eq(purchase_a.purchase_response)
+      expect(charge_responses["uid-B"]).to eq(purchase_b.purchase_response)
+    end
+
     it "creates a charge with no amount for a free trial membership product" do
       line_items_params = {
         line_items: [
@@ -1444,12 +1486,14 @@ describe Order::ChargeService, :vcr do
         mandate: "mandate_saved_indian_free_trial"
       )
       mandate_amount = nil
-      expect(ChargeProcessor).to receive(:setup_future_charges!) do |account, chargeable, mandate_options:|
+      setup_seller = nil
+      expect(ChargeProcessor).to receive(:setup_future_charges!) do |account, chargeable, mandate_options:, **rest|
         expect(account).to eq(merchant_account)
         expect(chargeable).to be_a(Chargeable)
         mandate = mandate_options.dig(:payment_method_options, :card, :mandate_options)
         expect(mandate[:supported_types]).to eq(["india"])
         mandate_amount = mandate[:amount]
+        setup_seller = rest[:seller]
         setup_intent
       end
       params = {
@@ -1480,6 +1524,7 @@ describe Order::ChargeService, :vcr do
       expect(saved_card.reload.stripe_setup_intent_id).to eq("seti_existing")
       expect(mandate_amount).to eq(purchase.mandate_maximum_amount_cents)
       expect(mandate_amount).to be_positive
+      expect(setup_seller).to eq(seller_2)
     ensure
       Feature.deactivate_user(StripeChargeProcessor::INDIA_CARD_MANDATE_RELIABILITY_FEATURE, seller_2)
     end
@@ -1888,7 +1933,8 @@ describe Order::ChargeService, :vcr do
       expect(ChargeProcessor).to have_received(:setup_future_charges!).with(
         merchant_account,
         chargeable,
-        mandate_options:
+        mandate_options:,
+        seller: purchase.seller
       )
       expect(captured_kwargs[:off_session]).to eq(true)
       # No mandate_options on the charge: the processor resolves the mandate from the
@@ -1925,7 +1971,7 @@ describe Order::ChargeService, :vcr do
         requires_action?: true
       )
       captured_mandate_options = nil
-      allow(ChargeProcessor).to receive(:setup_future_charges!) do |_account, _chargeable, mandate_options:|
+      allow(ChargeProcessor).to receive(:setup_future_charges!) do |_account, _chargeable, mandate_options:, **_rest|
         captured_mandate_options = mandate_options
         setup_intent
       end
@@ -2257,7 +2303,7 @@ describe Order::ChargeService, :vcr do
       fresh_si = instance_double(StripeSetupIntent, id: "seti_fresh", payment_method_id: "pm_fresh", customer_id: nil, mandate: "mandate_fresh", card_mandate_options: { amount: 10_00, currency: "usd" }, succeeded?: true, requires_action?: false)
       allow(fresh_si).to receive_messages(succeeded?: true, requires_action?: false, present?: true, payment_method_id: "pm_fresh_connect")
       captured_mandate = nil
-      allow(ChargeProcessor).to receive(:setup_future_charges!) do |_account, _chargeable, mandate_options:|
+      allow(ChargeProcessor).to receive(:setup_future_charges!) do |_account, _chargeable, mandate_options:, **_rest|
         captured_mandate = mandate_options
         fresh_si
       end
@@ -2330,7 +2376,8 @@ describe Order::ChargeService, :vcr do
       expect(ChargeProcessor).to have_received(:setup_future_charges!).with(
         merchant_account,
         chargeable,
-        mandate_options: { payment_method_options: { card: { mandate_options: { amount: 10_00, currency: Currency::USD } } } }
+        mandate_options: { payment_method_options: { card: { mandate_options: { amount: 10_00, currency: Currency::USD } } } },
+        seller: purchase.seller
       )
       expect(purchase.reload.processor_setup_intent_id).to eq("seti_connect_fresh")
     end
@@ -2433,7 +2480,7 @@ describe Order::ChargeService, :vcr do
       allow_any_instance_of(StripeChargeableCreditCard).to receive(:prepare_with_trusted_setup_intent!)
       chargeables_by_account = {}
       mandate_caps_by_account = {}
-      allow(ChargeProcessor).to receive(:setup_future_charges!) do |account, group_chargeable, mandate_options:|
+      allow(ChargeProcessor).to receive(:setup_future_charges!) do |account, group_chargeable, mandate_options:, **_rest|
         key = account.is_a_stripe_connect_account? ? :connect : :platform
         chargeables_by_account[key] = group_chargeable
         mandate_caps_by_account[key] = mandate_options.dig(:payment_method_options, :card, :mandate_options)
@@ -2545,7 +2592,7 @@ describe Order::ChargeService, :vcr do
         mandate: nil,
         card_mandate_options: nil
       )
-      allow(ChargeProcessor).to receive(:setup_future_charges!) do |_account, _chargeable, mandate_options:|
+      allow(ChargeProcessor).to receive(:setup_future_charges!) do |_account, _chargeable, mandate_options:, **_rest|
         setup_calls << mandate_options
         shared_si
       end

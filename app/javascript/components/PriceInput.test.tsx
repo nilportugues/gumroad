@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PriceInput } from "$app/components/PriceInput";
 
@@ -127,5 +127,117 @@ describe("PriceInput", () => {
       "kr (Norwegian Krone)",
       "kr (Danish Krone)",
     ]);
+  });
+});
+
+describe("PriceInput amount typing", () => {
+  type AmountCurrency = "usd" | "krw" | "eur";
+
+  // Holds a number and echoes cents back the way PriceEditor does, so the field's resync from
+  // `cents` runs too.
+  const ControlledPriceInput = ({
+    currencyCode,
+    onChange,
+  }: {
+    currencyCode: AmountCurrency;
+    onChange: (cents: number | null) => void;
+  }) => {
+    const [cents, setCents] = React.useState(0);
+    return (
+      <PriceInput
+        currencyCode={currencyCode}
+        cents={cents}
+        ariaLabel="Amount"
+        onChange={(newCents) => {
+          onChange(newCents);
+          setCents(newCents ?? 0);
+        }}
+      />
+    );
+  };
+
+  const renderAmount = (currencyCode: AmountCurrency) => {
+    const onChange = vi.fn();
+    render(<ControlledPriceInput currencyCode={currencyCode} onChange={onChange} />);
+    const input = screen.getByLabelText<HTMLInputElement>("Amount");
+    // Cleared over a parent that already holds 0, so reporting 0 does not re-render the field.
+    fireEvent.change(input, { target: { value: "" } });
+    // Each key appends to what the field shows, the way a keyboard does: the field's own rewrites
+    // between keystrokes are part of what these tests have to survive.
+    const type = (keys: string) => {
+      for (const key of keys) fireEvent.change(input, { target: { value: input.value + key } });
+    };
+    const paste = (value: string) => fireEvent.change(input, { target: { value } });
+    return { input, onChange, type, paste };
+  };
+
+  it("keeps a grouped amount as thousands", () => {
+    const { input, onChange, type } = renderAmount("krw");
+    type("7,900");
+
+    expect(input.value).toBe("7900");
+    expect(onChange).toHaveBeenLastCalledWith(790_000);
+  });
+
+  it.each(["7,900 ", "7,900₩"])("keeps a pasted grouped amount with a suffix (%j) as thousands", (pasted) => {
+    const { input, onChange, paste } = renderAmount("krw");
+    paste(pasted);
+
+    expect(input.value).toBe("7900");
+    expect(onChange).toHaveBeenLastCalledWith(790_000);
+  });
+
+  it("reads a comma before two digits as a decimal point", () => {
+    const { input, onChange, type } = renderAmount("eur");
+    type("7,90");
+
+    expect(input.value).toBe("7,90");
+    expect(onChange).toHaveBeenLastCalledWith(790);
+  });
+
+  it("groups a decimal amount", () => {
+    const { input, onChange, type } = renderAmount("usd");
+    type("12,345.67");
+
+    // The field renders without grouping separators, so the comma the parser read as thousands is
+    // gone from the display by the time the fractional keys arrive.
+    expect(input.value).toBe("12345.67");
+    expect(onChange).toHaveBeenLastCalledWith(1_234_567);
+  });
+
+  it.each(["-1.00", "-1,50", "-1,5", "-1,", "-1."])("reports a clamped zero for a negative amount (%j)", (pasted) => {
+    const { input, onChange, paste } = renderAmount("usd");
+    paste(pasted);
+
+    expect(input.value).toBe("0");
+    expect(onChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it("waits for an IME composition to end before settling the amount", () => {
+    const { input, onChange, type } = renderAmount("krw");
+    fireEvent.compositionStart(input);
+    type("7,900");
+
+    expect(input.value).toBe("7,900");
+    fireEvent.compositionEnd(input);
+    expect(input.value).toBe("7900");
+    expect(onChange).toHaveBeenLastCalledWith(790_000);
+  });
+
+  it("caps the fraction at two digits", () => {
+    const { input, onChange, type } = renderAmount("usd");
+    type("1.999");
+
+    expect(input.value).toBe("1.99");
+    expect(onChange).toHaveBeenLastCalledWith(199);
+  });
+
+  // Once the fraction is complete neither separator can change meaning, so the grouping comma goes.
+  it("settles a typed amount that carries both separators", () => {
+    const { input, onChange, type } = renderAmount("usd");
+    type("-1234,.439");
+
+    expect(input.value).toBe("1234.43");
+    expect(onChange).toHaveBeenLastCalledWith(123_443);
   });
 });

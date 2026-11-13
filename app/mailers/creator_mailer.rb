@@ -6,6 +6,24 @@ class CreatorMailer < ApplicationMailer
   helper CurrencyHelper
   layout "layouts/email"
 
+  def partner_migration_finished(partner_migration_id, recipient:)
+    @migration = PartnerMigration.find(partner_migration_id)
+    @failed = @migration.catalog_status == PartnerMigration::STATUS_FAILED
+    @subject = @failed ? "Some products did not import" : "Your products are ready to review"
+
+    mail to: recipient, subject: @subject
+  end
+
+  # A positional string, so the mailer header that records the arguments keeps only its first characters.
+  def partner_migration_account_setup(partner_migration_id, encrypted_token)
+    @migration = PartnerMigration.find(partner_migration_id)
+    token = PartnerMigration.decrypt_account_setup_token(encrypted_token)
+    @setup_url = partner_migration_account_setup_url(account_setup_token: token, host: DOMAIN, protocol: PROTOCOL)
+    @subject = "Your Gumroad account is ready"
+
+    mail to: @migration.user.email, subject: @subject
+  end
+
   def gumroad_day_fee_saved(seller_id:, to_email: nil)
     @announcement = true
 
@@ -50,6 +68,35 @@ class CreatorMailer < ApplicationMailer
       subject: @subject,
       delivery_method_options: MailerInfo.random_delivery_method_options(domain: :creators)
     )
+  end
+
+  def product_scheduled_publish_succeeded(schedule_id:)
+    @schedule = ProductPublishSchedule.find_by(id: schedule_id)
+    return if @schedule.nil?
+
+    email = @schedule.product.user.form_email
+    return unless EmailFormatValidator.valid?(email)
+
+    @product = @schedule.product
+    @published_at_label = @schedule.local_time_label(@schedule.published_at || @schedule.publish_at)
+    @subject = "#{@product.name} is live"
+
+    mail to: email, subject: @subject
+  end
+
+  def product_scheduled_publish_failed(schedule_id:)
+    @schedule = ProductPublishSchedule.find_by(id: schedule_id)
+    return if @schedule.nil?
+
+    email = @schedule.product.user.form_email
+    return unless EmailFormatValidator.valid?(email)
+
+    @product = @schedule.product
+    @scheduled_label = @schedule.local_time_label
+    @editor_url = "#{UrlService.domain_with_protocol}/products/#{@product.unique_permalink}/edit"
+    @subject = "#{@product.name} was not published"
+
+    mail to: email, subject: @subject
   end
 
   def scheduled_payout_chargeback_hold(scheduled_payout_id:)

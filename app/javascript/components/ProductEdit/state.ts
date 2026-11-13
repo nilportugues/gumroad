@@ -17,6 +17,7 @@ import { Taxonomy } from "$app/utils/discover";
 import { RecurrenceId } from "$app/utils/recurringPricing";
 
 import { PublicFile, Seller } from "$app/components/Product";
+import { PublishSchedule } from "$app/components/PublishScheduleCard";
 import { SubtitleFile } from "$app/components/SubtitleList/Row";
 
 import { Page } from "./ContentTab/PageTab";
@@ -169,6 +170,8 @@ export type Product = {
   refund_policy: RefundPolicy;
   is_published: boolean;
   first_published_at: string | null;
+  publish_schedule?: PublishSchedule | null;
+  can_create_publish_schedule?: boolean;
   free_trial_enabled: boolean;
   free_trial_duration_amount: 1 | null;
   free_trial_duration_unit: FreeTrialDurationUnit | null;
@@ -317,6 +320,8 @@ export const ProductEditContext = React.createContext<{
   successfulSalesCount: number;
   ratings: RatingsWithPercentages;
   seller: Seller;
+  // Whether the waitlist is on in the last successful save. The waitlist form only works once it is.
+  savedWaitlistEnabled: boolean;
   // The external id the S3 signature endpoint authorizes, so uploads are keyed under the
   // account doing the editing rather than under `seller` (the product owner).
   currentSellerExternalId: string;
@@ -342,6 +347,8 @@ export const ProductEditContext = React.createContext<{
   // content tab uses this one-shot response signal to reconcile its mounted
   // TipTap document; changing product state alone does not update that editor.
   richContentRemovedFileEmbedIds: Record<string, string[]>;
+  // Files a save deleted this session. Undo can bring their blocks back, and nothing would render them.
+  deletedFileIds: ReadonlySet<string>;
   googleClientId: string;
   seller_refund_policy_enabled: boolean;
   seller_refund_policy: Pick<RefundPolicy, "title" | "fine_print">;
@@ -350,6 +357,7 @@ export const ProductEditContext = React.createContext<{
   // shown in the Receipt tab's email-style preview chrome.
   receiptEmailFrom: string;
   priceCheckerEnabled: boolean;
+  webBuildPlayerEnabled: boolean;
   hasWebBuilds: boolean;
   customHtmlPagesEnabled: boolean;
   autoMarketingEnabled: boolean;
@@ -365,6 +373,9 @@ export const ProductEditContext = React.createContext<{
   customHtmlGlobalNavPaths: string[];
   contentUpdates: ContentUpdates;
   setContentUpdates: React.Dispatch<React.SetStateAction<ContentUpdates>>;
+  // A web app zip uploading from the version history, which the layout guards like the editor's own files.
+  webAppUploading: boolean;
+  setWebAppUploading: React.Dispatch<React.SetStateAction<boolean>>;
   filesById: Map<string, FileEntry>;
   aiGenerated: boolean;
   // Detail names this seller has used on their other products, offered as suggestions in the

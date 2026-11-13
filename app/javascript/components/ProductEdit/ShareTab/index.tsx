@@ -8,6 +8,7 @@ import { useDiscoverUrl } from "$app/components/DomainSettings";
 import { Layout, useProductUrl } from "$app/components/ProductEdit/Layout";
 import { ProductPreview } from "$app/components/ProductEdit/ProductPreview";
 import { CartRecoveryCard } from "$app/components/ProductEdit/ShareTab/CartRecoveryCard";
+import { DiscoverEligibilityPromo } from "$app/components/ProductEdit/ShareTab/DiscoverEligibilityPromo";
 import { LandingPageEditor } from "$app/components/ProductEdit/ShareTab/LandingPageEditor";
 import { ProfileSectionsEditor } from "$app/components/ProductEdit/ShareTab/ProfileSectionsEditor";
 import { ShareYourLaunchCard } from "$app/components/ProductEdit/ShareTab/ShareYourLaunchCard";
@@ -19,11 +20,7 @@ import { useProductEditContext } from "$app/components/ProductEdit/state";
 import { ShareButtons } from "$app/components/ShareButtons";
 import { Alert } from "$app/components/ui/Alert";
 import { Fieldset } from "$app/components/ui/Fieldset";
-import { LinkButton } from "$app/components/ui/LinkButton";
 import { Switch } from "$app/components/ui/Switch";
-import { useRunOnce } from "$app/components/useRunOnce";
-
-import hands from "$assets/images/illustrations/hands.png";
 
 export const ShareTab = () => {
   const currentSeller = useCurrentSeller();
@@ -54,20 +51,26 @@ export const ShareTab = () => {
       <div className="squished">
         <form>
           <section className="grid gap-8 p-4! md:p-8!">
-            <DiscoverEligibilityPromo />
-            <header>
-              <h2>Share</h2>
-            </header>
-            <ShareButtons url={url} twitterText={`Buy ${product.name} on @Gumroad`} facebookText={product.name}>
-              {/* The header used to carry a "Copy checkout link" button; it lives here now so the
-                  header stays at just Unpublish + Save changes. */}
-              <CopyToClipboard text={checkoutUrl} copyTooltip="Copy checkout URL" tooltipPosition="top">
-                <Button>
-                  <CartPlus className="size-5" />
-                  Copy checkout URL
-                </Button>
-              </CopyToClipboard>
-            </ShareButtons>
+            <DiscoverEligibilityPromo rememberDismissal={product.is_published} />
+            {product.is_published ? (
+              <>
+                <header>
+                  <h2>Share</h2>
+                </header>
+                <ShareButtons url={url} twitterText={`Buy ${product.name} on @Gumroad`} facebookText={product.name}>
+                  <CopyToClipboard text={checkoutUrl} copyTooltip="Copy checkout URL" tooltipPosition="top">
+                    <Button>
+                      <CartPlus className="size-5" />
+                      Copy checkout URL
+                    </Button>
+                  </CopyToClipboard>
+                </ShareButtons>
+              </>
+            ) : (
+              <Alert role="status" variant="info">
+                Share links appear here once you publish. Unpublished products don't appear on your profile.
+              </Alert>
+            )}
             {waitlist && product.is_published ? (
               <WaitlistCard waitlist={waitlist} productName={product.name} productPermalink={uniquePermalink} />
             ) : null}
@@ -149,46 +152,5 @@ export const ShareTab = () => {
         </form>
       </div>
     </Layout>
-  );
-};
-
-const DiscoverEligibilityPromo = () => {
-  const [show, setShow] = React.useState(false);
-
-  useRunOnce(() => {
-    if (localStorage.getItem("showDiscoverEligibilityPromo") !== "false") setShow(true);
-  });
-
-  if (!show) return null;
-
-  return (
-    <Alert role="status">
-      <div className="flex items-center gap-2">
-        <img src={hands} alt="" className="size-12" />
-        <div className="flex flex-1 flex-col gap-2">
-          <div>
-            To appear on Gumroad Discover, make sure to meet all the{" "}
-            <a href="/help/article/79-gumroad-discover" target="_blank" rel="noreferrer">
-              eligibility criteria
-            </a>
-            , which includes making at least one successful sale and completing the Risk Review process explained in
-            detail{" "}
-            <a href="/help/article/13-getting-paid" target="_blank" rel="noreferrer">
-              here
-            </a>
-            .
-          </div>
-          <LinkButton
-            className="w-max"
-            onClick={() => {
-              localStorage.setItem("showDiscoverEligibilityPromo", "false");
-              setShow(false);
-            }}
-          >
-            Close
-          </LinkButton>
-        </div>
-      </div>
-    </Alert>
   );
 };

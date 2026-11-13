@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { classNames } from "$app/utils/classNames";
+import { selectAdjacentRadio, useRadioGroupTabStop } from "$app/utils/radioGroupKeyboard";
 
 const tabsVariants = cva("", {
   variants: {
@@ -20,8 +21,9 @@ const tabVariants = cva("", {
   variants: {
     variant: {
       pills: "shrink-0 rounded-full border-transparent px-3 py-2 hover:border-border",
+      // A Button inside the tab sets the halo to the store's offset, but this lift wins while hovered.
       buttons:
-        "flex items-start gap-3 rounded-sm border-border px-4 py-3 text-left transition-all not-active:hover:-translate-1 not-active:hover:shadow",
+        "flex items-start gap-3 rounded-sm border-border px-4 py-3 text-left transition-all not-active:hover:-translate-1 not-active:hover:shadow lift-halo not-active:hover:[--lift-halo-offset:var(--spacing)]",
     },
     active: {
       true: "bg-background",
@@ -54,34 +56,52 @@ interface TabsProps extends React.HTMLProps<HTMLDivElement>, VariantProps<typeof
   children: React.ReactNode;
 }
 
-export const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(({ children, className, variant, ...props }, ref) => {
-  const listRef = React.useRef<HTMLDivElement>(null);
-  React.useImperativeHandle<HTMLDivElement | null, HTMLDivElement | null>(ref, () => listRef.current);
+export const Tabs = React.forwardRef<HTMLDivElement, TabsProps>(
+  ({ children, className, variant, role, onKeyDown, ...props }, ref) => {
+    const listRef = React.useRef<HTMLDivElement>(null);
+    React.useImperativeHandle<HTMLDivElement | null, HTMLDivElement | null>(ref, () => listRef.current);
 
-  // A pill row scrolls sideways on narrow screens, so a selected tab past the edge would load hidden.
-  // Align again once web fonts load, because they widen the labels after the first layout.
-  React.useEffect(() => {
-    const align = () => {
-      const list = listRef.current;
-      const selected = list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-      if (!list || !selected) return;
-      const listRect = list.getBoundingClientRect();
-      const tabRect = selected.getBoundingClientRect();
-      if (tabRect.right > listRect.right) list.scrollLeft += Math.ceil(tabRect.right - listRect.right);
-      else if (tabRect.left < listRect.left) list.scrollLeft -= Math.ceil(listRect.left - tabRect.left);
-    };
-    align();
-    if ("fonts" in document) void document.fonts.ready.then(align);
-  }, []);
+    // A pill row scrolls sideways on narrow screens, so a selected tab past the edge would load hidden.
+    // Align again once web fonts load, because they widen the labels after the first layout.
+    React.useEffect(() => {
+      const align = () => {
+        const list = listRef.current;
+        const selected = list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+        if (!list || !selected) return;
+        const listRect = list.getBoundingClientRect();
+        const tabRect = selected.getBoundingClientRect();
+        if (tabRect.right > listRect.right) list.scrollLeft += Math.ceil(tabRect.right - listRect.right);
+        else if (tabRect.left < listRect.left) list.scrollLeft -= Math.ceil(listRect.left - tabRect.left);
+      };
+      align();
+      if ("fonts" in document) void document.fonts.ready.then(align);
+    }, []);
 
-  return (
-    <TabVariantContext.Provider value={variant ?? "pills"}>
-      <div role="tablist" className={classNames(tabsVariants({ variant }), className)} {...props} ref={listRef}>
-        {children}
-      </div>
-    </TabVariantContext.Provider>
-  );
-});
+    const isRadioGroup = role === "radiogroup";
+    useRadioGroupTabStop(listRef, isRadioGroup);
+
+    return (
+      <TabVariantContext.Provider value={variant ?? "pills"}>
+        <div
+          role={role ?? "tablist"}
+          onKeyDown={
+            isRadioGroup
+              ? (event: React.KeyboardEvent<HTMLDivElement>) => {
+                  onKeyDown?.(event);
+                  selectAdjacentRadio(event);
+                }
+              : onKeyDown
+          }
+          className={classNames(tabsVariants({ variant }), className)}
+          {...props}
+          ref={listRef}
+        >
+          {children}
+        </div>
+      </TabVariantContext.Provider>
+    );
+  },
+);
 Tabs.displayName = "Tabs";
 
 export const TabIcon = ({ children }: { children: React.ReactNode }) => (

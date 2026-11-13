@@ -236,11 +236,20 @@ export type Product = {
   nativeType: ProductNativeType;
   recurrence: RecurrenceId | null;
   subscription_id?: string;
+  subscriptionPlan?: SubscriptionPlanSelection;
   forceNewSubscription?: boolean;
   recommended_by?: string | null;
   shippableCountryCodes: string[];
   // Set by the server for a physical product whose seller excluded every country it covers.
   shipsNowhere?: boolean;
+};
+
+export type SubscriptionPlanSelection = {
+  variants: string[];
+  price_id: string | undefined;
+  quantity: number;
+  price_range: number | undefined;
+  perceived_price_cents: number;
 };
 
 export type Gift =
@@ -555,16 +564,24 @@ type Action =
   | { type: "surcharges-fetch-succeeded"; requestId: number; result: SurchargesResponse }
   | { type: "surcharges-fetch-failed"; requestId: number };
 
-export function getPayLabel(state: State) {
+// Display-ready recap of what the buyer is about to pay, supplied by the checkout summary (which owns
+// currency formatting). A null `amount` means no amount is settled yet, so the button keeps its plain label;
+// a null line `price` is pending for the same reason.
+export type PayRecap = { amount: string | null; paidLines: { name: string; price: string | null }[] };
+export const PayRecapContext = React.createContext<PayRecap | null>(null);
+
+export function getPayLabel(state: State, recap: PayRecap | null = null) {
   // A confirmation the buyer owes keeps the submit in `finished` so its retry can resubmit, but no
   // charge is in flight while they decide — "Processing..." there reads as a hung payment.
   if (isProcessing(state) && !state.awaitingBuyerConfirmation) return "Processing...";
-  return state.payLabel ?? (requiresPayment(state) ? "Pay" : "Get");
+  if (state.payLabel) return state.payLabel;
+  if (!requiresPayment(state)) return "Get";
+  return recap?.amount ? `Pay ${recap.amount}` : "Pay";
 }
 
 export function usePayLabel() {
   const [state] = useState();
-  return getPayLabel(state);
+  return getPayLabel(state, React.useContext(PayRecapContext));
 }
 
 export function requiresPayment(state: State) {
@@ -771,8 +788,19 @@ export function getStripePaymentElementPresentment(state: State): { currency: st
   return null;
 }
 
+// Non-USD wallets on client-confirm: the server enables them only on a quote remount or a
+// direct-listed card Element with the buyer-currency wallet flags on. The sheet then shows the
+// signed quote total or the listed allocations, which is what prepare charges.
+export function clientConfirmSignedTotalWalletsAllowed(state: State) {
+  if (state.checkoutPayment.integration !== "payment_element_client_confirm") return false;
+  if (!state.checkoutPayment.payment_element_wallets || state.checkoutPayment.disable_wallets) return false;
+  const options = state.checkoutPayment.elements_options;
+  return options.buyer_currency_presentment === true || getConfiguredDirectListedCurrency(state) !== null;
+}
+
 export function shouldSuppressClientConfirmWallets(state: State) {
   if (!clientConfirmBuyerCurrencyPresentmentEnabled(state) || state.willSaveCard) return false;
+  if (clientConfirmSignedTotalWalletsAllowed(state)) return false;
   if (state.buyerCurrency !== null && state.buyerCurrency.toLowerCase() !== "usd") return true;
   if (state.surcharges.type !== "loaded") return false;
 

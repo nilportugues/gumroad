@@ -49,6 +49,8 @@ describe Checkout::DiscountsPresenter do
                      auto_apply: false,
                      sale_label: nil,
                      ownership_products: [],
+                     ownership_option_ids_by_product: {},
+                     ownership_options: {},
                      ownership_duration_tiers: nil,
                      option_ids_by_product: {},
                      excluded_products: [],
@@ -92,6 +94,8 @@ describe Checkout::DiscountsPresenter do
                      auto_apply: false,
                      sale_label: nil,
                      ownership_products: [],
+                     ownership_option_ids_by_product: {},
+                     ownership_options: {},
                      ownership_duration_tiers: nil,
                      option_ids_by_product: {},
                      excluded_products: [],
@@ -126,6 +130,8 @@ describe Checkout::DiscountsPresenter do
                      auto_apply: false,
                      sale_label: nil,
                      ownership_products: [],
+                     ownership_option_ids_by_product: {},
+                     ownership_options: {},
                      ownership_duration_tiers: nil,
                      option_ids_by_product: {},
                      excluded_products: [],
@@ -196,6 +202,8 @@ describe Checkout::DiscountsPresenter do
             auto_apply: false,
             sale_label: nil,
             ownership_products: [],
+            ownership_option_ids_by_product: {},
+            ownership_options: {},
             ownership_duration_tiers: nil,
             option_ids_by_product: {},
             excluded_products: [],
@@ -272,6 +280,43 @@ describe Checkout::DiscountsPresenter do
                                                        ])
       end
 
+      it "exposes the options the buyer must have purchased" do
+        owned_product = create(:product, user: seller, price_cents: 1000)
+        option = create(:variant, variant_category: create(:variant_category, link: owned_product))
+        offer_code = create(:offer_code,
+                            user: seller,
+                            products: [owned_product],
+                            ownership_products: [],
+                            ownership_variants: [option],
+                            existing_customers_only: true,
+                            amount_cents: nil,
+                            amount_percentage: 50,
+                            currency_type: nil)
+
+        expect(presenter.offer_code_props(offer_code)[:ownership_option_ids_by_product]).to eq({ owned_product.external_id => [option.external_id] })
+      end
+
+      it "names every ownership option and flags the deleted ones, including ones the products' option lists leave out" do
+        owned_product = create(:product, user: seller, price_cents: 1000)
+        edition = create(:variant_category, link: owned_product, title: "Edition")
+        signed = create(:variant, variant_category: edition, name: "Signed")
+        retired = create(:variant, variant_category: edition, name: "Retired")
+        frame = create(:variant, variant_category: create(:variant_category, link: owned_product, title: "Frame"), name: "Oak")
+        gone_category = create(:variant_category, link: owned_product, title: "Old")
+        legacy = create(:variant, variant_category: gone_category, name: "Legacy")
+        offer_code = create(:offer_code, user: seller, products: [owned_product], ownership_products: [], ownership_variants: [signed, retired, frame, legacy],
+                                         existing_customers_only: true, amount_cents: nil, amount_percentage: 50, currency_type: nil)
+        retired.mark_deleted!
+        gone_category.mark_deleted!
+
+        expect(presenter.offer_code_props(offer_code.reload)[:ownership_options]).to eq(
+          signed.external_id => { name: "Signed", deleted: false },
+          retired.external_id => { name: "Retired", deleted: true },
+          frame.external_id => { name: "Oak", deleted: false },
+          legacy.external_id => { name: "Legacy", deleted: true },
+        )
+      end
+
       it "exposes the new-customers-only flag" do
         offer_code = create(:offer_code,
                             user: seller,
@@ -319,6 +364,24 @@ describe Checkout::DiscountsPresenter do
       removed.mark_deleted!
 
       expect(presenter.offer_code_props(offer_code1)[:option_ids_by_product]).to eq({ product3.external_id => [tier.external_id, removed.external_id] })
+    end
+  end
+
+  describe "#discounts_props with variants predating position and timestamp tracking" do
+    let(:product4) { create(:product, user: seller) }
+    let(:category) { create(:variant_category, link: product4) }
+    let!(:variants) { create_list(:variant, 2, variant_category: category) }
+
+    before do
+      BaseVariant.where(id: variants.map(&:id)).update_all(position_in_category: nil)
+      BaseVariant.where(id: variants.first.id).update_all(created_at: nil)
+    end
+
+    it "orders the product options instead of raising" do
+      props = described_class.new(pundit_user: SellerContext.new(user:, seller:), offer_codes: [], pagination: nil).discounts_props
+
+      expect(props[:products].find { _1[:id] == product4.external_id }[:options].map { _1[:id] })
+        .to match_array(variants.map(&:external_id))
     end
   end
 end

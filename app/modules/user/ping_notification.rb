@@ -16,7 +16,12 @@ module User::PingNotification
 
     URI.parse(url) # TestPingsController.create catches URI::InvalidURIError
 
-    ping_params = latest_sale.payload_for_ping_notification.merge(test: true)
+    # A receiver routes on resource_name, and every live sale ping carries it; a test payload that
+    # drops it makes the integration look broken. Purchase::PingNotification omits a nil argument.
+    ping_params = latest_sale.payload_for_ping_notification(
+      url_parameters: latest_sale.url_parameters,
+      resource_name: ResourceSubscription::SALE_RESOURCE_NAME
+    ).merge(test: true)
     ping_params = if notification_content_type == Mime[:json]
       ping_params.to_json
     elsif notification_content_type == Mime[:url_encoded_form]
@@ -25,7 +30,18 @@ module User::PingNotification
       ping_params
     end
 
-    HTTParty.post(url, body: ping_params, timeout: 5, headers: { "Content-Type" => notification_content_type })
+    headers = { "Content-Type" => notification_content_type }
+    # A test ping is how a seller checks their receiver before going live, so it carries the same
+    # signature the real pings do.
+    headers.merge!(PingSignature.headers(secret: ping_signing_secret, body: ping_params)) if ping_signing_secret.present?
+
+    HTTParty.post(url, body: ping_params, timeout: 5, headers:)
+  end
+
+  # On the primary: workers read from a replica, and a ping sent just after a rotation and signed with
+  # the replaced secret gets a 4xx, which is not retried.
+  def ping_signing_secret
+    ApplicationRecord.connected_to(role: :writing) { ping_signing_setting&.secret }
   end
 
   def urls_for_ping_notification(resource_name)

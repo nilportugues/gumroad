@@ -2,7 +2,8 @@
 
 # Serves a web build's files to the player's frame, under the grant UrlRedirectsController#play
 # issued. The frame is an opaque origin, so these requests carry no cookies: the grant is the only
-# credential, and checking it needs no database query.
+# credential, and checking it needs no database query. ProductBuildDemoFilesController serves a
+# public demo the same way.
 #
 # Files that resolve other URLs, or that a browser can open as a page, are served from here so they
 # keep the grant path. A redirected module script or stylesheet would take the CDN link as its base
@@ -12,8 +13,7 @@ class ProductBuildPlayerFilesController < ApplicationController
   include SignedUrlHelper
 
   INDEX = "index.html"
-  DOCUMENT_EXTENSIONS = (ProductBuild::PAGE_EXTENSIONS + %w[svg xml]).freeze
-  SERVED_EXTENSIONS = (DOCUMENT_EXTENSIONS + %w[js mjs cjs css]).freeze
+  SERVED_EXTENSIONS = (ProductBuild::PAGE_EXTENSIONS + %w[svg xml js mjs cjs css]).freeze
   # Shorter than the signed link it points at, so a cached redirect never hands out an expired link.
   CACHE_MAX_AGE = 5.minutes
   # Room for a full save as JSON, where escaping can turn one byte into six (\u0001), plus the batch's
@@ -28,12 +28,14 @@ class ProductBuildPlayerFilesController < ApplicationController
 
   before_action :verify_grant, only: :show
   before_action :verify_save_grant, only: :save
+  before_action :verify_heartbeat_grant, only: :heartbeat
   before_action :set_path, only: :show
 
   def show
     # Module scripts, fetch and wasm from the frame are CORS requests with `Origin: null`, and the
     # browser checks a redirect as well as the response it leads to.
     response.set_header("Access-Control-Allow-Origin", "*")
+    response.set_header("X-Robots-Tag", "noindex, nofollow")
     return serve_file if SERVED_EXTENSIONS.include?(extension)
 
     expires_in CACHE_MAX_AGE, public: false
@@ -62,15 +64,48 @@ class ProductBuildPlayerFilesController < ApplicationController
     head :unprocessable_entity
   end
 
+  # The player page is open: extend the play session its page load started. The page stops sending
+  # these when the buyer leaves, which is what ends the session (see ProductBuildPlaySession). A beat
+  # that resumed an expired session answers with the new session's heartbeat path.
+  def heartbeat
+    session = @play_session.heartbeat!
+    return head :no_content if session == @play_session
+
+    grant = session.product_build.player_heartbeat_grant(url_redirect_token: params[:id], purchase_id: session.purchase_id, session_id: session.id)
+    render json: { heartbeat_path: "/d/#{params[:id]}/play/#{grant}/heartbeat" }
+  end
+
   private
     def verify_grant
-      @grant = ProductBuild.verified_player_grant(params[:grant], url_redirect_token: params[:id])
+      @grant = ProductBuild.verified_player_grant(params[:grant], url_redirect_token: params[:id], purpose: grant_purpose)
       e404 if @grant.nil?
+    end
+
+    def grant_purpose = ProductBuild::PLAYER_GRANT_PURPOSE
+
+    # Each page load is a new play session, so this is checked per page and not per file.
+    def page_allowed? = Feature.active?(:product_build_player, User.find_by(id: @grant["seller_id"]))
+
+    # Origins besides the app that may frame the player page.
+    def frame_ancestors = []
+
+    def save_data = ProductBuildSave.find_by(purchase_id: @grant["purchase_id"])&.data || {}
+
+    def save_endpoint
+      "/d/#{params[:id]}/play/#{ProductBuild.player_save_grant(url_redirect_token: params[:id], purchase_id: @grant["purchase_id"])}/save"
     end
 
     def verify_save_grant
       @grant = ProductBuild.verified_player_grant(params[:grant], url_redirect_token: params[:id], purpose: ProductBuild::PLAYER_SAVE_GRANT_PURPOSE)
       e404 if @grant.nil?
+    end
+
+    def verify_heartbeat_grant
+      @grant = ProductBuild.verified_player_grant(params[:grant], url_redirect_token: params[:id], purpose: ProductBuild::PLAYER_HEARTBEAT_GRANT_PURPOSE)
+      e404 if @grant.nil?
+
+      @play_session = ProductBuildPlaySession.find_by(id: @grant["session_id"], purchase_id: @grant["purchase_id"])
+      e404 if @play_session.nil?
     end
 
     def set_path
@@ -86,15 +121,14 @@ class ProductBuildPlayerFilesController < ApplicationController
 
     def serve_file
       page = ProductBuild::PAGE_EXTENSIONS.include?(extension)
-      # Each page load is a new play session, so the kill switch is checked here and not per file.
-      return e404 if page && !Feature.active?(:product_build_player, User.find_by(id: @grant["seller_id"]))
+      return e404 if page && !page_allowed?
 
       s3 = Aws::S3::Client.new
       head = s3.head_object(bucket: S3_BUCKET, key: s3_key)
-      if DOCUMENT_EXTENSIONS.include?(extension)
-        SecureHeaders.opt_out_of_header(request, :csp)
-        response.set_header("Content-Security-Policy", ProductBuilds::PlayerDocument.content_security_policy(request_origin: request.base_url, cdn_origin:))
-      end
+      # On every file, not just documents: whatever a file turns out to be, opening its URL directly
+      # must never run it on the app's origin.
+      SecureHeaders.opt_out_of_header(request, :csp)
+      response.set_header("Content-Security-Policy", ProductBuilds::PlayerDocument.content_security_policy(request_origin: request.base_url, cdn_origin:, frame_ancestors:))
       # The path holds the content-page token and the grant, so it must not reach the CDN or a game's server.
       response.set_header("Referrer-Policy", "no-referrer")
       page ? serve_page(s3, head) : stream_file(s3, head)
@@ -106,21 +140,16 @@ class ProductBuildPlayerFilesController < ApplicationController
       # The unpack rejects larger pages; this guards pages unpacked before that limit.
       return e404 if head.content_length > ProductBuild::MAX_PAGE_BYTE_SIZE
 
-      save = ProductBuildSave.find_by(purchase_id: @grant["purchase_id"])
-      body = ProductBuilds::PlayerDocument.render(
-        s3.get_object(bucket: S3_BUCKET, key: s3_key).body.read,
-        save_data: save&.data || {},
-        save_url: "/d/#{params[:id]}/play/#{ProductBuild.player_save_grant(url_redirect_token: params[:id], purchase_id: @grant["purchase_id"])}/save",
-      )
+      body = ProductBuilds::PlayerDocument.render(s3.get_object(bucket: S3_BUCKET, key: s3_key).body.read, save_data:, save_url: save_endpoint)
       # The page carries the buyer's save.
       response.set_header("Cache-Control", "private, no-store")
-      send_data body, type: head.content_type, disposition: "inline"
+      send_data body, type: ProductBuild.content_type_for(@path), disposition: "inline"
     end
 
     # Streamed, not read into memory: a bundled script can be as large as the build allows.
     def stream_file(s3, head)
       expires_in CACHE_MAX_AGE, public: false
-      response.set_header("Content-Type", head.content_type)
+      response.set_header("Content-Type", ProductBuild.content_type_for(@path))
       response.set_header("Content-Length", head.content_length.to_s)
       key = s3_key
       self.response_body = Enumerator.new do |chunks|

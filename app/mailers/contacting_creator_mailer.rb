@@ -92,15 +92,32 @@ class ContactingCreatorMailer < ApplicationMailer
     set_notify_of_sale_headers(is_preorder:)
 
     @referrer_name = @purchase&.display_referrer
+    @buyer_receipt_link = buyer_receipt_link(@purchase)
 
     do_not_send unless should_send_email?
   end
+
+  DISPUTE_REASON_COPY = {
+    Dispute::REASON_FRAUDULENT => "the cardholder says they did not authorize this charge",
+    Dispute::REASON_UNRECOGNIZED => "the cardholder says they do not recognize this charge",
+    Dispute::REASON_PRODUCT_NOT_RECEIVED => "the cardholder says they did not receive the product",
+    Dispute::REASON_PRODUCT_UNACCEPTABLE => "the cardholder says the product was defective or not as described",
+    Dispute::REASON_DUPLICATE => "the cardholder says they were charged more than once for the same purchase",
+    Dispute::REASON_SUBSCRIPTION_CANCELED => "the cardholder says they were charged after canceling their subscription",
+    Dispute::REASON_CREDIT_NOT_PROCESSED => "the cardholder says they are owed a refund or credit they have not received",
+    Dispute::REASON_DEBIT_NOT_AUTHORIZED => "the account holder says they did not authorize this bank debit",
+  }.freeze
+  private_constant :DISPUTE_REASON_COPY
 
   def chargeback_notice(dispute_id)
     dispute = Dispute.find(dispute_id)
     @disputable = dispute.disputable
     @is_paypal = @disputable.charge_processor == PaypalChargeProcessor.charge_processor_id
     @seller = @disputable.seller
+    @dispute_reason_copy = DISPUTE_REASON_COPY[dispute.reason]
+    # The "they don't recognize Gumroad" paragraph guesses a reason of its own, so it only
+    # belongs when the email names no reason, or one that reads the same way.
+    @explain_unrecognized_charge = @dispute_reason_copy.nil? || dispute.reason.in?([Dispute::REASON_FRAUDULENT, Dispute::REASON_UNRECOGNIZED])
     @balance_debit = chargeback_balance_debit(@disputable)
     @win_credit = chargeback_win_credit(@disputable, @balance_debit)
     # Mirrors the guard on ContactingCreatorMailer.chargeback_won in handle_event_dispute_won!.
@@ -151,6 +168,7 @@ class ContactingCreatorMailer < ApplicationMailer
     dispute = Dispute.find(dispute_id)
     @disputable = dispute.disputable
     @seller = @disputable.seller
+    @dispute_reason_copy = DISPUTE_REASON_COPY[dispute.reason]
     @dispute_evidence = dispute.dispute_evidence
     return do_not_send unless @dispute_evidence&.accepting_evidence?
 
@@ -546,6 +564,26 @@ class ContactingCreatorMailer < ApplicationMailer
     @subject = "A sale has been refunded"
   end
 
+  def refund_requested(refund_request_id)
+    # Same primary read as #purchase_refunded: the row was created moments
+    # before this delivers, so a lagging replica could miss it.
+    ApplicationRecord.connected_to(role: :writing) do
+      @refund_request = PurchaseRefundRequest.find_by(id: refund_request_id)
+      return do_not_send if @refund_request.nil?
+
+      @purchase = @refund_request.purchase
+    end
+    # The flag can be turned off, or the purchase refunded, before this delivers. A send delayed
+    # past escalation still goes out: the seller is the one who can refund.
+    return do_not_send unless Feature.active?(:buyer_refund_requests, @purchase.seller)
+    return do_not_send unless @refund_request.status.in?(%w[requested escalated])
+
+    @seller = @purchase.seller
+    @reason_copy = PurchaseRefundRequest::REASON_LABELS[@refund_request.reason]
+    @respond_by = @refund_request.escalation_deadline.strftime(PurchaseRefundRequest::DATE_FORMAT)
+    @subject = "Refund requested for #{@purchase.link.name} (#{@purchase.formatted_display_price})"
+  end
+
   def payment_returned(payment_id)
     @payment = Payment.find(payment_id)
     @seller = @payment.user
@@ -556,6 +594,11 @@ class ContactingCreatorMailer < ApplicationMailer
     @seller = User.find(user_id)
     return do_not_send unless @seller.account_active?
     @subject = "We need more information from you."
+    compliance_info = @seller.alive_user_compliance_info
+    @fields_needed_tags = @seller.user_compliance_info_requests.requested.where.not("field_needed like 'interv_%'").pluck(:field_needed).uniq
+      .map { |field_needed| UserComplianceInfoFieldProperty.name_tag_for_field(field_needed, country: compliance_info&.country_code_for_field(field_needed)) }.compact.uniq
+    # The remediation endpoint tells sellers without a Stripe account that they're all set.
+    @complete_account_url = @seller.stripe_account.present? ? remediation_settings_payments_url : settings_payments_url
   end
 
   def payout_setup_retry_exhausted(user_id, marker_type)
@@ -569,8 +612,8 @@ class ContactingCreatorMailer < ApplicationMailer
     @seller = User.find(user_id)
     return do_not_send unless @seller.account_active?
     @subject = "We need more information from you."
-    country = @seller.compliance_country_code
-    @fields_needed_tags = fields_needed.map { |field_needed| UserComplianceInfoFieldProperty.name_tag_for_field(field_needed, country:) }.compact
+    compliance_info = @seller.alive_user_compliance_info
+    @fields_needed_tags = fields_needed.map { |field_needed| UserComplianceInfoFieldProperty.name_tag_for_field(field_needed, country: compliance_info&.country_code_for_field(field_needed)) }.compact
   end
 
   def stripe_document_verification_failed(user_id, error_message)
@@ -808,6 +851,18 @@ class ContactingCreatorMailer < ApplicationMailer
   end
 
   private
+    # The buyer's receipt rather than its /d/<token> download link: an unseen download page lets its first visitor in
+    # without the buyer's email, while the receipt asks for it before showing the download link.
+    def buyer_receipt_link(purchase)
+      return if purchase.nil? || purchase.is_gift_sender_purchase || purchase.is_gift_receiver_purchase
+      return if purchase.is_preorder_authorization || purchase.is_test_purchase?
+      return unless purchase.successful_and_not_reversed? && purchase.has_content?
+      # Where the receipt has no button (coffee, a memberless bundle with nothing of its own) there is nothing to open.
+      return unless ReceiptPresenter::ItemInfo.new(purchase).show_download_button
+
+      receipt_purchase_url(purchase.external_id) unless purchase.url_redirect.is_rental?
+    end
+
     # Stripe's format-rejection messages end with the format it expects, for example:
     # "Invalid routing number for PK. The number must contain both the bank code and the branch
     # code, and should be in the format AAAAPKBB or AAAAPKBBXYZ." Pull out that sentence so the

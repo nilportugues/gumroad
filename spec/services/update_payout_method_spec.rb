@@ -101,6 +101,56 @@ describe UpdatePayoutMethod do
         end
       end
 
+      context "when the seller is in Taiwan" do
+        let!(:bank_account) { create(:taiwan_bank_account, user:, account_holder_full_name: "Old Name") }
+        let!(:compliance_info) { create(:user_compliance_info, user:, country: "Taiwan") }
+
+        it "enqueues HandleNewBankAccountWorker when the saved name is ASCII" do
+          params = ActionController::Parameters.new(
+            bank_account: { type: TaiwanBankAccount.name, account_holder_full_name: "SHIE BING YUAN" }
+          )
+
+          expect do
+            result = described_class.new(user_params: params, seller: user).process
+            expect(result).to eq(success: true)
+          end.to change { HandleNewBankAccountWorker.jobs.size }.by(1)
+
+          expect(bank_account.reload.account_holder_full_name).to eq("SHIE BING YUAN")
+        end
+
+        it "does not enqueue HandleNewBankAccountWorker when the submitted name equals the stored one" do
+          bank_account.update!(account_holder_full_name: "SHIE BING YUAN")
+          params = ActionController::Parameters.new(
+            bank_account: { type: TaiwanBankAccount.name, account_holder_full_name: "SHIE BING YUAN" }
+          )
+
+          expect do
+            result = described_class.new(user_params: params, seller: user).process
+            expect(result).to eq(success: true)
+          end.not_to change { HandleNewBankAccountWorker.jobs.size }
+        end
+
+        it "stores the name without surrounding whitespace" do
+          params = ActionController::Parameters.new(
+            bank_account: { type: TaiwanBankAccount.name, account_holder_full_name: " SHIE BING YUAN " }
+          )
+
+          expect(described_class.new(user_params: params, seller: user).process).to eq(success: true)
+          expect(bank_account.reload.account_holder_full_name).to eq("SHIE BING YUAN")
+        end
+
+        it "enqueues HandleNewBankAccountWorker when the name changes to non-ASCII, so Stripe drops the old name" do
+          params = ActionController::Parameters.new(
+            bank_account: { type: TaiwanBankAccount.name, account_holder_full_name: "謝秉原" }
+          )
+
+          expect do
+            result = described_class.new(user_params: params, seller: user).process
+            expect(result).to eq(success: true)
+          end.to change { HandleNewBankAccountWorker.jobs.size }.by(1)
+        end
+      end
+
       context "when the seller is an Ecuador company" do
         let!(:bank_account) { create(:ecuador_bank_account, user:, account_holder_full_name: "Old Name") }
         let!(:compliance_info) do
@@ -174,6 +224,48 @@ describe UpdatePayoutMethod do
           expect(result[:error]).to eq(:bank_account_error)
           expect(user.bank_accounts.alive.count).to eq(1)
           expect(user.active_bank_account).to eq(existing_bank_account)
+        end
+      end
+
+      context "when the new bank account has a copied example branch code" do
+        it "returns the reason and keeps the existing bank account alive" do
+          params = ActionController::Parameters.new(
+            bank_account: {
+              type: JamaicaBankAccount.name,
+              account_holder_full_name: "Named User",
+              account_number: "000123456789",
+              account_number_confirmation: "000123456789",
+              bank_code: "111",
+              branch_code: "12345",
+            }
+          )
+
+          result = described_class.new(user_params: params, seller: user).process
+
+          expect(result).to include(error: :bank_account_error, data: "Enter the 5-digit branch code of your own bank branch.")
+          expect(user.active_bank_account).to eq(existing_bank_account)
+        end
+      end
+
+      context "when the new bank account has the form's example BIC" do
+        before { allow(Stripe).to receive(:api_key).and_return("sk_live_dummy") }
+
+        it "returns the reason and keeps the existing bank account alive" do
+          params = ActionController::Parameters.new(
+            bank_account: {
+              type: AlgeriaBankAccount.name,
+              account_holder_full_name: "Named User",
+              account_number: "00001234567890123456",
+              account_number_confirmation: "00001234567890123456",
+              bank_code: "AAAADZDZXXX",
+            }
+          )
+
+          result = described_class.new(user_params: params, seller: user).process
+
+          expect(result).to eq(error: :bank_account_error, data: "That is the form's example, not a real code. Enter your own bank's SWIFT / BIC code.")
+          expect(user.active_bank_account).to eq(existing_bank_account)
+          expect(user.bank_accounts.where(type: AlgeriaBankAccount.name)).to be_empty
         end
       end
 
@@ -466,6 +558,30 @@ describe UpdatePayoutMethod do
         expect(user.reload.payment_address).to eq("paypal@example.com")
         expect(user.active_bank_account).to be_nil
         expect(user.stripe_account).to be_nil
+      end
+
+      # The switch deletes the Stripe account the note names, so no later submission can carry the
+      # field it asks for — UpdateUserCountry retires the same notes when it tears the rail down.
+      it "retires the payout-setup-rejection notes the torn-down rail produced" do
+        note = create(:comment,
+                      commentable: user,
+                      author_id: GUMROAD_ADMIN_ID,
+                      comment_type: Comment::COMMENT_TYPE_PAYOUT_NOTE,
+                      content: "Our payment partner couldn't accept the business tax ID you entered.",
+                      json_data: { StripeMerchantAccountManager::PAYOUT_SETUP_REJECTION_NOTE_FLAG => true, seller_visible: true })
+        other_note = create(:comment,
+                            commentable: user,
+                            author_id: GUMROAD_ADMIN_ID,
+                            comment_type: Comment::COMMENT_TYPE_PAYOUT_NOTE,
+                            content: "Internal payout note")
+        confirmed = ActionController::Parameters.new(payment_address: "paypal@example.com", confirm_bank_rail_loss: "true")
+
+        result = described_class.new(user_params: confirmed, seller: user).process
+
+        expect(result).to eq(success: true)
+        expect(note.reload.deleted_at).to be_present
+        expect(other_note.reload.deleted_at).to be_nil
+        expect(user.reload.latest_payout_setup_rejection_note).to be_nil
       end
 
       # Egypt offers both rails (`can_setup_paypal_payouts?` lists it) and Stripe can rebuild the

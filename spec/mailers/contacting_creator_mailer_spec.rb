@@ -395,6 +395,38 @@ describe ContactingCreatorMailer do
       let(:purchase) { create(:purchase, link: create(:product, user: seller)) }
       let(:dispute) { create(:dispute_formalized, purchase:) }
 
+      it "states each dispute reason in plain language, and nothing for a generic, missing or unknown one" do
+        reason_lines = {
+          Dispute::REASON_FRAUDULENT => "the cardholder says they did not authorize this charge",
+          Dispute::REASON_UNRECOGNIZED => "the cardholder says they do not recognize this charge",
+          Dispute::REASON_PRODUCT_NOT_RECEIVED => "the cardholder says they did not receive the product",
+          Dispute::REASON_PRODUCT_UNACCEPTABLE => "the cardholder says the product was defective or not as described",
+          Dispute::REASON_DUPLICATE => "the cardholder says they were charged more than once for the same purchase",
+          Dispute::REASON_SUBSCRIPTION_CANCELED => "the cardholder says they were charged after canceling their subscription",
+          Dispute::REASON_CREDIT_NOT_PROCESSED => "the cardholder says they are owed a refund or credit they have not received",
+          Dispute::REASON_DEBIT_NOT_AUTHORIZED => "the account holder says they did not authorize this bank debit",
+        }
+        expect(reason_lines.keys + [Dispute::REASON_GENERAL]).to match_array(Dispute::STRIPE_REASONS)
+
+        reason_lines.each do |reason, line|
+          dispute.update!(reason:)
+          body = ContactingCreatorMailer.chargeback_notice(dispute.id).body.encoded
+          expect(body).to include "Reason given for the dispute: #{line}."
+          if reason.in?([Dispute::REASON_FRAUDULENT, Dispute::REASON_UNRECOGNIZED])
+            expect(body).to include "Sometimes, a customer will dispute a charge"
+          else
+            expect(body).not_to include "Sometimes, a customer will dispute a charge"
+          end
+        end
+
+        [Dispute::REASON_GENERAL, nil, "", "noncompliant"].each do |reason|
+          dispute.update!(reason:)
+          body = ContactingCreatorMailer.chargeback_notice(dispute.id).body.encoded
+          expect(body).not_to include "Reason given for the dispute"
+          expect(body).to include "Sometimes, a customer will dispute a charge"
+        end
+      end
+
       it "sends chargeback notice correctly" do
         book_chargeback_debits(dispute)
         expect(purchase.reload.purchase_chargeback_balance).to be_present
@@ -602,6 +634,19 @@ describe ContactingCreatorMailer do
             expect(mail.body.encoded).to include "Submit additional information"
           end
 
+          it "states the dispute reason, and nothing when the processor gave none" do
+            dispute.update!(reason: Dispute::REASON_UNRECOGNIZED)
+            dispute_evidence.update!(seller_contacted_at: 49.hours.ago)
+
+            body = ContactingCreatorMailer.chargeback_evidence_due_soon(dispute.id).body.encoded
+            expect(body).to include "Reason given for the dispute: the cardholder says they do not recognize this charge."
+
+            dispute.update!(reason: nil)
+            body = ContactingCreatorMailer.chargeback_evidence_due_soon(dispute.id).body.encoded
+            expect(body).not_to include "Reason given for the dispute"
+            expect(body).to include "You have 23 hours left."
+          end
+
           it "still reminds a seller who saved early, since they may keep revising" do
             dispute_evidence.update!(seller_contacted_at: 49.hours.ago, seller_submitted_at: Time.current)
 
@@ -657,6 +702,12 @@ describe ContactingCreatorMailer do
           purchase.update!(charge_processor_id: PaypalChargeProcessor.charge_processor_id)
         end
 
+        it "leaves the dispute reason to PayPal's own case" do
+          dispute.update!(reason: Dispute::REASON_FRAUDULENT)
+
+          expect(ContactingCreatorMailer.chargeback_notice(dispute.id).body.encoded).not_to include "Reason given for the dispute"
+        end
+
         it "includes copy about PayPal's dispute process" do
           mail = ContactingCreatorMailer.chargeback_notice(dispute.id)
 
@@ -681,6 +732,12 @@ describe ContactingCreatorMailer do
       end
 
       let(:dispute) { create(:dispute_formalized_on_charge, purchase: nil, charge:) }
+
+      it "states the reason recorded on the charge's dispute" do
+        dispute.update!(reason: Dispute::REASON_DUPLICATE)
+
+        expect(ContactingCreatorMailer.chargeback_notice(dispute.id).body.encoded).to include "Reason given for the dispute: the cardholder says they were charged more than once for the same purchase."
+      end
 
       it "sends chargeback notice correctly" do
         book_chargeback_debits(dispute)
@@ -1008,6 +1065,74 @@ describe ContactingCreatorMailer do
       expect(PushNotificationWorker).to have_enqueued_sidekiq_job(seller_id,
                                                                   Device::APP_TYPES[:creator],
                                                                   text, nil, {}, "chaching.wav", true)
+    end
+
+    describe "buyer receipt link" do
+      let(:product) { create(:product, user: seller) }
+      let(:purchase) { create(:purchase, link: product, seller:, email: buyer.email) }
+
+      before { purchase.create_url_redirect! }
+
+      def receipt_location(purchase) = "/purchases/#{purchase.external_id}/receipt"
+
+      it "links this purchase's receipt, without the buyer's email or the download token" do
+        body = ContactingCreatorMailer.notify(purchase.id).body.decoded
+        link = Nokogiri::HTML(body).at_xpath("//h4[starts-with(normalize-space(), \"Buyer's\")]/ancestor::tr[1]//a")
+
+        expect(link).to be_present
+        expect(URI(link["href"]).path).to eq(receipt_location(purchase))
+        expect(URI(link["href"]).query).to be_nil
+        expect(body).not_to include(purchase.url_redirect.token)
+      end
+
+      def notify_body = ContactingCreatorMailer.notify(purchase.reload.id).body.decoded
+
+      {
+        "has no url redirect" => -> { purchase.url_redirect.destroy! },
+        "is refunded" => -> { purchase.update!(stripe_refunded: true) },
+        "is charged back" => -> { purchase.update!(chargeback_date: Time.current) },
+        "is the sender leg of a gift" => -> { purchase.update!(is_gift_sender_purchase: true) },
+        "is the receiver leg of a gift" => -> { purchase.update!(is_gift_receiver_purchase: true) },
+        "is a preorder authorization" => -> { purchase.update!(is_preorder_authorization: true) },
+        "is the seller's own test purchase" => -> { purchase.update!(purchaser: seller) },
+        "is a rental" => -> { purchase.url_redirect.update!(is_rental: true) },
+        "is still waiting for its PDFs to be stamped" => -> { create(:readable_document, link: product, pdf_stamp_enabled: true) },
+        "is for a coffee product" => -> { product.update!(native_type: Link::NATIVE_TYPE_COFFEE) },
+      }.each do |condition, change|
+        it "omits the link when the purchase #{condition}" do
+          expect(notify_body).to include(receipt_location(purchase))
+
+          instance_exec(&change)
+
+          expect(notify_body).not_to include(receipt_location(purchase))
+        end
+      end
+
+      context "when the purchase is for a bundle" do
+        let(:product) { create(:product, :bundle, user: seller) }
+        let(:purchase) { create(:purchase, link: product, seller:, email: buyer.email, is_bundle_purchase: true) }
+
+        it "keeps the link once the buyer has member purchases, even if the members are later removed" do
+          product.bundle_products.each { Purchase::CreateBundleProductPurchaseService.new(purchase, _1).perform }
+          expect(notify_body).to include(receipt_location(purchase))
+
+          product.bundle_products.each(&:mark_deleted!)
+
+          expect(purchase.product_purchases).to be_present
+          expect(notify_body).to include(receipt_location(purchase))
+        end
+
+        it "omits the link for a memberless bundle only once it has no files of its own" do
+          product.bundle_products.each(&:mark_deleted!)
+          own_file = create(:product_file, link: product)
+          expect(purchase.product_purchases).to be_empty
+          expect(notify_body).to include(receipt_location(purchase))
+
+          own_file.mark_deleted!
+
+          expect(notify_body).not_to include(receipt_location(purchase))
+        end
+      end
     end
 
     it "uses SUPPORT_EMAIL as from address" do
@@ -3235,6 +3360,73 @@ describe ContactingCreatorMailer do
     end
   end
 
+  describe "#payouts_may_be_blocked" do
+    let!(:seller) { create(:named_seller) }
+
+    it "names each outstanding field and links to the remediation endpoint" do
+      create(:merchant_account, user: seller)
+      create(:user_compliance_info, user: seller, country: "Pakistan")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID)
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID)
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::FIRST_NAME).mark_provided!
+
+      mail = ContactingCreatorMailer.payouts_may_be_blocked(seller.id)
+
+      expect(mail.body.encoded).to include("National Identity Card Number (SNIC or CNIC)")
+      expect(mail.body.encoded).to include("Government-issued photo ID")
+      expect(mail.body.encoded).not_to include("First name")
+      expect(mail.body.encoded).to have_link("Complete your account", href: remediation_settings_payments_url)
+    end
+
+    it "labels the representative's tax ID by the representative's country" do
+      create(:user_compliance_info_business, user: seller, business_country: "Pakistan", country: "United Kingdom")
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID)
+
+      mail = ContactingCreatorMailer.payouts_may_be_blocked(seller.id)
+
+      expect(mail.body.encoded).to include("Unique Taxpayer Reference (UTR)")
+      expect(mail.body.encoded).not_to include("National Identity Card Number (SNIC or CNIC)")
+    end
+
+    it "lists unmapped Stripe requirements alongside labelled ones" do
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::DATE_OF_BIRTH)
+      create(:user_compliance_info_request, user: seller, field_needed: "company.directors_provided")
+
+      mail = ContactingCreatorMailer.payouts_may_be_blocked(seller.id)
+
+      expect(mail.body.encoded).to include("Date of birth")
+      expect(mail.body.encoded).to include("Directors provided")
+    end
+
+    it "omits Stripe intervention requests and falls back to the generic copy" do
+      create(:user_compliance_info_request, user: seller, field_needed: "interv_123.identity_verification.challenge")
+
+      mail = ContactingCreatorMailer.payouts_may_be_blocked(seller.id)
+
+      expect(mail.body.encoded).not_to include("Challenge")
+      expect(mail.body.encoded).to include("Please complete the necessary fields")
+    end
+
+    it "falls back to the generic copy when no request is outstanding" do
+      create(:merchant_account, user: seller)
+
+      mail = ContactingCreatorMailer.payouts_may_be_blocked(seller.id)
+
+      expect(mail.body.encoded).to include("Please complete the necessary fields")
+      expect(mail.body.encoded).to have_link("Complete your account", href: remediation_settings_payments_url)
+    end
+
+    it "links to the payments page when the seller has no Stripe account" do
+      create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::TAX_ID)
+
+      mail = ContactingCreatorMailer.payouts_may_be_blocked(seller.id)
+
+      expect(mail.body.encoded).to have_link("Complete your account", href: settings_payments_url)
+      expect(mail.body.encoded).to have_link(settings_payments_url, href: settings_payments_url)
+      expect(mail.body.encoded).not_to include(remediation_settings_payments_url)
+    end
+  end
+
   describe "#more_kyc_needed" do
     let!(:seller) { create(:named_seller) }
 
@@ -3244,6 +3436,15 @@ describe ContactingCreatorMailer do
       expect(mail.to).to eq([seller.email])
       expect(mail.body.encoded).to have_link("Provide your information", href: remediation_settings_payments_url)
       expect(mail.body.encoded).not_to have_link("Provide your information", href: settings_payments_url)
+    end
+
+    it "labels the representative's tax ID by the representative's country" do
+      create(:user_compliance_info_business, user: seller, business_country: "Pakistan", country: "United Kingdom")
+
+      mail = ContactingCreatorMailer.more_kyc_needed(seller.id, %w[individual_tax_id])
+
+      expect(mail.body.encoded).to include("Unique Taxpayer Reference (UTR)")
+      expect(mail.body.encoded).not_to include("National Identity Card Number (SNIC or CNIC)")
     end
   end
 

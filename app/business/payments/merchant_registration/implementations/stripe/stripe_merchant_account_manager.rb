@@ -13,6 +13,10 @@ module StripeMerchantAccountManager
   ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES = [Compliance::Countries::JPN.alpha2, Compliance::Countries::VNM.alpha2, Compliance::Countries::IDN.alpha2].freeze
   private_constant :ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES
 
+  # Only ASCII names are sent for TW: Stripe's acceptance of non-Latin holder names there is unverified.
+  ASCII_ONLY_ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES = [Compliance::Countries::TWN.alpha2].freeze
+  private_constant :ASCII_ONLY_ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES
+
   NEW_ACCOUNT_CREATION_BLOCKED_COUNTRIES = [Compliance::Countries::IND.alpha2].freeze
   LIVE_NON_INDIVIDUAL_BUSINESS_TYPES = %w[company non_profit government_entity].freeze
   # Stripe US `company[structure]` values, applied only to a US legal entity. Types missing here
@@ -24,6 +28,12 @@ module StripeMerchantAccountManager
     UserComplianceInfo::BusinessTypes::CORPORATION => "private_corporation",
     UserComplianceInfo::BusinessTypes::PARTNERSHIP => "private_partnership",
   }.freeze
+  # Legacy US-vocabulary types a Canadian record can hold. Only create_account maps them: update_account
+  # keeps sending what it sent before, because its diff against the last record would otherwise change.
+  CANADA_LEGACY_COMPANY_STRUCTURES = US_COMPANY_STRUCTURES.slice(
+    UserComplianceInfo::BusinessTypes::CORPORATION,
+    UserComplianceInfo::BusinessTypes::PARTNERSHIP
+  ).freeze
 
   BANK_SYNC_FAILURE_NOTE_PREFIX = "Stripe bank sync failed"
 
@@ -108,8 +118,9 @@ module StripeMerchantAccountManager
   SERVICE_AGREEMENT_UNSUPPORTED_MESSAGE = /tos agreement is not supported/i
   private_constant :SERVICE_AGREEMENT_UNSUPPORTED_MESSAGE
 
+  # Read by ReconcileStripePayoutsPausesJob, which finds Stripe-paused sellers from the comments
+  # this author writes, so it is deliberately public.
   STRIPE_PAYOUTS_SYNC_COMMENT_AUTHOR = "Stripe payouts sync"
-  private_constant :STRIPE_PAYOUTS_SYNC_COMMENT_AUTHOR
 
   # How long we wait before emailing a seller that Stripe paused their payouts.
   # Stripe's periodic re-verification sweeps sometimes disable payouts and
@@ -178,9 +189,15 @@ module StripeMerchantAccountManager
   end
   private_class_method :claim_stripe_payouts_pause_email
 
-  def self.account_holder_name_synced_to_stripe?(user)
+  def self.account_holder_name_synced_to_stripe?(user, bank_account = user.active_bank_account)
     country_code = user.alive_user_compliance_info&.legal_entity_country_code
-    ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES.include?(country_code) || ecuador_company?(user)
+    return true if ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES.include?(country_code) || ecuador_company?(user)
+
+    ascii_only_account_holder_name_sync?(user) && bank_account.present? && bank_account.account_holder_full_name.to_s.ascii_only?
+  end
+
+  def self.ascii_only_account_holder_name_sync?(user)
+    ASCII_ONLY_ACCOUNT_HOLDER_NAME_SYNC_COUNTRIES.include?(user.alive_user_compliance_info&.legal_entity_country_code)
   end
 
   # EC company holder-name changes go to the existing external account in place rather than
@@ -482,8 +499,8 @@ module StripeMerchantAccountManager
     tos_agreement = user.tos_agreements.last
     user_compliance_info = user.alive_user_compliance_info
 
-    last_attributes = account_hash(user, nil, last_user_compliance_info, passphrase:)
-    current_attributes = account_hash(user, tos_agreement, user_compliance_info, passphrase:)
+    last_attributes = account_hash(user, nil, last_user_compliance_info, passphrase:, map_canada_legacy_structures: false)
+    current_attributes = account_hash(user, tos_agreement, user_compliance_info, passphrase:, map_canada_legacy_structures: false)
     country_code = user_compliance_info.legal_entity_country_code
     last_attributes[:metadata] = {}
     last_attributes[:business_profile] = {}
@@ -540,7 +557,9 @@ module StripeMerchantAccountManager
       # Clear structure first - Stripe rejects company[structure] when business_type is "individual"
       # The live-account arm keys on the structure Stripe holds, in any country: Stripe validates the merged
       # object, and hosted onboarding can set a structure our records never mapped.
-      if (last_user_compliance_info&.is_business? &&
+      # Stripe rejects the clear itself once the account is already individual, so skip it then.
+      if (stripe_account["business_type"] != "individual" &&
+        last_user_compliance_info&.is_business? &&
         last_user_compliance_info.legal_entity_country_code == Compliance::Countries::USA.alpha2 &&
         US_COMPANY_STRUCTURES.key?(last_user_compliance_info.business_type)) ||
         (live_non_individual_for_individual && stripe_account["company"] && stripe_account["company"]["structure"].present?)
@@ -699,6 +718,7 @@ module StripeMerchantAccountManager
     # rejection (Greptile finding on this PR).
     clear_stale_payout_setup_rejection_notes(user, resolved_fields: submitted_field_names(account_update.sent_attributes))
     clear_unresolvable_business_tax_id_notes(user)
+    clear_unresolvable_structure_notes(user) if user_compliance_info.is_individual?
     # After the clear above, or the seller-visible half of the note would be retired by this same save.
     record_account_rejection_note(user, jp_address_rejection) if notify && jp_address_rejection
   rescue Stripe::InvalidRequestError => e
@@ -1626,10 +1646,12 @@ module StripeMerchantAccountManager
       # A metadata match does not prove the local row is linked.
       unless skip_metadata_noop
         name_out_of_sync = false
-        if account_holder_name_synced_to_stripe?(bank_account.user)
+        name_synced = account_holder_name_synced_to_stripe?(bank_account.user, bank_account)
+        if name_synced || ascii_only_account_holder_name_sync?(bank_account.user)
           stripe_external_account = stripe_account["external_accounts"]&.first
           stripe_holder_name = stripe_external_account && stripe_external_account["account_holder_name"]
-          name_out_of_sync = stripe_holder_name != bank_account.account_holder_full_name
+          # A non-ASCII TW name is not sent, so an ASCII name Stripe kept from before has to be cleared.
+          name_out_of_sync = name_synced ? stripe_holder_name != bank_account.account_holder_full_name : stripe_holder_name.present?
         end
 
         restored = restore_local_bank_link!(bank_account, stripe_account) unless name_out_of_sync
@@ -2667,6 +2689,38 @@ module StripeMerchantAccountManager
     ErrorNotifier.notify(e)
   end
 
+  # A saved individual has no structure to resubmit, so a structure rejection note could never clear.
+  def self.clear_unresolvable_structure_notes(user)
+    unresolvable_structure_rejection_notes(user).each { |note| note.update!(deleted_at: Time.current) }
+  rescue => e
+    Rails.logger.error "Failed to clear unresolvable structure notes for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+  end
+
+  # An individual can't resubmit `structure`, and an identical save skips Stripe, so this re-runs
+  # the sync that should have retired the note.
+  def self.resync_pending_structure_rejection(user)
+    compliance_info = user.alive_user_compliance_info
+    return unless compliance_info&.is_individual?
+    return if unresolvable_structure_rejection_notes(user).empty?
+
+    handle_new_user_compliance_info(compliance_info)
+  rescue => e
+    # The seller has nothing left to correct, so a failure here must not fail their save.
+    Rails.logger.error "Failed to re-drive the pending structure rejection sync for user #{user&.id}: #{e.class}: #{e.message}"
+    ErrorNotifier.notify(e)
+  end
+
+  private_class_method def self.unresolvable_structure_rejection_notes(user)
+    user.comments
+        .with_type_payout_note
+        .alive
+        .where(author_id: GUMROAD_ADMIN_ID)
+        .where("json_data LIKE ?", "%#{PAYOUT_SETUP_REJECTION_NOTE_FLAG}%")
+        .select { |note| note.json_data[PAYOUT_SETUP_REJECTION_NOTE_FLAG] == true }
+        .select { |note| note.json_data[PAYOUT_SETUP_REJECTED_FIELD_KEY] == "structure" }
+  end
+
   def self.disconnect(user:)
     return false unless user.stripe_disconnect_allowed?
 
@@ -2896,7 +2950,7 @@ module StripeMerchantAccountManager
   end
 
   private_class_method
-  def self.account_hash(user, tos_agreement, user_compliance_info, passphrase:)
+  def self.account_hash(user, tos_agreement, user_compliance_info, passphrase:, map_canada_legacy_structures: true)
     hash = {
       metadata: {
         user_id: user.external_id
@@ -2945,7 +2999,7 @@ module StripeMerchantAccountManager
       end
 
       if user_compliance_info.is_business?
-        hash.deep_merge!(company_hash(user_compliance_info, passphrase))
+        hash.deep_merge!(company_hash(user_compliance_info, passphrase, map_canada_legacy_structures:))
       else
         hash.deep_merge!(
           individual: person_hash(user_compliance_info, passphrase)
@@ -2982,7 +3036,7 @@ module StripeMerchantAccountManager
           bank_account_hash[:routing_number] = routing_number
         end
         bank_account_hash[:account_type] = bank_account.account_type if [Compliance::Countries::CHL.alpha2, Compliance::Countries::COL.alpha2].include?(country_code) && bank_account.account_type.present?
-        bank_account_hash[:account_holder_name] = bank_account.account_holder_full_name if account_holder_name_synced_to_stripe?(bank_account.user)
+        bank_account_hash[:account_holder_name] = bank_account.account_holder_full_name if account_holder_name_synced_to_stripe?(bank_account.user, bank_account)
         bank_account_hash
       end
 
@@ -3081,7 +3135,10 @@ module StripeMerchantAccountManager
         if legal_entity_country_code == Compliance::Countries::USA.alpha2
           if country_code == Compliance::Countries::USA.alpha2 && personal_tax_id.length == 4
             hash.deep_merge!(ssn_last_4: personal_tax_id.last(4))
-          elsif personal_tax_id.length == 9
+          # An SSN or ITIN is nine digits. A nine-character ID with letters, such as a Singapore NRIC
+          # ("S1234567A"), would otherwise reach Stripe as one, and Stripe would stop asking for an
+          # ID document. A nine-digit foreign ID still passes this check.
+          elsif personal_tax_id.match?(/\A\d{9}\z/)
             hash.deep_merge!(id_number: personal_tax_id)
           end
         else
@@ -3105,7 +3162,7 @@ module StripeMerchantAccountManager
   end
   private_class_method :company_tax_id_accepted?
 
-  def self.company_hash(user_compliance_info, passphrase)
+  def self.company_hash(user_compliance_info, passphrase, map_canada_legacy_structures: true)
     return unless user_compliance_info.present?
 
     business_tax_id = user_compliance_info.business_tax_id.decrypt(passphrase)
@@ -3172,10 +3229,15 @@ module StripeMerchantAccountManager
           vat_id: user_compliance_info.business_vat_id_number
         }
       )
-    elsif user_compliance_info.legal_entity_country_code == Compliance::Countries::CAN.alpha2
+    elsif user_compliance_info.legal_entity_country_code == Compliance::Countries::CAN.alpha2 &&
+          (UserComplianceInfo::BusinessTypes::BUSINESS_TYPES_CANADA.key?(user_compliance_info.business_type) ||
+           (map_canada_legacy_structures && CANADA_LEGACY_COMPANY_STRUCTURES.key?(user_compliance_info.business_type)))
+      # A record can hold a legacy US-vocabulary type the Canadian form never offers, and Stripe rejects
+      # any structure outside its Canadian set: send none for llc/profit, or on update for corporation/partnership.
+      structure = CANADA_LEGACY_COMPANY_STRUCTURES.fetch(user_compliance_info.business_type, user_compliance_info.business_type)
       hash.deep_merge!(
         company: {
-          structure: user_compliance_info.business_type == "non_profit" ? "" : user_compliance_info.business_type,
+          structure: structure == "non_profit" ? "" : structure,
         }
       )
     elsif user_compliance_info.legal_entity_country_code == Compliance::Countries::USA.alpha2 &&
@@ -3506,16 +3568,12 @@ module StripeMerchantAccountManager
       # concurrent webhook that ran just before us (with_lock reloads the user,
       # but not merchant_account, where the marker lives).
       merchant_account.reload
+      # Every disabled report, not just the ones that write a pause comment: an unchanged reason writes none.
+      if stripe_account["payouts_enabled"] == false
+        merchant_account.update!(stripe_payouts_disabled_observation_token: SecureRandom.uuid)
+      end
       if stripe_account["payouts_enabled"] && user.payouts_paused_by_source == User::PAYOUT_PAUSE_SOURCE_STRIPE
-        user.update!(payouts_paused_internally: false, payouts_paused_by: nil)
-        user.comments.create!(
-          author_name: STRIPE_PAYOUTS_SYNC_COMMENT_AUTHOR,
-          comment_type: Comment::COMMENT_TYPE_PAYOUTS_RESUMED,
-          content: user.payouts_paused_by_user? ?
-            "Stripe re-enabled payouts on the connected account; payouts remain paused by the creator." :
-            "Payouts automatically resumed: Stripe re-enabled payouts on the connected account."
-        )
-        merchant_account.update!(stripe_payouts_pause_email_sent: nil, stripe_payouts_pause_email_claim_token: nil) if merchant_account.stripe_payouts_pause_email_sent
+        resume_stripe_payouts_pause!(user:, merchant_account:)
       elsif stripe_account["payouts_enabled"] == false && !user.payouts_paused_internally?
         user.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_STRIPE)
         user.comments.create!(
@@ -3611,6 +3669,23 @@ module StripeMerchantAccountManager
     if email_sent
       email_sent_at = Time.current
       new_requests.each { |request| request.record_email_sent!(email_sent_at) }
+    end
+  end
+
+  # Clears a Stripe-sourced payout pause and leaves the audit comment. The caller must already hold
+  # `user.with_lock` (both callers do), because the resume write races the webhook's pause write.
+  # Shared by the `account.updated` webhook and ReconcileStripePayoutsPauseForSellerJob.
+  def self.resume_stripe_payouts_pause!(user:, merchant_account:)
+    user.update!(payouts_paused_internally: false, payouts_paused_by: nil)
+    user.comments.create!(
+      author_name: STRIPE_PAYOUTS_SYNC_COMMENT_AUTHOR,
+      comment_type: Comment::COMMENT_TYPE_PAYOUTS_RESUMED,
+      content: user.payouts_paused_by_user? ?
+        "Stripe re-enabled payouts on the connected account; payouts remain paused by the creator." :
+        "Payouts automatically resumed: Stripe re-enabled payouts on the connected account."
+    )
+    if merchant_account.stripe_payouts_pause_email_sent
+      merchant_account.update!(stripe_payouts_pause_email_sent: nil, stripe_payouts_pause_email_claim_token: nil)
     end
   end
 
@@ -3713,12 +3788,19 @@ module StripeMerchantAccountManager
 
   SOFT_FUTURE_REQUIREMENT_GRACE_PERIOD = 30.days
 
-  def self.soft_future_stripe_fields(requirements, future_requirements, alternative_fields_due, requirements_due_at)
-    return [] unless requirements_due_at.blank? || requirements_due_at > SOFT_FUTURE_REQUIREMENT_GRACE_PERIOD.from_now
+  # A verification document has no collector on our side: only Stripe onboarding renders a document
+  # step, and we mint that link once the document is due (Settings::PaymentsController#remediation_link_type).
+  UNCOLLECTIBLE_FUTURE_FIELD = /\.verification\.(?:additional_)?document\z/
 
+  def self.soft_future_stripe_fields(requirements, future_requirements, alternative_fields_due, requirements_due_at)
     actionable = [requirements["currently_due"], requirements["past_due"],
                   future_requirements["currently_due"], future_requirements["past_due"], alternative_fields_due].compact.reduce([], :+)
-    (requirements["eventually_due"] || []) - actionable
+    eventually_due_only = (requirements["eventually_due"] || []) - actionable
+    # A near-term deadline makes an eventually_due field worth asking about — every field but a
+    # document, which the seller can only submit once it is due.
+    beyond_grace = requirements_due_at.blank? || requirements_due_at > SOFT_FUTURE_REQUIREMENT_GRACE_PERIOD.from_now
+
+    eventually_due_only.select { |field| beyond_grace || field.to_s.match?(UNCOLLECTIBLE_FUTURE_FIELD) }
   end
   private_class_method :soft_future_stripe_fields
 

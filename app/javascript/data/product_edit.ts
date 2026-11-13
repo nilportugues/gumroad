@@ -1,5 +1,5 @@
 import { Editor, findChildren } from "@tiptap/core";
-import { type Mark } from "@tiptap/pm/model";
+import { type Mark, type Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { EditorState, Transaction } from "@tiptap/pm/state";
 
 import { buildDeletionOperations } from "$app/data/product_save_contract";
@@ -10,7 +10,7 @@ import { ResponseError, request } from "$app/utils/request";
 
 import { extensions } from "$app/components/ProductEdit/ContentTab";
 import { FileEmbed } from "$app/components/ProductEdit/ContentTab/FileEmbed";
-import { Product, hasPaidVariantPricing } from "$app/components/ProductEdit/state";
+import { Product, Variant, hasPaidVariantPricing } from "$app/components/ProductEdit/state";
 import { baseEditorOptions } from "$app/components/RichTextEditor";
 
 export type SaveProductResponse = {
@@ -44,6 +44,8 @@ export type SaveProductResponse = {
   loaded_integrations?: Record<string, boolean>;
   // The same baseline, per version, keyed by variant external id.
   variant_loaded_integrations?: Record<string, Record<string, boolean>>;
+  // Set when the save could not apply file deletions, so the removals it carried are still pending.
+  file_deletions_skipped?: boolean;
 };
 
 const optional = (value: unknown, check: (item: unknown) => boolean) => value === undefined || check(value);
@@ -65,7 +67,8 @@ const isSaveProductResponse = (value: unknown): value is SaveProductResponse =>
   optional(value.variant_updated_at, isStringMap) &&
   optional(value.editor_revision, (revision) => revision === null || isString(revision)) &&
   optional(value.loaded_integrations, isBooleanMap) &&
-  optional(value.variant_loaded_integrations, (variants) => isRecordOf(variants, isBooleanMap));
+  optional(value.variant_loaded_integrations, (variants) => isRecordOf(variants, isBooleanMap)) &&
+  optional(value.file_deletions_skipped, isBoolean);
 
 // The server's fail-closed answer when a save would delete version-level pages
 // that are hidden by the "use the same content for all versions" flag while
@@ -170,7 +173,7 @@ export const filesForSave = <
   embeddedFileIds: Set<unknown>,
   keepAllFiles: boolean,
 ) => {
-  const savable = files.filter((file) => !isFailedUpload(file));
+  const savable = files.filter((file) => !isFailedUpload(file) && file.status?.type !== "removed");
   return keepAllFiles ? savable : savable.filter((file) => embeddedFileIds.has(file.id));
 };
 
@@ -422,14 +425,146 @@ export const embeddedFailedUploadIds = (
   files: { id: string; status?: { type?: string; uploadStatus?: { type?: string } } | null }[],
   pages: { description: object }[],
 ) => {
-  const embedded = new Set<string>();
-  pages.forEach((page) => collectFileEmbedIds(page.description, embedded));
+  const embedded = embeddedFileIds(pages);
   return new Set([...failedUploadFileIds(files)].filter((id) => embedded.has(id)));
 };
 
 export const removeFileEmbedsFromRichContent = (description: object, fileIds: Set<string>): object => {
   const cleaned = removeFileEmbeds(description, fileIds);
   return isRecord(cleaned) ? cleaned : description;
+};
+
+// The save contract derives deleted_ids.files from this status, not from missing embeds.
+export const markFileRemoved = (files: Product["files"], fileId: string): Product["files"] =>
+  files.map((file) =>
+    file.id === fileId && file.status.type !== "removed"
+      ? { ...file, status: { type: "removed", previousStatus: file.status } }
+      : file,
+  );
+
+// The file's embeds go with it: one left in the submitted content would name the id in the `files`
+// payload again, and the page would keep a block whose file no longer exists.
+export const withoutFileEmbeds = <T extends { description: object }>(pages: T[], fileId: string): T[] =>
+  pages.map((page) => ({
+    ...page,
+    description: removeFileEmbedsFromRichContent(page.description, new Set([fileId])),
+  }));
+
+// A variant's pages are submitted as their own rich content, so the file's embeds have to leave
+// those too.
+export const withoutFileEmbedsFromVariants = (variants: Variant[], fileId: string): void => {
+  variants.forEach((variant) => {
+    variant.rich_content = withoutFileEmbeds(variant.rich_content, fileId);
+  });
+};
+
+const embeddedFileIds = (pages: { description: object }[]) => {
+  const ids = new Set<string>();
+  pages.forEach((page) => collectFileEmbedIds(page.description, ids));
+  return ids;
+};
+
+const embeddedFileIdsInProduct = (product: Pick<Product, "rich_content" | "variants">) =>
+  embeddedFileIds([...product.rich_content, ...product.variants.flatMap((variant) => variant.rich_content)]);
+
+// A file embed is a block, so the walk never needs to enter a paragraph.
+const fileEmbedIdsInDoc = (doc: ProseMirrorNode): Set<string> => {
+  const ids = new Set<string>();
+  doc.descendants((node) => {
+    if (node.type.name === FileEmbed.name && typeof node.attrs.id === "string") ids.add(node.attrs.id);
+    return !node.isTextblock;
+  });
+  return ids;
+};
+
+export const fileEmbedChanges = (before: ProseMirrorNode, after: ProseMirrorNode) => {
+  const idsBefore = fileEmbedIdsInDoc(before);
+  const idsAfter = fileEmbedIdsInDoc(after);
+  return {
+    deleted: new Set([...idsBefore].filter((id) => !idsAfter.has(id))),
+    inserted: new Set([...idsAfter].filter((id) => !idsBefore.has(id))),
+  };
+};
+
+// Deleting a file's last block removes the file; an embed that comes back (undo, paste) cancels the
+// removal. Only editor edits feed this, so content lost any other way never becomes a deletion.
+// An upload keeps its "unsaved" status after the save that stores it; only its id changes, to the
+// canonical one the save maps it to.
+const isSavedFile = (file: Product["files"][number], savedThisSessionIds: ReadonlySet<string>) =>
+  file.status.type === "saved" || (file.status.type !== "removed" && savedThisSessionIds.has(file.id));
+
+export const reconcileFileRemovalsWithEmbeds = (
+  product: Pick<Product, "files" | "rich_content" | "variants">,
+  { deleted, inserted }: { deleted: Set<string>; inserted: Set<string> },
+  savedThisSessionIds: ReadonlySet<string>,
+): Product["files"] => {
+  const embedded = embeddedFileIdsInProduct(product);
+  let files = product.files.map((file) =>
+    file.status.type === "removed" && inserted.has(file.id) ? { ...file, status: file.status.previousStatus } : file,
+  );
+  for (const file of files)
+    if (isSavedFile(file, savedThisSessionIds) && deleted.has(file.id) && !embedded.has(file.id))
+      files = markFileRemoved(files, file.id);
+  return files;
+};
+
+// Pages the shared-content setting hides are not loaded, so a file only they embed is listed too.
+export const filesOnNoPage = (
+  product: Pick<Product, "files" | "rich_content" | "variants">,
+  savedThisSessionIds: ReadonlySet<string>,
+): Product["files"] => {
+  const embedded = embeddedFileIdsInProduct(product);
+  return product.files.filter((file) => isSavedFile(file, savedThisSessionIds) && !embedded.has(file.id));
+};
+
+// "Keep version content" reloads the editor as soon as it saves, so removals that save skipped
+// (`file_deletions_skipped`) cross the reload here, with the revision that save left behind.
+export type SkippedFileRemovals = { fileIds: string[]; editorRevision: string | null };
+const skippedFileRemovalsKey = (productId: string) => `product-edit:skipped-file-removals:${productId}`;
+
+export const storeSkippedFileRemovals = (productId: string, removals: SkippedFileRemovals) => {
+  try {
+    window.sessionStorage.setItem(skippedFileRemovalsKey(productId), JSON.stringify(removals));
+  } catch {
+    // Without storage the reloaded editor shows the file as still attached, as it did before.
+  }
+};
+
+export const readSkippedFileRemovals = (productId: string): SkippedFileRemovals | null => {
+  try {
+    const value: unknown = JSON.parse(window.sessionStorage.getItem(skippedFileRemovalsKey(productId)) ?? "null");
+    return isPlainObject(value) &&
+      isStringList(value.fileIds) &&
+      (value.editorRevision === null || isString(value.editorRevision))
+      ? { fileIds: value.fileIds, editorRevision: value.editorRevision }
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearSkippedFileRemovals = (productId: string) => {
+  try {
+    window.sessionStorage.removeItem(skippedFileRemovalsKey(productId));
+  } catch {
+    // Nothing was stored.
+  }
+};
+
+// Removes the files again on the reloaded product, embeds included. Only safe when the product is
+// still exactly as the skipping save left it, which the matching editor revision proves; otherwise
+// the removal is decided against content the seller has not seen.
+export const withSkippedFileRemovals = (product: Product, removals: SkippedFileRemovals | null): Product => {
+  if (!removals?.editorRevision || removals.editorRevision !== product.editor_revision) return product;
+  const fileIds = removals.fileIds.filter((id) => product.files.some((file) => file.id === id));
+  if (fileIds.length === 0) return product;
+  const updated = structuredClone(product);
+  for (const id of fileIds) {
+    updated.files = markFileRemoved(updated.files, id);
+    updated.rich_content = withoutFileEmbeds(updated.rich_content, id);
+    withoutFileEmbedsFromVariants(updated.variants, id);
+  }
+  return updated;
 };
 
 export const buildRichContentReconciliationTransaction = (
@@ -539,6 +674,9 @@ export const scalarSettingsForSave = (
     hasPaidVariantPricing: boolean;
     installment_plan: { number_of_installments: number } | null;
     allow_installment_plan: boolean;
+    free_trial_enabled: boolean;
+    free_trial_duration_amount: Product["free_trial_duration_amount"];
+    free_trial_duration_unit: Product["free_trial_duration_unit"];
   },
   lastSaved: {
     custom_permalink: string | null;
@@ -548,6 +686,9 @@ export const scalarSettingsForSave = (
     hasPaidVariantPricing: boolean;
     installment_plan: { number_of_installments: number } | null;
     allow_installment_plan: boolean | null;
+    free_trial_enabled: boolean | null;
+    free_trial_duration_amount: Product["free_trial_duration_amount"];
+    free_trial_duration_unit: Product["free_trial_duration_unit"];
   },
 ) => {
   const settings: Record<string, unknown> = {};
@@ -591,8 +732,32 @@ export const scalarSettingsForSave = (
     settings.installment_plan = null;
     settings.installment_plan_changed = true;
   }
+  // `false` clears a live trial and a null amount/unit clears its duration, so a
+  // stale snapshot must omit the trio. A null baseline means the caller does not
+  // track it: send through unchanged.
+  const trialBaselineKnown = lastSaved.free_trial_enabled !== null;
+  const trialTouched =
+    product.free_trial_enabled !== lastSaved.free_trial_enabled ||
+    (product.free_trial_enabled &&
+      (product.free_trial_duration_amount !== lastSaved.free_trial_duration_amount ||
+        product.free_trial_duration_unit !== lastSaved.free_trial_duration_unit));
+  if (!trialBaselineKnown || trialTouched) {
+    settings.free_trial_enabled = product.free_trial_enabled;
+    settings.free_trial_duration_amount = product.free_trial_enabled ? product.free_trial_duration_amount : null;
+    settings.free_trial_duration_unit = product.free_trial_enabled ? product.free_trial_duration_unit : null;
+  }
   return settings;
 };
+
+const submittedRichContent = (product: Product) =>
+  product.has_same_rich_content_for_all_variants || !product.variants.length
+    ? product.rich_content
+    : product.variants.flatMap((variant) => variant.rich_content);
+
+// The files a save sends: those its submitted pages embed. "Keep version content" sends every file,
+// but its save reloads the page instead of reading this.
+export const filesSentBySave = (product: Product) =>
+  filesForSave(product.files, embeddedFileIds(submittedRichContent(product)), false);
 
 export const saveProduct = async (
   permalink: string,
@@ -612,17 +777,15 @@ export const saveProduct = async (
     lastSavedInstallmentPlan?: { number_of_installments: number } | null;
     lastSavedAllowInstallmentPlan?: boolean | null;
     lastSavedDescription?: string | null;
+    lastSavedFreeTrialEnabled?: boolean | null;
+    lastSavedFreeTrialDurationAmount?: Product["free_trial_duration_amount"];
+    lastSavedFreeTrialDurationUnit?: Product["free_trial_duration_unit"];
   } = {},
 ): Promise<SaveProductResponse> => {
   // TODO remove this once we have a better content uploader
   const editor = new Editor(baseEditorOptions(extensions(id)));
   const failedFileIds = failedUploadFileIds(product.files);
-  const richContents = withoutFailedFileEmbeds(
-    product.has_same_rich_content_for_all_variants || !product.variants.length
-      ? product.rich_content
-      : product.variants.flatMap((variant) => variant.rich_content),
-    failedFileIds,
-  );
+  const richContents = withoutFailedFileEmbeds(submittedRichContent(product), failedFileIds);
   const fileIds = new Set(
     richContents.flatMap((content) =>
       findChildren(
@@ -646,6 +809,9 @@ export const saveProduct = async (
     description_changed,
     installment_plan,
     allow_installment_plan,
+    free_trial_enabled,
+    free_trial_duration_amount,
+    free_trial_duration_unit,
     ...productParams
   } = product;
   const response = await request({
@@ -665,6 +831,9 @@ export const saveProduct = async (
           hasPaidVariantPricing: hasPaidVariantPricing(product),
           installment_plan,
           allow_installment_plan,
+          free_trial_enabled,
+          free_trial_duration_amount,
+          free_trial_duration_unit,
         },
         {
           custom_permalink: options.lastSavedCustomPermalink ?? null,
@@ -674,6 +843,9 @@ export const saveProduct = async (
           hasPaidVariantPricing: options.lastSavedHasPaidVariantPricing ?? hasPaidVariantPricing(product),
           installment_plan: options.lastSavedInstallmentPlan ?? null,
           allow_installment_plan: options.lastSavedAllowInstallmentPlan ?? null,
+          free_trial_enabled: options.lastSavedFreeTrialEnabled ?? null,
+          free_trial_duration_amount: options.lastSavedFreeTrialDurationAmount ?? null,
+          free_trial_duration_unit: options.lastSavedFreeTrialDurationUnit ?? null,
         },
       ),
       files,

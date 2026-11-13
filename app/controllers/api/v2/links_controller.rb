@@ -432,6 +432,14 @@ class Api::V2::LinksController < Api::V2::BaseController
     previous_custom_html = nil
     sanitization_report = nil
     file_id_mappings = {}
+    # MySQL rolls the whole transaction back when it picks it as a deadlock victim, so the update
+    # is replayed once from a clean start. The save writes many rows (product, prices, files, pages,
+    # tags, rich content) whose lock order varies with the payload, and two overlapping saves can
+    # still deadlock. SaveFilesService and the rich-content savers mutate the normalized inputs, so
+    # each attempt works on its own copy.
+    deadlock_retried = false
+    normalized_files_input = @normalized_files.deep_dup
+    normalized_rich_content_input = @normalized_rich_content.deep_dup
     begin
       ActiveRecord::Base.transaction do
         # Lock the product row so concurrent custom_html PUTs serialize their
@@ -562,6 +570,18 @@ class Api::V2::LinksController < Api::V2::BaseController
 
         @product.generate_product_files_archives! if !@normalized_files.nil? || rich_content_or_flag_changed
       end
+    rescue ActiveRecord::Deadlocked
+      raise if deadlock_retried || performed?
+
+      deadlock_retried = true
+      # reload drops the attributes the rolled-back attempt assigned; lock! refuses a dirty record.
+      @product.reload
+      @normalized_files = normalized_files_input.deep_dup
+      @normalized_rich_content = normalized_rich_content_input.deep_dup
+      previous_custom_html = nil
+      sanitization_report = nil
+      file_id_mappings = {}
+      retry
     rescue Link::LinkInvalid => e
       return if performed?
       return render_response(false, message: e.message)
@@ -616,67 +636,22 @@ class Api::V2::LinksController < Api::V2::BaseController
     success_with_product if @product.delete!
   end
 
-  # Mirrors the dashboard's section editor: `sections` is the COMPLETE ordered list the product keeps,
-  # so a section left out is destroyed. Sections listed before main_section_index render above the product.
+  # Mirrors the dashboard's section editor: `sections` is the COMPLETE ordered layout of the
+  # product's own sections, so a section the list leaves out is destroyed. An entry is either a
+  # section id (keep it as it is) or an object that changes one section's contents (its `id`) or
+  # creates a new one (its `type`). Sections listed before main_section_index render above the
+  # product.
   def update_sections
-    sections = raw_sections_param
-    unless sections.is_a?(Array) && sections.all? { |id| id.is_a?(String) }
-      return render_response(false, message: "sections must be an array of section ids.")
-    end
+    options = {}
+    options[:known_section_ids] = params[:known_section_ids] if params.key?(:known_section_ids)
+    options[:main_section_index] = params[:main_section_index] if params.key?(:main_section_index)
 
-    section_ids = sections.map { |id| ObfuscateIds.decrypt(id) }
-    if section_ids.any?(&:nil?)
-      return render_response(false, message: "One or more sections were not found.")
-    end
-    if section_ids.uniq.length != section_ids.length
-      return render_response(false, message: "sections must not list the same section twice.")
-    end
-
-    known_ids = nil
-    if params.key?(:known_section_ids)
-      known = params[:known_section_ids]
-      known_ids = known.map { |id| ObfuscateIds.decrypt(id) } if known.is_a?(Array) && known.all? { |id| id.is_a?(String) }
-      return render_response(false, message: "known_section_ids must be an array of section ids.") if known_ids.nil? || known_ids.any?(&:nil?)
-    end
-
-    main_section_index = nil
-    if params.key?(:main_section_index)
-      value = params[:main_section_index]
-      unless (value.is_a?(Integer) || value.is_a?(String)) && value.to_s.match?(/\A\d+\z/)
-        return render_response(false, message: "main_section_index must be a non-negative integer.")
-      end
-      main_section_index = [value.to_i, section_ids.length].min
-    end
-
-    error = nil
-    stale_known_sections = false
-    @product.with_lock do
-      # Checked under the product lock so a concurrent writer cannot add or remove a section between
-      # this check and the destroy below. A foreign id would otherwise be stored and render nothing.
-      current_ids = @product.seller_profile_sections.pluck(:id)
-      if (section_ids - current_ids).any?
-        error = "One or more sections do not belong to this product."
-        raise ActiveRecord::Rollback
-      end
-      # known_section_ids is what the seller reviewed; a newer section was never shown as deleted.
-      if known_ids && (current_ids - section_ids - known_ids).any?
-        error = "A section was added after this change was prepared. Read the product again and prepare a fresh sections list."
-        stale_known_sections = true
-        raise ActiveRecord::Rollback
-      end
-
-      @product.sections = section_ids
-      @product.main_section_index = main_section_index if main_section_index
-      @product.save!
-      @product.seller_profile_sections.where.not(id: section_ids).destroy_all
-    end
-    if error
-      return render_response(false, stale_known_sections ? { message: error, reason: "stale_known_sections" } : { message: error })
+    result = Api::V2::ProductSectionsWriter.new(@product).write!(sections: raw_sections_param, **options)
+    if result.error
+      return render_response(false, result.stale ? { message: result.error, reason: "stale_known_sections" } : { message: result.error })
     end
 
     success_with_product(@product.reload)
-  rescue ActiveRecord::RecordInvalid
-    error_with_product(@product)
   end
 
   # Dry-run sanitize: returns what `custom_html` would look like after the
@@ -868,6 +843,7 @@ class Api::V2::LinksController < Api::V2::BaseController
 
     def custom_html_buy_affordance_warning(html)
       return unless Pages::BuyAffordance.missing?(html)
+      return if @product.accepts_waitlist_signups? && Pages::WaitlistForm.found_in?(html)
 
       MISSING_BUY_AFFORDANCE_WARNING
     end

@@ -26,6 +26,9 @@ class OfferCode < ApplicationRecord
   # Options (variants) the code is limited to. No rows means every option, which is how every code
   # created before option scoping existed keeps working.
   has_and_belongs_to_many :variants, class_name: "BaseVariant", join_table: "offer_codes_variants", association_foreign_key: "variant_id"
+  # Options the buyer must already own. A row in ownership_products counts any option of that
+  # product; a row here counts only that option.
+  has_and_belongs_to_many :ownership_variants, class_name: "BaseVariant", join_table: "offer_codes_ownership_variants", association_foreign_key: "variant_id"
   belongs_to :user
   has_many :purchases
   has_many :purchases_that_count_towards_offer_code_uses, -> { counts_towards_offer_code_uses }, class_name: "Purchase"
@@ -37,6 +40,11 @@ class OfferCode < ApplicationRecord
   MAX_OWNERSHIP_DURATION_TIERS = 10
   MAX_SALE_LABEL_LENGTH = 32
   DEFAULT_SALE_LABEL = "Sale"
+  # duration_in_months is a 32-bit integer column; outside these bounds the INSERT/UPDATE bind
+  # serialization raises ActiveModel::RangeError after validation, so the save can only answer
+  # "something went wrong".
+  MIN_DURATION_IN_MONTHS = -2_147_483_648
+  MAX_DURATION_IN_MONTHS = 2_147_483_647
   # Enough for the seller to recognise the products without an unbounded message.
   NAMED_DEFAULT_DISCOUNT_PRODUCTS = 3
 
@@ -58,6 +66,7 @@ class OfferCode < ApplicationRecord
   validate :validate_option_scope
   validate :validate_auto_apply
   validate :validate_sale_label
+  validate :duration_in_billing_cycles_must_be_within_storage_range
 
 
   before_validation :normalize_sale_label
@@ -352,6 +361,12 @@ class OfferCode < ApplicationRecord
     end
   end
 
+  def ownership_option_ids_by_product
+    ownership_variants.group_by(&:owning_product_id).to_h do |product_id, options|
+      [ObfuscateIds.encrypt(product_id), options.map(&:external_id)]
+    end
+  end
+
   # Blank is ineligible here: purchase enforcement must fail closed if the chosen option is missing.
   # Preview omits the id and lets the client filter the returned discount.
   def applicable_to_variant?(link, variant)
@@ -445,13 +460,12 @@ class OfferCode < ApplicationRecord
     end.sort_by { it["months"] }
   end
 
-  def evaluate_for_buyer(buyer, product: nil, fallback_purchase: nil)
-    reference = ownership_reference_products(product)
-    months = ownership_months_for(buyer, reference) if existing_customers_only? || tiered?
+  def evaluate_for_buyer(buyer, product: nil, fallback_purchase: nil, as_of: nil)
+    months = ownership_months_for(buyer, ownership_reference_products(product), ownership_variants, as_of:) if existing_customers_only? || tiered?
     return nil if existing_customers_only? && months.nil?
 
     if tiered?
-      months ||= months_since(fallback_purchase&.created_at)
+      months ||= months_since(fallback_purchase&.created_at, as_of:)
       tier = matching_tier_for(months || 0)
       return nil if tier.nil?
       return discount.merge(type: "percent", percents: tier["amount_percentage"])
@@ -474,9 +488,12 @@ class OfferCode < ApplicationRecord
   # not been proven to belong to the signed-in user, so trusting it would let
   # someone sign up with a stranger's email and inherit that stranger's
   # existing-customer discounts.
-  def ownership_months_for(buyer, products)
+  def ownership_months_for(buyer, products, variants = nil, as_of: nil)
     return nil if buyer.nil?
-    return nil if products.blank?
+
+    variants = Array(variants)
+    product_ids = Array(products).map(&:id)
+    return nil if product_ids.empty? && variants.empty?
 
     ownership_condition = if buyer.email.present? && buyer.confirmed?
       ["purchases.purchaser_id = ? OR purchases.email = ?", buyer.id, buyer.email]
@@ -484,12 +501,13 @@ class OfferCode < ApplicationRecord
       ["purchases.purchaser_id = ?", buyer.id]
     end
 
-    oldest = qualifying_ownership_purchases
-      .where(link_id: products.map(&:id))
-      .where(*ownership_condition)
-      .order(:created_at)
-      .pick(:created_at)
-    months_since(oldest)
+    # An option row counts only purchases of that option, so owning a sibling option of the same
+    # product does not qualify. Both branches are the same qualifying set, on different indexes.
+    oldest = [
+      (qualifying_ownership_purchases.where(link_id: product_ids).where(*ownership_condition).order(:created_at).pick(:created_at) if product_ids.any?),
+      (qualifying_ownership_purchases.joins(:variant_attributes).where(base_variants: { id: variants.map(&:id) }).where(*ownership_condition).order(:created_at).pick(:created_at) if variants.any?),
+    ].compact.min
+    months_since(oldest, as_of:)
   end
 
   # Whether any of these accounts or emails already holds a purchase from this seller, in any
@@ -508,9 +526,9 @@ class OfferCode < ApplicationRecord
       (emails.any? && purchases.where(email: emails).exists?)
   end
 
-  def months_since(timestamp)
+  def months_since(timestamp, as_of: nil)
     return nil if timestamp.nil?
-    now = Time.current
+    now = as_of || Time.current
     months = (now.year * 12 + now.month) - (timestamp.year * 12 + timestamp.month)
     months -= 1 if timestamp.advance(months:) > now
     [months, 0].max
@@ -550,7 +568,7 @@ class OfferCode < ApplicationRecord
     end
 
     def ownership_reference_products(product = nil)
-      return ownership_products if ownership_products.present?
+      return ownership_products if ownership_products.present? || ownership_variants.present?
       return [product] if product
       applicable_products
     end
@@ -567,6 +585,13 @@ class OfferCode < ApplicationRecord
       if (valid_at.present? && expires_at.present? && expires_at <= valid_at) || (valid_at.blank? && expires_at.present?)
         errors.add(:base, "The discount code's start date must be earlier than its end date.")
       end
+    end
+
+    def duration_in_billing_cycles_must_be_within_storage_range
+      return if duration_in_months.nil?
+      return if duration_in_months.between?(MIN_DURATION_IN_MONTHS, MAX_DURATION_IN_MONTHS)
+
+      errors.add(:base, duration_in_months.positive? ? "Sorry, the duration entered is too large." : "Sorry, the duration entered is too low.")
     end
 
     def price_validation
@@ -791,7 +816,7 @@ class OfferCode < ApplicationRecord
       return if deleted_at.present?
       return unless existing_customers_only?
 
-      if ownership_products.empty?
+      if ownership_products.empty? && ownership_variants.empty?
         errors.add(:base, "Pick at least one product the customer must already own.")
       end
     end

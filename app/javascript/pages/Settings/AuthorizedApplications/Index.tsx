@@ -39,11 +39,13 @@ type Scope =
   | "view_public"
   | "view_sales"
   | "view_payouts"
+  | "view_library"
   | "view_tax_data"
   | "revenue_share"
   | "mobile_api"
   | "helper_api"
-  | "creator_api";
+  | "creator_api"
+  | "partner_api";
 
 const SCOPE_DESCRIPTIONS: Record<Scope, string> = {
   account: "Full access to your account.",
@@ -59,11 +61,14 @@ const SCOPE_DESCRIPTIONS: Record<Scope, string> = {
   view_public: "See your public information (name, bio).",
   view_sales: "See your sales data.",
   view_payouts: "See your payouts data.",
+  view_library: "See the products you bought.",
   view_tax_data: "See your tax forms and annual earnings summary.",
   revenue_share: "Revenue Share",
   mobile_api: "Mobile API",
   helper_api: "Helper API",
   creator_api: "Creator API",
+  partner_api:
+    "Link your Gumroad account to your account on this application. It can then list your published products and send you products to import, which you confirm first.",
 };
 
 type Props = {

@@ -102,6 +102,8 @@ export type OfferCode = {
   auto_apply: boolean;
   sale_label: string | null;
   ownership_products: Product[];
+  ownership_option_ids_by_product: Record<string, string[]>;
+  ownership_options: Record<string, { name: string; deleted: boolean }>;
   ownership_duration_tiers: OwnershipDurationTier[] | null;
   option_ids_by_product: Record<string, string[]>;
 };
@@ -213,6 +215,32 @@ export const findWholeProductScopeIds = (
   optionIdsByProduct: Record<string, string[]>,
 ): Set<string> =>
   new Set(selectedProducts.filter(({ id }) => optionIdsByProduct[id] === undefined).map(({ id }) => id));
+
+export type OwnershipScopeTarget = { productId: string; optionIds: string[]; kind: "product" | "option" | "deleted" };
+
+// The "Must have purchased" picker mirrors the product picker: an option row carries that option
+// into the per-product map, a product row stays a whole-product requirement, and adding one kind
+// replaces the other for that product (a whole-product row would make its option rows moot).
+export const ownershipScopesFromSelection = (
+  selectedIds: string[],
+  targets: Record<string, OwnershipScopeTarget>,
+  addedId?: string,
+): { productIds: string[]; optionIdsByProduct: Record<string, string[]> } => {
+  const added = addedId === undefined ? undefined : targets[addedId];
+  const productIds: string[] = [];
+  const optionIdsByProduct: Record<string, string[]> = {};
+
+  for (const id of selectedIds) {
+    const target = targets[id];
+    if (!target) continue;
+    if (added && target.productId === added.productId && (target.kind === "product") !== (added.kind === "product"))
+      continue;
+    if (target.kind === "product") productIds.push(target.productId);
+    else (optionIdsByProduct[target.productId] ??= []).push(...target.optionIds);
+  }
+
+  return { productIds, optionIdsByProduct };
+};
 
 export type DiscountsPageProps = {
   offer_codes: OfferCode[];
@@ -791,6 +819,7 @@ const DiscountsPage = ({
             autoApply: offerCode.auto_apply,
             saleLabel: offerCode.sale_label,
             ownershipProductIds: offerCode.ownership_products.map(({ id }) => id),
+            ownershipOptionIds: Object.values(offerCode.ownership_option_ids_by_product).flat(),
             ownershipDurationTiers: offerCode.ownership_duration_tiers,
           });
           resetQueryState();
@@ -845,6 +874,7 @@ const DiscountsPage = ({
             autoApply: offerCode.auto_apply,
             saleLabel: offerCode.sale_label,
             ownershipProductIds: offerCode.ownership_products.map(({ id }) => id),
+            ownershipOptionIds: Object.values(offerCode.ownership_option_ids_by_product).flat(),
             ownershipDurationTiers: offerCode.ownership_duration_tiers,
           });
           resetQueryState();
@@ -872,25 +902,31 @@ const TierField = ({
   onChange,
   ariaLabel,
   ariaInvalid,
+  ariaDescribedBy,
   suffix,
   onBlur,
+  inputRef,
 }: {
   value: number | null;
   onChange: (value: number | null) => void;
   ariaLabel: string;
   ariaInvalid: boolean;
+  ariaDescribedBy?: string | undefined;
   suffix: string;
   onBlur?: () => void;
+  inputRef?: (node: HTMLInputElement | null) => void;
 }) => (
   <InputGroup className="w-fit">
     <NumberInput value={value} onChange={onChange}>
       {(inputProps) => (
         <Input
+          ref={inputRef}
           {...inputProps}
           aria-label={ariaLabel}
           className="w-12 !px-0 text-center tabular-nums"
           maxLength={3}
           aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           onBlur={onBlur}
         />
       )}
@@ -1037,7 +1073,79 @@ const Form = ({
     value: offerCode?.ownership_products.map(({ id }) => id) ?? [],
   });
   const ownershipProductsFieldRef = React.useRef<SelectInstance<Option, true, GroupBase<Option>>>(null);
+  // Focus targets for the fields below that can fail validation without a message of their own.
+  const discountFieldRef = React.useRef<HTMLInputElement>(null);
+  const maxQuantityFieldRef = React.useRef<HTMLInputElement>(null);
+  const expiresAtFieldRef = React.useRef<HTMLInputElement>(null);
+  const minimumAmountFieldRef = React.useRef<HTMLInputElement>(null);
+  const minimumQuantityFieldRef = React.useRef<HTMLInputElement>(null);
+  // Keyed by row id and field name; only a row that is still rendered is ever looked up.
+  const tierFieldNodes = React.useRef(new Map<string, HTMLInputElement | null>());
+  const setTierFieldNode = (key: string, node: HTMLInputElement | null) => {
+    if (node) tierFieldNodes.current.set(key, node);
+    else tierFieldNodes.current.delete(key);
+  };
   const ownershipProducts = products.filter(({ id }) => ownershipProductIds.value.includes(id));
+  const [ownershipOptionIdsByProduct, setOwnershipOptionIdsByProduct] = React.useState<Record<string, string[]>>(
+    offerCode?.ownership_option_ids_by_product ?? {},
+  );
+  const ownershipOptionIds = Object.values(ownershipOptionIdsByProduct).flat();
+  // Same two row kinds as the "Products" picker: a product row still requires any option of that
+  // product, an option row requires that option alone.
+  const wholeOwnershipProductIds = findWholeProductScopeIds(ownershipProducts, ownershipOptionIdsByProduct);
+  const ownershipScopeTargets: Record<string, OwnershipScopeTarget> = {};
+  const ownershipProductOption = (product: Product): Option => {
+    ownershipScopeTargets[product.id] = { productId: product.id, optionIds: [], kind: "product" };
+    return { id: product.id, label: product.name };
+  };
+  const ownershipOptionRow = (product: Product, option: { id: string; name: string }): Option => {
+    const id = `${product.id}:${option.id}`;
+    ownershipScopeTargets[id] = { productId: product.id, optionIds: [option.id], kind: "option" };
+    return {
+      id,
+      label: `${product.name} (${option.name})`,
+      isSubOption: !wholeOwnershipProductIds.has(product.id),
+    };
+  };
+  const ownershipScopeOptions = products
+    .filter((product) => !product.archived)
+    .flatMap((product) => [
+      ownershipProductOption(product),
+      ...(product.options ?? []).map((option) => ownershipOptionRow(product, option)),
+    ]);
+  const ownershipOptionDetails = offerCode?.ownership_options ?? {};
+  // Past buyers of a since-deleted option still qualify, so each saved id keeps a named chip of its
+  // own instead of being dropped the next time the picker changes. A saved option the product's
+  // list leaves out but that isn't deleted (one in a second category) stays an ordinary option chip.
+  const ownershipOptionRows = Object.entries(ownershipOptionIdsByProduct).flatMap(([productId, optionIds]) => {
+    const product = products.find(({ id }) => id === productId);
+    const productName = product?.name ?? "Deleted product";
+    const unnamedOptionIds: string[] = [];
+    const rows = optionIds.flatMap((optionId): Option[] => {
+      const listed = product?.options?.find(({ id }) => id === optionId);
+      if (product && listed) return [ownershipOptionRow(product, listed)];
+      const details = ownershipOptionDetails[optionId];
+      if (!details) {
+        unnamedOptionIds.push(optionId);
+        return [];
+      }
+      const id = `${productId}:${optionId}`;
+      // A deleted product keeps its options alive, but they can't be picked again either.
+      const deleted = details.deleted || !product;
+      const name = details.name === "Untitled" && product ? product.name : details.name;
+      ownershipScopeTargets[id] = { productId, optionIds: [optionId], kind: deleted ? "deleted" : "option" };
+      return [{ id, label: deleted ? `${productName} (${name}, deleted)` : `${productName} (${name})` }];
+    });
+    if (unnamedOptionIds.length === 0) return rows;
+    const id = `${productId}:deleted`;
+    ownershipScopeTargets[id] = { productId, optionIds: unnamedOptionIds, kind: "deleted" };
+    const count = unnamedOptionIds.length;
+    return [...rows, { id, label: `${productName} (${count} deleted ${count === 1 ? "option" : "options"})` }];
+  });
+  const selectedOwnershipScopes = [...ownershipProducts.map(ownershipProductOption), ...ownershipOptionRows];
+  const hasDeletedOwnershipOptions = selectedOwnershipScopes.some(
+    ({ id }) => ownershipScopeTargets[id]?.kind === "deleted",
+  );
 
   const initialTiers = offerCode?.ownership_duration_tiers ?? null;
   const tierIdRef = React.useRef(0);
@@ -1046,9 +1154,11 @@ const Form = ({
     id: string;
     months: number | null;
     amountPercentage: number | null;
-    monthsError?: boolean;
-    percentError?: boolean;
+    monthsError?: string | null;
+    percentError?: string | null;
   };
+  // A field that can take focus, paired with the reason it is invalid.
+  type InvalidField = { ref: { current: { focus: () => void } | null }; message: string };
   const [useTieredDiscounts, setUseTieredDiscounts] = React.useState(!!initialTiers?.length);
   const [tiers, setTiers] = React.useState<TierRow[]>(() => {
     if (initialTiers?.length) {
@@ -1061,8 +1171,24 @@ const Form = ({
     return [{ id: nextTierId(), months: 0, amountPercentage: 0 }];
   });
 
+  const [isFirstTierStartSubmitted, setIsFirstTierStartSubmitted] = React.useState(false);
+  const isFirstTierStartInvalid = Math.min(...tiers.map((tier) => tier.months ?? Infinity)) !== 0;
+  // Derived, so whichever tier ends up starting at 0 months clears it.
+  const isFirstTierStartErrorShown = isFirstTierStartSubmitted && isFirstTierStartInvalid;
+  const firstTierStartErrorMessage = "The first tier must start at 0 months.";
+  const duplicateTierMonthsErrorMessage = "Each tier needs a different starting month.";
+  // Derived, so changing the earlier tier it duplicates clears it too.
+  const tierMonthsErrors = tiers.map((tier, index) =>
+    tier.monthsError === duplicateTierMonthsErrorMessage &&
+    !tiers.slice(0, index).some((other) => other.months === tier.months)
+      ? null
+      : tier.monthsError,
+  );
+
   const updateTier = (id: string, patch: Partial<TierRow>) =>
     setTiers((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  // The first tier has no starting month input, so a problem with its start is reported on its percentage.
+  const tierMonthsFieldKey = (id: string, index: number) => `${id}:${index === 0 ? "percentage" : "months"}`;
   const byMonths = (a: TierRow, b: TierRow) => (a.months ?? Infinity) - (b.months ?? Infinity);
   const sortTiersByMonths = () =>
     setTiers((prev) => {
@@ -1094,22 +1220,34 @@ const Form = ({
   // A reason is the seller's next step, so it reads as body text: text-muted measures about 3.9:1 here.
   const reasonClassName = "text-foreground";
 
+  const discountErrorMessage = "Please enter a discount amount.";
+  const maxQuantityErrorMessage = "Please enter a quantity.";
+  const expiresAtErrorMessage = "The discount code's start date must be earlier than its end date.";
+  const minimumAmountErrorMessage = "Please enter a minimum amount.";
+  const minimumQuantityErrorMessage = "Please enter a minimum quantity.";
+
+  const isExpiresAtBeforeValidAt = !hasNoEndDate && validAt >= expiresAt.value;
+  // Derived, so correcting "Valid from" or choosing no end date clears it too.
+  const isExpiresAtErrorShown = !!expiresAt.error && isExpiresAtBeforeValidAt;
+
   const handleSubmit = () => {
     const isNameInvalid = name.value === "";
     const isCodeInvalid = code.value === "";
     const isDiscountInvalid = !useTieredDiscounts && discount.value === null;
     const isMaxQuantityInvalid = limitQuantity && maxQuantity.value === null;
-    const isExpiresAtInvalid = limitValidity && !hasNoEndDate && validAt > expiresAt.value;
+    const isExpiresAtInvalid = limitValidity && isExpiresAtBeforeValidAt;
     const isSelectedProductsInvalid = !universal && selectedProductIds.value.length === 0;
     const isMinimumQuantityInvalid = hasMinimumQuantity && minimumQuantity.value === null;
     const isMinimumAmountInvalid = hasMinimumAmount && minimumAmount.value === null;
-    const isOwnershipProductsInvalid = existingCustomersOnly && ownershipProductIds.value.length === 0;
+    const isOwnershipProductsInvalid =
+      existingCustomersOnly && ownershipProductIds.value.length === 0 && ownershipOptionIds.length === 0;
 
     let tierErrors: TierRow[] = tiers;
     let isTiersInvalid = false;
+    let firstTierError: { key: string; message: string } | null = null;
     if (useTieredDiscounts) {
       const seenMonths = new Set<number>();
-      tierErrors = tiers.map((tier) => {
+      tierErrors = tiers.map((tier, index) => {
         const monthsValid =
           tier.months !== null && Number.isFinite(tier.months) && tier.months >= 0 && Number.isInteger(tier.months);
         const duplicate = tier.months !== null && seenMonths.has(tier.months);
@@ -1119,13 +1257,30 @@ const Form = ({
           Number.isFinite(tier.amountPercentage) &&
           tier.amountPercentage >= 0 &&
           tier.amountPercentage <= 100;
-        const monthsError = !monthsValid || duplicate;
-        const percentError = !percentValid;
+        const monthsError =
+          tier.months === null
+            ? "Please enter a starting month."
+            : duplicate
+              ? duplicateTierMonthsErrorMessage
+              : monthsValid
+                ? null
+                : "Each tier must start at a whole number of months (0 or more).";
+        const percentError = percentValid ? null : "Each tier percentage must be between 0 and 100.";
         if (monthsError || percentError) isTiersInvalid = true;
+        if (percentError && !firstTierError) {
+          firstTierError = { key: `${tier.id}:percentage`, message: percentError };
+        } else if (monthsError && !firstTierError) {
+          firstTierError = { key: tierMonthsFieldKey(tier.id, index), message: monthsError };
+        }
         return { ...tier, monthsError, percentError };
       });
-      const minMonths = Math.min(...tiers.map((tier) => tier.months ?? Infinity));
-      if (minMonths !== 0) isTiersInvalid = true;
+      if (isFirstTierStartInvalid) {
+        isTiersInvalid = true;
+        const [firstTier] = tierErrors;
+        if (firstTier && !firstTier.percentError && !firstTier.monthsError) {
+          firstTierError = { key: `${firstTier.id}:percentage`, message: firstTierStartErrorMessage };
+        }
+      }
     }
 
     const hasValidationErrors =
@@ -1140,6 +1295,7 @@ const Form = ({
       isOwnershipProductsInvalid ||
       isTiersInvalid;
 
+    if (useTieredDiscounts) setTiers(tierErrors);
     if (hasValidationErrors) {
       setName((prev) => ({ ...prev, error: isNameInvalid }));
       setCode((prev) => ({ ...prev, error: isCodeInvalid }));
@@ -1150,17 +1306,38 @@ const Form = ({
       setMinimumQuantity((prev) => ({ ...prev, error: isMinimumQuantityInvalid }));
       setMinimumAmount((prev) => ({ ...prev, error: isMinimumAmountInvalid }));
       setOwnershipProductIds((prev) => ({ ...prev, error: isOwnershipProductsInvalid }));
-      if (isTiersInvalid) setTiers(tierErrors);
+      if (useTieredDiscounts) setIsFirstTierStartSubmitted(isFirstTierStartInvalid);
 
-      const invalidFieldRefs = [];
-      if (isNameInvalid) invalidFieldRefs.push(nameFieldRef);
-      if (isCodeInvalid) invalidFieldRefs.push(codeFieldRef);
-      if (isSelectedProductsInvalid) invalidFieldRefs.push(selectedProductsFieldRef);
-      if (isOwnershipProductsInvalid) invalidFieldRefs.push(ownershipProductsFieldRef);
+      // In form order, so the topmost problem is the one that takes focus and the alert names it: a
+      // filled-in field must not be reported as a field the seller has not filled out.
+      const invalidFields: (InvalidField | false)[] = [
+        isNameInvalid && { ref: nameFieldRef, message: "Please fill out the required fields." },
+        isCodeInvalid && { ref: codeFieldRef, message: "Please fill out the required fields." },
+        isSelectedProductsInvalid && { ref: selectedProductsFieldRef, message: "Please fill out the required fields." },
+        isDiscountInvalid && { ref: discountFieldRef, message: discountErrorMessage },
+        isMaxQuantityInvalid && { ref: maxQuantityFieldRef, message: maxQuantityErrorMessage },
+        isExpiresAtInvalid && {
+          ref: expiresAtFieldRef,
+          message: expiresAtErrorMessage,
+        },
+        isOwnershipProductsInvalid && {
+          ref: ownershipProductsFieldRef,
+          message: "Please fill out the required fields.",
+        },
+        firstTierError
+          ? {
+              ref: { current: tierFieldNodes.current.get(firstTierError.key) ?? null },
+              message: firstTierError.message,
+            }
+          : false,
+        isMinimumAmountInvalid && { ref: minimumAmountFieldRef, message: minimumAmountErrorMessage },
+        isMinimumQuantityInvalid && { ref: minimumQuantityFieldRef, message: minimumQuantityErrorMessage },
+      ];
 
-      if (invalidFieldRefs[0]?.current) {
-        invalidFieldRefs[0].current.focus();
-        showAlert("Please fill out the required fields.", "error");
+      const firstInvalidField = invalidFields.find((field): field is InvalidField => field !== false);
+      if (firstInvalidField) {
+        firstInvalidField.ref.current?.focus();
+        showAlert(firstInvalidField.message, "error");
       }
 
       return;
@@ -1191,6 +1368,8 @@ const Form = ({
       auto_apply: universal && autoApply,
       sale_label: universal && autoApply && saleLabel.trim() ? saleLabel.trim() : null,
       ownership_products: existingCustomersOnly ? ownershipProducts : [],
+      ownership_option_ids_by_product: existingCustomersOnly ? ownershipOptionIdsByProduct : {},
+      ownership_options: existingCustomersOnly ? ownershipOptionDetails : {},
       ownership_duration_tiers: tieredPayload,
       option_ids_by_product: universal ? {} : optionIdsByProduct,
     });
@@ -1216,7 +1395,6 @@ const Form = ({
           className="p-8!"
           header={
             <div className="flex flex-col gap-4">
-              <div>Create a discount code so your audience can buy your products at a reduced price.</div>
               <div>
                 Once the code is created, you can share it or copy a unique link per product that automatically applies
                 the discount.
@@ -1287,7 +1465,6 @@ const Form = ({
               value={selectedProductScopes}
               isMulti
               isClearable
-              placeholder="Products to which this discount will apply"
               onChange={(selected, { action, option }) => {
                 const added = action === "select-option" && option ? productScopeTargets.get(option.id) : undefined;
                 const scopes = selected.flatMap(({ id }) => {
@@ -1343,7 +1520,6 @@ const Form = ({
                 value={excludedProducts.map(({ id, name: label }) => ({ id, label }))}
                 isMulti
                 isClearable
-                placeholder="Select products to exclude"
                 onChange={(selectedIds) => setExcludedProductIds(selectedIds.map(({ id }) => id))}
               />
               <FieldsetDescription>
@@ -1410,6 +1586,8 @@ const Form = ({
             <Fieldset>
               <FieldsetTitle>Type</FieldsetTitle>
               <DiscountInput
+                ref={discountFieldRef}
+                ariaDescribedBy={discount.error ? `${uid}discountError` : undefined}
                 discount={discount}
                 setDiscount={setDiscount}
                 currencyCode={currencyCode}
@@ -1427,6 +1605,11 @@ const Form = ({
                   !selectedProducts.every(({ currency_type }) => currency_type === currencyCode)
                 }
               />
+              {discount.error ? (
+                <FieldsetDescription id={`${uid}discountError`} className="text-danger">
+                  {discountErrorMessage}
+                </FieldsetDescription>
+              ) : null}
             </Fieldset>
           )}
           <Fieldset className="gap-4">
@@ -1463,9 +1646,19 @@ const Form = ({
                     }}
                   >
                     {(props) => (
-                      <Input id={`${uid}quantity`} placeholder="0" aria-invalid={maxQuantity.error} {...props} />
+                      <Input
+                        ref={maxQuantityFieldRef}
+                        id={`${uid}quantity`}
+                        placeholder="0"
+                        aria-invalid={maxQuantity.error}
+                        aria-describedby={maxQuantity.error ? `${uid}quantityError` : undefined}
+                        {...props}
+                      />
                     )}
                   </NumberInput>
+                  {maxQuantity.error ? (
+                    <FieldsetDescription id={`${uid}quantityError`}>{maxQuantityErrorMessage}</FieldsetDescription>
+                  ) : null}
                   <p className="text-muted-foreground text-sm">
                     {discount.type === "cents" && !useTieredDiscounts && oncePerCart
                       ? "Each checkout uses one, regardless of the number of items."
@@ -1500,11 +1693,12 @@ const Form = ({
                     No end date
                   </Label>
                 </Fieldset>
-                <Fieldset state={expiresAt.error ? "danger" : undefined}>
+                <Fieldset state={isExpiresAtErrorShown ? "danger" : undefined}>
                   <FieldsetTitle>
                     <Label htmlFor={`${uid}expiresAt`}>Valid until</Label>
                   </FieldsetTitle>
                   <DateInput
+                    ref={expiresAtFieldRef}
                     withTime
                     id={`${uid}expiresAt`}
                     value={expiresAt.value}
@@ -1512,8 +1706,12 @@ const Form = ({
                       if (value) setExpiresAt({ value });
                     }}
                     disabled={hasNoEndDate}
-                    aria-invalid={expiresAt.error ?? false}
+                    aria-invalid={isExpiresAtErrorShown}
+                    aria-describedby={isExpiresAtErrorShown ? `${uid}expiresAtError` : undefined}
                   />
+                  {isExpiresAtErrorShown ? (
+                    <FieldsetDescription id={`${uid}expiresAtError`}>{expiresAtErrorMessage}</FieldsetDescription>
+                  ) : null}
                 </Fieldset>
               </Dropdown>
             </Details>
@@ -1536,16 +1734,28 @@ const Form = ({
                     ref={ownershipProductsFieldRef}
                     inputId={`${uid}ownershipProducts`}
                     instanceId={`${uid}ownershipProducts`}
-                    options={products
-                      .filter((product) => !product.archived)
-                      .map((product) => ({ id: product.id, label: product.name }))}
-                    value={ownershipProducts.map(({ id, name: label }) => ({ id, label }))}
+                    options={ownershipScopeOptions}
+                    value={selectedOwnershipScopes}
                     isMulti
                     isClearable
-                    placeholder="Choose products"
-                    onChange={(selectedIds) => setOwnershipProductIds({ value: selectedIds.map(({ id }) => id) })}
+                    pinClearIndicator
+                    placeholder="Choose products or options"
+                    onChange={(selected, { action, option }) => {
+                      const next = ownershipScopesFromSelection(
+                        selected.map(({ id }) => id),
+                        ownershipScopeTargets,
+                        action === "select-option" ? option?.id : undefined,
+                      );
+                      setOwnershipProductIds({ value: next.productIds });
+                      setOwnershipOptionIdsByProduct(next.optionIdsByProduct);
+                    }}
                     aria-invalid={ownershipProductIds.error}
                   />
+                  {hasDeletedOwnershipOptions ? (
+                    <FieldsetDescription>
+                      Buyers of a deleted option still qualify. Once removed, a deleted option can't be added back.
+                    </FieldsetDescription>
+                  ) : null}
                 </Fieldset>
               </Dropdown>
             </Details>
@@ -1584,7 +1794,6 @@ const Form = ({
               </DetailsToggle>
               <Dropdown>
                 <Fieldset className="gap-3">
-                  <FieldsetDescription>Add a tier for each ownership milestone.</FieldsetDescription>
                   <div className="flex flex-col gap-2">
                     {tiers.map((tier, index) => (
                       <div
@@ -1611,12 +1820,25 @@ const Form = ({
                           <TierField
                             value={tier.amountPercentage}
                             ariaLabel={`Tier ${index + 1} percentage`}
-                            ariaInvalid={!!tier.percentError}
+                            ariaInvalid={
+                              !!tier.percentError ||
+                              (index === 0 && (!!tierMonthsErrors[index] || isFirstTierStartErrorShown))
+                            }
+                            ariaDescribedBy={
+                              [
+                                tier.percentError && `${uid}${tier.id}percentError`,
+                                index === 0 && tierMonthsErrors[index] && `${uid}${tier.id}monthsError`,
+                                index === 0 && isFirstTierStartErrorShown && `${uid}firstTierStartError`,
+                              ]
+                                .filter(Boolean)
+                                .join(" ") || undefined
+                            }
                             suffix="%"
+                            inputRef={(node) => setTierFieldNode(`${tier.id}:percentage`, node)}
                             onChange={(value) => {
                               updateTier(tier.id, {
                                 amountPercentage: value === null ? null : between(value, 0, 100),
-                                percentError: false,
+                                percentError: null,
                               });
                             }}
                           />
@@ -1635,17 +1857,43 @@ const Form = ({
                               <TierField
                                 value={tier.months}
                                 ariaLabel={`Tier ${index + 1} starting month`}
-                                ariaInvalid={!!tier.monthsError}
+                                ariaInvalid={!!tierMonthsErrors[index]}
+                                ariaDescribedBy={tierMonthsErrors[index] ? `${uid}${tier.id}monthsError` : undefined}
                                 suffix="months"
+                                inputRef={(node) => setTierFieldNode(`${tier.id}:months`, node)}
                                 onBlur={sortTiersByMonths}
                                 onChange={(value) => {
                                   if (value !== null && value < 0) return;
-                                  updateTier(tier.id, { months: value, monthsError: false });
+                                  updateTier(tier.id, { months: value, monthsError: null });
                                 }}
                               />
                             </>
                           ) : null}
                         </div>
+                        {tier.percentError ? (
+                          <FieldsetDescription
+                            id={`${uid}${tier.id}percentError`}
+                            className="mt-2 text-danger sm:order-last sm:mt-0 sm:basis-full"
+                          >
+                            {tier.percentError}
+                          </FieldsetDescription>
+                        ) : null}
+                        {tierMonthsErrors[index] ? (
+                          <FieldsetDescription
+                            id={`${uid}${tier.id}monthsError`}
+                            className="mt-2 text-danger sm:order-last sm:mt-0 sm:basis-full"
+                          >
+                            {tierMonthsErrors[index]}
+                          </FieldsetDescription>
+                        ) : null}
+                        {index === 0 && isFirstTierStartErrorShown ? (
+                          <FieldsetDescription
+                            id={`${uid}firstTierStartError`}
+                            className="mt-2 text-danger sm:order-last sm:mt-0 sm:basis-full"
+                          >
+                            {firstTierStartErrorMessage}
+                          </FieldsetDescription>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -1679,13 +1927,20 @@ const Form = ({
                     <Label htmlFor={`${uid}minimumAmount`}>Minimum amount</Label>
                   </FieldsetTitle>
                   <PriceInput
+                    ref={minimumAmountFieldRef}
                     id={`${uid}minimumAmount`}
                     currencyCode={currencyCode}
                     cents={minimumAmount.value}
                     onChange={(value) => setMinimumAmount({ value })}
                     placeholder="0"
                     hasError={minimumAmount.error ?? false}
+                    ariaDescribedBy={minimumAmount.error ? `${uid}minimumAmountError` : undefined}
                   />
+                  {minimumAmount.error ? (
+                    <FieldsetDescription id={`${uid}minimumAmountError`}>
+                      {minimumAmountErrorMessage}
+                    </FieldsetDescription>
+                  ) : null}
                 </Fieldset>
               </Dropdown>
             </Details>
@@ -1710,13 +1965,20 @@ const Form = ({
                   >
                     {(props) => (
                       <Input
+                        ref={minimumQuantityFieldRef}
                         id={`${uid}minimumQuantity`}
                         placeholder="0"
                         aria-invalid={minimumQuantity.error}
+                        aria-describedby={minimumQuantity.error ? `${uid}minimumQuantityError` : undefined}
                         {...props}
                       />
                     )}
                   </NumberInput>
+                  {minimumQuantity.error ? (
+                    <FieldsetDescription id={`${uid}minimumQuantityError`}>
+                      {minimumQuantityErrorMessage}
+                    </FieldsetDescription>
+                  ) : null}
                 </Fieldset>
               </Dropdown>
             </Details>

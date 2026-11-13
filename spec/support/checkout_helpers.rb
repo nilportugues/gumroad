@@ -11,6 +11,11 @@ module CheckoutHelpers
     "tip_prompt" => "Tip",
   }.freeze
 
+  # The pay button names the amount once the checkout knows it ("Pay US$10", "Pay EUR 9"), and stays
+  # plain ("Pay") while the quote settles — match the label plus a boundary, so "PayPal", which has
+  # its own button, is never the match.
+  PAY_BUTTON_TEXT = /\APay\b/
+
   # The buy CTA's text follows the seller's call to action, so find the checkout link itself.
   def product_page_cta
     within(find(:article)) { first(:link, href: %r{/checkout\?}) }
@@ -83,8 +88,8 @@ module CheckoutHelpers
     if gift&.dig(:email).present?
       check "Give as a gift"
       expect(page).to have_text("Note: Free trials will be charged immediately. The membership will not auto-renew.") if product.is_recurring_billing
-      fill_in "Recipient email address", with: gift[:email]
-      fill_in "A personalized message (optional)", with: gift[:note]
+      fill_in "Recipient email", with: gift[:email]
+      fill_in "Message (optional)", with: gift[:note]
     end
 
     if country.present?
@@ -173,7 +178,11 @@ module CheckoutHelpers
     block.call if block_given?
 
     expect do
-      click_on is_free ? "Get" : "Pay", exact: true
+      if is_free
+        click_on "Get", exact: true
+      else
+        click_on "Pay", text: PAY_BUTTON_TEXT
+      end
 
       case sca
       when nil then nil
@@ -186,13 +195,16 @@ module CheckoutHelpers
       if error.present?
         expect(page).to have_alert(text: error) if error != true
       else
+        buyer_email = logged_in_user&.email&.downcase || email&.downcase
         if gift.present? || product.is_in_preorder_state
           # Specific cases where we show the receipt instead of the product content
-          expect(page).to have_text("Your purchase was successful!", wait: 60)
-          expect(page).to have_text(logged_in_user&.email&.downcase || email&.downcase)
+          expect(page).to have_text(is_free ? "You signed up with #{product.user.name_or_username} for free" : "Your purchase was successful!", wait: 60)
+          expect(page).to have_text(is_free ? "We emailed the details to #{buyer_email}" : buyer_email)
+        elsif is_free
+          expect(page).to have_alert(text: "You signed up with #{product.user.name_or_username} for free. We emailed the details to #{buyer_email}", visible: :all, wait: 60)
         else
           # The alert show/hide timing can cause specs to be flaky
-          expect(page).to have_alert(text: "Your purchase was successful! We sent a receipt to #{logged_in_user&.email&.downcase || email&.downcase}", visible: :all, wait: 60)
+          expect(page).to have_alert(text: "Your purchase was successful! We sent a receipt to #{buyer_email}", visible: :all, wait: 60)
         end
 
         expect(page).to have_text("You bought this for #{gift[:email] || gift[:name]}") if gift&.dig(:email).present? || gift&.dig(:name).present?
@@ -229,6 +241,7 @@ end
 
 def fill_in_payment_element(number: "4242424242424242", expiry: StripePaymentMethodHelper::EXPIRY_MMYY, cvc: "123")
   within_payment_element_frame do
+    wait_for_link_email_prefill_in_payment_element
     fill_in_stripe_field ["Card number"], with: number
     fill_in_stripe_field ["Expiration date", "Expiration", "MM / YY"], with: expiry
     fill_in_stripe_field ["Security code", "CVC", "CVV"], with: cvc
@@ -236,14 +249,29 @@ def fill_in_payment_element(number: "4242424242424242", expiry: StripePaymentMet
   end
 end
 
+PAYMENT_ELEMENT_RENDER_WAIT_SECONDS = 20
+LINK_PANE_RENDER_WAIT_SECONDS = 2
+
+# The checkout email reaches Link through PaymentElementInput's debounced prefill. Until it lands, Link's save
+# pane has no opt-in checkbox to uncheck; when it lands later it re-checks the opt-in with an empty mobile number,
+# and confirm then fails Link's validation without a request. Typing first also races the re-render.
+def wait_for_link_email_prefill_in_payment_element
+  has_field?("Card number", visible: :all, wait: PAYMENT_ELEMENT_RENDER_WAIT_SECONDS)
+  return unless has_css?("#payment-linkEmailInput", visible: :all, wait: LINK_PANE_RENDER_WAIT_SECONDS)
+
+  expect(page).to have_field("payment-linkEmailInput", with: /\S/, visible: :all)
+end
+
 # With Link always enabled, the Payment Element may render Link's pre-checked
 # "Save my information for faster checkout" pane, whose required mobile-number
 # field would block confirm. Specs pay as a plain card guest, so uncheck it.
 def uncheck_link_save_in_payment_element
-  save_checkbox = first(:checkbox, "Save my information for faster checkout", visible: false, wait: 0)
-  save_checkbox.click if save_checkbox&.checked?
-rescue Capybara::ElementNotFound, Selenium::WebDriver::Error::ElementNotInteractableError
-  # Older Element layouts (no Link pane) simply don't render the checkbox.
+  save_checkbox = all(:checkbox, "Save my information for faster checkout", visible: false, wait: false).first
+  return unless save_checkbox
+
+  save_checkbox.click if save_checkbox.checked?
+  expect(page).to have_unchecked_field("Save my information for faster checkout", visible: false)
+  expect(page).to have_no_css("#payment-linkMobilePhoneInput", visible: :all)
 end
 
 def within_payment_element_frame(&block)
@@ -257,7 +285,7 @@ end
 
 def fill_in_stripe_field(labels, with:)
   page.document.synchronize do
-    field = labels.lazy.filter_map { |label| first(:fillable_field, label, visible: false, wait: 0) }.first
+    field = labels.lazy.filter_map { |label| all(:fillable_field, label, visible: false, wait: false).first }.first
     raise Capybara::ElementNotFound, "Unable to find Stripe field matching #{labels.join(', ')}" if field.nil?
 
     field.fill_in(with:)

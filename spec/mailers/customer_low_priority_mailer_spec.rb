@@ -225,7 +225,7 @@ describe CustomerLowPriorityMailer do
         purchase = create(:membership_purchase)
         subscription = purchase.subscription
         allow(Subscription).to receive(:find).with(subscription.id).and_return(subscription)
-        allow(subscription).to receive(:current_subscription_price_cents).and_return(5_00)
+        allow(subscription).to receive(:next_charge_price_cents).and_return(5_00)
         allow(subscription).to receive(:original_purchase).and_return(purchase)
         allow(purchase).to receive(:format_displayed_price_cents).with(5_00).and_return("$5")
         allow(purchase).to receive(:formatted_total_price).and_return("$10")
@@ -565,7 +565,11 @@ describe CustomerLowPriorityMailer do
     let(:gift) { create(:gift, gift_note: "Gift note", giftee_email: "giftee@example.com") }
     let(:product) { create(:membership_product) }
     let(:subscription) { create(:subscription, link: product, user: nil, credit_card: create(:credit_card)) }
-    let!(:original_purchase) { create(:membership_purchase, gift_given: gift, is_gift_sender_purchase: true, is_original_subscription_purchase: true, subscription:) }
+    # A gift membership that is worth paying for: the giftee adds a card because the
+    # renewals will be charged, so the receipt keeps the "you will be charged" note.
+    # The membership_product factory defaults to a $0 product, which would make this
+    # a free membership and switch the wording.
+    let!(:original_purchase) { create(:membership_purchase, gift_given: gift, price_cents: 1_499, total_transaction_cents: 1_499, is_gift_sender_purchase: true, is_original_subscription_purchase: true, subscription:) }
     let!(:purchase) { create(:membership_purchase, gift_received: gift, is_gift_receiver_purchase: true, is_original_subscription_purchase: false, subscription:) }
 
     it "notifies the giftee" do

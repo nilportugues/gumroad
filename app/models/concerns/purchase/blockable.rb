@@ -81,6 +81,9 @@ module Purchase::Blockable
 
   MAX_BUYER_CHARGEBACKS_BEFORE_BLOCK = 5
 
+  # After a support unblock, the velocity rule leaves the buyer's email and browser alone for this long.
+  UNBLOCK_GRACE_PERIOD = 24.hours
+
   class_methods do
     # Shared with Onetime::ClearMistakenBuyerBlocks, which must reproduce these rules exactly: if
     # it counts differently it clears a block a live rule still wants, switching enforcement off
@@ -204,6 +207,8 @@ module Purchase::Blockable
   # the truth instead of reporting an unqualified success. Non-empty means something outside this
   # buyer's identifiers is holding them (an email-domain block, a shared IP).
   def unblock_buyer!
+    # Grace first: a Redis failure aborts before any block is cleared, and no decline can land unguarded.
+    start_unblock_grace!
     unblock_by_ip_address!
 
     buyer_blockable_values.each do |object_type, values|
@@ -455,8 +460,9 @@ module Purchase::Blockable
   # Guids and card fingerprints ARE widened from siblings: they name a browser and a physical card,
   # not a string somebody typed. A browser can still be shared, so clearing a sibling guid can lift
   # a block a co-user earned — accepted deliberately, because the co-user's person-bound blocks
-  # (email, card) stay put, renewed abuse re-earns the guid block via the velocity checks, and
-  # withholding sibling guids is the never-expiring stranded-block problem this widening fixes.
+  # (email, card) stay put, renewed abuse re-earns the guid block via the velocity checks (once
+  # the 24h support-unblock grace lapses), and withholding sibling guids is the never-expiring
+  # stranded-block problem this widening fixes.
   private def blockable_values_for(purchases, extra_fingerprints: [], widened_emails: true)
     guids = Set.new
     emails = Set.new
@@ -531,29 +537,39 @@ module Purchase::Blockable
     stripe_charge_processor? ? stripe_fingerprint : card_visual
   end
 
+  # Email and account are the buyer's own labels and reset with every alias or guest checkout, so
+  # the card and browser are counted across every email and account too. IP stays out of the count:
+  # it is shared behind NATs and carrier pools.
   def block_buyer_based_on_chargeback_count!
-    email_cb_count = Purchase.excluding_paypal_processor
-                             .where(email: email)
-                             .where.not(chargeback_date: nil)
-                             .count
+    chargebacked = Purchase.excluding_paypal_processor.where.not(chargeback_date: nil)
 
-    purchaser_cb_count = if purchaser_id.present?
-      Purchase.excluding_paypal_processor
-              .where(purchaser_id: purchaser_id)
-              .where.not(chargeback_date: nil)
-              .count
-    else
-      0
-    end
-
+    email_cb_count = chargebacked.where(email: email).count
+    purchaser_cb_count = purchaser_id.present? ? chargebacked.where(purchaser_id: purchaser_id).count : 0
     chargeback_count = [email_cb_count, purchaser_cb_count].max
 
-    return if chargeback_count < MAX_BUYER_CHARGEBACKS_BEFORE_BLOCK
-    return if buyer_blocked?
+    if chargeback_count >= MAX_BUYER_CHARGEBACKS_BEFORE_BLOCK && !buyer_blocked?
+      return block_buyer!(
+        blocking_user_id: GUMROAD_ADMIN_ID,
+        comment_content: "Auto-blocked: buyer has #{chargeback_count} chargebacks (#{email_cb_count} by email, #{purchaser_cb_count} by account)"
+      )
+    end
 
-    block_buyer!(
-      blocking_user_id: GUMROAD_ADMIN_ID,
-      comment_content: "Auto-blocked: buyer has #{chargeback_count} chargebacks (#{email_cb_count} by email, #{purchaser_cb_count} by account)"
+    # A dispute also charges back the gift receiver row and bundle child rows, which share the
+    # browser guid, so count only the charged purchase, not its gift or bundle legs.
+    disputed_purchases = chargebacked.not_is_gift_receiver_purchase.not_is_bundle_product_purchase
+    # Off Stripe, charge_processor_fingerprint is the masked card_visual, not the counted fingerprint.
+    card_cb_count = stripe_charge_processor? && stripe_fingerprint.present? ? disputed_purchases.where(stripe_fingerprint:).count : 0
+    guid_cb_count = browser_guid.present? ? disputed_purchases.where(browser_guid:).count : 0
+    card_tripped = card_cb_count >= MAX_BUYER_CHARGEBACKS_BEFORE_BLOCK && !blocked_by_charge_processor_fingerprint?
+    guid_tripped = guid_cb_count >= MAX_BUYER_CHARGEBACKS_BEFORE_BLOCK && !blocked_by_browser_guid?
+    return unless card_tripped || guid_tripped
+
+    block_by_charge_processor_fingerprint!(by_user_id: GUMROAD_ADMIN_ID) if card_tripped
+    block_by_browser_guid!(by_user_id: GUMROAD_ADMIN_ID) if guid_tripped
+
+    blocked = [("card" if card_tripped), ("browser" if guid_tripped)].compact.join(" and ")
+    create_blocked_buyer_comments!(
+      comment_content: "Auto-blocked #{blocked}: #{card_cb_count} chargebacks on this card, #{guid_cb_count} on this browser, across all emails and accounts"
     )
   end
 
@@ -724,6 +740,7 @@ module Purchase::Blockable
       recent_failures = countable_card_testing_failures.where(browser_guid:)
       return if distinct_card_count(recent_failures) < MAX_NUMBER_OF_FAILED_FINGERPRINTS
       return if buyer_has_clean_checkout_history?
+      return if unblock_grace_active_for?(PlatformBlock::TYPES[:browser_guid], browser_guid)
 
       PlatformBlock.add!(object_type: PlatformBlock::TYPES[:browser_guid], object_value: browser_guid)
     end
@@ -850,7 +867,58 @@ module Purchase::Blockable
       return if distinct_card_count(recent_failures) < MAX_NUMBER_OF_FAILED_FINGERPRINTS
       return if buyer_has_clean_checkout_history?
 
+      if unblock_grace_active?
+        block_buyer_outside_unblock_grace!
+        return
+      end
+
       block_buyer!
+    end
+
+    # A support clear hands the buyer one clean retry, so the velocity rule leaves the values
+    # support cleared alone and still blocks the ones it did not. The IP and card rules always fire.
+    def block_buyer_outside_unblock_grace!
+      block_by_ip_address!(expires_in: PlatformBlock::IP_ADDRESS_BLOCKING_DURATION_IN_MONTHS.months)
+      block_by_charge_processor_fingerprint!
+      block_by_recent_stripe_fingerprint!
+
+      kept = { browser_guid: :browser_guid, email: :email, paypal_email: :email, gifter_email: :email, purchaser_email: :email }.filter_map do |attribute, object_type|
+        value = public_send(attribute)
+        next value if unblock_grace_active_for?(PlatformBlock::TYPES[object_type], value)
+
+        send("block_by_#{attribute}!")
+        nil
+      end
+
+      create_blocked_buyer_comments!(comment_content: "Buyer blocked; the #{UNBLOCK_GRACE_PERIOD.inspect} grace after a support unblock kept #{kept.uniq.compact_blank.join(", ")} unblocked")
+    end
+
+    # Grace is per identifier, never per buyer: support cleared specific values, so only those
+    # values are left alone. A browser or email support did not clear still earns its block.
+    def unblock_grace_key(object_type, value)
+      "purchase_unblock_grace:#{object_type}:#{value.downcase}"
+    end
+
+    def unblock_grace_active_for?(object_type, value)
+      return false if value.blank?
+
+      $redis.exists?(unblock_grace_key(object_type, value))
+    end
+
+    def start_unblock_grace!
+      values = buyer_blockable_values
+      [PlatformBlock::TYPES[:email], PlatformBlock::TYPES[:browser_guid]].each do |object_type|
+        values[object_type].to_a.each do |value|
+          next if value.blank?
+
+          $redis.setex(unblock_grace_key(object_type, value), UNBLOCK_GRACE_PERIOD.to_i, "1")
+        end
+      end
+    end
+
+    def unblock_grace_active?
+      unblock_grace_active_for?(PlatformBlock::TYPES[:browser_guid], browser_guid) ||
+        blockable_emails_if_fraudulent_transaction.any? { |address| unblock_grace_active_for?(PlatformBlock::TYPES[:email], address) }
     end
 
     # The velocity rules count DISTINCT fingerprints as a proxy for "how many different cards has

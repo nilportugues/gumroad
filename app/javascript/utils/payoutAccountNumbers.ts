@@ -158,6 +158,13 @@ export const COUNTRY_ACCOUNT_NUMBER_HINTS: Record<string, CountryAccountNumberHi
     inputMode: "numeric",
     title: "Enter your 6 to 16 digit account number, not your IBAN",
   },
+  // CanadianBankAccount takes 1 to 12 digits, so the generic example is valid here too.
+  CA: {
+    placeholder: "12345678",
+    pattern: "[0-9]{1,12}",
+    inputMode: "numeric",
+    title: "Enter your bank account number, digits only, up to 12 digits",
+  },
 };
 
 // Placeholder for the dedicated IBAN box shown to `country_supports_iban?` countries. Each value has
@@ -174,7 +181,7 @@ export const COUNTRY_IBAN_PLACEHOLDERS: Record<string, string> = {
   BE: "BE00539007547035",
   BG: "BG00BNBG96611020345679",
   BH: "BH00BMAG00001299123457",
-  BJ: "BJ00BC0010100100045000000110",
+  BJ: "BJ00BJ0610100100144390000769",
   CH: "CH0000762011623852958",
   CI: "CI00CI0080111301134291200590",
   CR: "CR00015202001026284067",

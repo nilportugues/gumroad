@@ -143,7 +143,7 @@ class Link < ApplicationRecord
   has_many :orders, through: :sales, source: :order
   has_many :sold_calls, through: :sales, source: :call
   has_many :asset_previews
-  has_many :product_builds, -> { order(:number) }, foreign_key: :product_id, dependent: :destroy
+  has_many :product_builds, -> { order(:number) }, foreign_key: :product_id, dependent: :destroy, inverse_of: :product
   has_many :waitlist_entries, foreign_key: :product_id
   has_one :thumbnail, foreign_key: "product_id"
   has_one :thumbnail_alive, -> { alive }, class_name: "Thumbnail", foreign_key: "product_id"
@@ -173,6 +173,7 @@ class Link < ApplicationRecord
   has_many :affiliate_credits
   has_many :comments, as: :commentable
   has_many :sales_holds, class_name: "ProductSalesHold", foreign_key: :product_id
+  has_one :publish_schedule, class_name: "ProductPublishSchedule", foreign_key: :product_id, inverse_of: :product
   has_many :workflows
   has_many :dropbox_files
   has_many :shipping_destinations
@@ -270,6 +271,7 @@ class Link < ApplicationRecord
   validate :calls_must_have_at_least_one_duration, on: :update
   validate :alive_category_variants_presence, on: :update
   validate :content_has_no_adult_keywords, if: -> { description_changed? || name_changed? }
+  validate :name_does_not_impersonate_gumroad, if: :name_changed?
   validate :custom_view_content_button_text_length
   validates :custom_receipt_text, length: { maximum: Product::Validations::MAX_CUSTOM_RECEIPT_TEXT_LENGTH }
   validates :custom_failed_payment_text, length: { maximum: Product::Validations::MAX_CUSTOM_FAILED_PAYMENT_TEXT_LENGTH }
@@ -291,6 +293,7 @@ class Link < ApplicationRecord
 
   attr_accessor :publishing
 
+  after_save :cancel_pending_publish_schedule, if: :publish_schedule_invalidated?
   before_save :downcase_filetype
   before_save :remove_xml_tags
   # The offer code guards only watch visible products, so a default discount can
@@ -311,6 +314,7 @@ class Link < ApplicationRecord
                if: ->(link) { link.saved_change_to_is_licensed? && link.is_licensed? }
   after_update :delete_unused_prices, if: :saved_change_to_purchase_type?
   after_commit :submit_to_indexnow, on: :update, if: :indexnow_submission_needed?
+  after_update -> { PartnerMigration.record_first_publication(self) }, if: -> { saved_change_to_first_published_at? && first_published_at.present? }
 
   enum :subscription_duration, %i[monthly yearly quarterly biannually every_two_years]
   enum :purchase_type, %i[buy_only rent_only buy_and_rent] # Indicates whether this product can be bought or rented or both.
@@ -415,11 +419,6 @@ class Link < ApplicationRecord
     distinct.joins(user: [:categories]).where(categories: category_ids)
   }
 
-  # Products of `seller` that can have direct affiliates: all of them with the :collab_and_affiliates
-  # flag, otherwise only those without a collaborator.
-  scope :affiliate_eligible_for, ->(seller) do
-    Feature.active?(:collab_and_affiliates, seller) ? all : not_is_collab
-  end
   scope :collabs_as_collaborator, ->(user) do
     joins(product_affiliates: :affiliate)
       .is_collab
@@ -572,12 +571,7 @@ class Link < ApplicationRecord
   end
 
   def publish!(skip_seller_plan_gate: false)
-    enforce_not_unpublished_by_admin!
-    enforce_no_active_sales_hold!
-    enforce_shipping_destinations_presence!
-    enforce_user_email_confirmation!
-    enforce_seller_plan! unless skip_seller_plan_gate
-    enforce_merchant_account_exits_for_new_users!
+    enforce_publish_gates!(skip_seller_plan_gate:)
     transcode_after_publish = auto_transcode_videos?
     caller_flags_change = changes["flags"]&.map(&:to_i)
 
@@ -621,6 +615,8 @@ class Link < ApplicationRecord
         # The checks at the top read this record as loaded; a takedown or hold that committed since is only visible now.
         enforce_not_unpublished_by_admin!
         enforce_no_active_sales_hold!(lock: true)
+        # Callers recheck their own preconditions here: under the product lock, before anything is written.
+        yield if block_given?
         self.transcode_videos_on_purchase = true
         save!
 
@@ -635,15 +631,13 @@ class Link < ApplicationRecord
           end
         end
 
-        if !is_collab? || Feature.active?(:collab_and_affiliates, user)
-          user.direct_affiliates.alive.apply_to_all_products.order(:id).each do |affiliate|
-            next unless ProductAffiliate.create_if_missing!(affiliate:, product: self)
+        user.direct_affiliates.alive.apply_to_all_products.order(:id).each do |affiliate|
+          next unless ProductAffiliate.create_if_missing!(affiliate:, product: self)
 
-            affiliate_id = affiliate.id
-            product_id = id
-            AfterCommitEverywhere.after_commit do
-              AffiliateMailer.notify_direct_affiliate_of_new_product(affiliate_id, product_id).deliver_later
-            end
+          affiliate_id = affiliate.id
+          product_id = id
+          AfterCommitEverywhere.after_commit do
+            AffiliateMailer.notify_direct_affiliate_of_new_product(affiliate_id, product_id).deliver_later
           end
         end
       end
@@ -659,6 +653,19 @@ class Link < ApplicationRecord
 
   def publishing?
     !!publishing
+  end
+
+  # The read-only checks publish! runs before it takes locks; the scheduler refuses to accept a
+  # product that already fails them. Returns the seller-facing message or nil.
+  def publish_precheck_error
+    return "To publish a product, we need you to have an email." if user.email.blank?
+
+    enforce_publish_gates!
+    nil
+  rescue LinkInvalid => e
+    ActionController::Base.helpers.strip_tags(e.message)
+  ensure
+    errors.clear
   end
 
   def unpublish!(is_unpublished_by_admin: false)
@@ -2033,6 +2040,26 @@ class Link < ApplicationRecord
       raise LinkInvalid, UNPUBLISHED_BY_ADMIN_MESSAGE
     end
 
+    def publish_schedule_invalidated?
+      (saved_change_to_deleted_at? && deleted_at.present?) || saved_change_to_draft?(to: false) ||
+        (saved_change_to_purchase_disabled_at? && purchase_disabled_at.present?) || (saved_change_to_banned_at? && banned_at.present?) ||
+        # A new draft already has purchase_disabled_at, so taking one down changes only this flag.
+        (saved_change_to_flags? && is_unpublished_by_admin? && !flags_before_last_save.to_i.anybits?(Link.flag_mapping["flags"][:is_unpublished_by_admin]))
+    end
+
+    def cancel_pending_publish_schedule
+      ProductPublishSchedule.cancel_pending!(id)
+    end
+
+    def enforce_publish_gates!(skip_seller_plan_gate: false)
+      enforce_not_unpublished_by_admin!
+      enforce_no_active_sales_hold!
+      enforce_shipping_destinations_presence!
+      enforce_user_email_confirmation!
+      enforce_seller_plan! unless skip_seller_plan_gate
+      enforce_merchant_account_exits_for_new_users!
+    end
+
     def enforce_no_active_sales_hold!(lock: false)
       holds = sales_holds.active
       return unless (lock ? holds.lock : holds).exists?
@@ -2344,8 +2371,9 @@ class Link < ApplicationRecord
         if %w[strong b em u s h1 h2 h3 h4 h5 h6 pre code ul ol li hr blockquote p a figure figcaption img div span iframe script br upsell-card public-file-embed review-card].exclude?(node.name) && !node.text?
           node.remove
         elsif node.name == "iframe"
-          iframe_host = (URI.parse(node["src"]) rescue nil)&.host if node["src"].present?
-          if %w[cdn.iframe.ly iframely.net].include?(iframe_host)
+          iframe_src = node["src"]
+          iframe_host = (URI.parse(iframe_src) rescue nil)&.host if iframe_src.present?
+          if %w[cdn.iframe.ly iframely.net].include?(iframe_host) || heyzine_shelf_embed_src?(iframe_src)
             node.attributes.each do |attr|
               node.remove_attribute(attr.first) unless %w[src frameborder allowfullscreen scrolling allow style].include?(attr.first)
             end
@@ -2380,6 +2408,16 @@ class Link < ApplicationRecord
           node.attribute("src").value = "#{PROTOCOL}:#{node["src"]}"
         end
       end
+    end
+
+    # iframely cannot frame a Heyzine shelf, so the editor frames the shelf page itself, at /shelf/<id>.html
+    # or its canonical /shelf/<name>. Matched against the whole src, exactly as the editor writes it, so no
+    # port, userinfo, query, or fragment gets through.
+    HEYZINE_SHELF_EMBED_SRC = %r{\Ahttps://heyzine\.com/shelf/[\w-]+(?:\.html)?\z}
+    private_constant :HEYZINE_SHELF_EMBED_SRC
+
+    def heyzine_shelf_embed_src?(src)
+      src.present? && HEYZINE_SHELF_EMBED_SRC.match?(src)
     end
 
     def content_moderation_check

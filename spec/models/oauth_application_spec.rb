@@ -64,7 +64,7 @@ describe OauthApplication do
     let(:default_scopes) { Doorkeeper.configuration.default_scopes.map(&:to_sym) }
     let(:public_scopes) { Doorkeeper.configuration.public_scopes.map(&:to_sym) }
     let(:public_api_read_scopes) { Doorkeeper.configuration.public_api_read_scopes.map(&:to_sym) }
-    let(:private_scopes) { %i[refund_sales mobile_api creator_api helper_api unfurl] }
+    let(:private_scopes) { %i[refund_sales mobile_api creator_api helper_api unfurl partner_api] }
 
     it "all public scopes are included in Doorkeeper's scopes" do
       public_scopes.each do |scope|
@@ -200,6 +200,15 @@ describe OauthApplication do
       expect(@oauth_application.resource_subscriptions.alive.count).to eq(0)
     end
 
+    it "deletes the application's MCP event subscriptions and leaves other applications' alone" do
+      create(:mcp_event_subscription, oauth_application: @oauth_application)
+      other_subscription = create(:mcp_event_subscription)
+
+      @oauth_application.mark_deleted!
+
+      expect(McpEventSubscription.all).to eq([other_subscription])
+    end
+
     it "revokes access grants" do
       expect do
         @oauth_application.mark_deleted!
@@ -297,6 +306,16 @@ describe OauthApplication do
 
       expect(@oauth_application.resource_subscriptions.where(user: @subscriber_1).alive.count).to eq(0)
       expect(@oauth_application.resource_subscriptions.where(user: @subscriber_2).alive.count).to eq(1)
+    end
+
+    it "deletes the user's MCP event subscriptions to the application, and no one else's" do
+      create(:mcp_event_subscription, oauth_application: @oauth_application, user: @subscriber_1)
+      other_user_subscription = create(:mcp_event_subscription, oauth_application: @oauth_application, user: @subscriber_2)
+      other_application_subscription = create(:mcp_event_subscription, user: @subscriber_1)
+
+      @oauth_application.revoke_access_for(@subscriber_1)
+
+      expect(McpEventSubscription.all).to contain_exactly(other_user_subscription, other_application_subscription)
     end
 
     it "denies approved device authorizations for the user" do

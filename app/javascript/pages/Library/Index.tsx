@@ -1,13 +1,14 @@
-import { Archive, DotsHorizontalRounded, FileCode, Search, Trash } from "@boxicons/react";
+import { Archive, DotsHorizontalRounded, FileCode, Image as ImageIcon, Search, Trash } from "@boxicons/react";
 import { router, usePage } from "@inertiajs/react";
 import * as React from "react";
 
 import { deletePurchasedProduct, setPurchaseArchived } from "$app/data/library";
-import { ProductNativeType } from "$app/parsers/product";
+import { AssetPreview, ProductNativeType } from "$app/parsers/product";
 import { assertDefined } from "$app/utils/assert";
 import { cast } from "$app/utils/cast";
 import { classNames } from "$app/utils/classNames";
 import { asyncVoid } from "$app/utils/promise";
+import { purchaseConfirmationMessage } from "$app/utils/purchaseConfirmation";
 import { assertResponseError } from "$app/utils/request";
 import { SellerAnalyticsProps, trackSellerPurchaseEvent } from "$app/utils/user_analytics";
 
@@ -18,6 +19,7 @@ import { Modal } from "$app/components/Modal";
 import { Pagination } from "$app/components/Pagination";
 import { Popover, PopoverContent, PopoverTrigger } from "$app/components/Popover";
 import { AuthorByline } from "$app/components/Product/AuthorByline";
+import { Covers } from "$app/components/Product/Covers";
 import { Thumbnail } from "$app/components/Product/Thumbnail";
 import { Select } from "$app/components/Select";
 import { showAlert } from "$app/components/server-components/Alert";
@@ -47,6 +49,7 @@ export type Result = {
     name: string;
     creator: { name: string; profile_url: string; avatar_url: string | null } | null;
     thumbnail_url: string | null;
+    preview_images: AssetPreview[];
     native_type: ProductNativeType;
   };
   purchase: {
@@ -56,6 +59,49 @@ export type Result = {
     variants: string | null;
     subscription?: { status_label: string; manage_label: string; manage_url: string | null };
   };
+};
+
+const PreviewGallery = ({ name, images }: { name: string; images: AssetPreview[] }) => {
+  const [open, setOpen] = React.useState(false);
+  const [activeId, setActiveId] = React.useState<string | null>(null);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        size="sm"
+        color="filled"
+        className="absolute right-2 bottom-2 z-10"
+        aria-label={`View ${images.length} ${images.length === 1 ? "image" : "images"} for ${name}`}
+        onClick={() => setOpen(true)}
+      >
+        <ImageIcon className="size-4" />
+        {images.length}
+      </Button>
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        // Modal has no Dialog.Trigger, so Radix would drop focus to the body on close.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          triggerRef.current?.focus();
+        }}
+        title={name}
+        className="w-full max-w-4xl"
+      >
+        <Covers
+          covers={images}
+          activeCoverId={activeId}
+          setActiveCoverId={setActiveId}
+          productName={name}
+          // The dialog is a flex column and the figure is overflow-hidden, so without shrink-0 it shrinks to the
+          // dialog's max height and crops the cover instead of letting the dialog scroll.
+          className="shrink-0 rounded"
+        />
+      </Modal>
+    </>
+  );
 };
 
 export const Card = ({
@@ -87,8 +133,9 @@ export const Card = ({
 
   return (
     <ProductCard>
-      <ProductCardFigure>
+      <ProductCardFigure className="relative">
         <Thumbnail url={product.thumbnail_url} nativeType={product.native_type} />
+        {product.preview_images.length > 0 ? <PreviewGallery name={name} images={product.preview_images} /> : null}
       </ProductCardFigure>
       <ProductCardHeader>
         {purchase.download_url ? (
@@ -222,7 +269,15 @@ type Props = {
   unarchived_count: number;
   search: SearchParams;
   purchase_analytics: Record<string, SellerAnalyticsProps>;
-  receipt_purchases: { id: string; email: string; permalink: string; has_third_party_analytics: boolean }[];
+  receipt_purchases: {
+    id: string;
+    email: string;
+    free: boolean;
+    seller_id: string;
+    seller_name: string;
+    permalink: string;
+    has_third_party_analytics: boolean;
+  }[];
 };
 
 export default function LibraryPage() {
@@ -343,8 +398,19 @@ export default function LibraryPage() {
     url.searchParams.delete("purchase_id");
     router.replace({ url: url.pathname + url.search, preserveState: true, preserveScroll: true });
 
-    const email = receipt_purchases.find((purchase) => purchase.id === purchaseIds[0])?.email;
-    if (email) showAlert(`Your purchase was successful! We sent a receipt to ${email}.`, "success");
+    const firstPurchase = receipt_purchases.find((purchase) => purchase.id === purchaseIds[0]);
+    if (firstPurchase?.email) {
+      const purchases = receipt_purchases.filter((purchase) => purchaseIds.includes(purchase.id));
+      const sellerIds = new Set(purchases.map((purchase) => purchase.seller_id));
+      showAlert(
+        purchaseConfirmationMessage({
+          free: purchases.every((purchase) => purchase.free),
+          sellerName: sellerIds.size === 1 ? firstPurchase.seller_name : null,
+          email: firstPurchase.email,
+        }),
+        "success",
+      );
+    }
 
     for (const purchaseId of purchaseIds) {
       const analytics = purchase_analytics[purchaseId];

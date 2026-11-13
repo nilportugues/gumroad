@@ -36,6 +36,8 @@ class PurchasesController < ApplicationController
     revoke_access undo_revoke_access confirm_receipt_email
   ]
   before_action :verify_current_seller_is_seller_for_purchase, only: %i[update change_can_contact cancel_preorder_by_seller revoke_access undo_revoke_access]
+  skip_before_action :set_analytics_meta_tags, only: %i[receipt confirm_receipt_email]
+  before_action :set_purchase_analytics_meta_tags, only: :confirm_receipt_email
   before_action :hide_layouts, only: %i[subscribe unsubscribe receipt confirm_receipt_email]
   before_action :set_noindex_header, only: [:receipt, :confirm_receipt_email]
 
@@ -332,7 +334,13 @@ class PurchasesController < ApplicationController
        (params[:email].present? && ActiveSupport::SecurityUtils.secure_compare(@purchase.email.downcase, params[:email].to_s.strip.downcase))
       return e404 if receipt_orderable_missing?(@purchase)
 
-      message = CustomerMailer.receipt(@purchase.id, for_email: false)
+      whole_order_charge = @purchase.whole_order_receipt_charge
+      message = if whole_order_charge
+        CustomerMailer.receipt(nil, whole_order_charge.id, for_email: false)
+      else
+        # Another email's items are on this charge, so show only what this email bought.
+        CustomerMailer.receipt(@purchase.id, for_email: false, single_purchase: true)
+      end
       # Generate the same markup used in the email
       Premailer::Rails::Hook.perform(message)
 
@@ -489,6 +497,10 @@ class PurchasesController < ApplicationController
       payment_method&.card&.wallet&.type == params[:wallet_type]
     rescue Stripe::StripeError
       render_error("Sorry, something went wrong.")
+    end
+
+    def set_purchase_analytics_meta_tags
+      set_analytics_meta_tags(seller: @purchase.seller)
     end
 
     # The receipt/resend paths resolve a Chargeable that can promote a charge-backed

@@ -20,6 +20,18 @@ describe "MCP server product files" do
     Rails.root.join("spec", "support", "fixtures", name)
   end
 
+  # The ingest bounds its outbound fetch to fit the request budget, so stubbing SsrfFilter.get
+  # without these options would not match the real call.
+  def fetch_options
+    {
+      max_redirects: Mcp::ProductFileIngest::MAX_REDIRECTS,
+      http_options: {
+        open_timeout: Mcp::ProductFileIngest::OPEN_TIMEOUT_SECONDS,
+        read_timeout: Mcp::ProductFileIngest::READ_TIMEOUT_SECONDS,
+      }
+    }
+  end
+
   # Stub SsrfFilter.get the way the thumbnail and media-ingest specs do: a fake Net::HTTP response
   # backed by a fixture file, yielded to the streaming block and returned.
   def stub_remote_file(url, fixture_name, content_type, content_length: nil, response_class: Net::HTTPOK)
@@ -43,7 +55,7 @@ describe "MCP server product files" do
       end
     end.new
 
-    allow(SsrfFilter).to receive(:get).with(url).and_yield(response).and_return(response)
+    allow(SsrfFilter).to receive(:get).with(url, fetch_options).and_yield(response).and_return(response)
   end
 
   def file_embed(file)
@@ -76,6 +88,128 @@ describe "MCP server product files" do
       expect(file.s3_key).to match(%r{\Aattachments/#{@seller.external_id}/[0-9a-f]{32}/original/billion-dollar-company-chapter-0\.pdf\z})
       expect(@stored_objects.sole).to include(bucket: S3_BUCKET, content_type: "application/pdf")
       expect(@stored_objects.sole[:content_length]).to eq(File.size(fixture_path("billion-dollar-company-chapter-0.pdf")))
+    end
+
+    it "writes a file the creator produced in the chat, with no hosting step" do
+      content = "# Field notes\n\nWhat I learned on the boat.\n"
+      expect(SsrfFilter).not_to receive(:get)
+
+      result = call_tool("add_file", { id: @product.unique_permalink, content:, filename: "field-notes.md" })
+
+      file = @product.reload.alive_product_files.sole
+      expect(result.dig("structuredContent", "files").sole).to include("name" => "field-notes", "type" => "MD", "size_bytes" => content.bytesize)
+      expect(file.s3_key).to match(%r{\Aattachments/#{@seller.external_id}/[0-9a-f]{32}/original/field-notes\.md\z})
+      expect(@stored_objects.sole).to include(bucket: S3_BUCKET, content_type: "text/markdown; charset=utf-8", content_length: content.bytesize)
+      expect(file.name_displayable).to eq("field-notes")
+    end
+
+    it "keeps a display name the creator chose for a written file" do
+      call_tool("add_file", { id: @product.unique_permalink, content: "a,b\n1,2\n", filename: "export.csv", display_name: "Spend export" })
+
+      expect(@product.reload.alive_product_files.sole.name_displayable).to eq("Spend export")
+    end
+
+    it "refuses a call that passes both a url and content" do
+      call_tool("add_file", { id: @product.unique_permalink, url: "https://example.com/a.pdf", content: "x", filename: "a.md" })
+
+      expect(response.parsed_body.dig("error", "message")).to include("Pass url or content, not both")
+      expect(@product.reload.alive_product_files).to be_empty
+    end
+
+    it "refuses a call that passes neither a url nor content" do
+      call_tool("add_file", { id: @product.unique_permalink })
+
+      expect(response.parsed_body.dig("error", "message")).to include("url is required, or pass content and filename")
+      expect(@stored_objects).to be_empty
+    end
+
+    it "refuses content without a filename" do
+      call_tool("add_file", { id: @product.unique_permalink, content: "# hi" })
+
+      expect(response.parsed_body.dig("error", "message")).to include("filename is required with content")
+    end
+
+    it "refuses a filename it cannot store as text" do
+      call_tool("add_file", { id: @product.unique_permalink, content: "%PDF-1.4", filename: "notes.pdf" })
+
+      expect(response.parsed_body.dig("error", "message")).to include("filename has to end in .md, .markdown, .txt, .csv, .json, .ics, .srt, .vtt")
+      expect(@stored_objects).to be_empty
+    end
+
+    it "keeps the creator's own words as the buyer-visible name" do
+      call_tool("add_file", { id: @product.unique_permalink, content: "notes", filename: "Field Notes #1.md" })
+
+      expect(@product.reload.alive_product_files.sole.name_displayable).to eq("Field Notes #1")
+    end
+
+    it "reduces a filename to a key-safe basename" do
+      call_tool("add_file", { id: @product.unique_permalink, content: "notes", filename: "../../etc/my notes #1.md" })
+
+      key = @stored_objects.sole[:key]
+      expect(key).to match(%r{\Aattachments/#{@seller.external_id}/[0-9a-f]{32}/original/my-notes--1\.md\z})
+    end
+
+    it "refuses content that is not text at all" do
+      call_tool("add_file", { id: @product.unique_permalink, content: ["a", "b"], filename: "notes.md" })
+
+      expect(response.parsed_body.dig("error", "message")).to include("content must be a string")
+      expect(response.parsed_body.dig("error", "code")).to eq(-32602)
+      expect(@stored_objects).to be_empty
+    end
+
+    it "names a storage failure as a storage failure, not a bad download" do
+      allow_any_instance_of(Aws::S3::Client).to receive(:put_object).and_raise(Timeout::Error)
+
+      result = call_tool("add_file", { id: @product.unique_permalink, content: "# hi", filename: "notes.md" })
+
+      expect(result.dig("content", 0, "text")).to include("Could not store that file right now")
+      expect(@product.reload.alive_product_files).to be_empty
+    end
+
+    it "still reports a download failure for the url path" do
+      url = "https://example.com/files/financial-annual-summary-2022.csv"
+      stub_remote_file(url, "financial-annual-summary-2022.csv", "text/csv")
+      allow_any_instance_of(Aws::S3::Client).to receive(:put_object).and_raise(Timeout::Error)
+
+      result = call_tool("add_file", { id: @product.unique_permalink, url: })
+
+      expect(result.dig("content", 0, "text")).to include("Could not download a file from that URL")
+    end
+
+    it "refuses a filename with a null byte rather than crashing on it" do
+      call_tool("add_file", { id: @product.unique_permalink, content: "notes", filename: "notes\0.md" })
+
+      expect(response.parsed_body.dig("error", "message")).to include("filename contains a null byte")
+      expect(@stored_objects).to be_empty
+    end
+
+    it "refuses content over the size this tool can write out" do
+      result = call_tool("add_file", { id: @product.unique_permalink, content: "x" * (Mcp::ProductFileIngest::INLINE_MAX_BYTES + 1), filename: "big.txt" })
+
+      expect(result.dig("content", 0, "text")).to include("larger than 2 MB, which is the most this tool can write out here")
+      expect(@stored_objects).to be_empty
+    end
+
+    it "ignores filename when the file comes from a URL" do
+      url = "https://example.com/files/financial-annual-summary-2022.csv"
+      stub_remote_file(url, "financial-annual-summary-2022.csv", "text/csv")
+
+      call_tool("add_file", { id: @product.unique_permalink, url:, filename: "something-else.md" })
+
+      expect(@stored_objects.sole[:key]).to end_with("original/financial-annual-summary-2022.csv")
+    end
+
+    it "discards the uploaded object when attaching the file fails" do
+      allow_any_instance_of(Link).to receive(:save_files!).and_raise("attach failed")
+
+      begin
+        call_tool("add_file", { id: @product.unique_permalink, content: "# hi", filename: "notes.md" })
+      rescue StandardError
+        nil
+      end
+
+      expect(@deleted_keys.sole).to eq(@stored_objects.sole[:key])
+      expect(@product.reload.alive_product_files).to be_empty
     end
 
     it "attaches a file small enough to stay in the write buffer" do
@@ -291,12 +425,24 @@ describe "MCP server product files" do
 
     it "refuses a URL that the fetch guard rejects" do
       url = "http://169.254.169.254/latest/meta-data"
-      allow(SsrfFilter).to receive(:get).with(url).and_raise(SsrfFilter::PrivateIPAddress.new("private address"))
+      allow(SsrfFilter).to receive(:get).with(url, fetch_options).and_raise(SsrfFilter::PrivateIPAddress.new("private address"))
 
       result = call_tool("add_file", { id: @product.unique_permalink, url: })
 
       expect(result.dig("isError")).to eq(true)
       expect(result.dig("content", 0, "text")).to include("public https link")
+      expect(@product.reload.alive_product_files).to be_empty
+    end
+
+    it "bounds the outbound fetch so a stalled host cannot outlive the request budget" do
+      url = "https://slow.example.com/huge.zip"
+      allow(SsrfFilter).to receive(:get).and_raise(Net::ReadTimeout.new("stalled"))
+
+      result = call_tool("add_file", { id: @product.unique_permalink, url: })
+
+      expect(SsrfFilter).to have_received(:get).with(url, fetch_options)
+      expect(result.dig("isError")).to eq(true)
+      expect(result.dig("content", 0, "text")).to include("Could not download a file from that URL")
       expect(@product.reload.alive_product_files).to be_empty
     end
 
