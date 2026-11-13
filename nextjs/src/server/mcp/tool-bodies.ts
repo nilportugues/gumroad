@@ -1,7 +1,7 @@
 // Bodies of the pure-read tools of app/services/mcp/server.rb: get_account, list_payouts, get_customers and get_sales_totals.
 // Every other tool still runs in Rails (toolBody returns undefined for it). A call whose token lacks the tool's scope also
 // stays in Rails, which owns the 403 scope challenge and the batch variant of that error. So do these sub-cases:
-// get_customers with a date in an ISO 8601 form other than YYYY-MM-DD, a whole-number days_to_convert or a query timeout;
+// get_customers with a date in an ISO 8601 form other than YYYY-MM-DD or a query timeout;
 // get_sales_totals with a country, day, week or month breakdown (tzinfo transitions, Compliance::Countries); and a
 // product_id that does not resolve (Rails answers with a tool-level error result).
 import { Prisma } from "@prisma/client";
@@ -11,6 +11,7 @@ import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
 import {
   instantInTimeZoneIso8601,
   InvalidTimeZoneError,
@@ -345,13 +346,12 @@ async function getCustomers(args: Hash, context: ToolContext): Promise<Hash> {
     if (by === "conversion") {
       rows = (await readers.conversion(query)).map((row) => {
         const days = rubyRoundHalfUp((row.converted_at.getTime() - row.free_at.getTime()) / DAY_MS, 1);
-        // Ruby writes 3.0 where JSON.stringify writes 3.
-        if (Number.isInteger(days)) throw new HandBackToRails("a days_to_convert that is a whole number");
         return {
           email: row.email,
           free_at: iso8601(row.free_at),
           converted_at: iso8601(row.converted_at),
-          days_to_convert: days,
+          // A Float: Ruby writes 3.0 where a JavaScript number would be written 3.
+          days_to_convert: new RubyFloat(days),
         };
       });
     } else {

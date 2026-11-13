@@ -2,6 +2,7 @@
 // envelopes, initialize, ping, server/discover, tools/list and the argument checks of tools/call).
 // A valid tools/call runs here only for the tools in ./tool-bodies.ts; the rest read and write the seller's store and hand back to Rails.
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { prettyDumpRubyJson, type JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 
 import {
   HEADER_MISMATCH,
@@ -283,7 +284,7 @@ export class RpcSession {
       throw error;
     }
     if (payload === undefined) throw new HandBackToRails("an MCP tool call");
-    return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }], structuredContent: payload };
+    return { content: [{ type: "text", text: prettyDumpRubyJson(payload as JsonValue) }], structuredContent: payload };
   }
 }
 

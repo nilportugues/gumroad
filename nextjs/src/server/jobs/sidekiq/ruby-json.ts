@@ -56,6 +56,23 @@ export function dumpRubyJson(value: JsonValue, path = "$"): string {
     .join(",")}}`;
 }
 
+// JSON.pretty_generate: two-space indent, `"key": value`, and `[]` / `{}` for an empty container.
+export function prettyDumpRubyJson(value: JsonValue, path = "$", indent = ""): string {
+  if (value === null || typeof value !== "object" || value instanceof RubyFloat) return dumpRubyJson(value, path);
+  const inner = `${indent}  `;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return "[]";
+    const items = value.map((item, i) => `${inner}${prettyDumpRubyJson(item, `${path}[${i}]`, inner)}`);
+    return `[\n${items.join(",\n")}\n${indent}]`;
+  }
+  const entries = Object.entries(value);
+  if (entries.length === 0) return "{}";
+  const members = entries.map(
+    ([key, item]) => `${inner}${JSON.stringify(key)}: ${prettyDumpRubyJson(item, `${path}.${key}`, inner)}`,
+  );
+  return `{\n${members.join(",\n")}\n${indent}}`;
+}
+
 // `Float#to_s`, which Sidekiq uses for the `schedule` score and unique-jobs for the lock score.
 export function rubyFloatToS(value: number): string {
   return formatFloat(value, "score");

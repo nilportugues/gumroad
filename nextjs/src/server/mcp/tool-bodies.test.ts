@@ -2,6 +2,7 @@ import type { OauthAccessToken, User } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { dumpRubyJson, RubyFloat, type JsonValue } from "../jobs/sidekiq/ruby-json.ts";
 
 import { RpcSession } from "./server.ts";
 import {
@@ -297,13 +298,13 @@ describe("get_customers", () => {
           email: "c@example.com",
           free_at: "2026-01-01T00:00:00Z",
           converted_at: "2026-01-02T12:00:00Z",
-          days_to_convert: 1.5,
+          days_to_convert: new RubyFloat(1.5),
         },
       ],
     });
   });
 
-  it("hands back a conversion whose days to convert is a whole number, which Ruby writes as 2.0", async () => {
+  it("returns a conversion that took whole days as a Float", async () => {
     const customers = customerReader({
       conversion: vi.fn().mockResolvedValue([
         {
@@ -314,9 +315,9 @@ describe("get_customers", () => {
       ]),
     });
 
-    await expect(
-      toolBody("get_customers", { breakdown: "conversion" }, customerContext("account", customers)),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+    const body = await toolBody("get_customers", { breakdown: "conversion" }, customerContext("account", customers));
+
+    expect(body).toMatchObject({ rows: [{ days_to_convert: new RubyFloat(2) }] });
   });
 
   it("refuses a start date after the end date", async () => {
@@ -528,6 +529,25 @@ describe("tools/call through the session", () => {
 
     expect(reply.result.structuredContent).toEqual({ payouts: [] });
     expect(reply.result.content).toEqual([{ type: "text", text: '{\n  "payouts": []\n}' }]);
+  });
+
+  it("writes a conversion that took whole days as 2.0 in the text and the structured content", async () => {
+    const conversion = vi.fn().mockResolvedValue([
+      {
+        email: "c@example.com",
+        free_at: new Date("2026-01-01T00:00:00Z"),
+        converted_at: new Date("2026-01-03T00:00:00Z"),
+      },
+    ]);
+    const reply = await new RpcSession(
+      { protocolVersion: null, method: null, name: null },
+      async () => false,
+      customerContext("account", customerReader({ conversion })),
+    ).handle(call("get_customers", { breakdown: "conversion" }));
+
+    const result = (reply as { result: { content: { text: string }[]; structuredContent: unknown } }).result;
+    expect(result.content[0]!.text).toContain('      "days_to_convert": 2.0\n');
+    expect(dumpRubyJson(result.structuredContent as JsonValue)).toContain('"days_to_convert":2.0}');
   });
 
   it("answers a limit error as a JSON-RPC error", async () => {
