@@ -21,9 +21,11 @@ import { ago } from "./concerns/ruby-time.ts";
 import { LinkFlags } from "./link.ts";
 import { PurchaseRefundPolicies } from "./purchase-refund-policy.ts";
 import { PurchaseUrlParameters } from "./purchase-url-parameter.ts";
+import { heldGiftGiven, heldSubscription } from "./refund-held-associations.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { castRow, column, execute, selectRows, table } from "./sql.ts";
+import { subscriptionView } from "./subscription-writes.ts";
 import {
   isValidEmailFormat,
   mailAddressDomain,
@@ -237,6 +239,25 @@ const mustHaveValidEmail: Callback<Purchase> = {
   },
 };
 
+// `validates :purchaser, presence: true, if: -> { is_gift_receiver_purchase && gift&.is_recipient_hidden? }`: `gift` is `gift_received`,
+// loaded once per record
+const giftRecipientHiddenNeedsPurchaser: Callback<Purchase> = {
+  name: "purchaser presence for a hidden gift recipient",
+  async run(record) {
+    if (!flag(record, "is_gift_receiver_purchase")) return;
+    const memo = record.ivars as { giftReceived?: { flags: unknown } | null };
+    if (memo.giftReceived === undefined) {
+      const [gift] = await selectRows<{ flags: unknown }>(
+        Prisma.sql`SELECT ${Prisma.raw("`gifts`.*")} FROM ${table("gifts")} WHERE ${column("gifts", "giftee_purchase_id")} = ${record.get("id")} LIMIT 1`,
+      );
+      memo.giftReceived = gift ?? null;
+    }
+    // is_recipient_hidden is bit 1 of gifts.flags
+    if (memo.giftReceived !== null && (BigInt(memo.giftReceived.flags as bigint | number) & 1n) !== 0n)
+      throw notPorted("a gift whose recipient is hidden");
+  },
+};
+
 const notDoubleCharged: Callback<Purchase> = {
   name: "not_double_charged",
   on: "create",
@@ -267,7 +288,7 @@ const notDoubleCharged: Callback<Purchase> = {
 
     // `already.reject(&outside_window)`: a finished purchase older than the window does not count
     const blocking = [...already, ...alreadyGifted].filter(
-      (purchase) => purchase.purchase_state === "in_progress" || (purchase.created_at as Date) > lastAllowedPurchaseAt,
+      (purchase) => purchase.purchase_state === "in_progress" || purchase.created_at! > lastAllowedPurchaseAt,
     );
     if (blocking.some((purchase) => purchase.purchase_state === "in_progress" && purchase.processor_payment_intent_id))
       throw notPorted("an earlier attempt whose payment intent must be rechecked");
@@ -328,9 +349,9 @@ const customFeePerThousand: Callback<Purchase> = {
         : typeof value === "string" && /^[+-]?\d+(\.\d+)?$/u.test(value.trim())
           ? Number(value)
           : NaN;
-    if (Number.isNaN(number)) return void record.errors.add(attribute, "not_a_number");
-    if (!Number.isInteger(number)) return void record.errors.add(attribute, "not_an_integer");
-    if (number < 0) return void record.errors.add(attribute, "greater_than_or_equal_to", { count: 0 });
+    if (Number.isNaN(number)) return record.errors.add(attribute, "not_a_number");
+    if (!Number.isInteger(number)) return record.errors.add(attribute, "not_an_integer");
+    if (number < 0) return record.errors.add(attribute, "greater_than_or_equal_to", { count: 0 });
     if (number > CUSTOM_FEE_PER_THOUSAND_MAX)
       record.errors.add(attribute, "less_than_or_equal_to", { count: CUSTOM_FEE_PER_THOUSAND_MAX });
   },
@@ -769,32 +790,63 @@ const scheduleAudienceMemberRefresh: Callback<Purchase> = {
   },
 };
 
-type InventorySnapshot = { purchase_state: string | null; flags: bigint | number; quantity: number };
+type InventorySnapshot = {
+  purchase_state: string | null;
+  flags: bigint | number;
+  quantity: number;
+  subscription_id: bigint | null;
+  subscription_deactivated_at: Date | null;
+};
+
+// `Subscription.where(id:).pick(:deactivated_at)`
+async function subscriptionDeactivatedAt(id: bigint): Promise<Date | null> {
+  const [row] = await selectRows<{ deactivated_at: Date | null }>(
+    Prisma.sql`SELECT ${column("subscriptions", "deactivated_at")} FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} = ${id} LIMIT 1`,
+  );
+  return row?.deactivated_at ?? null;
+}
 
 const snapshotInventoryPreSaveState: Callback<Purchase> = {
   name: "snapshot_inventory_pre_save_state",
-  run(record) {
+  async run(record) {
     if (record.newRecord) return;
     const memo = record.ivars as { inventorySnapshot?: InventorySnapshot | null };
     if (memo.inventorySnapshot) return;
     // These reads leave PaperTrail's `object` in column order for a purchase loaded with `find` (purchase-seller-balance.golden.json)
-    record.untracked(() => {
-      if (record.attributeInDatabase("subscription_id") != null)
-        throw notPorted("a purchase that belongs to a subscription");
-      memo.inventorySnapshot = {
-        purchase_state: record.attributeInDatabase("purchase_state"),
-        flags: record.attributeInDatabase("flags"),
-        quantity: record.attributeInDatabase("quantity"),
-      };
-    });
+    const read = record.untracked(() => ({
+      purchase_state: record.attributeInDatabase("purchase_state"),
+      flags: record.attributeInDatabase("flags"),
+      quantity: record.attributeInDatabase("quantity"),
+      subscription_id: record.attributeInDatabase("subscription_id"),
+    }));
+    memo.inventorySnapshot = {
+      ...read,
+      subscription_deactivated_at:
+        read.subscription_id != null ? await subscriptionDeactivatedAt(read.subscription_id) : null,
+    };
   },
 };
 
-// Purchase.counts_towards_inventory_for? for a purchase without a subscription
-const countsTowardsInventory = (state: string | null, flags: bigint | number) =>
-  COUNTS_TOWARDS_INVENTORY_STATES.includes(state ?? "") &&
-  !PurchaseFlags.isSet(flags, "is_additional_contribution") &&
-  !PurchaseFlags.isSet(flags, "is_archived_original_subscription_purchase");
+// Purchase.counts_towards_inventory_for?
+function countsTowardsInventory(
+  state: string | null,
+  flags: bigint | number,
+  subscriptionId: bigint | null,
+  subscriptionDeactivatedAt: Date | null,
+): boolean {
+  if (!COUNTS_TOWARDS_INVENTORY_STATES.includes(state ?? "")) return false;
+  if (PurchaseFlags.isSet(flags, "is_additional_contribution")) return false;
+  if (PurchaseFlags.isSet(flags, "is_archived_original_subscription_purchase")) return false;
+  if (subscriptionId != null) {
+    if (
+      !PurchaseFlags.isSet(flags, "is_original_subscription_purchase") &&
+      !PurchaseFlags.isSet(flags, "is_gift_receiver_purchase")
+    )
+      return false;
+    if (subscriptionDeactivatedAt != null) return false;
+  }
+  return true;
+}
 
 const syncInventoryCounterCacheForStateChange: Callback<Purchase> = {
   name: "sync_inventory_counter_cache_for_state_change",
@@ -804,9 +856,22 @@ const syncInventoryCounterCacheForStateChange: Callback<Purchase> = {
     const snapshot = memo.inventorySnapshot;
     if (!snapshot) return;
     if (!Object.keys(record.savedChanges).some((name) => SYNC_INVENTORY_ATTRIBUTES.includes(name))) return;
-    if (record.get("subscription_id") != null) throw notPorted("a purchase that belongs to a subscription");
-    const before = countsTowardsInventory(snapshot.purchase_state, snapshot.flags) ? snapshot.quantity : 0;
-    const after = countsTowardsInventory(record.get("purchase_state"), record.get("flags"))
+    const before = countsTowardsInventory(
+      snapshot.purchase_state,
+      snapshot.flags,
+      snapshot.subscription_id,
+      snapshot.subscription_deactivated_at,
+    )
+      ? snapshot.quantity
+      : 0;
+    const subscriptionId = record.get("subscription_id");
+    const afterDeactivatedAt = subscriptionId != null ? await subscriptionDeactivatedAt(subscriptionId) : null;
+    const after = countsTowardsInventory(
+      record.get("purchase_state"),
+      record.get("flags"),
+      subscriptionId,
+      afterDeactivatedAt,
+    )
       ? record.get("quantity")
       : 0;
     const delta = after - before;
@@ -882,8 +947,19 @@ const updateRelatedPurchaseDocuments: Callback<Purchase> = {
 const updateSamePurchaserSubscriptionPurchaseDocuments: Callback<Purchase> = {
   name: "update_same_purchaser_subscription_purchase_documents",
   on: ["create", "update"],
-  run(record) {
-    if (record.get("subscription_id") != null) throw notPorted("a purchase that belongs to a subscription");
+  async run(record) {
+    if (record.get("subscription_id") == null) return;
+    // Only a refund's save loads the subscription this callback reads; a purchase created for one is not served
+    const held = heldSubscription(record);
+    if (held === undefined || record.newRecord) throw notPorted("a purchase that belongs to a subscription");
+    // `should_update &= subscription.present? && subscription.original_purchase.present?` evaluates its right side whatever the left says
+    const original = held.subscription === null ? null : await subscriptionView(held.subscription).originalPurchase();
+    const shouldUpdate =
+      record.get("purchase_state") === "successful" &&
+      record.savedChanges.purchase_state !== undefined &&
+      !flag(record, "is_original_subscription_purchase") &&
+      original !== null;
+    if (shouldUpdate) throw notPorted("a subscription charge that just became successful");
   },
 };
 
@@ -951,6 +1027,8 @@ const scheduleProductSearchRefreshAfterRefund: Callback<Purchase> = {
   },
 };
 
+type ReviewHolder = { productReviewLoaded?: boolean };
+
 const paperTrail = hasPaperTrail<Purchase>("Purchase", { itemType: "Purchase" });
 
 export const Purchases = defineModel<Purchase>({
@@ -1007,6 +1085,7 @@ export const Purchases = defineModel<Purchase>({
     presence(["price_cents"]),
     presence(["total_transaction_cents"]),
     presence(["fee_cents"]),
+    giftRecipientHiddenNeedsPurchaser,
     customFeePerThousand,
   ],
   beforeSave: [
@@ -1080,12 +1159,35 @@ export const Purchases = defineModel<Purchase>({
       name: "update_product_review_stat",
       async run(record) {
         if (Object.keys(record.savedChanges).length === 0) return;
-        // `product_review` is a has_one: the first read loads it and the later saves of the same instance reuse it
-        const memo = record.ivars as { productReviewLoaded?: boolean };
-        if (memo.productReviewLoaded) return;
-        memo.productReviewLoaded = true;
+        // original_product_review: the purchase's (a gift sender's: its giftee's) true original purchase's `product_review`, a has_one
+        // that is loaded once per instance
+        let purchase: PurchaseRecord | null = record;
+        if (flag(record, "is_gift_sender_purchase")) {
+          const held = heldGiftGiven(record);
+          if (held === undefined) throw notPorted("a gift sender that has not loaded its gift");
+          purchase = held.giftee;
+        }
+        if (purchase === null) return;
+        let holder = purchase.ivars as ReviewHolder;
+        let reviewedId = purchase.get("id");
+        if (purchase.get("subscription_id") != null) {
+          const subscription = heldSubscription(purchase)?.subscription;
+          if (subscription === undefined || subscription === null)
+            throw notPorted("a purchase that belongs to a subscription");
+          const original = await subscriptionView(subscription).loaded("true_original_purchase", async () => {
+            const [row] = await selectRows<Purchase>(
+              Prisma.sql`SELECT ${star} FROM ${table(PURCHASES)} WHERE ${column(PURCHASES, "subscription_id")} = ${subscription.get("id")} AND (${PurchaseFlags.condition("is_original_subscription_purchase", true)}) ORDER BY ${column(PURCHASES, "id")} ASC LIMIT 1`,
+            );
+            return { row: row ?? null, review: {} as ReviewHolder };
+          });
+          if (original.row === null) return;
+          holder = original.review;
+          reviewedId = original.row.id;
+        }
+        if (holder.productReviewLoaded) return;
+        holder.productReviewLoaded = true;
         const rows = await selectRows(
-          Prisma.sql`SELECT ${Prisma.raw("`product_reviews`.*")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${record.get("id")} LIMIT 1`,
+          Prisma.sql`SELECT ${Prisma.raw("`product_reviews`.*")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${reviewedId} LIMIT 1`,
         );
         if (rows.length > 0) throw notPorted("a purchase that already has a review");
       },
