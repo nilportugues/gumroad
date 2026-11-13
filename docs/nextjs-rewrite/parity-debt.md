@@ -54,10 +54,10 @@ from `nextjs/`, with `PARITY_DATABASE_URL` set. Replay file shorthand: `R = npx 
 | WS-16b/16c | `url_redirect_delivery_gate_spec.rb` (whole file, :26-:176) | 18 of 18 | `nextjs_url_redirect_delivery`, `_show`, `_stream`, `_hls_playlist`, `_smil`, `_play`, `_read`, `_expired`, `_rental_expired`, `_membership_inactive`, `_subtitle_files` | `R url-redirect-pages.replay.test.ts` |
 | WS-16b | `url_redirect_download_page_spec.rb` (whole file, :24-:106) | 10 of 10 | `nextjs_url_redirect_download_page` | `R url-redirect-pages.replay.test.ts` |
 | WS-16b | `url_redirects_parity_spec.rb` :666-:716 (`send_to_kindle`) | 8 of 75 | `nextjs_url_redirect_writes` | `R url-redirects.replay.test.ts` |
-| WS-17f | `api/mobile/mobile_api_parity_spec.rb` :300-:334 (stream/hls_playlist/download refusals) | 5 of 37 | `nextjs_mobile_url_redirect_delivery` | `R mobile-api.replay.test.ts` |
-| WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 28 of 28 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
-| WS-17m | `api/mobile/mobile_sales_actions_parity_spec.rb` (whole file) | 35 of 35 | `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
-| WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 19 of 19 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
+| WS-17f | `api/mobile/mobile_api_parity_spec.rb` :300-:334 (stream/hls_playlist/download refusals) | 0 | `nextjs_mobile_url_redirect_delivery` | `R mobile-api.replay.test.ts` |
+| WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 0 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
+| WS-17m | `api/mobile/mobile_sales_actions_parity_spec.rb` (whole file) | 0 | `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
+| WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 0 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
 | WS-23b | `payouts_signed_in_spec.rb` :251-:283 (chargeback-rate reserve) | 4 of 28 | `nextjs_payouts` | `R checkout-payouts.replay.test.ts` |
 
 Total: 119. Exact example names: `node scripts/parity-debt.ts`.
@@ -187,7 +187,7 @@ area is closed. Flags not listed under a replay are covered by the replay file i
 | `healthcheck` (+ `healthcheck-purchases.test.ts`) | `controllers/healthcheck_controller_spec` | `nextjs_healthcheck`; `/api/health` is ungated |
 | `help-center`, `help-center-signed-in`, `help-center-signed-in-gaps` | `controllers/help_center/*`, `help_center_signed_in_*` | `nextjs_help_center_articles`, `_category` |
 | `settings-pages`, `settings-payments-profile` | `settings_*` page specs | `nextjs_settings_main`, `_team`, `_password`, `_social_connections`, `_third_party_analytics`, `_advanced`, `_billing`, `_authorized_applications`, `_payments`, `_profile`, `nextjs_oauth_application_edit` |
-| `settings-mutations` | `settings_mutations_signed_in_spec` (13 missing, 1.1) | `nextjs_settings_advanced_writes`, `_billing_writes` $, `_third_party_analytics_writes`, `_dismiss_ai_promo_writes`, `_team_members_writes` $ |
+| `settings-mutations` | `settings_mutations_signed_in_spec` (0 missing) | `nextjs_settings_advanced_writes`, `_billing_writes` $, `_third_party_analytics_writes`, `_dismiss_ai_promo_writes`, `_team_members_writes` $ |
 | `auth-pages`, `auth-mutations` | `auth_*_parity_spec`, `review_reminders_parity_spec` (no fixtures) | `nextjs_auth_login`, `_signup`, `_two_factor`, `_secure_redirect`, `_confirmations`, `_devise_redirects`, `_login_writes`, `_logout`, `_passwords`, `_two_factor_writes`, `nextjs_review_reminders`, `nextjs_user_invalidate_sessions`, `nextjs_users_email_unsubscribe`, `nextjs_users_session_endpoints` |
 | `oauth-integrations` | `oauth_applications_signed_in_spec`, `connections_signed_in_spec` | `nextjs_oauth_applications`, `nextjs_connections_unlink`, `nextjs_social_callbacks` |
 | `oauth-tokens` | `oauth_tokens_parity_spec` | `nextjs_oauth_tokens` |
@@ -198,8 +198,8 @@ area is closed. Flags not listed under a replay are covered by the replay file i
 | `discover` | `discover_parity_spec` (8 missing) | `nextjs_discover` |
 | `communities`, `content-delivery-mutations` | `communities_*`, `library_mutations_signed_in_spec`, `content_delivery_json_signed_in_spec` | `nextjs_communities`, `_communities_writes`, `_library_writes`, `_dropbox_files`, `_media_locations`, `_s3_utility` |
 | `buyer-pages`, `subscription-magic-links` | `buyer_pages_parity_spec`, `subscription_magic_links_parity_spec` | `nextjs_subscription_magic_link_create`, `nextjs_buyer_library`, `_buyer_invoice_confirm`, `_buyer_password_edit`, `_buyer_password_new`, `_buyer_reviews`, `_buyer_subscription_magic_link`, `_buyer_wishlists`, `_buyer_wishlists_following` |
-| `checkout`, `checkout-payouts` | `checkout_parity_spec`, `payouts_signed_in_spec` (4 missing) | `nextjs_checkout`, `nextjs_payouts` $, `nextjs_subscription_manage` |
-| `url-redirect-pages`, `url-redirects` | `url_redirect_*` (36 missing, 1.1) | `nextjs_url_redirect_*` (16 flags) $, `nextjs_url_redirect_writes` $, `nextjs_consumption_analytics` |
+| `checkout`, `checkout-payouts` | `checkout_parity_spec`, `payouts_signed_in_spec` (0 missing) | `nextjs_checkout`, `nextjs_payouts` $, `nextjs_subscription_manage` |
+| `url-redirect-pages`, `url-redirects` | `url_redirect_*` (0 missing) | `nextjs_url_redirect_*` (16 flags) $, `nextjs_url_redirect_writes` $, `nextjs_consumption_analytics` |
 | `ws75-pages` | `agent_signed_in_spec`, `piracy_reports_signed_in_spec`, `dispute_evidence_signed_in_spec`, `generate_invoice_redirect_spec` | `nextjs_agent`, `_piracy_reports`, `_dispute_evidence`, `_dispute_evidence_success`, `_generate_invoice_redirect` |
 | `dispute-evidence-update` | `dispute_evidence_update_signed_in_spec` | `nextjs_dispute_evidence_update` |
 | `internal-api` | `internal_api_parity_spec`, `internal_agent_parity_spec` | `nextjs_internal_agent`, `_internal_api_host`, `_internal_installments`, `_internal_product_files`, `_internal_product_posts`, `_internal_review_videos` |
@@ -299,7 +299,7 @@ or an S3 test bucket, DynamoDB local, `bundle install`, `npm ci` in `nextjs/`, a
    cd nextjs && PARITY_DATABASE_URL=... npx vitest run --config parity/vitest.config.ts parity/__tests__/checkout-payouts.replay.test.ts parity/__tests__/url-redirect-pages.replay.test.ts parity/__tests__/url-redirects.replay.test.ts parity/__tests__/settings-mutations.replay.test.ts
    ```
 2. **Receipt rental golden** (section 2 command), then flip `RENTAL_REDIRECT_PROVEN` and replay `src/server/mail`.
-3. **Mobile API** (largest block, 37 examples):
+3. **Mobile API** (largest block; 0 without a fixture now):
    ```bash
    PARITY_RECORD=1 bin/rspec spec/requests/api/mobile/mobile_api_parity_spec.rb spec/requests/api/mobile/mobile_purchases_sales_parity_spec.rb spec/requests/api/mobile/mobile_products_subscriptions_parity_spec.rb
    cd nextjs && PARITY_DATABASE_URL=... npx vitest run --config parity/vitest.config.ts parity/__tests__/mobile-api.replay.test.ts
