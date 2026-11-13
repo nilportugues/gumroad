@@ -88,12 +88,13 @@ export const ContactPurchases = defineModel<Purchase>({
   ],
 });
 
-// `ActiveModel::Type::Boolean#cast`. nil and "" cast to nil, which Rails stores as NULL; a list or hash is an unusual
-// request, so those go to Rails.
-export function castBoolean(value: unknown): boolean {
-  if (value === null || value === undefined || value === "") throw new HandBackToRails("a blank can_contact");
+// `ActiveModel::Type::Boolean#cast`: nil and "" cast to nil, which Rails stores as NULL; a list or an object is not in FALSE_VALUES,
+// so it reads as true (recorded for a list of off values, an empty list and an object).
+export function castBoolean(value: unknown): boolean | null {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "object") return true;
   if (typeof value !== "boolean" && typeof value !== "number" && typeof value !== "string")
-    throw new HandBackToRails("a can_contact that is not a scalar");
+    throw new HandBackToRails("a can_contact that is not JSON");
   return !FALSE_VALUES.has(value);
 }
 

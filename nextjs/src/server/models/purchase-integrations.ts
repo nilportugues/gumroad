@@ -37,7 +37,8 @@ export async function findEnabledIntegration(purchase: PurchaseRecord, name: str
     return firstActiveIntegration("base_variant_integrations", "base_variant_id", variants[0]!.row.id, name);
   }
   if (product === null) {
-    // With options Ruby fails earlier, in `link.is_physical?`, with a message no recording covers.
+    // Deliberate hand-back: a purchase row whose product row is gone is a data fault (no foreign keys). With options Ruby fails
+    // earlier, in `link.is_physical?`, with a message a request spec cannot reproduce without a 500 page.
     if (variants.length > 0)
       throw new NotPortedError("a purchase with options whose product is gone", "Purchase#find_enabled_integration");
     throw new NoMethodError("undefined method 'find_integration_by_name' for nil");

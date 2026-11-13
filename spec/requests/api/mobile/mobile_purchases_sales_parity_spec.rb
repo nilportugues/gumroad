@@ -669,7 +669,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(purchase["variants"].keys).to eq(["Size"])
       end
 
-      it "hands a sale of a SKU of a product with two categories to Rails", parity: true do
+      it "serves a sale of a SKU of a product with two categories", parity: true do
         physical = create(:physical_product, user: seller, skus_enabled: true)
         create(:variant_category, link: physical, title: "Size")
         create(:variant_category, link: physical, title: "Color")
