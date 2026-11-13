@@ -26,8 +26,6 @@ const MAX_PER_PAGE = 100;
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 const BEST_SELLERS = "best_sellers";
-// BasePrice::Recurrence::RECURRENCE_TO_NUMBER_OF_MONTHS
-const MONTHS_IN_RECURRENCE: Record<string, number> = { monthly: 1, quarterly: 3, biannually: 6, yearly: 12, every_two_years: 24 };
 
 type PartnerSeller = { user_id: bigint; external_user_id: string };
 
@@ -150,14 +148,13 @@ function ratedAsAdult(row: LinkRow, user: UserRow): boolean {
   return [row.name, row.description, user.name, username(seller), user.bio].some((text) => isAdult(text as string | null));
 }
 
-// CurrencyHelper#recurrence_label
+// CurrencyHelper#recurrence_label. A membership with a fixed duration ("once", "a year x 2") is not recorded, so Rails takes the request.
 function recurrenceLabel(recurrence: unknown, durationInMonths: unknown): string | null {
   if (typeof recurrence !== "string" || recurrence === "") return null;
-  const months = MONTHS_IN_RECURRENCE[recurrence];
-  if (months === undefined) throw new HandBackToRails(`recurrence ${recurrence}`);
-  if (durationInMonths != null && durationInMonths === months) return "once";
-  const base = RECURRENCE_LONG_INDICATOR[recurrence]!;
-  return durationInMonths == null ? base : `${base} x ${Math.round((durationInMonths as number) / months)}`;
+  if (durationInMonths != null) throw new HandBackToRails("a product with a fixed membership duration");
+  const label = RECURRENCE_LONG_INDICATOR[recurrence];
+  if (label === undefined) throw new HandBackToRails(`recurrence ${recurrence}`);
+  return label;
 }
 
 // PartnerProductPresenter#props
