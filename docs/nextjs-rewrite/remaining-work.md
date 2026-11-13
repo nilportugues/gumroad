@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 942 | 978 | 96.3% |
-| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 950 | 978 | 97.1% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1781 | 1857 | 95.9% |
-| Same, registered in routes.json (upper bound) | 1789 | 1857 | 96.3% |
+| Routes served natively (counted, static check) | 943 | 978 | 96.4% |
+| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 951 | 978 | 97.2% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1784 | 1857 | 96.1% |
+| Same, registered in routes.json (upper bound) | 1792 | 1857 | 96.5% |
 | Rails Inertia pages with Node props (counted, string match) | 112 | 114 | 98.2% |
 | Sidekiq job classes running in Node (counted) | 225 | 296 | 76.0% |
 
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 173,213 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 328 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 173,702 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 329 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -46,10 +46,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-17 Public and mobile API | 199 | 199 | 0 | 0 | 100.0% | 359 | 359 | 100.0% |
 | WS-18 Admin | 86 | 84 | 0 | 2 | 97.7% | 254 | 252 | 99.2% |
 | WS-19 AI, MCP and moderation | 36 | 36 | 0 | 0 | 100.0% | 108 | 108 | 100.0% |
-| WS-20 Checkout and orders | 71 | 58 | 0 | 13 | 81.7% | 222 | 179 | 80.6% |
+| WS-20 Checkout and orders | 71 | 59 | 0 | 12 | 83.1% | 222 | 182 | 82.0% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 942 | 8 | 28 | 96.3% | 1857 | 1781 | 95.9% |
+| **All** | 978 | 943 | 8 | 27 | 96.4% | 1857 | 1784 | 96.1% |
 
 ## Sensitivity to the weights
 
@@ -57,10 +57,10 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 942 | 978 | 96.3% |
-| Verb only: GET 1, other verbs 2 | 1375 | 1427 | 96.4% |
-| Rubric weights 1 to 4 (the headline) | 1781 | 1857 | 95.9% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2091 | 2194 | 95.3% |
+| Every route counts 1 (the plain route share) | 943 | 978 | 96.4% |
+| Verb only: GET 1, other verbs 2 | 1377 | 1427 | 96.5% |
+| Rubric weights 1 to 4 (the headline) | 1784 | 1857 | 96.1% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2095 | 2194 | 95.5% |
 
 ## By weight
 
@@ -68,7 +68,7 @@ The weights are the soft part of this inventory, so here is the headline under o
 | ---: | ---: | ---: | ---: |
 | 1 | 386 | 371 | 96.1% |
 | 2 | 330 | 324 | 98.2% |
-| 3 | 237 | 226 | 95.4% |
+| 3 | 237 | 227 | 95.8% |
 | 4 | 25 | 21 | 84.0% |
 
 ## By controller
@@ -81,7 +81,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `OrdersController` | WS-20 Checkout and orders | 5 | 1 | 0 | 4 | 4 (20) | 16 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
-| `CheckoutController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 3 (9) | 3 |
 | `Integrations::ZoomController` | WS-10 Settings and account | 2 | 1 | 0 | 1 | 3 (6) | 3 |
@@ -201,6 +200,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Bundles::ProductController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `Bundles::ShareController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `CallsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
+| `CheckoutController` | WS-20 Checkout and orders | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `Checkout::DiscountsController` | WS-20 Checkout and orders | 6 | 6 | 0 | 0 | 3 (18) | 0 |
 | `Checkout::FormController` | WS-20 Checkout and orders | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `Checkout::UpsellsController` | WS-20 Checkout and orders | 7 | 7 | 0 | 0 | 3 (21) | 0 |
@@ -383,6 +383,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 - WS-20 `POST /customer_surcharge`: VAT ids (vendor validation), US taxable states and Canadian provinces (TaxJar), commission and renewal lines, Payment Element requests and buyer-currency sellers (Stripe FX) hand back.
 - WS-20 `GET /offer_codes/compute_discount`: a malformed query hands back. `PurchasesController` actions other than `revoke_access`/`undo_revoke_access` (`change_can_contact`, `refund`, `update`, `resend_receipt`, `confirm`, preorder and subscription charges) hand back. Checkout is the empty-cart page only: there is no purchase path in Node.
 - WS-20 `POST /orders`: one free line of a plain one-time USD product runs in Node; every paid order hands back whole before its first write. Rails' order for a tokenized card purchase is recorded (`orders_paid_purchase_parity_spec.rb`, Stripe answered by VCR cassettes) and `Purchase#calculate_fees` is ported with a golden, but the Stripe calls (payment method read, payment intent create and confirm, charge read), the balance and the post-charge jobs are not, so nothing serves it. Detail in parity-debt.md, "paid purchase".
+- WS-20 cart save (`nextjs_checkout_cart_save`): `PATCH` and `PUT /checkout` run in Node for plain lines (a cart created or updated by account or browser guid, lines created, updated or soft deleted, the three alert redirects). Handed back whole before any write: a line with an affiliate, an accepted offer (upsell or cross-sell), a call start time or installments, a product or variant that is not found, a quantity or price that is not a plain non-negative whole number, url parameters that are not strings, a new line without a referrer, discount codes outside the cart schema, a request with no guid cookie, and a browser with two live carts. Flash text of the alert redirects is not compared by the replay (it lives in the encrypted session).
 - WS-23 payout guards (`nextjs_payouts_guards`): `POST /settings/stripe/disconnect`, `POST /instant_payouts`, `GET /payouts/taxes/:year/:form_type/download`, `POST /payouts/taxes/:year/transaction_report` and `GET /oauth_completions/stripe` answer sign-in, the tax center switch, Pundit refusals, a missing tax form or Stripe account and a missing OAuth session; a disconnect, an instant payout, a tax form that exists, a report that is available and an OAuth session with Stripe data hand back whole (the last has no recorded example: a request spec cannot seed `session[:stripe_connect_data]`).
 - WS-20 write guards (`nextjs_checkout_write_guards`): discounts create/update/destroy, upsells create/update, `POST /purchases/:purchase_id/pings` and `PATCH /purchases/:purchase_id/variants/:variant_id` answer the 404 and Pundit refusal; every request that passes hands back whole.
 - WS-21 processor calls (Stripe, Braintree, PayPal) hand back everywhere except the webhook receivers (`nextjs_foreign_webhooks`: Stripe, Stripe Connect, PayPal, SendGrid, Resend and the two SNS endpoints, recorded in `foreign_webhooks_parity_spec`; a delivery with a fractional or unsafe number, a JSON body Rails would munge or reject, a Stripe timestamp written as hex and an SNS notification Ruby would raise on hand back whole); job guards and refund/dispute reads are ported besides.
