@@ -49,3 +49,20 @@ export function rubyInteger(value: unknown): bigint | null {
   if (/^[+-]?\d/u.test(text)) return notPorted("an integer string Ruby may read with a prefix or underscores");
   return null;
 }
+
+const INTEGER_COLUMN_LIMIT = 2 ** 31 - 1;
+
+// ActiveModel's Integer cast for a 4-byte column: blank is nil, a string reads as String#to_i. A value Ruby would cast in a way the port does
+// not follow (a fraction, a boolean, a number outside the column) stays in Rails.
+export function castInteger(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  let integer: bigint;
+  if (typeof value === "string") {
+    if (blank(value)) return null;
+    integer = rubyToI(value);
+  } else if (typeof value === "number" && Number.isSafeInteger(value)) integer = BigInt(value);
+  else return notPorted("an amount that is not text or a whole number");
+  if (integer > BigInt(INTEGER_COLUMN_LIMIT) || integer < -BigInt(INTEGER_COLUMN_LIMIT))
+    return notPorted("an amount outside the column's range");
+  return Number(integer);
+}

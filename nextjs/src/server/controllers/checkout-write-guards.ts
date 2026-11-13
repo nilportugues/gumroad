@@ -1,52 +1,74 @@
 // The guards of the writes behind the checkout dashboard and the Customers page: Checkout::DiscountsController#create, #update and
 // #destroy, Checkout::UpsellsController#create and #update, Purchases::PingsController#create and Purchases::VariantsController#update.
 //
-// Ported: the 404 of an unknown record and the Pundit refusals (answered as JSON). Handed to Rails whole, before any write: whatever
-// passes them. The writes run OfferCode and SaveUpsellService validations and callbacks, send the ping webhook, or move a
-// purchase to another option.
-import { Prisma } from "@prisma/client";
+// Ported: the 404 of an unknown record and the Pundit refusals (answered as JSON), and the creation, update and deletion of a plain
+// offer code. Handed to Rails whole, before any write: whatever else passes the guards. The writes run SaveUpsellService validations and
+// callbacks, send the ping webhook, move a purchase to another option, or save a code outside the plain shape.
+import { Prisma, type OfferCode } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
-import { column, selectRows, table } from "../models/sql.ts";
+import { assertPlainCode, loadOfferCode, OfferCodes } from "../models/offer-code-writes.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { audiencePurchasePolicy } from "../policies/audience-purchase.ts";
 import { authorize } from "../policies/authorize.ts";
 import { checkoutOfferCodePolicy } from "../policies/checkout-offer-code.ts";
 import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
+import type { SellerContext } from "../policies/seller-context.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { createDiscount, updateDiscount } from "./checkout-discounts-write.ts";
 import { findUpsell } from "./checkout-upsells.ts";
 import { sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { authorizeJson, notFoundJson } from "./seller-json.ts";
+import { authorizeJson, json, notFoundJson, UNPROCESSABLE_ENTITY } from "./seller-json.ts";
 
 // POST /checkout/discounts, POST /checkout/upsells
-function create(policy: typeof checkoutOfferCodePolicy.create, reason: string) {
+function create(policy: typeof checkoutOfferCodePolicy.create, reason: string, write?: typeof createDiscount) {
   return (input: MutationInput): Promise<ActionResult> =>
-    sellerJsonAction(input, policy, () => {
+    sellerJsonAction(input, policy, (context) => {
+      if (write) return write(input, context);
       throw new HandBackToRails(reason);
     });
 }
 
 // `OfferCode.find_by_external_id!(params[:id])`: any seller's code, deleted ones included; the policy compares the owner.
-function changeOfferCode(reason: string) {
+function changeOfferCode(
+  reason: string,
+  write?: (input: MutationInput, row: OfferCode, context: SellerContext) => Promise<ActionResult>,
+) {
   return (input: MutationInput): Promise<ActionResult> =>
     sellerJsonAction(
       input,
       () => true,
       async (context) => {
         const id = decrypt(input.routeParams.id ?? "");
-        const [row] =
+        const [found] =
           id === null
             ? []
-            : await selectRows<{ user_id: bigint }>(
-                Prisma.sql`SELECT ${column("offer_codes", "user_id")} FROM ${table("offer_codes")} WHERE ${column("offer_codes", "id")} = ${id} LIMIT 1`,
+            : await selectRows<OfferCode>(
+                Prisma.sql`SELECT ${table("offer_codes")}.* FROM ${table("offer_codes")} WHERE ${column("offer_codes", "id")} = ${id} LIMIT 1`,
               );
-        if (row === undefined) throw new RoutingError("Not Found");
+        if (found === undefined) throw new RoutingError("Not Found");
+        const row = castRow<OfferCode>("OfferCode", found);
         const denied = await authorizeJson(input, () => authorize(checkoutOfferCodePolicy.update, context, row));
         if (denied) return denied;
+        if (write) return write(input, row, context);
         throw new HandBackToRails(reason);
       },
     );
+}
+
+const DELETED_AT_PRECISION_MS = 1000;
+
+// DiscountsController#destroy: `mark_deleted` saves deleted_at through the validations and callbacks of models/offer-code-writes.ts.
+// A code outside the shape that file covers is handed back before the first statement.
+async function destroyOfferCode(input: MutationInput, row: OfferCode): Promise<ActionResult> {
+  await assertPlainCode(row);
+  const record = loadOfferCode(row);
+  const now = new Date();
+  const deletedAt = new Date(Math.floor(now.getTime() / DELETED_AT_PRECISION_MS) * DELETED_AT_PRECISION_MS);
+  if (await OfferCodes.update(record, { deleted_at: deletedAt }, { now: () => now })) return json({ success: true });
+  return json({ success: false, error_message: record.errors.fullMessages()[0] }, UNPROCESSABLE_ENTITY);
 }
 
 // PATCH|PUT /checkout/upsells/:id
@@ -86,23 +108,20 @@ function changePurchase(reason: string) {
     );
 }
 
-const DISCOUNT_WRITE =
-  "an offer code runs its validations against live product defaults and reindexes through a Redis script";
-
 registerMutations(
   {
     method: "POST",
     pattern: "/checkout/discounts",
     json: true,
-    run: create(checkoutOfferCodePolicy.create, DISCOUNT_WRITE),
+    run: create(checkoutOfferCodePolicy.create, "", createDiscount),
   },
-  { method: "PATCH", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode(DISCOUNT_WRITE) },
-  { method: "PUT", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode(DISCOUNT_WRITE) },
+  { method: "PATCH", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode("", updateDiscount) },
+  { method: "PUT", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode("", updateDiscount) },
   {
     method: "DELETE",
     pattern: "/checkout/discounts/:id",
     json: true,
-    run: changeOfferCode("deleting an offer code reindexes through a Redis script"),
+    run: changeOfferCode("", destroyOfferCode),
   },
   {
     method: "POST",

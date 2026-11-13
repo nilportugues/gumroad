@@ -38,7 +38,7 @@ import {
   successWithObject,
 } from "./base.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
-import { blank, isHash, notPorted, rubyToI } from "./ruby-params.ts";
+import { castInteger, isHash, notPorted } from "./ruby-params.ts";
 
 const RESULTS_PER_PAGE = 10;
 const OFFER_CODES = "offer_codes";
@@ -201,24 +201,7 @@ export function validityPeriodError(params: ApiV2Input["params"]): Rendered | un
   return undefined;
 }
 
-// The attribute casts of the parameters the writes assign. Whatever Ruby would cast in a way the port does not follow (a boolean, a
-// fraction, a number outside the column) goes to Rails.
-const INTEGER_COLUMN_LIMIT = 2 ** 31 - 1;
 const trueParam = (value: unknown) => value === true || value === "true";
-
-// ActiveModel's Integer cast: blank is nil, a string reads as String#to_i.
-function castInteger(value: unknown): number | null {
-  if (value === undefined || value === null) return null;
-  let integer: bigint;
-  if (typeof value === "string") {
-    if (blank(value)) return null;
-    integer = rubyToI(value);
-  } else if (typeof value === "number" && Number.isSafeInteger(value)) integer = BigInt(value);
-  else return notPorted("an amount that is not text or a whole number");
-  if (integer > BigInt(INTEGER_COLUMN_LIMIT) || integer < -BigInt(INTEGER_COLUMN_LIMIT))
-    return notPorted("an amount outside the column's range");
-  return Number(integer);
-}
 
 // before_action :parse_validity_period, after validityPeriodError let the value through: Time.zone.rfc3339 of a whole-second timestamp.
 const TIMESTAMP =
