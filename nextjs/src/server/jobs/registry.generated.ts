@@ -185,7 +185,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   AnnualTaxSummaryExportWorker: {
     file: "app/sidekiq/annual_tax_summary_export_worker.rb",
@@ -1156,7 +1156,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Exports::Sales::CreateAndEnqueueChunksWorker": {
     file: "app/sidekiq/exports/sales/create_and_enqueue_chunks_worker.rb",
@@ -1181,7 +1181,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   FailAbandonedPurchaseWorker: {
     file: "app/sidekiq/fail_abandoned_purchase_worker.rb",
@@ -2632,7 +2632,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   ReleaseChargebackRatePayoutPauseForSellerJob: {
     file: "app/sidekiq/release_chargeback_rate_payout_pause_for_seller_job.rb",

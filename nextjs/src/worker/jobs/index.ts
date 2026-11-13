@@ -9,6 +9,7 @@ import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-em
 import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { analyzeFileWorker } from "./analyze-file-worker.ts";
+import { annualPayoutExportWorker } from "./annual-payout-export-worker.ts";
 import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
 import { backfillMembershipRenewalRemindersJob } from "./backfill-membership-renewal-reminders-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
@@ -64,6 +65,7 @@ import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-sel
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
+import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
 import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
 import {
   emailOutstandingBalancesCsvWorker,
@@ -208,6 +210,7 @@ import {
   reindexSellerOfferCodesRecoveryJobRetriesExhausted,
 } from "./reindex-seller-offer-codes-job.ts";
 import { reindexUserElasticsearchDataWorker } from "./reindex-user-elasticsearch-data-worker.ts";
+import { reissueSslCertificateForUpdatedCustomDomains } from "./reissue-ssl-certificate-for-updated-custom-domains.ts";
 import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
 import { removeDeletedFilesFromS3Job } from "./remove-deleted-files-from-s3-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
@@ -556,6 +559,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CustomDomainVerificationWorker: customDomainVerificationWorker,
   "Exports::AffiliateExportWorker": affiliateExportWorker,
   "Exports::AudienceExportWorker": audienceExportWorker,
+  "Exports::Sales::CompileChunksWorker": compileChunksWorker,
+  "Exports::Sales::ProcessChunkWorker": processChunkWorker,
+  AnnualPayoutExportWorker: annualPayoutExportWorker,
+  ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
   BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
   UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,
   GenerateMerchantCenterFeedWorker: generateMerchantCenterFeedWorker,
