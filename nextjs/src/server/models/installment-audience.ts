@@ -3,7 +3,7 @@
 //
 // Values Node would have to guess at throw NotPortedError, as with-filtering.ts does: a filter written in a type the
 // editor does not write, a date Ruby's lenient Date.parse reads but ISO 8601 does not, a variant id that does not decode,
-// and a "has not clicked" reference (it asks DynamoDB).
+// and an "opened" or "has not clicked" reference to a post of the seller's (they ask DynamoDB).
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
@@ -147,7 +147,39 @@ export async function audienceMembersFilterParams(post: InstallmentPost): Promis
     // An unresolved selection must match nobody: compact_blank! would drop an empty list and send to every follower.
     params.waitlisted_product_ids = ids.length > 0 ? ids : [null];
   }
+  if (value("opened_post_id") !== null) refuse("an opened filter (DynamoDB)");
   if (value("not_clicked_post_id") !== null) refuse("a has-not-clicked filter (DynamoDB)");
 
   return compactBlank(params);
+}
+
+// `seller.installments.find_by_external_id(ref)`: unlike the dashboard lookups, a deleted post still resolves.
+async function sellerOwnsPost(sellerId: number | bigint, reference: YamlValue): Promise<boolean> {
+  if (typeof reference !== "string") return refuse("a behavior filter reference that is not a string");
+  const id = decrypt(reference);
+  if (id === null) return false;
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${column("installments", "id")} FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${sellerId} AND ${column("installments", "id")} = ${id} LIMIT 1`,
+  );
+  return rows.length > 0;
+}
+
+export type BehaviorAudience =
+  // Neither `opened_post_id` nor `not_clicked_post_id` is set: `displayed_audience_members_count` is the plain count.
+  | { kind: "unfiltered" }
+  // A reference that is not one of the seller's posts leaves `include_emails: [""]`, which matches nobody: a count of 0,
+  // below the floor, so `displayed_audience_members_count` is nil.
+  | { kind: "withheld" }
+  // Both references resolve: the count reads the openers and clickers from DynamoDB and the floor reads wider counts of
+  // them. No recording covers those reads, so the caller hands the request back to Rails.
+  | { kind: "engagement" };
+
+export async function behaviorAudience(post: InstallmentPost): Promise<BehaviorAudience> {
+  const json = { jsonData: () => parseJsonData(post.row.json_data) };
+  const references = [filterValue(json, "opened_post_id"), filterValue(json, "not_clicked_post_id")].filter(
+    (reference) => reference !== null,
+  );
+  if (references.length === 0) return { kind: "unfiltered" };
+  const owned = await Promise.all(references.map((reference) => sellerOwnsPost(post.row.seller_id, reference)));
+  return owned.every(Boolean) ? { kind: "engagement" } : { kind: "withheld" };
 }

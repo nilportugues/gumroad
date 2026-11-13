@@ -249,7 +249,114 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
 
         get "/internal/installments/#{installment.external_id}/audience_count", headers: JSON_ACCEPT
 
-        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to eq("count" => nil)
+      end
+
+      # A behavior segment below Installment::MINIMUM_BEHAVIOR_SEGMENT_SIZE (5) is withheld as null, or the part of a wider audience it
+      # leaves out is. `earlier` is the post whose opens and clicks the filter reads, from DynamoDB.
+      describe "with a behavior filter" do
+        let(:earlier) { post_for(name: "Earlier") }
+
+        # `buyers` purchases (a purchase makes its buyer an audience member); the first `opened` opened and the first `clicked` clicked.
+        def engage(buyers:, opened: 0, clicked: 0)
+          free = create(:product, user: seller, price_cents: 0)
+          purchases = Array.new(buyers) { |i| create(:free_purchase, link: free, email: "buyer#{i}@example.com") }
+          purchases.first(opened).each do |purchase|
+            EmailEngagementDynamoStore.record_open(installment_id: earlier.id, mailer_method: "CustomerMailer.purchase_installment", mailer_args: [purchase.id].to_json)
+          end
+          purchases.first(clicked).each do |purchase|
+            EmailEngagementDynamoStore.record_click(installment_id: earlier.id, mailer_method: "CustomerMailer.purchase_installment", mailer_args: [purchase.id].to_json, click_url: "https://example.com/a")
+          end
+          index_model_records(AudienceMember)
+        end
+
+        def count_for(**filters)
+          installment = post_for(**filters)
+          log_in(seller)
+          get "/internal/installments/#{installment.external_id}/audience_count", headers: JSON_ACCEPT
+          response.parsed_body
+        end
+
+        it "hands a post filtered by openers that leaves out fewer than five of the audience to Rails", parity: true do
+          engage(buyers: 6, opened: 5)
+
+          expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => nil)
+        end
+
+        it "hands a post filtered by openers with five on both sides of the floor to Rails", parity: true do
+          engage(buyers: 12, opened: 7)
+
+          expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => 7)
+        end
+
+        it "hands a post filtered by openers below the floor to Rails", parity: true do
+          engage(buyers: 6, opened: 4)
+
+          expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => nil)
+        end
+
+        it "hands a post filtered by openers who are all of the audience to Rails", parity: true do
+          engage(buyers: 5, opened: 5)
+
+          expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => 5)
+        end
+
+        it "answers null for an opened post that is not the seller's", parity: true do
+          engage(buyers: 6, opened: 6)
+          other = create(:installment, seller: create(:user), link: nil, installment_type: "audience")
+
+          expect(count_for(opened_post_id: other.external_id)).to eq("count" => nil)
+        end
+
+        it "answers null for an opened post that does not decode", parity: true do
+          engage(buyers: 6, opened: 6)
+
+          expect(count_for(opened_post_id: "not-an-id")).to eq("count" => nil)
+        end
+
+        it "hands a post that excludes one clicker of six to Rails", parity: true do
+          engage(buyers: 6, opened: 6, clicked: 1)
+
+          expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => nil)
+        end
+
+        it "hands a post that excludes two clickers of eight to Rails", parity: true do
+          engage(buyers: 8, opened: 8, clicked: 2)
+
+          expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => nil)
+        end
+
+        it "hands a post that excludes five clickers of twelve to Rails", parity: true do
+          engage(buyers: 12, opened: 12, clicked: 5)
+
+          expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => 7)
+        end
+
+        it "hands a post that excludes nobody to Rails", parity: true do
+          engage(buyers: 5, opened: 5)
+
+          expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => 5)
+        end
+
+        it "hands a post that excludes clickers below the floor to Rails", parity: true do
+          engage(buyers: 5, opened: 5, clicked: 1)
+
+          expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => nil)
+        end
+
+        it "answers null for a not clicked post that is not the seller's", parity: true do
+          engage(buyers: 6)
+          other = create(:installment, seller: create(:user), link: nil, installment_type: "audience")
+
+          expect(count_for(not_clicked_post_id: other.external_id)).to eq("count" => nil)
+        end
+
+        it "answers null when the opened post is the seller's and the not clicked post is not", parity: true do
+          engage(buyers: 6, opened: 6)
+          other = create(:installment, seller: create(:user), link: nil, installment_type: "audience")
+
+          expect(count_for(opened_post_id: earlier.external_id, not_clicked_post_id: other.external_id)).to eq("count" => nil)
+        end
       end
     end
 
@@ -308,6 +415,16 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
         get "/internal/installments/recipient_count", headers: JSON_ACCEPT
 
         expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "hands the unsaved filters of an opened post to Rails", parity: true do
+        seed_audience
+        earlier = post_for(name: "Earlier")
+        log_in(seller)
+
+        get "/internal/installments/recipient_count", params: { opened_post_id: earlier.external_id }, headers: JSON_ACCEPT
+
+        expect(response.parsed_body).to eq("audience_count" => 3, "recipient_count" => nil)
       end
 
       it "reads a cents filter written with an exponent", parity: true do
