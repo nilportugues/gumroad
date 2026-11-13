@@ -586,14 +586,61 @@ describe "Sign in with Apple", type: :request do
       expect(User.find_by!(email: "new.apple@example.com")).to have_attributes(name: "New Visitor", provider: "apple", sign_in_count: 1)
     end
 
-    it "hands an id_token signed with another key to Rails", parity: true do
+    it "tells a visitor with an id_token signed with another key that the signature is invalid", parity: true do
       link_apple_identity
       begin_flow
 
       get_callback(token: id_token(key: OpenSSL::PKey::RSA.new(2048)))
 
       expect(response).to redirect_to("/users/sign_in")
-      expect(flash[:alert]).to start_with("Could not authenticate you from Apple because")
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"Json::jws::verificationfailed\".")
+      expect(a_request(:post, "#{apple}/auth/token")).not_to have_been_made
+    end
+
+    it "tells a visitor with an id_token whose key id Apple does not publish that the key was not found", parity: true do
+      link_apple_identity
+      begin_flow
+
+      get_callback(token: id_token(header_kid: "unknown-kid"))
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"Json::jwk::set::kidnotfound\".")
+      expect(a_request(:post, "#{apple}/auth/token")).not_to have_been_made
+    end
+
+    # A blank `error` is still truthy in Ruby, so the strategy fails the callback with it before looking at the id_token.
+    it "tells a visitor whose callback carries a blank error that Apple refused with no reason", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "" }
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"\".")
+    end
+
+    it "prefers the reason of the provider to a blank error", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "", error_reason: "user_denied" }
+
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"User denied\".")
+    end
+
+    it "tells a visitor whose callback carries a blank reason that Apple refused with no reason", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "access_denied", error_reason: "" }
+
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"\".")
+    end
+
+    it "sends a visitor to the payments settings when a blank error comes with an error description", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "", error_description: "The user denied access" }
+
+      expect(response).to redirect_to("/settings/payments")
+      expect(flash[:notice]).to eq("The user denied access")
     end
 
     it "hands a callback when Apple's keys cannot be fetched to Rails", parity: true do

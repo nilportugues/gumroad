@@ -67,6 +67,10 @@ const SCOPE = "email name";
 class AppleFailure extends Error {}
 
 const CLAIMS = ["iss", "aud", "iat", "exp", "nonce"];
+const LIBRARY_FAILURES: Record<string, { type: string; reason: string } | undefined> = {
+  signature: { type: "id_token_signature_invalid", reason: "JSON::JWS::VerificationFailed" },
+  "kid not found": { type: "jwks_fetching_failed", reason: "JSON::JWK::Set::KidNotFound" },
+};
 const KIND = "Apple";
 
 const callbackFailure = (input: MutationInput, failure?: AppleFailure): ActionResult => {
@@ -74,12 +78,15 @@ const callbackFailure = (input: MutationInput, failure?: AppleFailure): ActionRe
     input.chain.bare = true;
     return { status: FOUND, location: SIGN_IN_PATH };
   }
-  // verify_claims! raises CallbackError(:id_token_claims_invalid, "<claim> invalid"); the gem's other failures carry the message of a library
-  // exception, and a refused token call is OAuth2::Error, which has no reason of its own.
   if (failure === undefined) return oauthFailure(KIND, input, "invalid_credentials", null);
-  if (!CLAIMS.includes(failure.message))
+  // verify_claims! raises CallbackError(:id_token_claims_invalid, "<claim> invalid"). A signature or key id failure carries the class name of
+  // the JSON::JWT exception as its reason; a refused JWKS call carries a message with an object address, which is handed back.
+  if (CLAIMS.includes(failure.message))
+    return oauthFailure(KIND, input, "id_token_claims_invalid", `${failure.message} invalid`);
+  const library = LIBRARY_FAILURES[failure.message];
+  if (library === undefined)
     throw new HandBackToRails(`an id_token failure (${failure.message}) with a library message`);
-  return oauthFailure(KIND, input, "id_token_claims_invalid", `${failure.message} invalid`);
+  return oauthFailure(KIND, input, library.type, library.reason);
 };
 
 // SecureRandom.hex / urlsafe_base64
@@ -272,7 +279,8 @@ function appleData(claims: IdToken, uid: string, name: string | null): AppleData
 // the other OAuth 2 strategies, with the session entries of the request phase spent.
 function deniedCallback(input: MutationInput): ActionResult {
   const error = stringParam(input, "error_reason") ?? stringParam(input, "error");
-  if (error === undefined || !isPresent(error)) throw new HandBackToRails("a blank error");
+  // A blank string is truthy in Ruby, so it still fails the callback.
+  if (error === undefined) throw new HandBackToRails("an error that is not a string");
   delete input.chain.session.data["omniauth.origin"];
   delete input.chain.session.data["omniauth.params"];
   const reason =
