@@ -11,8 +11,8 @@ import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup } from "../infra/geo-ip.ts";
 import { LinkFlags } from "../models/link.ts";
-import { getFactor } from "../models/purchasing-power-parity.ts";
 import { currencyMinPrice } from "../models/purchase-pricing.ts";
+import { getFactor } from "../models/purchasing-power-parity.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { sellerReputationProps } from "../models/user-reputation-summary.ts";
 import { isFlagSet, tiktokPixelId, Users } from "../models/user.ts";
@@ -598,7 +598,10 @@ async function bundleProductsProps(bundle: LinkRow, viewer: ProductPageViewerInp
       ).toLowerCase(),
       thumbnail_url: await thumbnailUrl(product.id),
       native_type: product.native_type,
-      url: await urlForProductPage(product, seller!, viewer.request, { recommendedBy: viewer.recommendedBy, target: viewer.layout }),
+      url: await urlForProductPage(product, seller!, viewer.request, {
+        recommendedBy: viewer.recommendedBy,
+        target: viewer.layout,
+      }),
       quantity,
       variant: variant?.name ?? null,
     });

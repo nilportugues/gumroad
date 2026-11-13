@@ -508,20 +508,20 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
                   "db.oauth_applications.inserted.*.secret",
                 ]
               : rotates
-              ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
-              : createsUtmLink
-                ? [
-                    "response.json.utm_link.short_url",
-                    "db.utm_links.inserted.*.permalink",
-                    "db.utm_links.inserted.*.browser_guid",
-                  ]
-                : paginates
-                  ? ["response.json.next_page_key", "response.json.next_page_url"]
-                  : iftttSales
-                    ? ["response.json.data.*.meta.timestamp"]
-                    : tripsThrottle
-                      ? ["response.headers.retry-after"]
-                      : [],
+                ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
+                : createsUtmLink
+                  ? [
+                      "response.json.utm_link.short_url",
+                      "db.utm_links.inserted.*.permalink",
+                      "db.utm_links.inserted.*.browser_guid",
+                    ]
+                  : paginates
+                    ? ["response.json.next_page_key", "response.json.next_page_url"]
+                    : iftttSales
+                      ? ["response.json.data.*.meta.timestamp"]
+                      : tripsThrottle
+                        ? ["response.headers.retry-after"]
+                        : [],
         );
         const result = await replayFixtureExchange(fixture, index, options);
         reconcilePermalink(result.exchanges[0]!, options.compare, fixture.sessionCookie);

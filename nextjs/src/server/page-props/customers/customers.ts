@@ -18,8 +18,8 @@ import { LinkFlags } from "../../models/link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "../../models/merchant-account.ts";
 import { originalPrice } from "../../models/offer-code.ts";
 import { canPingSales } from "../../models/ping-notification.ts";
-import { PurchaseRecord } from "../../models/purchase-pricing.ts";
 import { variantContentPermitsLicenseKey } from "../../models/purchase-license-key.ts";
+import { PurchaseRecord } from "../../models/purchase-pricing.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import {
@@ -379,7 +379,8 @@ export async function commissionReadings(purchases: Row[]): Promise<Map<string, 
       Boolean(completion.stripe_transaction_id) ||
       Boolean(completion.processor_payment_intent_id) ||
       withCharge.has(String(completion.id));
-    if (inProgress.some((completion) => completion.charge_processor_id === "stripe" && hasReference(completion))) throw new HandBackToRails();
+    if (inProgress.some((completion) => completion.charge_processor_id === "stripe" && hasReference(completion)))
+      throw new HandBackToRails();
   }
   const charged = [...completions.values()].filter((completion) => completion.purchase_state === "successful");
   const chargedIds = charged.map((completion) => completion.id);

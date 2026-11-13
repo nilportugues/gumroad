@@ -53,11 +53,15 @@ export function serializeArgument(argument: ActiveJobArgument): JsonValue {
       value: new Date(argument.timeWithZone).toISOString().replace(/Z$/u, "000000Z"),
       time_zone: "Etc/UTC",
     };
-  if ("globalId" in argument) return { _aj_globalid: `gid://${GLOBAL_ID_APP}/${argument.globalId.model}/${argument.globalId.id}` };
+  if ("globalId" in argument)
+    return { _aj_globalid: `gid://${GLOBAL_ID_APP}/${argument.globalId.model}/${argument.globalId.id}` };
   const hash = "keywords" in argument ? argument.keywords : argument.symbolKeys;
   for (const key of Object.keys(hash)) if (key.startsWith("_aj_")) throw new Error(`reserved ActiveJob key ${key}`);
   const marker = "keywords" in argument ? "_aj_ruby2_keywords" : "_aj_symbol_keys";
-  return { ...Object.fromEntries(Object.entries(hash).map(([key, value]) => [key, serializeArgument(value)])), [marker]: Object.keys(hash) };
+  return {
+    ...Object.fromEntries(Object.entries(hash).map(([key, value]) => [key, serializeArgument(value)])),
+    [marker]: Object.keys(hash),
+  };
 }
 
 // Time#iso8601(9) in UTC for an epoch in float seconds; Ruby's Time carries the microseconds a
@@ -94,7 +98,11 @@ export function buildMailDeliveryItem(input: DeliverLaterInput, identity: MailJo
       input.mailer,
       input.method,
       "deliver_now",
-      { args: input.args.map(serializeArgument), ...Object.fromEntries(Object.entries(extra).map(([key, value]) => [key, serializeArgument(value)])), _aj_ruby2_keywords: ["args", ...Object.keys(extra)] },
+      {
+        args: input.args.map(serializeArgument),
+        ...Object.fromEntries(Object.entries(extra).map(([key, value]) => [key, serializeArgument(value)])),
+        _aj_ruby2_keywords: ["args", ...Object.keys(extra)],
+      },
     ],
     identity,
     at,
@@ -137,7 +145,12 @@ function activeJobItem(
 }
 
 // MailDeliveryJob's retry_on list, as ActiveJob keys exception_executions by `exceptions.to_s`.
-export const MAIL_RETRY_ON: readonly string[] = ["Net::OpenTimeout", "Net::ReadTimeout", "Net::SMTPServerBusy", "EOFError"];
+export const MAIL_RETRY_ON: readonly string[] = [
+  "Net::OpenTimeout",
+  "Net::ReadTimeout",
+  "Net::SMTPServerBusy",
+  "EOFError",
+];
 const MAIL_RETRY_KEY = `[${MAIL_RETRY_ON.join(", ")}]`;
 const MAIL_RETRY_ATTEMPTS = 10;
 // ActiveJob::Base.retry_jitter
@@ -146,7 +159,10 @@ const RETRY_JITTER = 0.15;
 // retry_on's handler, run after the attempt that raised one of MAIL_RETRY_ON: the same job with
 // the attempt counted, rescheduled with :polynomially_longer, or null once the attempts are spent
 // and the error propagates to Sidekiq's own retry. `item` is the wrapper item that attempt ran.
-export function retryMailDeliveryItem(item: SidekiqItem, identity: { jid: string; now: number; random?: () => number }): SidekiqItem | null {
+export function retryMailDeliveryItem(
+  item: SidekiqItem,
+  identity: { jid: string; now: number; random?: () => number },
+): SidekiqItem | null {
   const job = (item.args as Record<string, JsonValue>[])[0]!;
   const previous = (job.exception_executions ?? {}) as Record<string, JsonValue>;
   const count = Number(previous[MAIL_RETRY_KEY] ?? 0) + 1;
@@ -192,13 +208,21 @@ export type MailJobRoute = "node" | "ruby";
 
 // Where a mail delivery job goes: BullMQ when the Node worker delivers that mailer method,
 // otherwise Sidekiq, where Rails delivers it exactly as for a Ruby `deliver_later`.
-export async function pushMailDeliveryItem(runtime: JobsRuntime, item: SidekiqItem, route: MailJobRoute): Promise<void> {
+export async function pushMailDeliveryItem(
+  runtime: JobsRuntime,
+  item: SidekiqItem,
+  route: MailJobRoute,
+): Promise<void> {
   if (route === "node") return addToBullmq(runtime, ACTIVE_JOB_WRAPPER_DEFINITION, item);
   return rawPushToSidekiq(runtime.sidekiqRedis, item, runtime.now());
 }
 
 // Returns the ActiveJob job_id. `route` comes from delivery.ts's mailRoute.
-export async function deliverLater(runtime: JobsRuntime, input: DeliverLaterInput, route: MailJobRoute = "ruby"): Promise<string> {
+export async function deliverLater(
+  runtime: JobsRuntime,
+  input: DeliverLaterInput,
+  route: MailJobRoute = "ruby",
+): Promise<string> {
   const now = runtime.now();
   const item = buildMailDeliveryItem(input, { jobId: randomUUID(), jid: runtime.newJid(), now });
   await pushMailDeliveryItem(runtime, item, route);

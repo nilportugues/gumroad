@@ -7,12 +7,12 @@ import { Prisma } from "@prisma/client";
 import type { OauthAccessToken, ProductFile, User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
-import { getRedis } from "../infra/redis.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { hasApplicableOfferCodes, validityPeriodOf } from "../controllers/api-v2/offer-codes.ts";
 import { isPublishedProduct, plannedDescription } from "../controllers/api-v2/product-writes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { getRedis } from "../infra/redis.ts";
 import { findByName } from "../models/compliance-countries.ts";
 import {
   instantInTimeZoneIso8601,
@@ -22,9 +22,9 @@ import {
 } from "../models/concerns/rails-time-zone.ts";
 import { rubySortByInteger } from "../models/concerns/ruby-sort-by.ts";
 import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
+import { createApiLink, type CreateSeller } from "../models/link-create.ts";
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
-import { createApiLink, type CreateSeller } from "../models/link-create.ts";
 import { Links } from "../models/link.ts";
 import {
   addProduct,
@@ -39,12 +39,12 @@ import {
 } from "../models/offer-code-writes.ts";
 import { OfferCodeFlags } from "../models/offer-code.ts";
 import { planBuyPriceWrite, PRICE_TOO_LARGE as PRICE_WRITE_TOO_LARGE, writeBuyPrice } from "../models/price-writes.ts";
+import { s3Fields } from "../models/product-file.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { selectRows } from "../models/sql.ts";
-import { UserFlags } from "../models/user.ts";
-import { s3Fields } from "../models/product-file.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
+import { UserFlags } from "../models/user.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
 import { churnData } from "../page-props/analytics/churn.ts";
 import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
@@ -1254,7 +1254,10 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     const given = args.permalink as string;
     if (given === "") permalink = null;
     else if (isBlankText(given))
-      throw new ToolRpcError("permalink must not be blank. Send an empty string to go back to the default URL.", INVALID_PARAMS);
+      throw new ToolRpcError(
+        "permalink must not be blank. Send an empty string to go back to the default URL.",
+        INVALID_PARAMS,
+      );
     else permalink = given;
   }
   // The payload is built from the product as it stands: a tiered membership or a competing price goes to Rails here.
@@ -1264,7 +1267,8 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   const attributes: Partial<typeof product> = {};
   // Seller row before product row, and only when the slug is a new one: the order the editor and the v2 API lock in.
   const claimsPermalink = permalink != null && permalink !== product.custom_permalink;
-  if (permalink !== undefined && permalink !== product.custom_permalink) await assertPermalinkReleasable(product, permalink);
+  if (permalink !== undefined && permalink !== product.custom_permalink)
+    await assertPermalinkReleasable(product, permalink);
   if ("name" in args) {
     const rawName = args.name as string;
     if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
@@ -1295,7 +1299,8 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
       if (claimsPermalink)
         await selectRows(Prisma.sql`SELECT id FROM users WHERE id = ${product.user_id} LIMIT 1 FOR UPDATE`);
       await Links.lockBang(record);
-      if (permalink != null && !claimsPermalink && permalink !== record.get("custom_permalink")) throw new PermalinkChangedDuringLock();
+      if (permalink != null && !claimsPermalink && permalink !== record.get("custom_permalink"))
+        throw new PermalinkChangedDuringLock();
       if (priceCents !== undefined) await writeBuyPrice(product, priceCents, context.now);
       if (permalink !== undefined) attributes.custom_permalink = permalink;
       await Links.updateBang(record, attributes, { now: context.now });

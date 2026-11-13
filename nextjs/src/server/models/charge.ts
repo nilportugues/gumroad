@@ -3,13 +3,20 @@
 import { Prisma, type BillingDetail, type Charge, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { PurchaseFlags } from "../search/flags.ts";
+
 import { PURCHASES } from "./purchase.ts";
 import { findById, findOneBy } from "./row-reads.ts";
 import { castRow, column, inList, quoteName, selectRows, table } from "./sql.ts";
 import { NotPortedError } from "./user.ts";
 
 // Purchase::ALL_SUCCESS_STATES_INCLUDING_TEST, in the constant's order.
-const ALL_SUCCESS_STATES_INCLUDING_TEST = ["preorder_authorization_successful", "successful", "not_charged", "gift_receiver_purchase_successful", "test_successful"];
+const ALL_SUCCESS_STATES_INCLUDING_TEST = [
+  "preorder_authorization_successful",
+  "successful",
+  "not_charged",
+  "gift_receiver_purchase_successful",
+  "test_successful",
+];
 
 export class ArgumentError extends Error {
   constructor(message: string) {
@@ -40,7 +47,8 @@ export async function findByPurchaseOrCharge(purchase: Purchase | null, charge: 
 
   // `uses_charge_receipt?`: a charge that belongs to an order (Order#seller_receipt_enabled? is `is_a?(Order)`).
   const purchaseCharge = await chargeOfPurchase(purchase!);
-  const order = purchaseCharge === null ? null : await findById<Record<string, unknown>>("Order", purchaseCharge.order_id);
+  const order =
+    purchaseCharge === null ? null : await findById<Record<string, unknown>>("Order", purchaseCharge.order_id);
   if (purchaseCharge !== null && order !== null) return { kind: "charge", charge: purchaseCharge };
   return { kind: "purchase", purchase: purchase! };
 }
@@ -74,10 +82,12 @@ export async function autoInvoiceEligible(chargeable: Chargeable): Promise<boole
   } else {
     // Charge delegates `purchaser` to `purchase_as_chargeable` (the first successful purchase).
     const [first] = await chargeSuccessfulPurchases(chargeable.charge, { first: true });
-    if (first === undefined) throw new NotPortedError("Charge#purchaser for a charge without a successful purchase", "charge.rb:25");
+    if (first === undefined)
+      throw new NotPortedError("Charge#purchaser for a charge without a successful purchase", "charge.rb:25");
     purchaser = await findById<User>("User", first.purchaser_id);
   }
-  const billingDetail = purchaser === null ? null : await findOneBy<BillingDetail>("BillingDetail", "purchaser_id", purchaser.id);
+  const billingDetail =
+    purchaser === null ? null : await findOneBy<BillingDetail>("BillingDetail", "purchaser_id", purchaser.id);
   if (!billingDetail?.auto_email_invoice_enabled) return false;
 
   if (chargeable.kind === "purchase") return purchaseHasInvoice(chargeable.purchase);

@@ -10,8 +10,8 @@ import { Prisma, type Link } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { performAsync } from "../models/concerns/job-runtime.ts";
 import { parseBundleProducts, updateBundleProducts, type BundleProductParams } from "../models/bundle-products.ts";
+import { performAsync } from "../models/concerns/job-runtime.ts";
 import { LinkFlags, LinkInvalid, Links } from "../models/link.ts";
 import { RecordInvalid, RecordNotSaved } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
@@ -99,7 +99,11 @@ const SCALAR_KEYS = ["product_id", "variant_id", "quantity", "position"] as cons
 const present = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false;
 
 // `redirect_back fallback_location:, notice:, status: :see_other`
-const redirectBack = (request: MutationInput["request"], fallback: string, flash: Record<string, string>): ActionResult => ({
+const redirectBack = (
+  request: MutationInput["request"],
+  fallback: string,
+  flash: Record<string, string>,
+): ActionResult => ({
   status: SEE_OTHER,
   location: allowedReferrer(request) ?? fallback,
   flash,
@@ -117,7 +121,16 @@ function productEntries(products: unknown): BundleProductParams[] {
   if (products === undefined) return [];
   if (!Array.isArray(products)) throw new HandBackToRails("a products parameter that is not a list");
   return products.map((entry) => {
-    if (!isHash(entry) || SCALAR_KEYS.some((key) => entry[key] !== undefined && entry[key] !== null && typeof entry[key] !== "string" && typeof entry[key] !== "number"))
+    if (
+      !isHash(entry) ||
+      SCALAR_KEYS.some(
+        (key) =>
+          entry[key] !== undefined &&
+          entry[key] !== null &&
+          typeof entry[key] !== "string" &&
+          typeof entry[key] !== "number",
+      )
+    )
       throw new HandBackToRails("a product entry whose shape Node does not reproduce");
     return Object.fromEntries(SCALAR_KEYS.map((key) => [key, entry[key]])) as BundleProductParams;
   });
@@ -163,7 +176,8 @@ async function updateContent(input: MutationInput): Promise<ActionResult> {
   try {
     await transaction(() => updateBundleProducts(record, parsed));
   } catch (error) {
-    if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid)) throw error;
+    if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid))
+      throw error;
     const message = record.errors.fullMessages()[0] ?? error.message;
     return { status: FOUND, location: editContentPath(bundle), flash: { alert: message } };
   }
@@ -178,9 +192,12 @@ async function updatePurchasesContent(input: MutationInput): Promise<ActionResul
     return { status: FOUND, location: editContentPath(bundle), flash: { alert: NO_OUTDATED_PURCHASES } };
   const record = await loadBundleRecord(bundle.id);
   try {
-    await Links.updateBang(record, { flags: LinkFlags.set(BigInt(bundle.flags ?? 0), "has_outdated_purchases", false) });
+    await Links.updateBang(record, {
+      flags: LinkFlags.set(BigInt(bundle.flags ?? 0), "has_outdated_purchases", false),
+    });
   } catch (error) {
-    if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid)) throw error;
+    if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid))
+      throw error;
     throw new HandBackToRails("a bundle that fails validation when its flag is cleared");
   }
   await performAsync("UpdateBundlePurchasesContentJob", [Number(bundle.id)]);

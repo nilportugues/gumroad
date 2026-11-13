@@ -4,7 +4,9 @@
 // raise the same error.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { notifyError } = vi.hoisted(() => ({ notifyError: vi.fn<(error: unknown, context?: Record<string, unknown>) => void>() }));
+const { notifyError } = vi.hoisted(() => ({
+  notifyError: vi.fn<(error: unknown, context?: Record<string, unknown>) => void>(),
+}));
 vi.mock("../infra/error-reporting.ts", () => ({ notifyError }));
 
 import {

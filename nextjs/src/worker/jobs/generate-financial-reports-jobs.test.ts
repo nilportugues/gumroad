@@ -42,14 +42,12 @@ const golden = parseRubyJson(
   readFileSync(new URL("./__fixtures__/generate-financial-reports-jobs.golden.json", import.meta.url), "utf8"),
 ) as unknown as { now: number; cases: Case[] };
 
-const JOBS = [
-  GENERATE_FINANCIAL_REPORTS_FOR_PREVIOUS_QUARTER_JOB,
-  GENERATE_FINANCIAL_REPORTS_FOR_PREVIOUS_MONTH_JOB,
-];
+const JOBS = [GENERATE_FINANCIAL_REPORTS_FOR_PREVIOUS_QUARTER_JOB, GENERATE_FINANCIAL_REPORTS_FOR_PREVIOUS_MONTH_JOB];
 const jobFor = (name: string) => JOBS.find((job) => job.name === name)!;
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 const redis = new Redis(url ?? "", { maxRetriesPerRequest: null, lazyConnect: true });
 afterEach(() => vi.unstubAllEnvs());
 afterAll(async () => {
@@ -108,7 +106,11 @@ describe.skipIf(!url)("financial report fan-out jobs", () => {
       const hook = financeReportRetriesExhaustedWith(jobFor(c.job), {
         now: () => new Date(Math.round(golden.now * 1000)),
       });
-      const msg = { ...c.item, error_class: c.exception!.class, error_message: c.exception!.message } as unknown as SidekiqItem;
+      const msg = {
+        ...c.item,
+        error_class: c.exception!.class,
+        error_message: c.exception!.message,
+      } as unknown as SidekiqItem;
 
       await hook(msg, new Error(c.exception!.message), { runtime: runtimeOn(golden.now) });
 

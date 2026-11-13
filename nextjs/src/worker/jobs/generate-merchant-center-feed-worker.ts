@@ -3,15 +3,15 @@
 // first unit. Publishing a unit is MerchantCenterFeedService (a product scan and an S3 upload), so a run that reaches it releases its
 // lock and hands the job back; the progress hash is only written after a unit, so Ruby starts from the state Node found.
 // Golden: __fixtures__/generate-merchant-center-feed-worker.golden.json (scripts/golden/generate-merchant-center-feed-worker.rb).
+import { Prisma } from "@prisma/client";
 import type { Redis } from "ioredis";
 
-import { getRedis } from "../../server/infra/redis.ts";
 import { isFeatureEnabled } from "../../server/infra/flipper.ts";
+import { getRedis } from "../../server/infra/redis.ts";
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { performAsync } from "../../server/models/concerns/job-runtime.ts";
 import { selectRows } from "../../server/models/sql.ts";
-import { Prisma } from "@prisma/client";
 
 import { modelJob, type JobDeps } from "./support/job-deps.ts";
 
@@ -68,7 +68,9 @@ async function releaseLock(redis: ReturnType<MerchantCenterFeedDeps["redis"]>, t
 
 // `Link.maximum(:id)`: the last shard index, nil for an empty table.
 async function lastShardIndex(): Promise<bigint | null> {
-  const [row] = await selectRows<Record<string, unknown>>(Prisma.sql`SELECT MAX(${Prisma.raw("`links`.`id`")}) FROM ${Prisma.raw("`links`")}`);
+  const [row] = await selectRows<Record<string, unknown>>(
+    Prisma.sql`SELECT MAX(${Prisma.raw("`links`.`id`")}) FROM ${Prisma.raw("`links`")}`,
+  );
   const maxId = row ? Object.values(row)[0] : null;
   return maxId === null || maxId === undefined ? null : BigInt(maxId as bigint | number | string) / BigInt(SHARD_WIDTH);
 }

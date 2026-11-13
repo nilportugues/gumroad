@@ -38,14 +38,33 @@ describe("InertiaRails::MetaTag port", () => {
     expect(new MetaTag({ name: "twitter:card", content: "summary" }).headKey).toBe("meta-name-twitter-card");
     expect(new MetaTag({ property: "og:image:alt", content: "Gumroad" }).headKey).toBe("meta-property-og-image-alt");
     expect(new MetaTag({ charset: "utf-8" }).headKey).toBe("meta-charset");
-    expect(new MetaTag({ tag_name: "link", rel: "canonical", href: "/x", head_key: "canonical" }).headKey).toBe("canonical");
+    expect(new MetaTag({ tag_name: "link", rel: "canonical", href: "/x", head_key: "canonical" }).headKey).toBe(
+      "canonical",
+    );
     // md5("href=/opensearch.xml&rel=search&title=Gumroad&type=application/opensearchdescription+xml")[0, 8]
-    expect(new MetaTag({ tag_name: "link", rel: "search", href: "/opensearch.xml", type: "application/opensearchdescription+xml", title: "Gumroad" }).headKey).toMatch(/^link-[0-9a-f]{8}$/u);
+    expect(
+      new MetaTag({
+        tag_name: "link",
+        rel: "search",
+        href: "/opensearch.xml",
+        type: "application/opensearchdescription+xml",
+        title: "Gumroad",
+      }).headKey,
+    ).toMatch(/^link-[0-9a-f]{8}$/u);
   });
 
   it("serialises camelCased keys and drops blank values", () => {
-    expect(new MetaTag({ property: "gr:page:type", content: "" }).toJSON()).toEqual({ tagName: "meta", headKey: "meta-property-gr-page-type", property: "gr:page:type" });
-    expect(new MetaTag({ http_equiv: "refresh", content: "5" }).toJSON()).toEqual({ tagName: "meta", headKey: "meta-http_equiv-refresh", httpEquiv: "refresh", content: "5" });
+    expect(new MetaTag({ property: "gr:page:type", content: "" }).toJSON()).toEqual({
+      tagName: "meta",
+      headKey: "meta-property-gr-page-type",
+      property: "gr:page:type",
+    });
+    expect(new MetaTag({ http_equiv: "refresh", content: "5" }).toJSON()).toEqual({
+      tagName: "meta",
+      headKey: "meta-http_equiv-refresh",
+      httpEquiv: "refresh",
+      content: "5",
+    });
   });
 
   it("replaces a tag with the same head key in place", () => {
@@ -94,13 +113,19 @@ describe("request helpers", () => {
   });
 
   it("deep merges like Hash#deep_merge: hashes merge, arrays are replaced", () => {
-    expect(deepMerge({ a: { b: 1, c: [1, 2] }, d: 1 }, { a: { c: [3] }, d: null })).toEqual({ a: { b: 1, c: [3] }, d: null });
+    expect(deepMerge({ a: { b: 1, c: [1, 2] }, d: 1 }, { a: { c: [3] }, d: null })).toEqual({
+      a: { b: 1, c: [3] },
+      d: null,
+    });
   });
 });
 
 describe("shared props", () => {
   const config = domainConfig({ RAILS_ENV: "production" });
-  const request = { headers: new Headers({ "accept-language": "es-es,es;q=0.9", "user-agent": "Mozilla/5.0 (Macintosh)" }), url: new URL("https://gumroad.com/help") };
+  const request = {
+    headers: new Headers({ "accept-language": "es-es,es;q=0.9", "user-agent": "Mozilla/5.0 (Macintosh)" }),
+    url: new URL("https://gumroad.com/help"),
+  };
 
   it("renders the signed-out shared props and default meta tags", async () => {
     const meta = new MetaTagBuilder();
@@ -109,10 +134,20 @@ describe("shared props", () => {
     await applicationMetaTags(meta, { context: signedOut, config, csrfToken: "tok", ports: sharedPorts });
     meta.set({ title: "Page - Gumroad Help Center" });
 
-    const props = await sharedProps({ context: signedOut, config, request, meta, csrfToken: "tok", ports: sharedPorts, mobileAppWebView: false });
+    const props = await sharedProps({
+      context: signedOut,
+      config,
+      request,
+      meta,
+      csrfToken: "tok",
+      ports: sharedPorts,
+      mobileAppWebView: false,
+    });
 
     expect(props).toMatchObject({
-      design_settings: { font: { name: "ABC Favorit", url: "https://assets.gumroad.com/fonts/ABCFavorit-Regular.woff2" } },
+      design_settings: {
+        font: { name: "ABC Favorit", url: "https://assets.gumroad.com/fonts/ABCFavorit-Regular.woff2" },
+      },
       domain_settings: { scheme: "https", app_domain: "gumroad.com", api_domain: "api.gumroad.com" },
       user_agent_info: { is_mobile: false },
       logged_in_user: null,
@@ -129,7 +164,9 @@ describe("shared props", () => {
 
     const tags = Object.fromEntries(meta.toJSON().map((tag) => [tag.headKey, tag]));
     expect(tags["meta-name-csrf-token"]).toMatchObject({ content: "tok" });
-    expect(tags["meta-property-og-image"]).toMatchObject({ content: "https://assets.gumroad.com/images/opengraph_image.png" });
+    expect(tags["meta-property-og-image"]).toMatchObject({
+      content: "https://assets.gumroad.com/images/opengraph_image.png",
+    });
     expect(tags["meta-property-gr-google_analytics-enabled"]).toMatchObject({ content: "true" });
     expect(tags["meta-property-gr-logged_in_user-id"]).not.toHaveProperty("content");
   });
@@ -138,13 +175,25 @@ describe("shared props", () => {
     process.env.GEOIP_DATABASE_PATH = path.join(import.meta.dirname, "../infra/__fixtures__/GeoLite2-City-Test.mmdb");
     try {
       const forwarded = { ...request, headers: new Headers({ "x-forwarded-for": "10.0.0.1, 81.2.69.142" }) };
-      const base = { context: signedOut, config, request: forwarded, meta: new MetaTagBuilder(), csrfToken: "tok", ports: ports(), mobileAppWebView: false };
+      const base = {
+        context: signedOut,
+        config,
+        request: forwarded,
+        meta: new MetaTagBuilder(),
+        csrfToken: "tok",
+        ports: ports(),
+        mobileAppWebView: false,
+      };
 
-      expect(await sharedProps({ ...base, buyerCurrencyFooter: true })).toMatchObject({ detected_buyer_currency: "gbp" });
+      expect(await sharedProps({ ...base, buyerCurrencyFooter: true })).toMatchObject({
+        detected_buyer_currency: "gbp",
+      });
       expect(await sharedProps(base)).not.toHaveProperty("detected_buyer_currency");
       // A visitor GeoIP cannot place still gets the key, as null.
       const unknown = { ...request, headers: new Headers({ "x-forwarded-for": "8.8.8.8" }) };
-      expect(await sharedProps({ ...base, request: unknown, buyerCurrencyFooter: true })).toMatchObject({ detected_buyer_currency: null });
+      expect(await sharedProps({ ...base, request: unknown, buyerCurrencyFooter: true })).toMatchObject({
+        detected_buyer_currency: null,
+      });
     } finally {
       delete process.env.GEOIP_DATABASE_PATH;
     }

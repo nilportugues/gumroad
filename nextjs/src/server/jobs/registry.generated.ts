@@ -3,4490 +3,4502 @@
 import type { JobDefinition, CronDefinition } from "./registry-types.ts";
 
 export const JOB_REGISTRY = {
-  "DeleteUnusedPublicFilesJob": {
-    "file": "app/jobs/delete_unused_public_files_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ActivateIntegrationsWorker": {
-    "file": "app/sidekiq/activate_integrations_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnBlockedEstablishedBuyersJob": {
-    "file": "app/sidekiq/alert_on_blocked_established_buyers_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnBlockedEstablishedSubscribersJob": {
-    "file": "app/sidekiq/alert_on_blocked_established_subscribers_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnNegativeDestinationBalancesJob": {
-    "file": "app/sidekiq/alert_on_negative_destination_balances_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "AlertOnRetiredManagedAccountActivityJob": {
-    "file": "app/sidekiq/alert_on_retired_managed_account_activity_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnStaleBlocksHoldingEstablishedBuyersJob": {
-    "file": "app/sidekiq/alert_on_stale_blocks_holding_established_buyers_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "AlertOnStalledAbandonedCartEmailsJob": {
-    "file": "app/sidekiq/alert_on_stalled_abandoned_cart_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnStalledPostEmailBlastsJob": {
-    "file": "app/sidekiq/alert_on_stalled_post_email_blasts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnStripeDobDriftJob": {
-    "file": "app/sidekiq/alert_on_stripe_dob_drift_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 5400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
-  },
-  "AlertOnStuckPiracyReportsJob": {
-    "file": "app/sidekiq/alert_on_stuck_piracy_reports_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertOnZeroBuyerCurrencyWalletPurchasesJob": {
-    "file": "app/sidekiq/alert_on_zero_buyer_currency_wallet_purchases_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AlertSellersOfUndeliveredReceiptsJob": {
-    "file": "app/sidekiq/alert_sellers_of_undelivered_receipts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "AnalyzeFileWorker": {
-    "file": "app/sidekiq/analyze_file_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AnnualPayoutExportWorker": {
-    "file": "app/sidekiq/annual_payout_export_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "AnnualTaxSummaryExportWorker": {
-    "file": "app/sidekiq/annual_tax_summary_export_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "AttachPastPurchasesToUserWorker": {
-    "file": "app/sidekiq/attach_past_purchases_to_user_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "AutoTopUpNegativeDestinationBalancesJob": {
-    "file": "app/sidekiq/auto_top_up_negative_destination_balances_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "BackfillMembershipRenewalRemindersJob": {
-    "file": "app/sidekiq/backfill_membership_renewal_reminders_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BackfillMerchantAccountRecommendationEligibilityJob": {
-    "file": "app/sidekiq/backfill_merchant_account_recommendation_eligibility_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BackfillOrphanedShownProductsInProfileSectionsJob": {
-    "file": "app/sidekiq/backfill_orphaned_shown_products_in_profile_sections_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 5,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BackfillPdfStampsJob": {
-    "file": "app/sidekiq/backfill_pdf_stamps_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 5
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BackfillPriceCheckerIndexFieldsJob": {
-    "file": "app/sidekiq/backfill_price_checker_index_fields_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BackfillTaggingsCountOnTagsJob": {
-    "file": "app/sidekiq/backfill_taggings_count_on_tags_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BlockEmailDomainsWorker": {
-    "file": "app/sidekiq/block_email_domains_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BlockObjectWorker": {
-    "file": "app/sidekiq/block_object_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BlockSuspendedAccountIpWorker": {
-    "file": "app/sidekiq/block_suspended_account_ip_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "BuildTaxRateCacheWorker": {
-    "file": "app/sidekiq/build_tax_rate_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CacheProductDataWorker": {
-    "file": "app/sidekiq/cache_product_data_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CalculatePayoutNumbersWorker": {
-    "file": "app/sidekiq/calculate_payout_numbers_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CalculateSaleNumbersWorker": {
-    "file": "app/sidekiq/calculate_sale_numbers_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CancelPreorderWorker": {
-    "file": "app/sidekiq/cancel_preorder_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CancelSubscriptionsForProductWorker": {
-    "file": "app/sidekiq/cancel_subscriptions_for_product_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ChargeDeclinedReminderWorker": {
-    "file": "app/sidekiq/charge_declined_reminder_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ChargePreorderWorker": {
-    "file": "app/sidekiq/charge_preorder_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ChargeSuccessfulPreordersWorker": {
-    "file": "app/sidekiq/charge_successful_preorders_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CheckIndianCardMandateRegistrationJob": {
-    "file": "app/sidekiq/check_indian_card_mandate_registration_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "CheckPaymentAddressWorker": {
-    "file": "app/sidekiq/check_payment_address_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CollectUnclaimedBalancesOfInactiveStripeAccountsJob": {
-    "file": "app/sidekiq/collect_unclaimed_balances_of_inactive_stripe_accounts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "CompileGumroadDailyAnalyticsJob": {
-    "file": "app/sidekiq/compile_gumroad_daily_analytics_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ContentModerationAdminCommentJob": {
-    "file": "app/sidekiq/content_moderation_admin_comment_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CreateCanadaMonthlySalesReportJob": {
-    "file": "app/sidekiq/create_canada_monthly_sales_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
-  },
-  "CreateGlobalSalesTaxSummaryReportJob": {
-    "file": "app/sidekiq/create_global_sales_tax_summary_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
-  },
-  "CreateIndiaSalesReportJob": {
-    "file": "app/sidekiq/create_india_sales_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 7200,
-    "runtime": "ruby"
-  },
-  "CreateLicensesForExistingCustomersWorker": {
-    "file": "app/sidekiq/create_licenses_for_existing_customers_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CreateMissingDisputeEvidenceJob": {
-    "file": "app/sidekiq/create_missing_dispute_evidence_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "CreateMissingPurchaseEventsWorker": {
-    "file": "app/sidekiq/create_missing_purchase_events_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CreateStripeApplePayDomainWorker": {
-    "file": "app/sidekiq/create_stripe_apple_pay_domain_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
-  },
-  "CreateStripeMerchantAccountWorker": {
-    "file": "app/sidekiq/create_stripe_merchant_account_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CreateUsStateMonthlySalesReportsJob": {
-    "file": "app/sidekiq/create_us_state_monthly_sales_reports_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "CreateUsStatesSalesSummaryReportJob": {
-    "file": "app/sidekiq/create_us_states_sales_summary_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
-  },
-  "CreateVatReportJob": {
-    "file": "app/sidekiq/create_vat_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
-  },
-  "CustomDomainVerificationWorker": {
-    "file": "app/sidekiq/custom_domain_verification_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "CustomDomainsVerificationWorker": {
-    "file": "app/sidekiq/custom_domains_verification_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeactivateIntegrationsWorker": {
-    "file": "app/sidekiq/deactivate_integrations_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteExpiredOauthDeviceAuthorizationsJob": {
-    "file": "app/sidekiq/delete_expired_oauth_device_authorizations_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteExpiredProductCachedValuesWorker": {
-    "file": "app/sidekiq/delete_expired_product_cached_values_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteGuardianStripePersonJob": {
-    "file": "app/sidekiq/delete_guardian_stripe_person_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 20,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
-  },
-  "DeleteOldPingDeliveriesJob": {
-    "file": "app/sidekiq/delete_old_ping_deliveries_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteOldProcessedStripeEventsJob": {
-    "file": "app/sidekiq/delete_old_processed_stripe_events_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteOldSentEmailInfoRecordsJob": {
-    "file": "app/sidekiq/delete_old_sent_email_info_records_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteOldUnusedEventsWorker": {
-    "file": "app/sidekiq/delete_old_unused_events_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteOldVersionsRecordsWorker": {
-    "file": "app/sidekiq/delete_old_versions_records_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteProcessedWorkflowInstallmentScheduleIntentsJob": {
-    "file": "app/sidekiq/delete_processed_workflow_installment_schedule_intents_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteProductFilesArchivesWorker": {
-    "file": "app/sidekiq/delete_product_files_archives_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteProductFilesWorker": {
-    "file": "app/sidekiq/delete_product_files_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteProductRichContentWorker": {
-    "file": "app/sidekiq/delete_product_rich_content_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteStripeApplePayDomainWorker": {
-    "file": "app/sidekiq/delete_stripe_apple_pay_domain_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeleteWishlistProductsJob": {
-    "file": "app/sidekiq/delete_wishlist_products_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DeliverFilesReadyNotificationJob": {
-    "file": "app/sidekiq/deliver_files_ready_notification_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "critical",
-      "retry": 5,
-      "lock": "until_executing",
-      "on_conflict": "log",
-      "lock_ttl": 120
-    },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DetectFailingPaypalRailsJob": {
-    "file": "app/sidekiq/detect_failing_paypal_rails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 1,
-      "lock": "until_executed",
-      "lock_ttl": 5400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "node"
-  },
-  "DetectLegalEntityCountryDriftJob": {
-    "file": "app/sidekiq/detect_legal_entity_country_drift_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DispatchPendingFailedRefundExceptionsJob": {
-    "file": "app/sidekiq/dispatch_pending_failed_refund_exceptions_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 900
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 600,
-    "runtime": "node"
-  },
-  "DispatchPendingPartnerMigrationNotificationsJob": {
-    "file": "app/sidekiq/dispatch_pending_partner_migration_notifications_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "DispatchPendingWorkflowInstallmentScheduleIntentsJob": {
-    "file": "app/sidekiq/dispatch_pending_workflow_installment_schedule_intents_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 900
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 600,
-    "runtime": "node"
-  },
-  "DispatchProductPublishSchedulesJob": {
-    "file": "app/sidekiq/dispatch_product_publish_schedules_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 900
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 600,
-    "runtime": "ruby"
-  },
-  "DisputeEvidenceDueSoonReminderJob": {
-    "file": "app/sidekiq/dispute_evidence_due_soon_reminder_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "DuplicateProductWorker": {
-    "file": "app/sidekiq/duplicate_product_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "critical"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ElasticsearchIndexerWorker": {
-    "file": "app/sidekiq/elasticsearch_indexer_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "EmailOutstandingBalancesCsvWorker": {
-    "file": "app/sidekiq/email_outstanding_balances_csv_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "raise",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 7200,
-    "runtime": "node"
-  },
-  "EndSubscriptionWorker": {
-    "file": "app/sidekiq/end_subscription_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "EnforceRefundPolicyForSellerJob": {
-    "file": "app/sidekiq/enforce_refund_policy_for_seller_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "EnqueueMarketingXReconnectEmailJob": {
-    "file": "app/sidekiq/enqueue_marketing_x_reconnect_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ExecuteScheduledPayoutsJob": {
-    "file": "app/sidekiq/execute_scheduled_payouts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "ExpireRentalPurchasesWorker": {
-    "file": "app/sidekiq/expire_rental_purchases_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ExpireStampedPdfsJob": {
-    "file": "app/sidekiq/expire_stamped_pdfs_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 5
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ExpireTranscodedVideosJob": {
-    "file": "app/sidekiq/expire_transcoded_videos_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 5
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ExpiringCreditCardMessageWorker": {
-    "file": "app/sidekiq/expiring_credit_card_message_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ExportPayoutData": {
-    "file": "app/sidekiq/export_payout_data.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+  DeleteUnusedPublicFilesJob: {
+    file: "app/jobs/delete_unused_public_files_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ActivateIntegrationsWorker: {
+    file: "app/sidekiq/activate_integrations_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnBlockedEstablishedBuyersJob: {
+    file: "app/sidekiq/alert_on_blocked_established_buyers_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnBlockedEstablishedSubscribersJob: {
+    file: "app/sidekiq/alert_on_blocked_established_subscribers_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnNegativeDestinationBalancesJob: {
+    file: "app/sidekiq/alert_on_negative_destination_balances_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  AlertOnRetiredManagedAccountActivityJob: {
+    file: "app/sidekiq/alert_on_retired_managed_account_activity_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnStaleBlocksHoldingEstablishedBuyersJob: {
+    file: "app/sidekiq/alert_on_stale_blocks_holding_established_buyers_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  AlertOnStalledAbandonedCartEmailsJob: {
+    file: "app/sidekiq/alert_on_stalled_abandoned_cart_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnStalledPostEmailBlastsJob: {
+    file: "app/sidekiq/alert_on_stalled_post_email_blasts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnStripeDobDriftJob: {
+    file: "app/sidekiq/alert_on_stripe_dob_drift_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 5400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "ruby",
+  },
+  AlertOnStuckPiracyReportsJob: {
+    file: "app/sidekiq/alert_on_stuck_piracy_reports_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertOnZeroBuyerCurrencyWalletPurchasesJob: {
+    file: "app/sidekiq/alert_on_zero_buyer_currency_wallet_purchases_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AlertSellersOfUndeliveredReceiptsJob: {
+    file: "app/sidekiq/alert_sellers_of_undelivered_receipts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  AnalyzeFileWorker: {
+    file: "app/sidekiq/analyze_file_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AnnualPayoutExportWorker: {
+    file: "app/sidekiq/annual_payout_export_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  AnnualTaxSummaryExportWorker: {
+    file: "app/sidekiq/annual_tax_summary_export_worker.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  AttachPastPurchasesToUserWorker: {
+    file: "app/sidekiq/attach_past_purchases_to_user_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  AutoTopUpNegativeDestinationBalancesJob: {
+    file: "app/sidekiq/auto_top_up_negative_destination_balances_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  BackfillMembershipRenewalRemindersJob: {
+    file: "app/sidekiq/backfill_membership_renewal_reminders_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BackfillMerchantAccountRecommendationEligibilityJob: {
+    file: "app/sidekiq/backfill_merchant_account_recommendation_eligibility_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BackfillOrphanedShownProductsInProfileSectionsJob: {
+    file: "app/sidekiq/backfill_orphaned_shown_products_in_profile_sections_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 5,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BackfillPdfStampsJob: {
+    file: "app/sidekiq/backfill_pdf_stamps_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 5,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BackfillPriceCheckerIndexFieldsJob: {
+    file: "app/sidekiq/backfill_price_checker_index_fields_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BackfillTaggingsCountOnTagsJob: {
+    file: "app/sidekiq/backfill_taggings_count_on_tags_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BlockEmailDomainsWorker: {
+    file: "app/sidekiq/block_email_domains_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BlockObjectWorker: {
+    file: "app/sidekiq/block_object_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BlockSuspendedAccountIpWorker: {
+    file: "app/sidekiq/block_suspended_account_ip_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  BuildTaxRateCacheWorker: {
+    file: "app/sidekiq/build_tax_rate_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CacheProductDataWorker: {
+    file: "app/sidekiq/cache_product_data_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CalculatePayoutNumbersWorker: {
+    file: "app/sidekiq/calculate_payout_numbers_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CalculateSaleNumbersWorker: {
+    file: "app/sidekiq/calculate_sale_numbers_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CancelPreorderWorker: {
+    file: "app/sidekiq/cancel_preorder_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CancelSubscriptionsForProductWorker: {
+    file: "app/sidekiq/cancel_subscriptions_for_product_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ChargeDeclinedReminderWorker: {
+    file: "app/sidekiq/charge_declined_reminder_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ChargePreorderWorker: {
+    file: "app/sidekiq/charge_preorder_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ChargeSuccessfulPreordersWorker: {
+    file: "app/sidekiq/charge_successful_preorders_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CheckIndianCardMandateRegistrationJob: {
+    file: "app/sidekiq/check_indian_card_mandate_registration_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  CheckPaymentAddressWorker: {
+    file: "app/sidekiq/check_payment_address_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CollectUnclaimedBalancesOfInactiveStripeAccountsJob: {
+    file: "app/sidekiq/collect_unclaimed_balances_of_inactive_stripe_accounts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  CompileGumroadDailyAnalyticsJob: {
+    file: "app/sidekiq/compile_gumroad_daily_analytics_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ContentModerationAdminCommentJob: {
+    file: "app/sidekiq/content_moderation_admin_comment_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CreateCanadaMonthlySalesReportJob: {
+    file: "app/sidekiq/create_canada_monthly_sales_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
+  },
+  CreateGlobalSalesTaxSummaryReportJob: {
+    file: "app/sidekiq/create_global_sales_tax_summary_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
+  },
+  CreateIndiaSalesReportJob: {
+    file: "app/sidekiq/create_india_sales_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 7200,
+    runtime: "ruby",
+  },
+  CreateLicensesForExistingCustomersWorker: {
+    file: "app/sidekiq/create_licenses_for_existing_customers_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CreateMissingDisputeEvidenceJob: {
+    file: "app/sidekiq/create_missing_dispute_evidence_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  CreateMissingPurchaseEventsWorker: {
+    file: "app/sidekiq/create_missing_purchase_events_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CreateStripeApplePayDomainWorker: {
+    file: "app/sidekiq/create_stripe_apple_pay_domain_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
+  },
+  CreateStripeMerchantAccountWorker: {
+    file: "app/sidekiq/create_stripe_merchant_account_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CreateUsStateMonthlySalesReportsJob: {
+    file: "app/sidekiq/create_us_state_monthly_sales_reports_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  CreateUsStatesSalesSummaryReportJob: {
+    file: "app/sidekiq/create_us_states_sales_summary_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
+  },
+  CreateVatReportJob: {
+    file: "app/sidekiq/create_vat_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
+  },
+  CustomDomainVerificationWorker: {
+    file: "app/sidekiq/custom_domain_verification_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  CustomDomainsVerificationWorker: {
+    file: "app/sidekiq/custom_domains_verification_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeactivateIntegrationsWorker: {
+    file: "app/sidekiq/deactivate_integrations_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteExpiredOauthDeviceAuthorizationsJob: {
+    file: "app/sidekiq/delete_expired_oauth_device_authorizations_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteExpiredProductCachedValuesWorker: {
+    file: "app/sidekiq/delete_expired_product_cached_values_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteGuardianStripePersonJob: {
+    file: "app/sidekiq/delete_guardian_stripe_person_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 20,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
+  },
+  DeleteOldPingDeliveriesJob: {
+    file: "app/sidekiq/delete_old_ping_deliveries_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteOldProcessedStripeEventsJob: {
+    file: "app/sidekiq/delete_old_processed_stripe_events_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteOldSentEmailInfoRecordsJob: {
+    file: "app/sidekiq/delete_old_sent_email_info_records_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteOldUnusedEventsWorker: {
+    file: "app/sidekiq/delete_old_unused_events_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteOldVersionsRecordsWorker: {
+    file: "app/sidekiq/delete_old_versions_records_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteProcessedWorkflowInstallmentScheduleIntentsJob: {
+    file: "app/sidekiq/delete_processed_workflow_installment_schedule_intents_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteProductFilesArchivesWorker: {
+    file: "app/sidekiq/delete_product_files_archives_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteProductFilesWorker: {
+    file: "app/sidekiq/delete_product_files_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteProductRichContentWorker: {
+    file: "app/sidekiq/delete_product_rich_content_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteStripeApplePayDomainWorker: {
+    file: "app/sidekiq/delete_stripe_apple_pay_domain_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeleteWishlistProductsJob: {
+    file: "app/sidekiq/delete_wishlist_products_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DeliverFilesReadyNotificationJob: {
+    file: "app/sidekiq/deliver_files_ready_notification_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "critical",
+      retry: 5,
+      lock: "until_executing",
+      on_conflict: "log",
+      lock_ttl: 120,
+    },
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DetectFailingPaypalRailsJob: {
+    file: "app/sidekiq/detect_failing_paypal_rails_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 1,
+      lock: "until_executed",
+      lock_ttl: 5400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "node",
+  },
+  DetectLegalEntityCountryDriftJob: {
+    file: "app/sidekiq/detect_legal_entity_country_drift_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DispatchPendingFailedRefundExceptionsJob: {
+    file: "app/sidekiq/dispatch_pending_failed_refund_exceptions_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 900,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 600,
+    runtime: "node",
+  },
+  DispatchPendingPartnerMigrationNotificationsJob: {
+    file: "app/sidekiq/dispatch_pending_partner_migration_notifications_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  DispatchPendingWorkflowInstallmentScheduleIntentsJob: {
+    file: "app/sidekiq/dispatch_pending_workflow_installment_schedule_intents_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 900,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 600,
+    runtime: "node",
+  },
+  DispatchProductPublishSchedulesJob: {
+    file: "app/sidekiq/dispatch_product_publish_schedules_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 900,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 600,
+    runtime: "ruby",
+  },
+  DisputeEvidenceDueSoonReminderJob: {
+    file: "app/sidekiq/dispute_evidence_due_soon_reminder_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  DuplicateProductWorker: {
+    file: "app/sidekiq/duplicate_product_worker.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "critical",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ElasticsearchIndexerWorker: {
+    file: "app/sidekiq/elasticsearch_indexer_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  EmailOutstandingBalancesCsvWorker: {
+    file: "app/sidekiq/email_outstanding_balances_csv_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "raise",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 7200,
+    runtime: "node",
+  },
+  EndSubscriptionWorker: {
+    file: "app/sidekiq/end_subscription_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  EnforceRefundPolicyForSellerJob: {
+    file: "app/sidekiq/enforce_refund_policy_for_seller_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  EnqueueMarketingXReconnectEmailJob: {
+    file: "app/sidekiq/enqueue_marketing_x_reconnect_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ExecuteScheduledPayoutsJob: {
+    file: "app/sidekiq/execute_scheduled_payouts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  ExpireRentalPurchasesWorker: {
+    file: "app/sidekiq/expire_rental_purchases_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ExpireStampedPdfsJob: {
+    file: "app/sidekiq/expire_stamped_pdfs_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 5,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ExpireTranscodedVideosJob: {
+    file: "app/sidekiq/expire_transcoded_videos_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 5,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ExpiringCreditCardMessageWorker: {
+    file: "app/sidekiq/expiring_credit_card_message_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ExportPayoutData: {
+    file: "app/sidekiq/export_payout_data.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
   "Exports::AffiliateExportWorker": {
-    "file": "app/sidekiq/exports/affiliate_export_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
+    file: "app/sidekiq/exports/affiliate_export_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
   "Exports::AudienceExportWorker": {
-    "file": "app/sidekiq/exports/audience_export_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
+    file: "app/sidekiq/exports/audience_export_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
   "Exports::Sales::CompileChunksWorker": {
-    "file": "app/sidekiq/exports/sales/compile_chunks_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "exports",
-      "lock": "until_executed"
+    file: "app/sidekiq/exports/sales/compile_chunks_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "exports",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
   "Exports::Sales::CreateAndEnqueueChunksWorker": {
-    "file": "app/sidekiq/exports/sales/create_and_enqueue_chunks_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "exports"
+    file: "app/sidekiq/exports/sales/create_and_enqueue_chunks_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "exports",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
   "Exports::Sales::ProcessChunkWorker": {
-    "file": "app/sidekiq/exports/sales/process_chunk_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "exports",
-      "lock": "until_executed"
+    file: "app/sidekiq/exports/sales/process_chunk_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "exports",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "FailAbandonedPurchaseWorker": {
-    "file": "app/sidekiq/fail_abandoned_purchase_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  FailAbandonedPurchaseWorker: {
+    file: "app/sidekiq/fail_abandoned_purchase_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "FightDisputeJob": {
-    "file": "app/sidekiq/fight_dispute_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
+  FightDisputeJob: {
+    file: "app/sidekiq/fight_dispute_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "FightDisputesJob": {
-    "file": "app/sidekiq/fight_disputes_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 3300
+  FightDisputesJob: {
+    file: "app/sidekiq/fight_disputes_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 3300,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1200,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1200,
+    runtime: "node",
   },
-  "FinalizeBuyerPresentmentChargeJob": {
-    "file": "app/sidekiq/finalize_buyer_presentment_charge_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "until_executed"
+  FinalizeBuyerPresentmentChargeJob: {
+    file: "app/sidekiq/finalize_buyer_presentment_charge_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "FinalizeBuyerPresentmentPurchaseJob": {
-    "file": "app/sidekiq/finalize_buyer_presentment_purchase_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "until_executed"
+  FinalizeBuyerPresentmentPurchaseJob: {
+    file: "app/sidekiq/finalize_buyer_presentment_purchase_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "FindExpiredSubscriptionsToSetAsDeactivatedWorker": {
-    "file": "app/sidekiq/find_expired_subscriptions_to_set_as_deactivated_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default"
+  FindExpiredSubscriptionsToSetAsDeactivatedWorker: {
+    file: "app/sidekiq/find_expired_subscriptions_to_set_as_deactivated_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "FindSubscriptionsWithMissingChargeWorker": {
-    "file": "app/sidekiq/find_subscriptions_with_missing_charge_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+  FindSubscriptionsWithMissingChargeWorker: {
+    file: "app/sidekiq/find_subscriptions_with_missing_charge_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "FlushDeliveredEmailInfosJob": {
-    "file": "app/sidekiq/flush_delivered_email_infos_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 900
+  FlushDeliveredEmailInfosJob: {
+    file: "app/sidekiq/flush_delivered_email_infos_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 900,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 600,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 600,
+    runtime: "node",
   },
-  "FlushInstallmentDeliveredDeltasJob": {
-    "file": "app/sidekiq/flush_installment_delivered_deltas_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 900
+  FlushInstallmentDeliveredDeltasJob: {
+    file: "app/sidekiq/flush_installment_delivered_deltas_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 900,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 600,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 600,
+    runtime: "node",
   },
-  "ForceFinishLongRunningCommunityChatRecapRunsJob": {
-    "file": "app/sidekiq/force_finish_long_running_community_chat_recap_runs_job.rb",
-    "sidekiqJob": true,
-    "options": {},
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+  ForceFinishLongRunningCommunityChatRecapRunsJob: {
+    file: "app/sidekiq/force_finish_long_running_community_chat_recap_runs_job.rb",
+    sidekiqJob: true,
+    options: {},
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "FreeTrialExpiringReminderWorker": {
-    "file": "app/sidekiq/free_trial_expiring_reminder_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "while_executing",
-      "lock_timeout": 2,
-      "unique_across_queues": true,
-      "on_conflict": {
-        "server": "raise"
-      }
+  FreeTrialExpiringReminderWorker: {
+    file: "app/sidekiq/free_trial_expiring_reminder_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "while_executing",
+      lock_timeout: 2,
+      unique_across_queues: true,
+      on_conflict: {
+        server: "raise",
+      },
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "GenerateAvatarVariantJob": {
-    "file": "app/sidekiq/generate_avatar_variant_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executing"
+  GenerateAvatarVariantJob: {
+    file: "app/sidekiq/generate_avatar_variant_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executing",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "GenerateCanadaSalesReportJob": {
-    "file": "app/sidekiq/generate_canada_sales_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log"
+  GenerateCanadaSalesReportJob: {
+    file: "app/sidekiq/generate_canada_sales_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
   },
-  "GenerateCommunityChatRecapJob": {
-    "file": "app/sidekiq/generate_community_chat_recap_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 1,
-      "lock": "until_executed"
+  GenerateCommunityChatRecapJob: {
+    file: "app/sidekiq/generate_community_chat_recap_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 1,
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "GenerateFeesByCreatorLocationReportJob": {
-    "file": "app/sidekiq/generate_fees_by_creator_location_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
+  GenerateFeesByCreatorLocationReportJob: {
+    file: "app/sidekiq/generate_fees_by_creator_location_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
   },
-  "GenerateFinancialReportsForPreviousMonthJob": {
-    "file": "app/sidekiq/generate_financial_reports_for_previous_month_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 2700
+  GenerateFinancialReportsForPreviousMonthJob: {
+    file: "app/sidekiq/generate_financial_reports_for_previous_month_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 2700,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 900,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 900,
+    runtime: "node",
   },
-  "GenerateFinancialReportsForPreviousQuarterJob": {
-    "file": "app/sidekiq/generate_financial_reports_for_previous_quarter_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 2700
+  GenerateFinancialReportsForPreviousQuarterJob: {
+    file: "app/sidekiq/generate_financial_reports_for_previous_quarter_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 2700,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 900,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 900,
+    runtime: "node",
   },
-  "GenerateLargeSellersAnalyticsCacheWorker": {
-    "file": "app/sidekiq/generate_large_sellers_analytics_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 3300
+  GenerateLargeSellersAnalyticsCacheWorker: {
+    file: "app/sidekiq/generate_large_sellers_analytics_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 3300,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 2700,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 2700,
+    runtime: "node",
   },
-  "GenerateMerchantCenterFeedWorker": {
-    "file": "app/sidekiq/generate_merchant_center_feed_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
+  GenerateMerchantCenterFeedWorker: {
+    file: "app/sidekiq/generate_merchant_center_feed_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "GenerateProductFilesArchivesJob": {
-    "file": "app/sidekiq/generate_product_files_archives_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executing",
-      "on_conflict": "log",
-      "lock_ttl": 3600
+  GenerateProductFilesArchivesJob: {
+    file: "app/sidekiq/generate_product_files_archives_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executing",
+      on_conflict: "log",
+      lock_ttl: 3600,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "GenerateSalesReportJob": {
-    "file": "app/sidekiq/generate_sales_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log"
+  GenerateSalesReportJob: {
+    file: "app/sidekiq/generate_sales_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
   },
-  "GenerateSslCertificate": {
-    "file": "app/sidekiq/generate_ssl_certificate.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  GenerateSslCertificate: {
+    file: "app/sidekiq/generate_ssl_certificate.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
   },
-  "GenerateSubscribePreviewJob": {
-    "file": "app/sidekiq/generate_subscribe_preview_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
+  GenerateSubscribePreviewJob: {
+    file: "app/sidekiq/generate_subscribe_preview_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "GenerateUsernameJob": {
-    "file": "app/sidekiq/generate_username_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  GenerateUsernameJob: {
+    file: "app/sidekiq/generate_username_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "GenerateVideoPosterWorker": {
-    "file": "app/sidekiq/generate_video_poster_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed"
+  GenerateVideoPosterWorker: {
+    file: "app/sidekiq/generate_video_poster_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "GoogleCalendarInviteJob": {
-    "file": "app/sidekiq/google_calendar_invite_job.rb",
-    "sidekiqJob": true,
-    "options": {},
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+  GoogleCalendarInviteJob: {
+    file: "app/sidekiq/google_calendar_invite_job.rb",
+    sidekiqJob: true,
+    options: {},
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleGrmcCallbackJob": {
-    "file": "app/sidekiq/handle_grmc_callback_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "default"
+  HandleGrmcCallbackJob: {
+    file: "app/sidekiq/handle_grmc_callback_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleNewBankAccountWorker": {
-    "file": "app/sidekiq/handle_new_bank_account_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default"
+  HandleNewBankAccountWorker: {
+    file: "app/sidekiq/handle_new_bank_account_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "HandleNewUserComplianceInfoWorker": {
-    "file": "app/sidekiq/handle_new_user_compliance_info_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  HandleNewUserComplianceInfoWorker: {
+    file: "app/sidekiq/handle_new_user_compliance_info_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandlePayoutReversedWorker": {
-    "file": "app/sidekiq/handle_payout_reversed_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  HandlePayoutReversedWorker: {
+    file: "app/sidekiq/handle_payout_reversed_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandlePaypalEventWorker": {
-    "file": "app/sidekiq/handle_paypal_event_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  HandlePaypalEventWorker: {
+    file: "app/sidekiq/handle_paypal_event_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "HandleResendEventJob": {
-    "file": "app/sidekiq/handle_resend_event_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  HandleResendEventJob: {
+    file: "app/sidekiq/handle_resend_event_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleSendgridEventJob": {
-    "file": "app/sidekiq/handle_sendgrid_event_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  HandleSendgridEventJob: {
+    file: "app/sidekiq/handle_sendgrid_event_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleSnsAwsConfigEventWorker": {
-    "file": "app/sidekiq/handle_sns_aws_config_event_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  HandleSnsAwsConfigEventWorker: {
+    file: "app/sidekiq/handle_sns_aws_config_event_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleSnsMediaconvertEventWorker": {
-    "file": "app/sidekiq/handle_sns_mediaconvert_event_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  HandleSnsMediaconvertEventWorker: {
+    file: "app/sidekiq/handle_sns_mediaconvert_event_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleStripeAutodebitForNegativeBalance": {
-    "file": "app/sidekiq/handle_stripe_autodebit_for_negative_balance.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  HandleStripeAutodebitForNegativeBalance: {
+    file: "app/sidekiq/handle_stripe_autodebit_for_negative_balance.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "HandleStripeEventWorker": {
-    "file": "app/sidekiq/handle_stripe_event_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default"
+  HandleStripeEventWorker: {
+    file: "app/sidekiq/handle_stripe_event_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "InternalNotificationWorker": {
-    "file": "app/sidekiq/internal_notification_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 9,
-      "queue": "default"
+  InternalNotificationWorker: {
+    file: "app/sidekiq/internal_notification_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 9,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "InvalidateProductCacheWorker": {
-    "file": "app/sidekiq/invalidate_product_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
+  InvalidateProductCacheWorker: {
+    file: "app/sidekiq/invalidate_product_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "LargeSellersUpdateUserBalanceStatsCacheWorker": {
-    "file": "app/sidekiq/large_sellers_update_user_balance_stats_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
+  LargeSellersUpdateUserBalanceStatsCacheWorker: {
+    file: "app/sidekiq/large_sellers_update_user_balance_stats_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "LiftPlatformStripePauseJob": {
-    "file": "app/sidekiq/lift_platform_stripe_pause_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "default",
-      "retry": 3,
-      "lock": "until_executed"
+  LiftPlatformStripePauseJob: {
+    file: "app/sidekiq/lift_platform_stripe_pause_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "default",
+      retry: 3,
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": true,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: true,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "LogResendEventJob": {
-    "file": "app/sidekiq/log_resend_event_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+  LogResendEventJob: {
+    file: "app/sidekiq/log_resend_event_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "LogSendgridEventWorker": {
-    "file": "app/sidekiq/log_sendgrid_event_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+  LogSendgridEventWorker: {
+    file: "app/sidekiq/log_sendgrid_event_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "LowBalanceFraudCheckWorker": {
-    "file": "app/sidekiq/low_balance_fraud_check_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "default"
+  LowBalanceFraudCheckWorker: {
+    file: "app/sidekiq/low_balance_fraud_check_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "MassRefundForFraudJob": {
-    "file": "app/sidekiq/mass_refund_for_fraud_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed"
+  MassRefundForFraudJob: {
+    file: "app/sidekiq/mass_refund_for_fraud_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
   "Mcp::DeleteExpiredEventSubscriptionsJob": {
-    "file": "app/sidekiq/mcp/delete_expired_event_subscriptions_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+    file: "app/sidekiq/mcp/delete_expired_event_subscriptions_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
   "Mcp::DeliverEventJob": {
-    "file": "app/sidekiq/mcp/deliver_event_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+    file: "app/sidekiq/mcp/deliver_event_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "MillionDollarMilestoneCheckWorker": {
-    "file": "app/sidekiq/million_dollar_milestone_check_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  MillionDollarMilestoneCheckWorker: {
+    file: "app/sidekiq/million_dollar_milestone_check_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ModerateProductsJob": {
-    "file": "app/sidekiq/moderate_products_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3
+  ModerateProductsJob: {
+    file: "app/sidekiq/moderate_products_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "NotifyFailedRefundExceptionJob": {
-    "file": "app/sidekiq/notify_failed_refund_exception_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default",
-      "lock": "until_executed"
+  NotifyFailedRefundExceptionJob: {
+    file: "app/sidekiq/notify_failed_refund_exception_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "OrderReviewReminderJob": {
-    "file": "app/sidekiq/order_review_reminder_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  OrderReviewReminderJob: {
+    file: "app/sidekiq/order_review_reminder_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "PartnerMigrationImportJob": {
-    "file": "app/sidekiq/partner_migration_import_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "partner_import",
-      "retry": 5,
-      "lock": "until_executed",
-      "unique_across_queues": true
+  PartnerMigrationImportJob: {
+    file: "app/sidekiq/partner_migration_import_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "partner_import",
+      retry: 5,
+      lock: "until_executed",
+      unique_across_queues: true,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
   },
-  "PartnerMigrationNotificationJob": {
-    "file": "app/sidekiq/partner_migration_notification_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "default",
-      "retry": 5
+  PartnerMigrationNotificationJob: {
+    file: "app/sidekiq/partner_migration_notification_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "default",
+      retry: 5,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "PayoutUsersWorker": {
-    "file": "app/sidekiq/payout_users_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default",
-      "lock": "until_executed"
+  PayoutUsersWorker: {
+    file: "app/sidekiq/payout_users_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "PdfUnstampableNotifierJob": {
-    "file": "app/sidekiq/pdf_unstampable_notifier_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "default",
-      "retry": 5
+  PdfUnstampableNotifierJob: {
+    file: "app/sidekiq/pdf_unstampable_notifier_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "default",
+      retry: 5,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "PdfUnstampableNotifierWorker": {
-    "file": "app/sidekiq/pdf_unstampable_notifier_worker.rb",
-    "aliasOf": "PdfUnstampableNotifierJob",
-    "sidekiqJob": true,
-    "options": {},
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+  PdfUnstampableNotifierWorker: {
+    file: "app/sidekiq/pdf_unstampable_notifier_worker.rb",
+    aliasOf: "PdfUnstampableNotifierJob",
+    sidekiqJob: true,
+    options: {},
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "PerformDailyInstantPayoutsWorker": {
-    "file": "app/sidekiq/perform_daily_instant_payouts_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "critical",
-      "lock": "until_executed",
-      "lock_ttl": 32400
+  PerformDailyInstantPayoutsWorker: {
+    file: "app/sidekiq/perform_daily_instant_payouts_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "critical",
+      lock: "until_executed",
+      lock_ttl: 32400,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 10800,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 10800,
+    runtime: "ruby",
   },
-  "PerformPayoutsForUserSliceWorker": {
-    "file": "app/sidekiq/perform_payouts_for_user_slice_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default"
+  PerformPayoutsForUserSliceWorker: {
+    file: "app/sidekiq/perform_payouts_for_user_slice_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "PerformPayoutsUpToDelayDaysAgoWorker": {
-    "file": "app/sidekiq/perform_payouts_up_to_delay_days_ago_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "critical",
-      "lock": "until_executed",
-      "lock_ttl": 10800
+  PerformPayoutsUpToDelayDaysAgoWorker: {
+    file: "app/sidekiq/perform_payouts_up_to_delay_days_ago_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "critical",
+      lock: "until_executed",
+      lock_ttl: 10800,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
   },
-  "PostToIndividualPingEndpointWorker": {
-    "file": "app/sidekiq/post_to_individual_ping_endpoint_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "critical"
+  PostToIndividualPingEndpointWorker: {
+    file: "app/sidekiq/post_to_individual_ping_endpoint_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "critical",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "PostToPingEndpointsWorker": {
-    "file": "app/sidekiq/post_to_ping_endpoints_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 20,
-      "queue": "critical"
+  PostToPingEndpointsWorker: {
+    file: "app/sidekiq/post_to_ping_endpoints_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 20,
+      queue: "critical",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "ProcessAssetPreviewRetinaWorker": {
-    "file": "app/sidekiq/process_asset_preview_retina_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed"
+  ProcessAssetPreviewRetinaWorker: {
+    file: "app/sidekiq/process_asset_preview_retina_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ProcessEarlyFraudWarningJob": {
-    "file": "app/sidekiq/process_early_fraud_warning_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
+  ProcessEarlyFraudWarningJob: {
+    file: "app/sidekiq/process_early_fraud_warning_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ProcessPaymentWorker": {
-    "file": "app/sidekiq/process_payment_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
+  ProcessPaymentWorker: {
+    file: "app/sidekiq/process_payment_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ProcessPurchaseEarlyFraudWarningJob": {
-    "file": "app/sidekiq/process_purchase_early_fraud_warning_job.rb",
-    "aliasOf": "ProcessEarlyFraudWarningJob",
-    "sidekiqJob": true,
-    "options": {},
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+  ProcessPurchaseEarlyFraudWarningJob: {
+    file: "app/sidekiq/process_purchase_early_fraud_warning_job.rb",
+    aliasOf: "ProcessEarlyFraudWarningJob",
+    sidekiqJob: true,
+    options: {},
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "ProductBuildUnpackJob": {
-    "file": "app/sidekiq/product_build_unpack_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed"
+  ProductBuildUnpackJob: {
+    file: "app/sidekiq/product_build_unpack_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "PublishScheduledPostJob": {
-    "file": "app/sidekiq/publish_scheduled_post_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  PublishScheduledPostJob: {
+    file: "app/sidekiq/publish_scheduled_post_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "PublishScheduledProductJob": {
-    "file": "app/sidekiq/publish_scheduled_product_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": false,
-      "queue": "default"
+  PublishScheduledProductJob: {
+    file: "app/sidekiq/publish_scheduled_product_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: false,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
   "PurchaseRefundRequests::EscalateOverdueJob": {
-    "file": "app/sidekiq/purchase_refund_requests/escalate_overdue_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 1800
+    file: "app/sidekiq/purchase_refund_requests/escalate_overdue_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 1800,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 600,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 600,
+    runtime: "ruby",
   },
-  "PurgeOldDeletedAssetPreviewsWorker": {
-    "file": "app/sidekiq/purge_old_deleted_asset_previews_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
+  PurgeOldDeletedAssetPreviewsWorker: {
+    file: "app/sidekiq/purge_old_deleted_asset_previews_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "PushNotificationWorker": {
-    "file": "app/sidekiq/push_notification_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "critical"
+  PushNotificationWorker: {
+    file: "app/sidekiq/push_notification_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "critical",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
   "Radar::AddValueListItemJob": {
-    "file": "app/sidekiq/radar/add_value_list_item_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "default",
-      "retry": 5,
-      "lock": "until_executed"
+    file: "app/sidekiq/radar/add_value_list_item_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "default",
+      retry: 5,
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
   "Radar::RemoveValueListItemJob": {
-    "file": "app/sidekiq/radar/remove_value_list_item_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "default",
-      "retry": 5,
-      "lock": "until_executed"
+    file: "app/sidekiq/radar/remove_value_list_item_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "default",
+      retry: 5,
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
   "Radar::SyncValueListsJob": {
-    "file": "app/sidekiq/radar/sync_value_lists_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3
+    file: "app/sidekiq/radar/sync_value_lists_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RebuildGmailAbuseFilterJob": {
-    "file": "app/sidekiq/rebuild_gmail_abuse_filter_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low"
+  RebuildGmailAbuseFilterJob: {
+    file: "app/sidekiq/rebuild_gmail_abuse_filter_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RecalculateRecentWishlistFollowerCountJob": {
-    "file": "app/sidekiq/recalculate_recent_wishlist_follower_count_job.rb",
-    "sidekiqJob": true,
-    "options": {},
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+  RecalculateRecentWishlistFollowerCountJob: {
+    file: "app/sidekiq/recalculate_recent_wishlist_follower_count_job.rb",
+    sidekiqJob: true,
+    options: {},
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ReconcileClientConfirmedChargeJob": {
-    "file": "app/sidekiq/reconcile_client_confirmed_charge_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
+  ReconcileClientConfirmedChargeJob: {
+    file: "app/sidekiq/reconcile_client_confirmed_charge_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "ReconcilePendingPaypalRefundsJob": {
-    "file": "app/sidekiq/reconcile_pending_paypal_refunds_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 3300
+  ReconcilePendingPaypalRefundsJob: {
+    file: "app/sidekiq/reconcile_pending_paypal_refunds_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 3300,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 2700,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 2700,
+    runtime: "node",
   },
-  "ReconcileStripePayoutsPauseForSellerJob": {
-    "file": "app/sidekiq/reconcile_stripe_payouts_pause_for_seller_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 2
+  ReconcileStripePayoutsPauseForSellerJob: {
+    file: "app/sidekiq/reconcile_stripe_payouts_pause_for_seller_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 2,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "ReconcileStripePayoutsPausesJob": {
-    "file": "app/sidekiq/reconcile_stripe_payouts_pauses_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 2,
-      "lock_ttl": 5400
+  ReconcileStripePayoutsPausesJob: {
+    file: "app/sidekiq/reconcile_stripe_payouts_pauses_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 2,
+      lock_ttl: 5400,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "ruby",
   },
-  "RecordOrderChargeOutcomeJob": {
-    "file": "app/sidekiq/record_order_charge_outcome_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  RecordOrderChargeOutcomeJob: {
+    file: "app/sidekiq/record_order_charge_outcome_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RecordProductFileMissingFromStorageJob": {
-    "file": "app/sidekiq/record_product_file_missing_from_storage_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed"
+  RecordProductFileMissingFromStorageJob: {
+    file: "app/sidekiq/record_product_file_missing_from_storage_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RecordSocialScoreShadowEvaluationsJob": {
-    "file": "app/sidekiq/record_social_score_shadow_evaluations_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 2,
-      "lock_ttl": 5400
+  RecordSocialScoreShadowEvaluationsJob: {
+    file: "app/sidekiq/record_social_score_shadow_evaluations_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 2,
+      lock_ttl: 5400,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "node",
   },
-  "RecordUtmLinkVisitJob": {
-    "file": "app/sidekiq/record_utm_link_visit_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "default",
-      "retry": 3
+  RecordUtmLinkVisitJob: {
+    file: "app/sidekiq/record_utm_link_visit_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "default",
+      retry: 3,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "RecoverAusBacktaxFromStripeAccountJob": {
-    "file": "app/sidekiq/recover_aus_backtax_from_stripe_account_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  RecoverAusBacktaxFromStripeAccountJob: {
+    file: "app/sidekiq/recover_aus_backtax_from_stripe_account_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RecoverAusBacktaxesFromStripeAccountsJob": {
-    "file": "app/sidekiq/recover_aus_backtaxes_from_stripe_accounts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  RecoverAusBacktaxesFromStripeAccountsJob: {
+    file: "app/sidekiq/recover_aus_backtaxes_from_stripe_accounts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RecoverPendingRefundFeeRetentionJob": {
-    "file": "app/sidekiq/recover_pending_refund_fee_retention_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 3300
+  RecoverPendingRefundFeeRetentionJob: {
+    file: "app/sidekiq/recover_pending_refund_fee_retention_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 3300,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 2700,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 2700,
+    runtime: "node",
   },
-  "RecoverStrandedBuyersJob": {
-    "file": "app/sidekiq/recover_stranded_buyers_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 4500
+  RecoverStrandedBuyersJob: {
+    file: "app/sidekiq/recover_stranded_buyers_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 4500,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1500,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1500,
+    runtime: "node",
   },
-  "RecurringChargeReminderWorker": {
-    "file": "app/sidekiq/recurring_charge_reminder_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default",
-      "lock": "while_executing",
-      "lock_timeout": 2,
-      "unique_across_queues": true,
-      "on_conflict": {
-        "server": "raise"
-      }
+  RecurringChargeReminderWorker: {
+    file: "app/sidekiq/recurring_charge_reminder_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+      lock: "while_executing",
+      lock_timeout: 2,
+      unique_across_queues: true,
+      on_conflict: {
+        server: "raise",
+      },
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RecurringChargeWorker": {
-    "file": "app/sidekiq/recurring_charge_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
+  RecurringChargeWorker: {
+    file: "app/sidekiq/recurring_charge_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "RefreshAffiliateEarningsJob": {
-    "file": "app/sidekiq/refresh_affiliate_earnings_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed"
+  RefreshAffiliateEarningsJob: {
+    file: "app/sidekiq/refresh_affiliate_earnings_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "RefreshAudienceMemberJob": {
-    "file": "app/sidekiq/refresh_audience_member_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executing"
+  RefreshAudienceMemberJob: {
+    file: "app/sidekiq/refresh_audience_member_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executing",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshClosedTierDiscoverPricesJob": {
-    "file": "app/sidekiq/refresh_closed_tier_discover_prices_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
+  RefreshClosedTierDiscoverPricesJob: {
+    file: "app/sidekiq/refresh_closed_tier_discover_prices_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshCustomDomainRoutabilityWorker": {
-    "file": "app/sidekiq/refresh_custom_domain_routability_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
+  RefreshCustomDomainRoutabilityWorker: {
+    file: "app/sidekiq/refresh_custom_domain_routability_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshHighVolumeSellerFeeEligibilityJob": {
-    "file": "app/sidekiq/refresh_high_volume_seller_fee_eligibility_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
+  RefreshHighVolumeSellerFeeEligibilityJob: {
+    file: "app/sidekiq/refresh_high_volume_seller_fee_eligibility_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshMerchantAccountPaymentMethodAvailabilityWorker": {
-    "file": "app/sidekiq/refresh_merchant_account_payment_method_availability_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
+  RefreshMerchantAccountPaymentMethodAvailabilityWorker: {
+    file: "app/sidekiq/refresh_merchant_account_payment_method_availability_worker.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshMerchantAccountProductsRecommendationEligibilityJob": {
-    "file": "app/sidekiq/refresh_merchant_account_products_recommendation_eligibility_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executing",
-      "lock_ttl": 21600,
-      "on_conflict": {
-        "client": "log"
-      }
+  RefreshMerchantAccountProductsRecommendationEligibilityJob: {
+    file: "app/sidekiq/refresh_merchant_account_products_recommendation_eligibility_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executing",
+      lock_ttl: 21600,
+      on_conflict: {
+        client: "log",
+      },
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshSitemapDailyWorker": {
-    "file": "app/sidekiq/refresh_sitemap_daily_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
+  RefreshSitemapDailyWorker: {
+    file: "app/sidekiq/refresh_sitemap_daily_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshSitemapMonthlyWorker": {
-    "file": "app/sidekiq/refresh_sitemap_monthly_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+  RefreshSitemapMonthlyWorker: {
+    file: "app/sidekiq/refresh_sitemap_monthly_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshUserProductsRecommendationEligibilityJob": {
-    "file": "app/sidekiq/refresh_user_products_recommendation_eligibility_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "while_executing",
-      "lock_timeout": 0,
-      "lock_ttl": 21600,
-      "schedule_in": 60,
-      "on_conflict": {
-        "server": "reschedule"
-      }
+  RefreshUserProductsRecommendationEligibilityJob: {
+    file: "app/sidekiq/refresh_user_products_recommendation_eligibility_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "while_executing",
+      lock_timeout: 0,
+      lock_ttl: 21600,
+      schedule_in: 60,
+      on_conflict: {
+        server: "reschedule",
+      },
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefreshWishlistSitemapDailyWorker": {
-    "file": "app/sidekiq/refresh_wishlist_sitemap_daily_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
+  RefreshWishlistSitemapDailyWorker: {
+    file: "app/sidekiq/refresh_wishlist_sitemap_daily_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefundAllForFraudWorker": {
-    "file": "app/sidekiq/refund_all_for_fraud_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed"
+  RefundAllForFraudWorker: {
+    file: "app/sidekiq/refund_all_for_fraud_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefundPurchaseForFraudWorker": {
-    "file": "app/sidekiq/refund_purchase_for_fraud_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  RefundPurchaseForFraudWorker: {
+    file: "app/sidekiq/refund_purchase_for_fraud_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "RefundPurchaseWorker": {
-    "file": "app/sidekiq/refund_purchase_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  RefundPurchaseWorker: {
+    file: "app/sidekiq/refund_purchase_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RefundUnpaidPurchasesWorker": {
-    "file": "app/sidekiq/refund_unpaid_purchases_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed"
+  RefundUnpaidPurchasesWorker: {
+    file: "app/sidekiq/refund_unpaid_purchases_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
     },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RegenerateCreatorAnalyticsCacheWorker": {
-    "file": "app/sidekiq/regenerate_creator_analytics_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed"
+  RegenerateCreatorAnalyticsCacheWorker: {
+    file: "app/sidekiq/regenerate_creator_analytics_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RegenerateSalesRelatedProductsInfosJob": {
-    "file": "app/sidekiq/regenerate_sales_related_products_infos_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  RegenerateSalesRelatedProductsInfosJob: {
+    file: "app/sidekiq/regenerate_sales_related_products_infos_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ReindexRecommendableProductsWorker": {
-    "file": "app/sidekiq/reindex_recommendable_products_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default"
+  ReindexRecommendableProductsWorker: {
+    file: "app/sidekiq/reindex_recommendable_products_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ReindexSellerOfferCodesJob": {
-    "file": "app/sidekiq/reindex_seller_offer_codes_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 10,
-      "lock": "until_executing"
+  ReindexSellerOfferCodesJob: {
+    file: "app/sidekiq/reindex_seller_offer_codes_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 10,
+      lock: "until_executing",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "ReindexSellerOfferCodesRecoveryJob": {
-    "file": "app/sidekiq/reindex_seller_offer_codes_recovery_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 10
+  ReindexSellerOfferCodesRecoveryJob: {
+    file: "app/sidekiq/reindex_seller_offer_codes_recovery_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 10,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
   },
-  "ReindexSubscriptionCurrentEmailWorker": {
-    "file": "app/sidekiq/reindex_subscription_current_email_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  ReindexSubscriptionCurrentEmailWorker: {
+    file: "app/sidekiq/reindex_subscription_current_email_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ReindexUserElasticsearchDataWorker": {
-    "file": "app/sidekiq/reindex_user_elasticsearch_data_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed"
+  ReindexUserElasticsearchDataWorker: {
+    file: "app/sidekiq/reindex_user_elasticsearch_data_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ReissueSslCertificateForUpdatedCustomDomains": {
-    "file": "app/sidekiq/reissue_ssl_certificate_for_updated_custom_domains.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+  ReissueSslCertificateForUpdatedCustomDomains: {
+    file: "app/sidekiq/reissue_ssl_certificate_for_updated_custom_domains.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
-  "ReleaseChargebackRatePayoutPauseForSellerJob": {
-    "file": "app/sidekiq/release_chargeback_rate_payout_pause_for_seller_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 2
+  ReleaseChargebackRatePayoutPauseForSellerJob: {
+    file: "app/sidekiq/release_chargeback_rate_payout_pause_for_seller_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 2,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "ReleaseChargebackRatePayoutPausesJob": {
-    "file": "app/sidekiq/release_chargeback_rate_payout_pauses_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 2,
-      "lock_ttl": 5400
+  ReleaseChargebackRatePayoutPausesJob: {
+    file: "app/sidekiq/release_chargeback_rate_payout_pauses_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 2,
+      lock_ttl: 5400,
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "node",
   },
-  "RemoveDeletedFilesFromS3Job": {
-    "file": "app/sidekiq/remove_deleted_files_from_s3_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
+  RemoveDeletedFilesFromS3Job: {
+    file: "app/sidekiq/remove_deleted_files_from_s3_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RemoveSuspendedAccountFollowsWorker": {
-    "file": "app/sidekiq/remove_suspended_account_follows_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
+  RemoveSuspendedAccountFollowsWorker: {
+    file: "app/sidekiq/remove_suspended_account_follows_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RenameProductFileWorker": {
-    "file": "app/sidekiq/rename_product_file_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
+  RenameProductFileWorker: {
+    file: "app/sidekiq/rename_product_file_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RenewCustomDomainSslCertificates": {
-    "file": "app/sidekiq/renew_custom_domain_ssl_certificates.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "low"
+  RenewCustomDomainSslCertificates: {
+    file: "app/sidekiq/renew_custom_domain_ssl_certificates.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
   },
-  "RepairOrderChargeOutcomesJob": {
-    "file": "app/sidekiq/repair_order_charge_outcomes_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
+  RepairOrderChargeOutcomesJob: {
+    file: "app/sidekiq/repair_order_charge_outcomes_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
     },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
   },
   "Reports::GenerateYtdSalesReportJob": {
-    "file": "app/sidekiq/reports/generate_ytd_sales_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "RequeueTransientlyFailedPayoutsJob": {
-    "file": "app/sidekiq/requeue_transiently_failed_payouts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "ResendConfirmationEmailJob": {
-    "file": "app/sidekiq/resend_confirmation_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ResizeOversizedAssetPreviewWorker": {
-    "file": "app/sidekiq/resize_oversized_asset_preview_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ResumeStalledPartnerMigrationsJob": {
-    "file": "app/sidekiq/resume_stalled_partner_migrations_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "RetryFailedPaypalPayoutsWorker": {
-    "file": "app/sidekiq/retry_failed_paypal_payouts_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "critical",
-      "lock": "until_executed",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 7200,
-    "runtime": "node"
-  },
-  "RetryPendingMandateChargeJob": {
-    "file": "app/sidekiq/retry_pending_mandate_charge_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executing"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "RetryStripeJpAddressResyncForSellerJob": {
-    "file": "app/sidekiq/retry_stripe_jp_address_resync_for_seller_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "RetryStripeJpAddressResyncsJob": {
-    "file": "app/sidekiq/retry_stripe_jp_address_resyncs_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 3900
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "RetryStripeRejectedPayoutSetupForSellerJob": {
-    "file": "app/sidekiq/retry_stripe_rejected_payout_setup_for_seller_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "RetryStripeRejectedPayoutSetupsJob": {
-    "file": "app/sidekiq/retry_stripe_rejected_payout_setups_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "ReverseDeferredInternalTransferJob": {
-    "file": "app/sidekiq/reverse_deferred_internal_transfer_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executing"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
-  },
-  "ReviewReminderJob": {
-    "file": "app/sidekiq/review_reminder_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ScheduleAbandonedCartEmailsJob": {
-    "file": "app/sidekiq/schedule_abandoned_cart_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 5,
-      "lock": "until_executed",
-      "lock_ttl": 32400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 10800,
-    "runtime": "ruby"
-  },
-  "ScheduleAffiliateWorkflowJobsJob": {
-    "file": "app/sidekiq/schedule_affiliate_workflow_jobs_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ScheduleMembershipPriceUpdatesJob": {
-    "file": "app/sidekiq/schedule_membership_price_updates_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ScheduleOpenedNoClickWorkflowEmailsJob": {
-    "file": "app/sidekiq/schedule_opened_no_click_workflow_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "ScheduleWorkflowEmailsWorker": {
-    "file": "app/sidekiq/schedule_workflow_emails_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "ScheduleWorkflowInstallmentJob": {
-    "file": "app/sidekiq/schedule_workflow_installment_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SellerUpdateWorker": {
-    "file": "app/sidekiq/seller_update_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SellerUpdatesWorker": {
-    "file": "app/sidekiq/seller_updates_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 64800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 21600,
-    "runtime": "node"
-  },
-  "SendAutoInvoiceEmailJob": {
-    "file": "app/sidekiq/send_auto_invoice_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendBundlesMarketingEmailJob": {
-    "file": "app/sidekiq/send_bundles_marketing_email_job.rb",
-    "sidekiqJob": false,
-    "options": {},
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendChargeReceiptJob": {
-    "file": "app/sidekiq/send_charge_receipt_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "critical",
-      "retry": 5,
-      "lock": "while_executing",
-      "lock_timeout": 2,
-      "unique_across_queues": true,
-      "on_conflict": {
-        "server": "raise"
-      }
-    },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendCommunityChatRecapNotificationsJob": {
-    "file": "app/sidekiq/send_community_chat_recap_notifications_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendDailyFinanceLedgerReportJob": {
-    "file": "app/sidekiq/send_daily_finance_ledger_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "SendDeferredRefundsReportWorker": {
-    "file": "app/sidekiq/send_deferred_refunds_report_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 7200,
-    "runtime": "node"
-  },
-  "SendFeatureAnnouncementCampaignJob": {
-    "file": "app/sidekiq/send_feature_announcement_campaign_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 5
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendFinancesReportWorker": {
-    "file": "app/sidekiq/send_finances_report_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 7200,
-    "runtime": "node"
-  },
-  "SendLastPostJob": {
-    "file": "app/sidekiq/send_last_post_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendMarketingXReconnectEmailJob": {
-    "file": "app/sidekiq/send_marketing_x_reconnect_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendMembershipsPriceUpdateEmailsJob": {
-    "file": "app/sidekiq/send_memberships_price_update_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendPaymentReminderWorker": {
-    "file": "app/sidekiq/send_payment_reminder_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendPaypalTopupNotificationJob": {
-    "file": "app/sidekiq/send_paypal_topup_notification_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 5400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "node"
-  },
-  "SendPostBlastEmailsJob": {
-    "file": "app/sidekiq/send_post_blast_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendPostBlastEmailsSliceJob": {
-    "file": "app/sidekiq/send_post_blast_emails_slice_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendPreorderSellerSummaryWorker": {
-    "file": "app/sidekiq/send_preorder_seller_summary_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendProductPublishScheduleNoticeJob": {
-    "file": "app/sidekiq/send_product_publish_schedule_notice_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendPurchaseReceiptJob": {
-    "file": "app/sidekiq/send_purchase_receipt_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "critical",
-      "retry": 5,
-      "lock": "until_executed"
-    },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendRemindersForOutstandingUserComplianceInfoRequestsWorker": {
-    "file": "app/sidekiq/send_reminders_for_outstanding_user_compliance_info_requests_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendRentalExpiresSoonEmailWorker": {
-    "file": "app/sidekiq/send_rental_expires_soon_email_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendSignedPiracyNoticesJob": {
-    "file": "app/sidekiq/send_signed_piracy_notices_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": false,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendStripeBalanceCheckNotificationJob": {
-    "file": "app/sidekiq/send_stripe_balance_check_notification_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 5400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
-  },
-  "SendStripeBalanceSummariesReportJob": {
-    "file": "app/sidekiq/send_stripe_balance_summaries_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 32400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 10800,
-    "runtime": "node"
-  },
-  "SendStripeCurrencyBalancesReportJob": {
-    "file": "app/sidekiq/send_stripe_currency_balances_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "SendToElasticsearchWorker": {
-    "file": "app/sidekiq/send_to_elasticsearch_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 10,
-      "queue": "default",
-      "lock": "until_executing",
-      "on_conflict": "mark_for_trailing_run",
-      "lock_ttl": 600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendWishlistUpdatedEmailsJob": {
-    "file": "app/sidekiq/send_wishlist_updated_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendWorkflowEmailToOpenedNonClickerJob": {
-    "file": "app/sidekiq/send_workflow_email_to_opened_non_clicker_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendWorkflowEmailsToOpenedNonClickersJob": {
-    "file": "app/sidekiq/send_workflow_emails_to_opened_non_clickers_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendWorkflowEmailsToPastCanceledMembersJob": {
-    "file": "app/sidekiq/send_workflow_emails_to_past_canceled_members_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendWorkflowInstallmentRescheduleJob": {
-    "file": "app/sidekiq/send_workflow_installment_reschedule_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendWorkflowInstallmentWorker": {
-    "file": "app/sidekiq/send_workflow_installment_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SendWorkflowPostEmailsJob": {
-    "file": "app/sidekiq/send_workflow_post_emails_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SendYearInReviewEmailJob": {
-    "file": "app/sidekiq/send_year_in_review_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SetSubscriptionAsDeactivatedWorker": {
-    "file": "app/sidekiq/set_subscription_as_deactivated_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "StaleTransientSuppressionSweepJob": {
-    "file": "app/sidekiq/stale_transient_suppression_sweep_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "StampPdfForPurchaseJob": {
-    "file": "app/sidekiq/stamp_pdf_for_purchase_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "long",
-      "retry": 5,
-      "lock": "until_executed",
-      "unique_across_queues": true
-    },
-    "customLockArgs": true,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "StripeCreateMerchantAccountsWorker": {
-    "file": "app/sidekiq/stripe_create_merchant_accounts_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "StripePayoutsPausedEmailJob": {
-    "file": "app/sidekiq/stripe_payouts_paused_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "StripeRestraintNoticeEmailJob": {
-    "file": "app/sidekiq/stripe_restraint_notice_email_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SubmitPaypalDisputeEvidenceJob": {
-    "file": "app/sidekiq/submit_paypal_dispute_evidence_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": true,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "SubmitToIndexnowJob": {
-    "file": "app/sidekiq/submit_to_indexnow_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SubtitleFileSizeWorker": {
-    "file": "app/sidekiq/subtitle_file_size_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SuspendAccountsWithPaymentAddressWorker": {
-    "file": "app/sidekiq/suspend_accounts_with_payment_address_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SuspendUsersWorker": {
-    "file": "app/sidekiq/suspend_users_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SweepClosedSellerConnectAccountsJob": {
-    "file": "app/sidekiq/sweep_closed_seller_connect_accounts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 5400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
-  },
-  "SyncGuardianToStripeJob": {
-    "file": "app/sidekiq/sync_guardian_to_stripe_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SyncStripeBusinessProfileUrlJob": {
-    "file": "app/sidekiq/sync_stripe_business_profile_url_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "while_executing",
-      "lock_timeout": 0,
-      "lock_ttl": 600,
-      "on_conflict": {
-        "server": "reschedule"
-      }
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SyncStripeBusinessProfileUrlWorker": {
-    "file": "app/sidekiq/sync_stripe_business_profile_url_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "SyncStuckPayoutsJob": {
-    "file": "app/sidekiq/sync_stuck_payouts_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 21600
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 7200,
-    "runtime": "node"
-  },
-  "SyncStuckPurchasesJob": {
-    "file": "app/sidekiq/sync_stuck_purchases_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "SyncWatchedUsersJob": {
-    "file": "app/sidekiq/sync_watched_users_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "TaxFormTransactionReportJob": {
-    "file": "app/sidekiq/tax_form_transaction_report_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "node"
-  },
-  "TranscodeVideoForStreamingWorker": {
-    "file": "app/sidekiq/transcode_video_for_streaming_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 13,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "ruby"
-  },
-  "TransferDropboxFileToS3Worker": {
-    "file": "app/sidekiq/transfer_dropbox_file_to_s3_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "long"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "TriggerCommunityChatRecapRunJob": {
-    "file": "app/sidekiq/trigger_community_chat_recap_run_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "retry": 3,
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "UnblockObjectWorker": {
-    "file": "app/sidekiq/unblock_object_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UnstickStuckInProgressPurchasesJob": {
-    "file": "app/sidekiq/unstick_stuck_in_progress_purchases_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed",
-      "lock_ttl": 10800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 3600,
-    "runtime": "node"
-  },
-  "UnsubscribeAndFailWorker": {
-    "file": "app/sidekiq/unsubscribe_and_fail_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateBundlePurchasesContentJob": {
-    "file": "app/sidekiq/update_bundle_purchases_content_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateCachedSalesRelatedProductsInfosJob": {
-    "file": "app/sidekiq/update_cached_sales_related_products_infos_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateCurrenciesWorker": {
-    "file": "app/sidekiq/update_currencies_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateInstallmentEventsCountCacheWorker": {
-    "file": "app/sidekiq/update_installment_events_count_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateIntegrationsOnTierChangeWorker": {
-    "file": "app/sidekiq/update_integrations_on_tier_change_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateLargeSellersSalesCountJob": {
-    "file": "app/sidekiq/update_large_sellers_sales_count_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdatePayoutStatusWorker": {
-    "file": "app/sidekiq/update_payout_status_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 25,
-      "queue": "default",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateProductFilesArchiveWorker": {
-    "file": "app/sidekiq/update_product_files_archive_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "runtime": "ruby"
-  },
-  "UpdatePurchaseEmailToMatchAccountWorker": {
-    "file": "app/sidekiq/update_purchase_email_to_match_account_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdatePurchaseHealthcheckThresholdJob": {
-    "file": "app/sidekiq/update_purchase_healthcheck_threshold_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 0,
-      "queue": "critical",
-      "lock": "until_executed",
-      "lock_ttl": 360
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 60,
-    "runtime": "node"
-  },
-  "UpdatePurchasingPowerParityFactorsWorker": {
-    "file": "app/sidekiq/update_purchasing_power_parity_factors_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateSalesRelatedProductsInfosJob": {
-    "file": "app/sidekiq/update_sales_related_products_infos_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateSellerRefundEligibilityJob": {
-    "file": "app/sidekiq/update_seller_refund_eligibility_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 2,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateTaxRatesJob": {
-    "file": "app/sidekiq/update_tax_rates_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateTaxonomyStatsJob": {
-    "file": "app/sidekiq/update_taxonomy_stats_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 3,
-      "queue": "low"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateUserBalanceStatsCacheWorker": {
-    "file": "app/sidekiq/update_user_balance_stats_cache_worker.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UpdateUtmLinkStatsJob": {
-    "file": "app/sidekiq/update_utm_link_stats_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 1
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "UploadUsStatesSalesTaxToTaxjarJob": {
-    "file": "app/sidekiq/upload_us_states_sales_tax_to_taxjar_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "lock_ttl": 64800
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": true,
-    "recurringLockMaxAttempt": 21600,
-    "runtime": "ruby"
-  },
-  "UtmLinkSaleAttributionJob": {
-    "file": "app/sidekiq/utm_link_sale_attribution_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "queue": "low",
-      "lock": "until_executed",
-      "retry": 3
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  },
-  "VerifyFinanceReportsDeliveryJob": {
-    "file": "app/sidekiq/verify_finance_reports_delivery_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 5,
-      "queue": "default",
-      "lock": "until_executed",
-      "on_conflict": "log",
-      "lock_ttl": 5400
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "recurringLockMaxAttempt": 1800,
-    "runtime": "ruby"
-  },
-  "WarmSellerReputationSummaryJob": {
-    "file": "app/sidekiq/warm_seller_reputation_summary_job.rb",
-    "sidekiqJob": true,
-    "options": {
-      "retry": 1,
-      "queue": "low",
-      "lock": "until_executed"
-    },
-    "customLockArgs": false,
-    "customRetryIn": false,
-    "retriesExhausted": false,
-    "runtime": "node"
-  }
+    file: "app/sidekiq/reports/generate_ytd_sales_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  RequeueTransientlyFailedPayoutsJob: {
+    file: "app/sidekiq/requeue_transiently_failed_payouts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  ResendConfirmationEmailJob: {
+    file: "app/sidekiq/resend_confirmation_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ResizeOversizedAssetPreviewWorker: {
+    file: "app/sidekiq/resize_oversized_asset_preview_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ResumeStalledPartnerMigrationsJob: {
+    file: "app/sidekiq/resume_stalled_partner_migrations_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  RetryFailedPaypalPayoutsWorker: {
+    file: "app/sidekiq/retry_failed_paypal_payouts_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "critical",
+      lock: "until_executed",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 7200,
+    runtime: "node",
+  },
+  RetryPendingMandateChargeJob: {
+    file: "app/sidekiq/retry_pending_mandate_charge_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executing",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  RetryStripeJpAddressResyncForSellerJob: {
+    file: "app/sidekiq/retry_stripe_jp_address_resync_for_seller_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  RetryStripeJpAddressResyncsJob: {
+    file: "app/sidekiq/retry_stripe_jp_address_resyncs_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 3900,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  RetryStripeRejectedPayoutSetupForSellerJob: {
+    file: "app/sidekiq/retry_stripe_rejected_payout_setup_for_seller_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  RetryStripeRejectedPayoutSetupsJob: {
+    file: "app/sidekiq/retry_stripe_rejected_payout_setups_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  ReverseDeferredInternalTransferJob: {
+    file: "app/sidekiq/reverse_deferred_internal_transfer_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executing",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
+  },
+  ReviewReminderJob: {
+    file: "app/sidekiq/review_reminder_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ScheduleAbandonedCartEmailsJob: {
+    file: "app/sidekiq/schedule_abandoned_cart_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 5,
+      lock: "until_executed",
+      lock_ttl: 32400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 10800,
+    runtime: "ruby",
+  },
+  ScheduleAffiliateWorkflowJobsJob: {
+    file: "app/sidekiq/schedule_affiliate_workflow_jobs_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ScheduleMembershipPriceUpdatesJob: {
+    file: "app/sidekiq/schedule_membership_price_updates_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ScheduleOpenedNoClickWorkflowEmailsJob: {
+    file: "app/sidekiq/schedule_opened_no_click_workflow_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  ScheduleWorkflowEmailsWorker: {
+    file: "app/sidekiq/schedule_workflow_emails_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  ScheduleWorkflowInstallmentJob: {
+    file: "app/sidekiq/schedule_workflow_installment_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SellerUpdateWorker: {
+    file: "app/sidekiq/seller_update_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SellerUpdatesWorker: {
+    file: "app/sidekiq/seller_updates_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 64800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 21600,
+    runtime: "node",
+  },
+  SendAutoInvoiceEmailJob: {
+    file: "app/sidekiq/send_auto_invoice_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendBundlesMarketingEmailJob: {
+    file: "app/sidekiq/send_bundles_marketing_email_job.rb",
+    sidekiqJob: false,
+    options: {},
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendChargeReceiptJob: {
+    file: "app/sidekiq/send_charge_receipt_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "critical",
+      retry: 5,
+      lock: "while_executing",
+      lock_timeout: 2,
+      unique_across_queues: true,
+      on_conflict: {
+        server: "raise",
+      },
+    },
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendCommunityChatRecapNotificationsJob: {
+    file: "app/sidekiq/send_community_chat_recap_notifications_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendDailyFinanceLedgerReportJob: {
+    file: "app/sidekiq/send_daily_finance_ledger_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  SendDeferredRefundsReportWorker: {
+    file: "app/sidekiq/send_deferred_refunds_report_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 7200,
+    runtime: "node",
+  },
+  SendFeatureAnnouncementCampaignJob: {
+    file: "app/sidekiq/send_feature_announcement_campaign_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 5,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendFinancesReportWorker: {
+    file: "app/sidekiq/send_finances_report_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 7200,
+    runtime: "node",
+  },
+  SendLastPostJob: {
+    file: "app/sidekiq/send_last_post_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendMarketingXReconnectEmailJob: {
+    file: "app/sidekiq/send_marketing_x_reconnect_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendMembershipsPriceUpdateEmailsJob: {
+    file: "app/sidekiq/send_memberships_price_update_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendPaymentReminderWorker: {
+    file: "app/sidekiq/send_payment_reminder_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendPaypalTopupNotificationJob: {
+    file: "app/sidekiq/send_paypal_topup_notification_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 5400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "node",
+  },
+  SendPostBlastEmailsJob: {
+    file: "app/sidekiq/send_post_blast_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendPostBlastEmailsSliceJob: {
+    file: "app/sidekiq/send_post_blast_emails_slice_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendPreorderSellerSummaryWorker: {
+    file: "app/sidekiq/send_preorder_seller_summary_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendProductPublishScheduleNoticeJob: {
+    file: "app/sidekiq/send_product_publish_schedule_notice_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendPurchaseReceiptJob: {
+    file: "app/sidekiq/send_purchase_receipt_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "critical",
+      retry: 5,
+      lock: "until_executed",
+    },
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendRemindersForOutstandingUserComplianceInfoRequestsWorker: {
+    file: "app/sidekiq/send_reminders_for_outstanding_user_compliance_info_requests_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendRentalExpiresSoonEmailWorker: {
+    file: "app/sidekiq/send_rental_expires_soon_email_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendSignedPiracyNoticesJob: {
+    file: "app/sidekiq/send_signed_piracy_notices_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: false,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendStripeBalanceCheckNotificationJob: {
+    file: "app/sidekiq/send_stripe_balance_check_notification_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 5400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "ruby",
+  },
+  SendStripeBalanceSummariesReportJob: {
+    file: "app/sidekiq/send_stripe_balance_summaries_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 32400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 10800,
+    runtime: "node",
+  },
+  SendStripeCurrencyBalancesReportJob: {
+    file: "app/sidekiq/send_stripe_currency_balances_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  SendToElasticsearchWorker: {
+    file: "app/sidekiq/send_to_elasticsearch_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 10,
+      queue: "default",
+      lock: "until_executing",
+      on_conflict: "mark_for_trailing_run",
+      lock_ttl: 600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendWishlistUpdatedEmailsJob: {
+    file: "app/sidekiq/send_wishlist_updated_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendWorkflowEmailToOpenedNonClickerJob: {
+    file: "app/sidekiq/send_workflow_email_to_opened_non_clicker_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendWorkflowEmailsToOpenedNonClickersJob: {
+    file: "app/sidekiq/send_workflow_emails_to_opened_non_clickers_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendWorkflowEmailsToPastCanceledMembersJob: {
+    file: "app/sidekiq/send_workflow_emails_to_past_canceled_members_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendWorkflowInstallmentRescheduleJob: {
+    file: "app/sidekiq/send_workflow_installment_reschedule_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendWorkflowInstallmentWorker: {
+    file: "app/sidekiq/send_workflow_installment_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SendWorkflowPostEmailsJob: {
+    file: "app/sidekiq/send_workflow_post_emails_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SendYearInReviewEmailJob: {
+    file: "app/sidekiq/send_year_in_review_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SetSubscriptionAsDeactivatedWorker: {
+    file: "app/sidekiq/set_subscription_as_deactivated_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  StaleTransientSuppressionSweepJob: {
+    file: "app/sidekiq/stale_transient_suppression_sweep_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  StampPdfForPurchaseJob: {
+    file: "app/sidekiq/stamp_pdf_for_purchase_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "long",
+      retry: 5,
+      lock: "until_executed",
+      unique_across_queues: true,
+    },
+    customLockArgs: true,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  StripeCreateMerchantAccountsWorker: {
+    file: "app/sidekiq/stripe_create_merchant_accounts_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  StripePayoutsPausedEmailJob: {
+    file: "app/sidekiq/stripe_payouts_paused_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  StripeRestraintNoticeEmailJob: {
+    file: "app/sidekiq/stripe_restraint_notice_email_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SubmitPaypalDisputeEvidenceJob: {
+    file: "app/sidekiq/submit_paypal_dispute_evidence_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: true,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  SubmitToIndexnowJob: {
+    file: "app/sidekiq/submit_to_indexnow_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SubtitleFileSizeWorker: {
+    file: "app/sidekiq/subtitle_file_size_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SuspendAccountsWithPaymentAddressWorker: {
+    file: "app/sidekiq/suspend_accounts_with_payment_address_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SuspendUsersWorker: {
+    file: "app/sidekiq/suspend_users_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SweepClosedSellerConnectAccountsJob: {
+    file: "app/sidekiq/sweep_closed_seller_connect_accounts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 5400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "ruby",
+  },
+  SyncGuardianToStripeJob: {
+    file: "app/sidekiq/sync_guardian_to_stripe_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SyncStripeBusinessProfileUrlJob: {
+    file: "app/sidekiq/sync_stripe_business_profile_url_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "while_executing",
+      lock_timeout: 0,
+      lock_ttl: 600,
+      on_conflict: {
+        server: "reschedule",
+      },
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SyncStripeBusinessProfileUrlWorker: {
+    file: "app/sidekiq/sync_stripe_business_profile_url_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  SyncStuckPayoutsJob: {
+    file: "app/sidekiq/sync_stuck_payouts_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 21600,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 7200,
+    runtime: "node",
+  },
+  SyncStuckPurchasesJob: {
+    file: "app/sidekiq/sync_stuck_purchases_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  SyncWatchedUsersJob: {
+    file: "app/sidekiq/sync_watched_users_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  TaxFormTransactionReportJob: {
+    file: "app/sidekiq/tax_form_transaction_report_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "node",
+  },
+  TranscodeVideoForStreamingWorker: {
+    file: "app/sidekiq/transcode_video_for_streaming_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 13,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "ruby",
+  },
+  TransferDropboxFileToS3Worker: {
+    file: "app/sidekiq/transfer_dropbox_file_to_s3_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "long",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  TriggerCommunityChatRecapRunJob: {
+    file: "app/sidekiq/trigger_community_chat_recap_run_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      retry: 3,
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  UnblockObjectWorker: {
+    file: "app/sidekiq/unblock_object_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UnstickStuckInProgressPurchasesJob: {
+    file: "app/sidekiq/unstick_stuck_in_progress_purchases_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+      lock_ttl: 10800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 3600,
+    runtime: "node",
+  },
+  UnsubscribeAndFailWorker: {
+    file: "app/sidekiq/unsubscribe_and_fail_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateBundlePurchasesContentJob: {
+    file: "app/sidekiq/update_bundle_purchases_content_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateCachedSalesRelatedProductsInfosJob: {
+    file: "app/sidekiq/update_cached_sales_related_products_infos_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateCurrenciesWorker: {
+    file: "app/sidekiq/update_currencies_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateInstallmentEventsCountCacheWorker: {
+    file: "app/sidekiq/update_installment_events_count_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateIntegrationsOnTierChangeWorker: {
+    file: "app/sidekiq/update_integrations_on_tier_change_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateLargeSellersSalesCountJob: {
+    file: "app/sidekiq/update_large_sellers_sales_count_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdatePayoutStatusWorker: {
+    file: "app/sidekiq/update_payout_status_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 25,
+      queue: "default",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateProductFilesArchiveWorker: {
+    file: "app/sidekiq/update_product_files_archive_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    runtime: "ruby",
+  },
+  UpdatePurchaseEmailToMatchAccountWorker: {
+    file: "app/sidekiq/update_purchase_email_to_match_account_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdatePurchaseHealthcheckThresholdJob: {
+    file: "app/sidekiq/update_purchase_healthcheck_threshold_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 0,
+      queue: "critical",
+      lock: "until_executed",
+      lock_ttl: 360,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 60,
+    runtime: "node",
+  },
+  UpdatePurchasingPowerParityFactorsWorker: {
+    file: "app/sidekiq/update_purchasing_power_parity_factors_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateSalesRelatedProductsInfosJob: {
+    file: "app/sidekiq/update_sales_related_products_infos_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateSellerRefundEligibilityJob: {
+    file: "app/sidekiq/update_seller_refund_eligibility_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 2,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateTaxRatesJob: {
+    file: "app/sidekiq/update_tax_rates_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateTaxonomyStatsJob: {
+    file: "app/sidekiq/update_taxonomy_stats_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 3,
+      queue: "low",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateUserBalanceStatsCacheWorker: {
+    file: "app/sidekiq/update_user_balance_stats_cache_worker.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UpdateUtmLinkStatsJob: {
+    file: "app/sidekiq/update_utm_link_stats_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 1,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  UploadUsStatesSalesTaxToTaxjarJob: {
+    file: "app/sidekiq/upload_us_states_sales_tax_to_taxjar_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      lock_ttl: 64800,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: true,
+    recurringLockMaxAttempt: 21600,
+    runtime: "ruby",
+  },
+  UtmLinkSaleAttributionJob: {
+    file: "app/sidekiq/utm_link_sale_attribution_job.rb",
+    sidekiqJob: true,
+    options: {
+      queue: "low",
+      lock: "until_executed",
+      retry: 3,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
+  VerifyFinanceReportsDeliveryJob: {
+    file: "app/sidekiq/verify_finance_reports_delivery_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 5,
+      queue: "default",
+      lock: "until_executed",
+      on_conflict: "log",
+      lock_ttl: 5400,
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    recurringLockMaxAttempt: 1800,
+    runtime: "ruby",
+  },
+  WarmSellerReputationSummaryJob: {
+    file: "app/sidekiq/warm_seller_reputation_summary_job.rb",
+    sidekiqJob: true,
+    options: {
+      retry: 1,
+      queue: "low",
+      lock: "until_executed",
+    },
+    customLockArgs: false,
+    customRetryIn: false,
+    retriesExhausted: false,
+    runtime: "node",
+  },
 } as const satisfies Record<string, JobDefinition>;
 
 export type JobClass = keyof typeof JOB_REGISTRY;
 
-export const SIDEKIQ_QUEUES = ["critical","default","exports","long","low","partner_import"] as const;
+export const SIDEKIQ_QUEUES = ["critical", "default", "exports", "long", "low", "partner_import"] as const;
 
 export const CRON_SCHEDULE: readonly CronDefinition[] = [
   {
-    "name": "recover_pending_refund_fee_retention",
-    "cron": "0 * * * *",
-    "class": "RecoverPendingRefundFeeRetentionJob",
-    "description": "Retries fee collection without issuing another customer refund"
+    name: "recover_pending_refund_fee_retention",
+    cron: "0 * * * *",
+    class: "RecoverPendingRefundFeeRetentionJob",
+    description: "Retries fee collection without issuing another customer refund",
   },
   {
-    "name": "dispatch_pending_partner_migration_notifications",
-    "cron": "*/10 * * * *",
-    "class": "DispatchPendingPartnerMigrationNotificationsJob",
-    "description": "Re-enqueues finished partner imports whose result email is still pending"
+    name: "dispatch_pending_partner_migration_notifications",
+    cron: "*/10 * * * *",
+    class: "DispatchPendingPartnerMigrationNotificationsJob",
+    description: "Re-enqueues finished partner imports whose result email is still pending",
   },
   {
-    "name": "escalate_overdue_purchase_refund_requests",
-    "cron": "0 * * * *",
-    "class": "PurchaseRefundRequests::EscalateOverdueJob",
-    "description": "Hands buyer refund requests still unrefunded past their deadline to support"
+    name: "escalate_overdue_purchase_refund_requests",
+    cron: "0 * * * *",
+    class: "PurchaseRefundRequests::EscalateOverdueJob",
+    description: "Hands buyer refund requests still unrefunded past their deadline to support",
   },
   {
-    "name": "resume_stalled_partner_migrations",
-    "cron": "*/30 * * * *",
-    "class": "ResumeStalledPartnerMigrationsJob",
-    "description": "Re-enqueues partner imports whose job stopped without finishing"
+    name: "resume_stalled_partner_migrations",
+    cron: "*/30 * * * *",
+    class: "ResumeStalledPartnerMigrationsJob",
+    description: "Re-enqueues partner imports whose job stopped without finishing",
   },
   {
-    "name": "dispatch_pending_workflow_installment_schedule_intents",
-    "cron": "* * * * *",
-    "class": "DispatchPendingWorkflowInstallmentScheduleIntentsJob",
-    "description": "Re-enqueues durable workflow schedule intents whose fast-path push was lost"
+    name: "dispatch_pending_workflow_installment_schedule_intents",
+    cron: "* * * * *",
+    class: "DispatchPendingWorkflowInstallmentScheduleIntentsJob",
+    description: "Re-enqueues durable workflow schedule intents whose fast-path push was lost",
   },
   {
-    "name": "schedule_pending_affiliate_workflows",
-    "cron": "* * * * *",
-    "class": "ScheduleAffiliateWorkflowJobsJob",
-    "description": "Re-enqueues affiliate workflow schedules whose fast-path push was lost"
+    name: "schedule_pending_affiliate_workflows",
+    cron: "* * * * *",
+    class: "ScheduleAffiliateWorkflowJobsJob",
+    description: "Re-enqueues affiliate workflow schedules whose fast-path push was lost",
   },
   {
-    "name": "find_expired_subscriptions_to_set_as_deactivated_worker",
-    "cron": "* * * * *",
-    "class": "FindExpiredSubscriptionsToSetAsDeactivatedWorker"
+    name: "find_expired_subscriptions_to_set_as_deactivated_worker",
+    cron: "* * * * *",
+    class: "FindExpiredSubscriptionsToSetAsDeactivatedWorker",
   },
   {
-    "name": "dispatch_pending_failed_refund_exceptions",
-    "cron": "* * * * *",
-    "class": "DispatchPendingFailedRefundExceptionsJob",
-    "description": "Re-enqueues notifications for durable failed-refund exception records"
+    name: "dispatch_pending_failed_refund_exceptions",
+    cron: "* * * * *",
+    class: "DispatchPendingFailedRefundExceptionsJob",
+    description: "Re-enqueues notifications for durable failed-refund exception records",
   },
   {
-    "name": "update_purchase_healthcheck_threshold",
-    "cron": "* * * * *",
-    "class": "UpdatePurchaseHealthcheckThresholdJob",
-    "description": "Recomputes the /healthcheck/purchases threshold from the prior 7 days' purchase rate"
+    name: "update_purchase_healthcheck_threshold",
+    cron: "* * * * *",
+    class: "UpdatePurchaseHealthcheckThresholdJob",
+    description: "Recomputes the /healthcheck/purchases threshold from the prior 7 days' purchase rate",
   },
   {
-    "name": "reconcile_pending_paypal_refunds",
-    "cron": "45 * * * *",
-    "class": "ReconcilePendingPaypalRefundsJob",
-    "queue": "low",
-    "description": "Re-reads PayPal refunds we recorded as PENDING; terminal failures go to the failed-refund exception queue"
+    name: "reconcile_pending_paypal_refunds",
+    cron: "45 * * * *",
+    class: "ReconcilePendingPaypalRefundsJob",
+    queue: "low",
+    description:
+      "Re-reads PayPal refunds we recorded as PENDING; terminal failures go to the failed-refund exception queue",
   },
   {
-    "name": "flush_delivered_email_infos",
-    "cron": "* * * * *",
-    "class": "FlushDeliveredEmailInfosJob",
-    "description": "Applies Redis-buffered email_infos delivered marks from Resend/SendGrid callbacks when the fast-path enqueue was lost"
+    name: "flush_delivered_email_infos",
+    cron: "* * * * *",
+    class: "FlushDeliveredEmailInfosJob",
+    description:
+      "Applies Redis-buffered email_infos delivered marks from Resend/SendGrid callbacks when the fast-path enqueue was lost",
   },
   {
-    "name": "flush_installment_delivered_deltas",
-    "cron": "* * * * *",
-    "class": "FlushInstallmentDeliveredDeltasJob",
-    "description": "Flushes Redis-buffered installment customer_count increments from blast sends and email callbacks"
+    name: "flush_installment_delivered_deltas",
+    cron: "* * * * *",
+    class: "FlushInstallmentDeliveredDeltasJob",
+    description: "Flushes Redis-buffered installment customer_count increments from blast sends and email callbacks",
   },
   {
-    "name": "repair_order_charge_outcomes",
-    "cron": "20 * * * *",
-    "class": "RepairOrderChargeOutcomesJob",
-    "description": "Re-derives Order#partially_successful for recent orders whose after-commit enqueue was lost"
+    name: "repair_order_charge_outcomes",
+    cron: "20 * * * *",
+    class: "RepairOrderChargeOutcomesJob",
+    description: "Re-derives Order#partially_successful for recent orders whose after-commit enqueue was lost",
   },
   {
-    "name": "renew_custom_domain_ssl_certificates",
-    "cron": "0 * * * *",
-    "class": "RenewCustomDomainSslCertificates"
+    name: "renew_custom_domain_ssl_certificates",
+    cron: "0 * * * *",
+    class: "RenewCustomDomainSslCertificates",
   },
   {
-    "name": "generate_large_sellers_analytics_cache_worker",
-    "cron": "0 * * * *",
-    "class": "GenerateLargeSellersAnalyticsCacheWorker"
+    name: "generate_large_sellers_analytics_cache_worker",
+    cron: "0 * * * *",
+    class: "GenerateLargeSellersAnalyticsCacheWorker",
   },
   {
-    "name": "find_subscriptions_with_missing_charge_worker",
-    "cron": "0 */6 * * *",
-    "class": "FindSubscriptionsWithMissingChargeWorker"
+    name: "find_subscriptions_with_missing_charge_worker",
+    cron: "0 */6 * * *",
+    class: "FindSubscriptionsWithMissingChargeWorker",
   },
   {
-    "name": "verify_custom_domains",
-    "cron": "0 */6 * * *",
-    "class": "CustomDomainsVerificationWorker"
+    name: "verify_custom_domains",
+    cron: "0 */6 * * *",
+    class: "CustomDomainsVerificationWorker",
   },
   {
-    "name": "update_currencies",
-    "cron": "0 * * * *",
-    "class": "UpdateCurrenciesWorker"
+    name: "update_currencies",
+    cron: "0 * * * *",
+    class: "UpdateCurrenciesWorker",
   },
   {
-    "name": "fight_purchase_chargebacks_worker",
-    "cron": "0 * * * *",
-    "class": "FightDisputesJob",
-    "description": "Enqueues jobs to fight disputes for purchases"
+    name: "fight_purchase_chargebacks_worker",
+    cron: "0 * * * *",
+    class: "FightDisputesJob",
+    description: "Enqueues jobs to fight disputes for purchases",
   },
   {
-    "name": "create_missing_dispute_evidence",
-    "cron": "20 */6 * * *",
-    "class": "CreateMissingDisputeEvidenceJob",
-    "description": "Backstop for open disputes that ended up with no evidence record, so none reaches its deadline unanswered"
+    name: "create_missing_dispute_evidence",
+    cron: "20 */6 * * *",
+    class: "CreateMissingDisputeEvidenceJob",
+    description:
+      "Backstop for open disputes that ended up with no evidence record, so none reaches its deadline unanswered",
   },
   {
-    "name": "sync_stuck_purchases",
-    "cron": "0 */6 * * *",
-    "class": "SyncStuckPurchasesJob"
+    name: "sync_stuck_purchases",
+    cron: "0 */6 * * *",
+    class: "SyncStuckPurchasesJob",
   },
   {
-    "name": "forcefully_finish_long_running_community_chat_recap_runs",
-    "cron": "0 */2 * * *",
-    "class": "ForceFinishLongRunningCommunityChatRecapRunsJob",
-    "description": "Forcefully finishes long running community chat recap runs"
+    name: "forcefully_finish_long_running_community_chat_recap_runs",
+    cron: "0 */2 * * *",
+    class: "ForceFinishLongRunningCommunityChatRecapRunsJob",
+    description: "Forcefully finishes long running community chat recap runs",
   },
   {
-    "name": "delete_expired_oauth_device_authorizations",
-    "cron": "15 * * * *",
-    "class": "DeleteExpiredOauthDeviceAuthorizationsJob",
-    "description": "Deletes expired OAuth device authorizations"
+    name: "delete_expired_oauth_device_authorizations",
+    cron: "15 * * * *",
+    class: "DeleteExpiredOauthDeviceAuthorizationsJob",
+    description: "Deletes expired OAuth device authorizations",
   },
   {
-    "name": "delete_processed_workflow_installment_schedule_intents",
-    "cron": "15 3 * * *",
-    "class": "DeleteProcessedWorkflowInstallmentScheduleIntentsJob",
-    "description": "Deletes processed workflow schedule intents after the Sidekiq retry window"
+    name: "delete_processed_workflow_installment_schedule_intents",
+    cron: "15 3 * * *",
+    class: "DeleteProcessedWorkflowInstallmentScheduleIntentsJob",
+    description: "Deletes processed workflow schedule intents after the Sidekiq retry window",
   },
   {
-    "name": "sync_radar_value_lists",
-    "cron": "0 3 * * *",
-    "class": "Radar::SyncValueListsJob",
-    "description": "Syncs blocked emails and card fingerprints to Stripe Radar value lists"
+    name: "sync_radar_value_lists",
+    cron: "0 3 * * *",
+    class: "Radar::SyncValueListsJob",
+    description: "Syncs blocked emails and card fingerprints to Stripe Radar value lists",
   },
   {
-    "name": "unstick_stuck_in_progress_purchases",
-    "cron": "30 4 * * *",
-    "class": "UnstickStuckInProgressPurchasesJob",
-    "description": "Recovers purchases left in_progress past SyncStuckPurchasesJob's 3-day window, and alerts on any it cannot heal"
+    name: "unstick_stuck_in_progress_purchases",
+    cron: "30 4 * * *",
+    class: "UnstickStuckInProgressPurchasesJob",
+    description:
+      "Recovers purchases left in_progress past SyncStuckPurchasesJob's 3-day window, and alerts on any it cannot heal",
   },
   {
-    "name": "perform_daily_instant_payouts_worker",
-    "cron": "0 8 * * *",
-    "class": "PerformDailyInstantPayoutsWorker",
-    "description": "Creates daily instant payouts for balances up to yesterday"
+    name: "perform_daily_instant_payouts_worker",
+    cron: "0 8 * * *",
+    class: "PerformDailyInstantPayoutsWorker",
+    description: "Creates daily instant payouts for balances up to yesterday",
   },
   {
-    "name": "execute_scheduled_payouts_job",
-    "cron": "0 9 * * *",
-    "class": "ExecuteScheduledPayoutsJob",
-    "description": "Executes due scheduled payouts for suspended users"
+    name: "execute_scheduled_payouts_job",
+    cron: "0 9 * * *",
+    class: "ExecuteScheduledPayoutsJob",
+    description: "Executes due scheduled payouts for suspended users",
   },
   {
-    "name": "detect_failing_paypal_rails",
-    "cron": "45 5 * * *",
-    "class": "DetectFailingPaypalRailsJob",
-    "queue": "low",
-    "description": "Notes connected PayPal accounts with repeated payee-side failures and no captured purchases on that account for staff review"
+    name: "detect_failing_paypal_rails",
+    cron: "45 5 * * *",
+    class: "DetectFailingPaypalRailsJob",
+    queue: "low",
+    description:
+      "Notes connected PayPal accounts with repeated payee-side failures and no captured purchases on that account for staff review",
   },
   {
-    "name": "sync_watched_users",
-    "cron": "0 9 * * *",
-    "class": "SyncWatchedUsersJob",
-    "description": "Refreshes revenue and unpaid balance snapshots for users in the risk watchlist"
+    name: "sync_watched_users",
+    cron: "0 9 * * *",
+    class: "SyncWatchedUsersJob",
+    description: "Refreshes revenue and unpaid balance snapshots for users in the risk watchlist",
   },
   {
-    "name": "large_sellers_update_user_balance_stats_cache_worker",
-    "cron": "0 10 * * *",
-    "class": "LargeSellersUpdateUserBalanceStatsCacheWorker"
+    name: "large_sellers_update_user_balance_stats_cache_worker",
+    cron: "0 10 * * *",
+    class: "LargeSellersUpdateUserBalanceStatsCacheWorker",
   },
   {
-    "name": "update_large_sellers_sales_count",
-    "cron": "0 6 * * *",
-    "class": "UpdateLargeSellersSalesCountJob",
-    "description": "Updates sales_count for existing LargeSeller records"
+    name: "update_large_sellers_sales_count",
+    cron: "0 6 * * *",
+    class: "UpdateLargeSellersSalesCountJob",
+    description: "Updates sales_count for existing LargeSeller records",
   },
   {
-    "name": "delete_unused_public_files",
-    "cron": "0 9 * * *",
-    "class": "DeleteUnusedPublicFilesJob",
-    "description": "Deletes unused public files that are scheduled for deletion"
+    name: "delete_unused_public_files",
+    cron: "0 9 * * *",
+    class: "DeleteUnusedPublicFilesJob",
+    description: "Deletes unused public files that are scheduled for deletion",
   },
   {
-    "name": "remove_deleted_files_from_s3",
-    "cron": "0 10 * * *",
-    "class": "RemoveDeletedFilesFromS3Job",
-    "description": "Removes deleted files from S3"
+    name: "remove_deleted_files_from_s3",
+    cron: "0 10 * * *",
+    class: "RemoveDeletedFilesFromS3Job",
+    description: "Removes deleted files from S3",
   },
   {
-    "name": "generate_daily_community_chat_recaps",
-    "cron": "0 10 * * *",
-    "class": "TriggerCommunityChatRecapRunJob",
-    "args": [
-      "daily"
-    ],
-    "description": "Generates daily community chat recaps"
+    name: "generate_daily_community_chat_recaps",
+    cron: "0 10 * * *",
+    class: "TriggerCommunityChatRecapRunJob",
+    args: ["daily"],
+    description: "Generates daily community chat recaps",
   },
   {
-    "name": "send_reminders_for_outstanding_user_compliance_info_requests",
-    "cron": "0 2 * * *",
-    "class": "SendRemindersForOutstandingUserComplianceInfoRequestsWorker",
-    "description": "Sends reminder emails for outstanding user compliance info requests."
+    name: "send_reminders_for_outstanding_user_compliance_info_requests",
+    cron: "0 2 * * *",
+    class: "SendRemindersForOutstandingUserComplianceInfoRequestsWorker",
+    description: "Sends reminder emails for outstanding user compliance info requests.",
   },
   {
-    "name": "retry_stripe_rejected_payout_setups",
-    "cron": "0 7 * * 1",
-    "class": "RetryStripeRejectedPayoutSetupsJob",
-    "queue": "low",
-    "description": "Weekly re-attempt of Stripe payout setup for sellers with rejected postal codes / bank accounts"
+    name: "retry_stripe_rejected_payout_setups",
+    cron: "0 7 * * 1",
+    class: "RetryStripeRejectedPayoutSetupsJob",
+    queue: "low",
+    description: "Weekly re-attempt of Stripe payout setup for sellers with rejected postal codes / bank accounts",
   },
   {
-    "name": "release_chargeback_rate_payout_pauses",
-    "cron": "30 7 * * *",
-    "class": "ReleaseChargebackRatePayoutPausesJob",
-    "queue": "low",
-    "description": "Lifts automatic chargeback-rate payout holds for sellers whose rate is back under the limit"
+    name: "release_chargeback_rate_payout_pauses",
+    cron: "30 7 * * *",
+    class: "ReleaseChargebackRatePayoutPausesJob",
+    queue: "low",
+    description: "Lifts automatic chargeback-rate payout holds for sellers whose rate is back under the limit",
   },
   {
-    "name": "reconcile_stripe_payouts_pauses",
-    "cron": "15 7 * * *",
-    "class": "ReconcileStripePayoutsPausesJob",
-    "queue": "low",
-    "description": "Resumes Stripe-sourced payout pauses whose account.updated resume was never delivered"
+    name: "reconcile_stripe_payouts_pauses",
+    cron: "15 7 * * *",
+    class: "ReconcileStripePayoutsPausesJob",
+    queue: "low",
+    description: "Resumes Stripe-sourced payout pauses whose account.updated resume was never delivered",
   },
   {
-    "name": "record_social_score_shadow_evaluations",
-    "cron": "0 9 * * *",
-    "class": "RecordSocialScoreShadowEvaluationsJob",
-    "queue": "low",
-    "description": "Shadow-mode only — logs whether verified social signals WOULD have released each held payout (gumroad-private#2371); never releases anything"
+    name: "record_social_score_shadow_evaluations",
+    cron: "0 9 * * *",
+    class: "RecordSocialScoreShadowEvaluationsJob",
+    queue: "low",
+    description:
+      "Shadow-mode only — logs whether verified social signals WOULD have released each held payout (gumroad-private#2371); never releases anything",
   },
   {
-    "name": "expire_rental_purchases",
-    "cron": "0 12 * * *",
-    "class": "ExpireRentalPurchasesWorker",
-    "description": "update rental purchases that have expired in the last one day"
+    name: "expire_rental_purchases",
+    cron: "0 12 * * *",
+    class: "ExpireRentalPurchasesWorker",
+    description: "update rental purchases that have expired in the last one day",
   },
   {
-    "name": "delete_old_versions_records_worker",
-    "cron": "30 9 * * *",
-    "class": "DeleteOldVersionsRecordsWorker",
-    "description": "Deletes old records from the versions table"
+    name: "delete_old_versions_records_worker",
+    cron: "30 9 * * *",
+    class: "DeleteOldVersionsRecordsWorker",
+    description: "Deletes old records from the versions table",
   },
   {
-    "name": "delete_old_unused_events_worker",
-    "cron": "40 9 * * *",
-    "class": "DeleteOldUnusedEventsWorker",
-    "description": "Deletes old unused events"
+    name: "delete_old_unused_events_worker",
+    cron: "40 9 * * *",
+    class: "DeleteOldUnusedEventsWorker",
+    description: "Deletes old unused events",
   },
   {
-    "name": "sitemap_refresh_daily",
-    "cron": "0 0 * * *",
-    "class": "RefreshSitemapDailyWorker",
-    "description": "Refresh Sitemap everyday"
+    name: "sitemap_refresh_daily",
+    cron: "0 0 * * *",
+    class: "RefreshSitemapDailyWorker",
+    description: "Refresh Sitemap everyday",
   },
   {
-    "name": "wishlist_sitemap_refresh_daily",
-    "cron": "30 0 * * *",
-    "class": "RefreshWishlistSitemapDailyWorker",
-    "description": "Refresh the sitemap of SEO-indexable public wishlists"
+    name: "wishlist_sitemap_refresh_daily",
+    cron: "30 0 * * *",
+    class: "RefreshWishlistSitemapDailyWorker",
+    description: "Refresh the sitemap of SEO-indexable public wishlists",
   },
   {
-    "name": "generate_merchant_center_feed",
-    "cron": "30 1 * * *",
-    "class": "GenerateMerchantCenterFeedWorker",
-    "description": "Regenerates the Google Merchant Center product feed"
+    name: "generate_merchant_center_feed",
+    cron: "30 1 * * *",
+    class: "GenerateMerchantCenterFeedWorker",
+    description: "Regenerates the Google Merchant Center product feed",
   },
   {
-    "name": "create_missing_purchase_events_worker",
-    "cron": "5 10 * * *",
-    "class": "CreateMissingPurchaseEventsWorker",
-    "description": "Creates yesterday's missing purchase events"
+    name: "create_missing_purchase_events_worker",
+    cron: "5 10 * * *",
+    class: "CreateMissingPurchaseEventsWorker",
+    description: "Creates yesterday's missing purchase events",
   },
   {
-    "name": "stale_transient_suppression_sweep",
-    "cron": "30 4 * * *",
-    "class": "StaleTransientSuppressionSweepJob",
-    "queue": "low",
-    "description": "Clears stale TRANSIENT SendGrid bounce/block suppressions for users active since the failure (bounded, logged; never touches spam reports or unsubscribes)"
+    name: "stale_transient_suppression_sweep",
+    cron: "30 4 * * *",
+    class: "StaleTransientSuppressionSweepJob",
+    queue: "low",
+    description:
+      "Clears stale TRANSIENT SendGrid bounce/block suppressions for users active since the failure (bounded, logged; never touches spam reports or unsubscribes)",
   },
   {
-    "name": "refresh_high_volume_seller_fee_eligibility",
-    "cron": "45 4 * * *",
-    "class": "RefreshHighVolumeSellerFeeEligibilityJob",
-    "queue": "low",
-    "description": "Recomputes the cached month-to-date GMV flag for the 5%-after-$20k seller fee"
+    name: "refresh_high_volume_seller_fee_eligibility",
+    cron: "45 4 * * *",
+    class: "RefreshHighVolumeSellerFeeEligibilityJob",
+    queue: "low",
+    description: "Recomputes the cached month-to-date GMV flag for the 5%-after-$20k seller fee",
   },
   {
-    "name": "purge_old_deleted_asset_previews",
-    "cron": "30 10 * * *",
-    "class": "PurgeOldDeletedAssetPreviewsWorker",
-    "description": "Removes old asset previews that have been marked as deleted"
+    name: "purge_old_deleted_asset_previews",
+    cron: "30 10 * * *",
+    class: "PurgeOldDeletedAssetPreviewsWorker",
+    description: "Removes old asset previews that have been marked as deleted",
   },
   {
-    "name": "reissue_ssl_certificate_for_updated_custom_domains",
-    "cron": "0 0 * * *",
-    "class": "ReissueSslCertificateForUpdatedCustomDomains",
-    "description": "Check and reissue SSL certificate for custom domains with updated DNS records"
+    name: "reissue_ssl_certificate_for_updated_custom_domains",
+    cron: "0 0 * * *",
+    class: "ReissueSslCertificateForUpdatedCustomDomains",
+    description: "Check and reissue SSL certificate for custom domains with updated DNS records",
   },
   {
-    "name": "update_tax_rates",
-    "cron": "0 0 * * *",
-    "class": "UpdateTaxRatesJob"
+    name: "update_tax_rates",
+    cron: "0 0 * * *",
+    class: "UpdateTaxRatesJob",
   },
   {
-    "name": "compile_gumroad_daily_analytics",
-    "cron": "10 8 * * *",
-    "class": "CompileGumroadDailyAnalyticsJob",
-    "description": "Compiles and caches internal analytics"
+    name: "compile_gumroad_daily_analytics",
+    cron: "10 8 * * *",
+    class: "CompileGumroadDailyAnalyticsJob",
+    description: "Compiles and caches internal analytics",
   },
   {
-    "name": "update_taxonomy_stats",
-    "cron": "30 8 * * *",
-    "class": "UpdateTaxonomyStatsJob",
-    "description": "Fetches and stores taxonomy stats"
+    name: "update_taxonomy_stats",
+    cron: "30 8 * * *",
+    class: "UpdateTaxonomyStatsJob",
+    description: "Fetches and stores taxonomy stats",
   },
   {
-    "name": "schedule_abandoned_cart_emails",
-    "cron": "0 14 * * *",
-    "class": "ScheduleAbandonedCartEmailsJob",
-    "description": "Schedules abandoned cart emails for users who have not completed their purchase"
+    name: "schedule_abandoned_cart_emails",
+    cron: "0 14 * * *",
+    class: "ScheduleAbandonedCartEmailsJob",
+    description: "Schedules abandoned cart emails for users who have not completed their purchase",
   },
   {
-    "name": "schedule_opened_no_click_workflow_emails",
-    "cron": "0 15 * * *",
-    "class": "ScheduleOpenedNoClickWorkflowEmailsJob",
-    "queue": "low",
-    "description": "Queues workflow emails whose trigger waits on a recipient opening another email"
+    name: "schedule_opened_no_click_workflow_emails",
+    cron: "0 15 * * *",
+    class: "ScheduleOpenedNoClickWorkflowEmailsJob",
+    queue: "low",
+    description: "Queues workflow emails whose trigger waits on a recipient opening another email",
   },
   {
-    "name": "alert_on_stalled_abandoned_cart_emails",
-    "cron": "0 17 * * *",
-    "class": "AlertOnStalledAbandonedCartEmailsJob",
-    "queue": "low",
-    "description": "Reports when no abandoned cart email has been sent in over a day"
+    name: "alert_on_stalled_abandoned_cart_emails",
+    cron: "0 17 * * *",
+    class: "AlertOnStalledAbandonedCartEmailsJob",
+    queue: "low",
+    description: "Reports when no abandoned cart email has been sent in over a day",
   },
   {
-    "name": "alert_on_zero_buyer_currency_wallet_purchases",
-    "cron": "5 * * * *",
-    "class": "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
-    "queue": "low",
-    "description": "Reports when buyer-currency wallet purchases stay at zero while the flag is enabled"
+    name: "alert_on_zero_buyer_currency_wallet_purchases",
+    cron: "5 * * * *",
+    class: "AlertOnZeroBuyerCurrencyWalletPurchasesJob",
+    queue: "low",
+    description: "Reports when buyer-currency wallet purchases stay at zero while the flag is enabled",
   },
   {
-    "name": "memberships_price_update_emails",
-    "cron": "10 8 * * *",
-    "class": "SendMembershipsPriceUpdateEmailsJob",
-    "description": "Notify customers via email that their membership price has been updated"
+    name: "memberships_price_update_emails",
+    cron: "10 8 * * *",
+    class: "SendMembershipsPriceUpdateEmailsJob",
+    description: "Notify customers via email that their membership price has been updated",
   },
   {
-    "name": "expire_stamped_pdfs",
-    "cron": "45 8 * * *",
-    "class": "ExpireStampedPdfsJob",
-    "description": "Marks old stamped pdfs as deleted"
+    name: "expire_stamped_pdfs",
+    cron: "45 8 * * *",
+    class: "ExpireStampedPdfsJob",
+    description: "Marks old stamped pdfs as deleted",
   },
   {
-    "name": "expire_transcoded_videos",
-    "cron": "50 8 * * *",
-    "class": "ExpireTranscodedVideosJob",
-    "description": "Marks old (in term of access) transcoded videos as deleted"
+    name: "expire_transcoded_videos",
+    cron: "50 8 * * *",
+    class: "ExpireTranscodedVideosJob",
+    description: "Marks old (in term of access) transcoded videos as deleted",
   },
   {
-    "name": "alert_on_blocked_established_subscribers",
-    "cron": "0 11 * * *",
-    "class": "AlertOnBlockedEstablishedSubscribersJob",
-    "queue": "low",
-    "description": "Reports subscribers with long renewal histories whose renewals are failing on a platform block"
+    name: "alert_on_blocked_established_subscribers",
+    cron: "0 11 * * *",
+    class: "AlertOnBlockedEstablishedSubscribersJob",
+    queue: "low",
+    description: "Reports subscribers with long renewal histories whose renewals are failing on a platform block",
   },
   {
-    "name": "alert_on_blocked_established_buyers",
-    "cron": "10 11 * * *",
-    "class": "AlertOnBlockedEstablishedBuyersJob",
-    "queue": "low",
-    "description": "Reports buyers with settled payment history whose checkouts are failing on a platform block"
+    name: "alert_on_blocked_established_buyers",
+    cron: "10 11 * * *",
+    class: "AlertOnBlockedEstablishedBuyersJob",
+    queue: "low",
+    description: "Reports buyers with settled payment history whose checkouts are failing on a platform block",
   },
   {
-    "name": "recover_stranded_buyers",
-    "cron": "40 11 * * *",
-    "class": "RecoverStrandedBuyersJob",
-    "queue": "low",
-    "description": "Runs StrandedBuyerRecoveryService over the scan's candidates (dry-run unless auto_recover_stranded_buyers is active)"
+    name: "recover_stranded_buyers",
+    cron: "40 11 * * *",
+    class: "RecoverStrandedBuyersJob",
+    queue: "low",
+    description:
+      "Runs StrandedBuyerRecoveryService over the scan's candidates (dry-run unless auto_recover_stranded_buyers is active)",
   },
   {
-    "name": "alert_on_stale_blocks_holding_established_buyers",
-    "cron": "0 12 * * 1",
-    "class": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
-    "queue": "low",
-    "description": "Reports active platform blocks holding buyers with settled history who have stopped trying to check out"
+    name: "alert_on_stale_blocks_holding_established_buyers",
+    cron: "0 12 * * 1",
+    class: "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+    queue: "low",
+    description:
+      "Reports active platform blocks holding buyers with settled history who have stopped trying to check out",
   },
   {
-    "name": "alert_on_negative_destination_balances",
-    "cron": "20 11 * * *",
-    "class": "AlertOnNegativeDestinationBalancesJob",
-    "queue": "low",
-    "description": "Reports payable sellers whose Gumroad-managed Stripe account carries a negative destination ledger from FX residue"
+    name: "alert_on_negative_destination_balances",
+    cron: "20 11 * * *",
+    class: "AlertOnNegativeDestinationBalancesJob",
+    queue: "low",
+    description:
+      "Reports payable sellers whose Gumroad-managed Stripe account carries a negative destination ledger from FX residue",
   },
   {
-    "name": "auto_topup_negative_destination_balances",
-    "cron": "30 11 * * *",
-    "class": "AutoTopUpNegativeDestinationBalancesJob",
-    "queue": "low",
-    "description": "Dry-run (flag-gated) top-up of the Stripe-side gap for negative destination balances; zeroing the internal ledger row stays a human decision"
+    name: "auto_topup_negative_destination_balances",
+    cron: "30 11 * * *",
+    class: "AutoTopUpNegativeDestinationBalancesJob",
+    queue: "low",
+    description:
+      "Dry-run (flag-gated) top-up of the Stripe-side gap for negative destination balances; zeroing the internal ledger row stays a human decision",
   },
   {
-    "name": "alert_on_stalled_post_email_blasts",
-    "cron": "40 5,11,17,23 * * *",
-    "class": "AlertOnStalledPostEmailBlastsJob",
-    "queue": "low",
-    "description": "Reports email blasts that started sending hours ago and never completed and, behind a flag, auto-resumes the safe ones (gumroad-private#2106)"
+    name: "alert_on_stalled_post_email_blasts",
+    cron: "40 5,11,17,23 * * *",
+    class: "AlertOnStalledPostEmailBlastsJob",
+    queue: "low",
+    description:
+      "Reports email blasts that started sending hours ago and never completed and, behind a flag, auto-resumes the safe ones (gumroad-private#2106)",
   },
   {
-    "name": "sweep_closed_seller_connect_accounts",
-    "cron": "15 13 * * *",
-    "class": "SweepClosedSellerConnectAccountsJob",
-    "queue": "low",
-    "description": "Reports, and behind a flag deletes, live Gumroad-managed custom Connect accounts of closed sellers once every guard passes (gumroad-private#4250)"
+    name: "sweep_closed_seller_connect_accounts",
+    cron: "15 13 * * *",
+    class: "SweepClosedSellerConnectAccountsJob",
+    queue: "low",
+    description:
+      "Reports, and behind a flag deletes, live Gumroad-managed custom Connect accounts of closed sellers once every guard passes (gumroad-private#4250)",
   },
   {
-    "name": "alert_on_stripe_dob_drift",
-    "cron": "30 12 * * 1",
-    "class": "AlertOnStripeDobDriftJob",
-    "queue": "low",
-    "description": "Reports sellers whose date of birth on Stripe disagrees with the one the under-18 payout gate reads"
+    name: "alert_on_stripe_dob_drift",
+    cron: "30 12 * * 1",
+    class: "AlertOnStripeDobDriftJob",
+    queue: "low",
+    description: "Reports sellers whose date of birth on Stripe disagrees with the one the under-18 payout gate reads",
   },
   {
-    "name": "alert_sellers_of_undelivered_receipts",
-    "cron": "30 11 * * *",
-    "class": "AlertSellersOfUndeliveredReceiptsJob",
-    "queue": "low",
-    "description": "Tells sellers about buyers whose receipt has no evidence of being delivered"
+    name: "alert_sellers_of_undelivered_receipts",
+    cron: "30 11 * * *",
+    class: "AlertSellersOfUndeliveredReceiptsJob",
+    queue: "low",
+    description: "Tells sellers about buyers whose receipt has no evidence of being delivered",
   },
   {
-    "name": "alert_on_stuck_piracy_reports",
-    "cron": "45 11 * * *",
-    "class": "AlertOnStuckPiracyReportsJob",
-    "queue": "low",
-    "description": "Reports piracy reports that wait for a person, either in screening or after a notice did not reach the host"
+    name: "alert_on_stuck_piracy_reports",
+    cron: "45 11 * * *",
+    class: "AlertOnStuckPiracyReportsJob",
+    queue: "low",
+    description:
+      "Reports piracy reports that wait for a person, either in screening or after a notice did not reach the host",
   },
   {
-    "name": "send_signed_piracy_notices",
-    "cron": "*/15 * * * *",
-    "class": "SendSignedPiracyNoticesJob",
-    "queue": "low",
-    "description": "Sends signed piracy takedown notices while the piracy_reports_sending flag is on"
+    name: "send_signed_piracy_notices",
+    cron: "*/15 * * * *",
+    class: "SendSignedPiracyNoticesJob",
+    queue: "low",
+    description: "Sends signed piracy takedown notices while the piracy_reports_sending flag is on",
   },
   {
-    "name": "payouts_cross_border_stripe",
-    "cron": "0 10 * * 2",
-    "class": "PerformPayoutsUpToDelayDaysAgoWorker",
-    "args": [
+    name: "payouts_cross_border_stripe",
+    cron: "0 10 * * 2",
+    class: "PerformPayoutsUpToDelayDaysAgoWorker",
+    args: [
       "STRIPE",
       [
         "AlbaniaBankAccount",
@@ -4571,15 +4583,15 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
         "TurkeyBankAccount",
         "UruguayBankAccount",
         "UzbekistanBankAccount",
-        "VietnamBankAccount"
-      ]
-    ]
+        "VietnamBankAccount",
+      ],
+    ],
   },
   {
-    "name": "payouts_non_us_stripe",
-    "cron": "0 10 * * 3",
-    "class": "PerformPayoutsUpToDelayDaysAgoWorker",
-    "args": [
+    name: "payouts_non_us_stripe",
+    cron: "0 10 * * 3",
+    class: "PerformPayoutsUpToDelayDaysAgoWorker",
+    args: [
       "STRIPE",
       [
         "AustralianBankAccount",
@@ -4598,282 +4610,266 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
         "SwedenBankAccount",
         "LiechtensteinBankAccount",
         "NorwayBankAccount",
-        "GibraltarBankAccount"
-      ]
-    ]
-  },
-  {
-    "name": "payouts_us_stripe",
-    "cron": "0 10 * * 4",
-    "class": "PerformPayoutsUpToDelayDaysAgoWorker",
-    "args": [
-      "STRIPE",
-      [
-        "AchAccount",
-        "CardBankAccount"
-      ]
-    ]
-  },
-  {
-    "name": "payouts_paypal",
-    "cron": "0 10 * * 5",
-    "class": "PerformPayoutsUpToDelayDaysAgoWorker",
-    "args": [
-      "PAYPAL"
-    ]
-  },
-  {
-    "name": "payouts_stripe_connect",
-    "cron": "0 10 * * 5",
-    "class": "PerformPayoutsUpToDelayDaysAgoWorker",
-    "args": [
-      "STRIPE"
-    ]
-  },
-  {
-    "name": "retry_failed_paypal_payouts",
-    "cron": "0 14 * * 5",
-    "class": "RetryFailedPaypalPayoutsWorker"
-  },
-  {
-    "name": "requeue_transiently_failed_payouts",
-    "cron": "0 14 * * *",
-    "class": "RequeueTransientlyFailedPayoutsJob",
-    "description": "Re-issue payouts that failed on a processor rate limit or an unreachable processor"
-  },
-  {
-    "name": "reindex_recommendable_products",
-    "cron": "0 15 * * 0",
-    "class": "ReindexRecommendableProductsWorker"
-  },
-  {
-    "name": "recalculate_recent_wishlist_follower_count",
-    "cron": "0 15 * * 6",
-    "class": "RecalculateRecentWishlistFollowerCountJob"
-  },
-  {
-    "name": "update_tax_rate_cache_for_product_edit",
-    "cron": "0 15  * * 1",
-    "class": "BuildTaxRateCacheWorker",
-    "description": "Re-build tax rate cache used for creator guidance during product creation/edit"
-  },
-  {
-    "name": "stripe_merchant_account_registration",
-    "cron": "0 0 * * 1",
-    "class": "StripeCreateMerchantAccountsWorker",
-    "description": "Create's Merchant Accounts for user's who they can be created for."
-  },
-  {
-    "name": "seller_update",
-    "cron": "0 15  * * 1",
-    "class": "SellerUpdatesWorker",
-    "description": "Update creators with stats for the week"
-  },
-  {
-    "name": "calculate_sale_numbers",
-    "cron": "0 10 * * 2",
-    "class": "CalculateSaleNumbersWorker",
-    "description": "Update sale numbers for home/company pages"
-  },
-  {
-    "name": "calculate_payout_numbers_worker",
-    "cron": "5 8 * * 1,2,3",
-    "class": "CalculatePayoutNumbersWorker",
-    "description": "Update payout numbers for the home page"
-  },
-  {
-    "name": "send_paypal_topup_notification_daily",
-    "cron": "0 14 * * 2,3,4,5,6,0",
-    "class": "SendPaypalTopupNotificationJob",
-    "args": [
-      true
+        "GibraltarBankAccount",
+      ],
     ],
-    "description": "Send a notification if PayPal top-up is needed (daily check)"
   },
   {
-    "name": "send_paypal_topup_notification_weekly",
-    "cron": "0 14 * * 1",
-    "class": "SendPaypalTopupNotificationJob",
-    "description": "Send a notification for the weekly PayPal topup status"
+    name: "payouts_us_stripe",
+    cron: "0 10 * * 4",
+    class: "PerformPayoutsUpToDelayDaysAgoWorker",
+    args: ["STRIPE", ["AchAccount", "CardBankAccount"]],
   },
   {
-    "name": "send_stripe_balance_check_notification",
-    "cron": "0 14 * * *",
-    "class": "SendStripeBalanceCheckNotificationJob",
-    "description": "Notify if Gumroad's Stripe balance is too low to cover upcoming seller payouts"
+    name: "payouts_paypal",
+    cron: "0 10 * * 5",
+    class: "PerformPayoutsUpToDelayDaysAgoWorker",
+    args: ["PAYPAL"],
   },
   {
-    "name": "sync_all_paypal_payouts",
-    "cron": "0 15 * * 4",
-    "class": "SyncStuckPayoutsJob",
-    "args": [
-      "PAYPAL"
-    ],
-    "description": "Syncs all PayPal payouts that are stuck in processing"
+    name: "payouts_stripe_connect",
+    cron: "0 10 * * 5",
+    class: "PerformPayoutsUpToDelayDaysAgoWorker",
+    args: ["STRIPE"],
   },
   {
-    "name": "sync_stuck_stripe_payouts",
-    "cron": "0 14 * * *",
-    "class": "SyncStuckPayoutsJob",
-    "args": [
-      "STRIPE"
-    ],
-    "description": "Syncs Stripe payouts stuck in creating or processing"
+    name: "retry_failed_paypal_payouts",
+    cron: "0 14 * * 5",
+    class: "RetryFailedPaypalPayoutsWorker",
   },
   {
-    "name": "delete_expired_product_cached_values",
-    "cron": "0 16 * * 0",
-    "class": "DeleteExpiredProductCachedValuesWorker",
-    "description": "Deletes unused product cached values"
+    name: "requeue_transiently_failed_payouts",
+    cron: "0 14 * * *",
+    class: "RequeueTransientlyFailedPayoutsJob",
+    description: "Re-issue payouts that failed on a processor rate limit or an unreachable processor",
   },
   {
-    "name": "update_purchasing_power_parity_factors",
-    "cron": "0 0 * * 0",
-    "class": "UpdatePurchasingPowerParityFactorsWorker"
+    name: "reindex_recommendable_products",
+    cron: "0 15 * * 0",
+    class: "ReindexRecommendableProductsWorker",
   },
   {
-    "name": "million_dollar_milestone_check",
-    "cron": "0 0 * * 1",
-    "class": "MillionDollarMilestoneCheckWorker",
-    "description": "Send notifications about creators that cross the million-dollar milestone"
+    name: "recalculate_recent_wishlist_follower_count",
+    cron: "0 15 * * 6",
+    class: "RecalculateRecentWishlistFollowerCountJob",
   },
   {
-    "name": "finances_report",
-    "cron": "0 11 1 * *",
-    "class": "SendFinancesReportWorker",
-    "description": "Email with finance numbers for the previous month"
+    name: "update_tax_rate_cache_for_product_edit",
+    cron: "0 15  * * 1",
+    class: "BuildTaxRateCacheWorker",
+    description: "Re-build tax rate cache used for creator guidance during product creation/edit",
   },
   {
-    "name": "deferred_refunds_report",
-    "cron": "0 11 1 * *",
-    "class": "SendDeferredRefundsReportWorker",
-    "description": "Email with defferred refunds numbers for the previous month"
+    name: "stripe_merchant_account_registration",
+    cron: "0 0 * * 1",
+    class: "StripeCreateMerchantAccountsWorker",
+    description: "Create's Merchant Accounts for user's who they can be created for.",
   },
   {
-    "name": "daily_finance_ledger_report",
-    "cron": "0 1 * * *",
-    "class": "SendDailyFinanceLedgerReportJob",
-    "description": "Daily event-ledger finance report (funds received, refunds, disputes) for the previous UTC day"
+    name: "seller_update",
+    cron: "0 15  * * 1",
+    class: "SellerUpdatesWorker",
+    description: "Update creators with stats for the week",
   },
   {
-    "name": "stripe_currency_balances_report",
-    "cron": "5 0 1 * *",
-    "class": "SendStripeCurrencyBalancesReportJob",
-    "description": "Email with Stripe currency balances report"
+    name: "calculate_sale_numbers",
+    cron: "0 10 * * 2",
+    class: "CalculateSaleNumbersWorker",
+    description: "Update sale numbers for home/company pages",
   },
   {
-    "name": "stripe_balance_summaries_report",
-    "cron": "0 11 2 * *",
-    "class": "SendStripeBalanceSummariesReportJob",
-    "description": "Email with Stripe balance summary reports (all Antiwork Stripe accounts) for the previous month"
+    name: "calculate_payout_numbers_worker",
+    cron: "5 8 * * 1,2,3",
+    class: "CalculatePayoutNumbersWorker",
+    description: "Update payout numbers for the home page",
   },
   {
-    "name": "outstanding_balances",
-    "cron": "0 0 1 * *",
-    "class": "EmailOutstandingBalancesCsvWorker",
-    "description": "Email with all outstanding balances (positive and negative)"
+    name: "send_paypal_topup_notification_daily",
+    cron: "0 14 * * 2,3,4,5,6,0",
+    class: "SendPaypalTopupNotificationJob",
+    args: [true],
+    description: "Send a notification if PayPal top-up is needed (daily check)",
   },
   {
-    "name": "payment_details_reminder",
-    "cron": "0 15 1 * *",
-    "class": "SendPaymentReminderWorker",
-    "description": "Remind sellers to add payment details"
+    name: "send_paypal_topup_notification_weekly",
+    cron: "0 14 * * 1",
+    class: "SendPaypalTopupNotificationJob",
+    description: "Send a notification for the weekly PayPal topup status",
   },
   {
-    "name": "expiring_credit_cards_message",
-    "cron": "0 15 1 * *",
-    "class": "ExpiringCreditCardMessageWorker",
-    "description": "Email users with soon to expire credit cards"
+    name: "send_stripe_balance_check_notification",
+    cron: "0 14 * * *",
+    class: "SendStripeBalanceCheckNotificationJob",
+    description: "Notify if Gumroad's Stripe balance is too low to cover upcoming seller payouts",
   },
   {
-    "name": "sitemap_refresh_monthly",
-    "cron": "0 0 1 * *",
-    "class": "RefreshSitemapMonthlyWorker",
-    "description": "Refresh Sitemap monthly"
+    name: "sync_all_paypal_payouts",
+    cron: "0 15 * * 4",
+    class: "SyncStuckPayoutsJob",
+    args: ["PAYPAL"],
+    description: "Syncs all PayPal payouts that are stuck in processing",
   },
   {
-    "name": "monthly_financial_reports",
-    "cron": "0 1 1 * *",
-    "class": "GenerateFinancialReportsForPreviousMonthJob",
-    "description": "Generate financial reports for the previous month"
+    name: "sync_stuck_stripe_payouts",
+    cron: "0 14 * * *",
+    class: "SyncStuckPayoutsJob",
+    args: ["STRIPE"],
+    description: "Syncs Stripe payouts stuck in creating or processing",
   },
   {
-    "name": "upload_us_states_sales_tax_to_taxjar",
-    "cron": "0 3 * * *",
-    "class": "UploadUsStatesSalesTaxToTaxjarJob",
-    "description": "Upload the previous day's taxable US-state order transactions to TaxJar"
+    name: "delete_expired_product_cached_values",
+    cron: "0 16 * * 0",
+    class: "DeleteExpiredProductCachedValuesWorker",
+    description: "Deletes unused product cached values",
   },
   {
-    "name": "verify_finance_reports_delivery",
-    "cron": "0 18 * * *",
-    "class": "VerifyFinanceReportsDeliveryJob",
-    "description": "Re-enqueue and alert on scheduled finance report runs that never completed"
+    name: "update_purchasing_power_parity_factors",
+    cron: "0 0 * * 0",
+    class: "UpdatePurchasingPowerParityFactorsWorker",
   },
   {
-    "name": "delete_old_sent_email_info_records",
-    "cron": "0 1 1 * *",
-    "class": "DeleteOldSentEmailInfoRecordsJob",
-    "description": "Deletes old records from the sent_email_infos table"
+    name: "million_dollar_milestone_check",
+    cron: "0 0 * * 1",
+    class: "MillionDollarMilestoneCheckWorker",
+    description: "Send notifications about creators that cross the million-dollar milestone",
   },
   {
-    "name": "delete_old_processed_stripe_events",
-    "cron": "30 1 * * *",
-    "class": "DeleteOldProcessedStripeEventsJob",
-    "description": "Deletes processed_stripe_events rows older than Stripe's webhook redelivery window"
+    name: "finances_report",
+    cron: "0 11 1 * *",
+    class: "SendFinancesReportWorker",
+    description: "Email with finance numbers for the previous month",
   },
   {
-    "name": "delete_old_ping_deliveries",
-    "cron": "45 1 * * *",
-    "class": "DeleteOldPingDeliveriesJob",
-    "description": "Deletes ping_deliveries rows past the support lookup window"
+    name: "deferred_refunds_report",
+    cron: "0 11 1 * *",
+    class: "SendDeferredRefundsReportWorker",
+    description: "Email with defferred refunds numbers for the previous month",
   },
   {
-    "name": "delete_expired_mcp_event_subscriptions",
-    "cron": "15 2 * * *",
-    "class": "Mcp::DeleteExpiredEventSubscriptionsJob",
-    "description": "Deletes MCP event subscriptions whose lease has ended, with the client secrets they hold"
+    name: "daily_finance_ledger_report",
+    cron: "0 1 * * *",
+    class: "SendDailyFinanceLedgerReportJob",
+    description: "Daily event-ledger finance report (funds received, refunds, disputes) for the previous UTC day",
   },
   {
-    "name": "australia_backtax_transfer",
-    "cron": "0 10 7 * *",
-    "class": "RecoverAusBacktaxesFromStripeAccountsJob",
-    "description": "Transfer funds for creators who have a negative credit applied for Australia backtaxes"
+    name: "stripe_currency_balances_report",
+    cron: "5 0 1 * *",
+    class: "SendStripeCurrencyBalancesReportJob",
+    description: "Email with Stripe currency balances report",
   },
   {
-    "name": "generate_ytd_sales_report",
-    "cron": "0 2 1 * *",
-    "class": "Reports::GenerateYtdSalesReportJob",
-    "queue": "low",
-    "description": "Generates a YTD sales report by country and state and emails it."
+    name: "stripe_balance_summaries_report",
+    cron: "0 11 2 * *",
+    class: "SendStripeBalanceSummariesReportJob",
+    description: "Email with Stripe balance summary reports (all Antiwork Stripe accounts) for the previous month",
   },
   {
-    "name": "create_india_sales_report",
-    "cron": "0 3 1 * *",
-    "class": "CreateIndiaSalesReportJob",
-    "description": "Generates India GST sales report for the previous month"
+    name: "outstanding_balances",
+    cron: "0 0 1 * *",
+    class: "EmailOutstandingBalancesCsvWorker",
+    description: "Email with all outstanding balances (positive and negative)",
   },
   {
-    "name": "collect_unclaimed_balances_of_inactive_stripe_account",
-    "cron": "0 10 1 * *",
-    "class": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
-    "description": "Collect unclaimed balances from inactive Stripe US custom connect accounts"
+    name: "payment_details_reminder",
+    cron: "0 15 1 * *",
+    class: "SendPaymentReminderWorker",
+    description: "Remind sellers to add payment details",
   },
   {
-    "name": "generate_financial_reports",
-    "cron": "0 10 2 1,4,7,10 *",
-    "class": "GenerateFinancialReportsForPreviousQuarterJob",
-    "description": "Generate financial reports for the previous quarter"
+    name: "expiring_credit_cards_message",
+    cron: "0 15 1 * *",
+    class: "ExpiringCreditCardMessageWorker",
+    description: "Email users with soon to expire credit cards",
   },
   {
-    "name": "send_bundles_marketing_email",
-    "cron": "0 10 2 1 *",
-    "class": "SendBundlesMarketingEmailJob",
-    "description": "Send marketing emails for bundles every January 2nd"
+    name: "sitemap_refresh_monthly",
+    cron: "0 0 1 * *",
+    class: "RefreshSitemapMonthlyWorker",
+    description: "Refresh Sitemap monthly",
   },
   {
-    "name": "dispatch_product_publish_schedules",
-    "cron": "* * * * *",
-    "class": "DispatchProductPublishSchedulesJob",
-    "description": "Re-enqueues lost scheduled product publishes, resolves stuck claims and resends unsent notices"
-  }
+    name: "monthly_financial_reports",
+    cron: "0 1 1 * *",
+    class: "GenerateFinancialReportsForPreviousMonthJob",
+    description: "Generate financial reports for the previous month",
+  },
+  {
+    name: "upload_us_states_sales_tax_to_taxjar",
+    cron: "0 3 * * *",
+    class: "UploadUsStatesSalesTaxToTaxjarJob",
+    description: "Upload the previous day's taxable US-state order transactions to TaxJar",
+  },
+  {
+    name: "verify_finance_reports_delivery",
+    cron: "0 18 * * *",
+    class: "VerifyFinanceReportsDeliveryJob",
+    description: "Re-enqueue and alert on scheduled finance report runs that never completed",
+  },
+  {
+    name: "delete_old_sent_email_info_records",
+    cron: "0 1 1 * *",
+    class: "DeleteOldSentEmailInfoRecordsJob",
+    description: "Deletes old records from the sent_email_infos table",
+  },
+  {
+    name: "delete_old_processed_stripe_events",
+    cron: "30 1 * * *",
+    class: "DeleteOldProcessedStripeEventsJob",
+    description: "Deletes processed_stripe_events rows older than Stripe's webhook redelivery window",
+  },
+  {
+    name: "delete_old_ping_deliveries",
+    cron: "45 1 * * *",
+    class: "DeleteOldPingDeliveriesJob",
+    description: "Deletes ping_deliveries rows past the support lookup window",
+  },
+  {
+    name: "delete_expired_mcp_event_subscriptions",
+    cron: "15 2 * * *",
+    class: "Mcp::DeleteExpiredEventSubscriptionsJob",
+    description: "Deletes MCP event subscriptions whose lease has ended, with the client secrets they hold",
+  },
+  {
+    name: "australia_backtax_transfer",
+    cron: "0 10 7 * *",
+    class: "RecoverAusBacktaxesFromStripeAccountsJob",
+    description: "Transfer funds for creators who have a negative credit applied for Australia backtaxes",
+  },
+  {
+    name: "generate_ytd_sales_report",
+    cron: "0 2 1 * *",
+    class: "Reports::GenerateYtdSalesReportJob",
+    queue: "low",
+    description: "Generates a YTD sales report by country and state and emails it.",
+  },
+  {
+    name: "create_india_sales_report",
+    cron: "0 3 1 * *",
+    class: "CreateIndiaSalesReportJob",
+    description: "Generates India GST sales report for the previous month",
+  },
+  {
+    name: "collect_unclaimed_balances_of_inactive_stripe_account",
+    cron: "0 10 1 * *",
+    class: "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+    description: "Collect unclaimed balances from inactive Stripe US custom connect accounts",
+  },
+  {
+    name: "generate_financial_reports",
+    cron: "0 10 2 1,4,7,10 *",
+    class: "GenerateFinancialReportsForPreviousQuarterJob",
+    description: "Generate financial reports for the previous quarter",
+  },
+  {
+    name: "send_bundles_marketing_email",
+    cron: "0 10 2 1 *",
+    class: "SendBundlesMarketingEmailJob",
+    description: "Send marketing emails for bundles every January 2nd",
+  },
+  {
+    name: "dispatch_product_publish_schedules",
+    cron: "* * * * *",
+    class: "DispatchProductPublishSchedulesJob",
+    description: "Re-enqueues lost scheduled product publishes, resolves stuck claims and resends unsent notices",
+  },
 ];
