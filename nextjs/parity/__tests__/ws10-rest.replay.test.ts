@@ -12,6 +12,7 @@ import { railsCookieSecrets } from "@/server/auth/rails-session-config";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { maskingTransport, maskVolatile as maskErbVolatile } from "../src/erb-layout";
 import { loadFixture, type CapturedHttp } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import type { JobsChannel, RawJob } from "../src/channels";
@@ -60,6 +61,15 @@ const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
+
+// The spec stubs ViteRuby's entries (a fixed stylesheet, no script tag); Node reads the built manifest, so those two are normalised.
+const maskVolatile = (text: string) =>
+  maskErbVolatile(text)
+    .replace(/href="\/vite-test\/assets\/entrypoints\/design-[^"]*\.css"/u, 'href="/vite-test.css"')
+    .replace(
+      /<script src="\/vite-test\/assets\/entrypoints\/base\.ts[^\n]*\n(?:<link rel="modulepreload"[^\n]*\n)*/u,
+      "\n",
+    );
 
 const COMPARE = {
   ignore: [
@@ -187,6 +197,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: rackAttackHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("DEVISE_SECRET_KEY") ? { DEVISE_SECRET_KEY: testEnv("DEVISE_SECRET_KEY")! } : {}),
       ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")
         ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! }
@@ -206,7 +217,8 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
-    transport: httpTransport(server.baseUrl),
+    // The pages Rails renders (the resend form with an error) carry a random CSRF token per form and a CSP nonce.
+    transport: maskedTransport(httpTransport(server.baseUrl)),
     interceptHttp: false,
     jobs: redisJobs(redis),
     rewriteRequest: (
@@ -216,6 +228,16 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     compare: COMPARE,
   });
+
+  // maskingTransport masks what the layout replays do; the stubbed Vite tags of this spec are masked on top.
+  const maskedTransport = (inner: Parameters<typeof maskingTransport>[0]) => {
+    const base = maskingTransport(inner);
+    return async (request: Parameters<typeof base>[0]) => {
+      const response = await base(request);
+      if (!(response.headers.get("content-type") ?? "").includes("html")) return response;
+      return new Response(maskVolatile(await response.text()), { status: response.status, headers: response.headers });
+    };
+  };
 
   const optionsFor = (name: string) => {
     const options = replayOptions();
@@ -253,6 +275,10 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
     async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
+        for (const exchange of fixture.exchanges) {
+          const body = exchange.response.body;
+          if (typeof body === "string") exchange.response.body = maskVolatile(body);
+        }
         // Whatever Node cannot prove goes to Rails whole, before its first write.
         if (path.basename(name).includes("-hands-")) {
           handedBack.length = 0;

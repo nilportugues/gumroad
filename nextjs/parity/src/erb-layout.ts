@@ -53,7 +53,7 @@ export function assertNonceMatchesCsp(body: string, csp: string | null) {
   for (const nonce of nonces) expect(csp).toContain(`'nonce-${nonce}'`);
 }
 
-const maskingTransport =
+export const maskingTransport =
   (inner: Transport): Transport =>
   async (request) => {
     const response = await inner(request);
