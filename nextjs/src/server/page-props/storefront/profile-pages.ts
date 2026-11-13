@@ -313,6 +313,15 @@ async function defaultSection(
   return productsSectionProps(seller, null, { id: DEFAULT_PRODUCTS_SECTION_ID, header: null }, request, visitor);
 }
 
+// `@user` is the storefront's seller, so set_analytics_meta_tags follows them, not the visitor.
+function setSellerAnalyticsMeta(meta: MetaTagBuilder, seller: User) {
+  const env = domainConfig(process.env).railsEnv;
+  const enabled =
+    (env === "production" || env === "staging") && !isFlagSet(Users.load(seller), "disable_third_party_analytics");
+  for (const property of ["gr:google_analytics:enabled", "gr:fb_pixel:enabled", "gr:tiktok_pixel:enabled"])
+    meta.set({ property, content: String(enabled) });
+}
+
 // ProfilePresenter#seller_analytics
 async function sellerAnalytics(seller: User) {
   const record = Users.load(seller);
@@ -475,6 +484,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
       const built = action.state[COFFEE_STATE_KEY] as Record<string, unknown> | undefined;
       if (built === undefined) throw new HandBackToRails();
       const seller = await sellerOfHost(action.url);
+      setSellerAnalyticsMeta(action.meta, seller);
       await setHostMeta(action.meta, seller);
       await setFaviconMetaTags(action.meta, seller);
       await setUserPageMeta(action.meta, seller);
@@ -500,6 +510,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     },
     props: async (_params, action) => {
       const seller = await sellerOfHost(action.url);
+      setSellerAnalyticsMeta(action.meta, seller);
       await setHostMeta(action.meta, seller);
       action.meta.set({ title: nameOrUsername(Users.load(seller)) });
       await setUserPageMeta(action.meta, seller);
@@ -531,6 +542,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     },
     props: async (_params, action) => {
       const seller = await sellerOfHost(action.url);
+      setSellerAnalyticsMeta(action.meta, seller);
       await setHostMeta(action.meta, seller);
       await setUserPageMeta(action.meta, seller);
       await setFaviconMetaTags(action.meta, seller);
@@ -577,6 +589,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     },
     props: async (_params, action) => {
       const seller = await sellerOfHost(action.url);
+      setSellerAnalyticsMeta(action.meta, seller);
       await setHostMeta(action.meta, seller);
       action.meta.set({ title: `Become an affiliate for ${displayName(seller)}` });
       // Rails reads the last value of a repeated param.

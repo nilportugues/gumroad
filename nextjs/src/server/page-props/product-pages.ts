@@ -5,6 +5,7 @@
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { PRODUCT_PAGE_OPTIONS } from "../controllers/product-page.ts";
 import { parseQuery } from "../controllers/rails-query.ts";
+import { UserFlags } from "../models/user.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
 import {
   buildProductPage,
@@ -20,6 +21,7 @@ import { findLink, findUserById } from "../presenters/product-reads.ts";
 import { remoteIp } from "./audience/events.ts";
 import { aliveCartProductCount } from "./checkout/checkout.ts";
 import { autocompleteResults, isAutocompleteOnlyRequest } from "./discover/discover.ts";
+import { domainConfig } from "./domain.ts";
 import type { PageSpec } from "./pages.ts";
 
 // LinksController#show: `layout`, `embed` and `overlay` pick the Inertia component.
@@ -54,6 +56,12 @@ const productPage: PageSpec = {
         autocomplete_results: await autocompleteResults({ query: query.query as never }, user, guid),
       };
     }
+    // prepare_product_page (not the autocomplete answer above): `@user = @product.user`, so set_analytics_meta_tags follows the product's seller, not the visitor.
+    const env = domainConfig(process.env).railsEnv;
+    const analyticsEnabled =
+      (env === "production" || env === "staging") && !UserFlags.isSet(seller.flags, "disable_third_party_analytics");
+    for (const property of ["gr:google_analytics:enabled", "gr:fb_pixel:enabled", "gr:tiktok_pixel:enabled"])
+      action.meta.set({ property, content: String(analyticsEnabled) });
     const afterRender: (() => Promise<void>)[] = [];
     const viewer = viewerOf(
       query,
