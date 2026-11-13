@@ -1,10 +1,11 @@
 // Products::PublishSchedulesController (app/controllers/products/publish_schedules_controller.rb): scheduling and cancelling the
 // publication of a never-published draft, on `/links/:link_id/publish_schedule`.
 //
-// Recorded from Rails by spec/requests/products_publish_schedules_parity_spec.rb. Handed to Rails before any write: a time that is
-// not `YYYY-MM-DDTHH:MM` (Ruby's strptime accepts other spellings), a seller in a time zone whose abbreviation `%Z` is not proven, a
-// physical product (its shipping destinations), and the paid-publish experiment or a payout method other than an address, whose
-// refusals `Link#publish_precheck_error` words from data Node does not read.
+// Recorded from Rails by spec/requests/products_publish_schedules_parity_spec.rb. Handed to Rails before any write, each one on
+// purpose: a time that has every character strptime needs but not the editor's spelling (Ruby's strptime accepts `2031-6-5T9:30`), a
+// seller in a time zone whose abbreviation `%Z` is not recorded or outside the mapping, a physical product that has a shipping
+// destination (`shippable_country_codes` and the supported-country list), and the paid-publish experiment or a payout method other
+// than an address, whose refusals `Link#publish_precheck_error` words from data Node does not read (the seller plan and payouts).
 import { Prisma, type Link, type User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
@@ -36,7 +37,17 @@ const EMAIL_REQUIRED = "To publish a product, we need you to have an email.";
 // A strptime("%Y-%m-%dT%H:%M") spelling, within the years the zone offsets below are read for.
 const LOCAL_TIME = /^(20\d{2})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/u;
 // Zones whose `%Z` abbreviation Intl prints as tzinfo does (recorded: Pacific, Eastern, UTC).
-const ABBREVIATED_ZONES = new Set(["America/Los_Angeles", "America/New_York", "Etc/UTC"]);
+const INTL_ABBREVIATED_ZONES = new Set(["America/Los_Angeles", "America/New_York", "Etc/UTC"]);
+// tzinfo's abbreviation by UTC offset in minutes, for the zones Intl would print as "GMT+1" (recorded in winter and summer).
+const TZINFO_ABBREVIATIONS: Record<string, Record<number, string>> = {
+  "Europe/London": { 0: "GMT", 60: "BST" },
+  "Europe/Paris": { 60: "CET", 120: "CEST" },
+  "America/Chicago": { [-360]: "CST", [-300]: "CDT" },
+  "Australia/Sydney": { 600: "AEST", 660: "AEDT" },
+  "Asia/Tokyo": { 540: "JST" },
+  "Asia/Kolkata": { 330: "IST" },
+};
+const NO_SHIPPING_DESTINATION = "The product needs to be shippable to at least one destination.";
 const SUSPENDED_STATES = new Set(["suspended_for_fraud", "suspended_for_tos_violation"]);
 const MONTHS = [
   "January",
@@ -80,12 +91,17 @@ async function fetchProduct(input: MutationInput): Promise<{ halt: ActionResult 
 }
 
 // ProductPublishSchedule.parse_local_time for the zone's offset rules: the UTC instant of a wall-clock time, or the refusal.
-function parseLocalTime(value: unknown, zone: string): number {
-  if (value !== undefined && value !== null && typeof value !== "string")
-    throw new HandBackToRails("a local_time that is not text");
-  if (value === undefined || value === null || value === "") throw new Invalid(INVALID_TIME);
-  const match = LOCAL_TIME.exec(value.slice(0, 16).replace(" ", "T"));
-  if (match === null) throw new HandBackToRails("a local_time that is not YYYY-MM-DDTHH:MM");
+export function parseLocalTime(value: unknown, zone: string): number {
+  // `local_time.to_s[0, 16]` of a number, boolean, list or object never reads as `%Y-%m-%dT%H:%M` (recorded for each).
+  if (typeof value !== "string") throw new Invalid(INVALID_TIME);
+  if (value === "") throw new Invalid(INVALID_TIME);
+  const sliced = value.slice(0, 16).replace(" ", "T");
+  const match = LOCAL_TIME.exec(sliced);
+  if (match === null) {
+    // The format's literals: a string without them cannot parse, whatever else strptime tolerates.
+    if (!sliced.includes("T") || !sliced.includes(":") || !sliced.includes("-")) throw new Invalid(INVALID_TIME);
+    throw new HandBackToRails("a local_time that is not YYYY-MM-DDTHH:MM but has its separators");
+  }
   const [year, month, day, hour, minute] = match.slice(1).map(Number) as [number, number, number, number, number];
   const wall = Date.UTC(year, month - 1, day, hour, minute);
   const date = new Date(wall);
@@ -103,15 +119,19 @@ function parseLocalTime(value: unknown, zone: string): number {
 }
 
 // ProductPublishSchedule#local_time_label: "%B %-d, %Y at %-l:%M %p %Z".
-function localTimeLabel(publishAt: number, zone: string): string {
-  if (!ABBREVIATED_ZONES.has(zone)) throw new HandBackToRails("a time zone whose abbreviation is not proven");
-  const local = new Date(publishAt + offsetMinutesAt(publishAt, zone) * 60_000);
+export function localTimeLabel(publishAt: number, zone: string): string {
+  const offset = offsetMinutesAt(publishAt, zone);
+  const tzinfo = TZINFO_ABBREVIATIONS[zone]?.[offset];
+  if (tzinfo === undefined && !INTL_ABBREVIATED_ZONES.has(zone))
+    throw new HandBackToRails("a time zone whose abbreviation is not proven");
+  const local = new Date(publishAt + offset * 60_000);
   const abbreviation =
-    zone === "Etc/UTC"
+    tzinfo ??
+    (zone === "Etc/UTC"
       ? "UTC"
       : new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
           .formatToParts(new Date(publishAt))
-          .find((part) => part.type === "timeZoneName")!.value;
+          .find((part) => part.type === "timeZoneName")!.value);
   const hour = local.getUTCHours() % 12 === 0 ? 12 : local.getUTCHours() % 12;
   const minute = String(local.getUTCMinutes()).padStart(2, "0");
   return `${MONTHS[local.getUTCMonth()]} ${local.getUTCDate()}, ${local.getUTCFullYear()} at ${hour}:${minute} ${local.getUTCHours() < 12 ? "AM" : "PM"} ${abbreviation}`;
@@ -130,8 +150,15 @@ async function precheckError(product: Product, seller: Seller): Promise<string |
     Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("product_sales_holds")} WHERE ${column("product_sales_holds", "product_id")} = ${product.id} AND ${column("product_sales_holds", "released_at")} IS NULL) AS found`,
   );
   if (held) return UNPUBLISHED_BY_ADMIN_MESSAGE;
-  if (LinkFlags.isSet(product.flags, "is_physical"))
-    throw new HandBackToRails("a physical product, whose shipping destinations are read");
+  if (LinkFlags.isSet(product.flags, "is_physical")) {
+    // enforce_shipping_destinations_presence!: with no destination row at all, `shippable_country_codes` is empty and the message
+    // needs no supported-country check. Any alive destination decides by country lists Node does not read here.
+    const destinations = await exists(
+      Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("shipping_destinations")} WHERE ${column("shipping_destinations", "link_id")} = ${product.id} AND ${column("shipping_destinations", "deleted_at")} IS NULL) AS found`,
+    );
+    if (destinations) throw new HandBackToRails("a physical product with a shipping destination");
+    return NO_SHIPPING_DESTINATION;
+  }
   if (seller.confirmed_at === null) return EMAIL_CONFIRMATION_MESSAGE;
   if (product.draft && (await isFeatureEnabled("seller_plan_gate", userActor(seller.id))))
     throw new HandBackToRails("a first publish in the seller plan experiment");

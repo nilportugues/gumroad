@@ -34,6 +34,7 @@ const MAIL_FOLLOW_CASES = [
   "revives-a-follower",
   "asks-a-confirmed-follower",
   "records-the-embed-form-as-the-source",
+  "follows-plainly-when-the-product-s-waitlist-is-off",
 ];
 const THROTTLE_CASE = /-refuses-the-(?:fourth|sixth)-/u;
 const FIXTURES = "parity/fixtures/requests";

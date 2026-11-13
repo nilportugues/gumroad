@@ -4,7 +4,8 @@ require "spec_helper"
 
 # Products::PublishSchedulesController, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/publish-schedules.replay.test.ts, which sends the last request of each example. An example named
-# "hands a ..." records what Node passes to Rails whole: a shape whose answer Node cannot prove.
+# "hands a ..." would record what Node passes to Rails whole: a shape whose answer Node cannot prove (none is left that Rails can
+# answer in a request spec: the seller plan experiment and a payout method that is not an address stay handed back unrecorded).
 #
 # `parity_hours_ahead` and `parity_zone` are read by the replay only (it rewrites `local_time` to the same distance from its own
 # clock); Rails ignores them.
@@ -165,20 +166,33 @@ describe "Product publish schedules", type: :request do
       expect(response.parsed_body["error_message"]).to eq("That time happens twice in America/Los_Angeles because clocks go back. Choose a different time.")
     end
 
-    it "hands a time that is not in the form the editor sends to Rails", parity: true do
+    it "refuses a time that is not in the form the editor sends", parity: true do
       log_in(seller)
 
       send_json(:post, path, local_time: "tomorrow at noon")
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error_message"]).to eq("Enter a valid date and time.")
     end
 
-    it "hands a time that is not a string to Rails", parity: true do
-      log_in(seller)
+    [
+      ["a date without a time", "2031-06-15"],
+      ["a time without a date", "09:30"],
+      ["a slash-separated date", "2031/06/15T09:30"],
+      ["a number", 12_345],
+      ["a decimal number", 1.5],
+      ["a boolean", true],
+      ["a list", ["2031-06-15T09:30"]],
+      ["an object", { "at" => "2031-06-15T09:30" }]
+    ].each do |label, value|
+      it "refuses #{label} as the time", parity: true do
+        log_in(seller)
 
-      send_json(:post, path, local_time: 12_345)
+        send_json(:post, path, local_time: value)
 
-      expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["error_message"]).to eq("Enter a valid date and time.")
+      end
     end
 
     it "refuses a second schedule while one is pending", parity: true do
@@ -272,23 +286,37 @@ describe "Product publish schedules", type: :request do
       expect(response.parsed_body["error_message"]).to eq("You have to confirm your email address before you can do that.")
     end
 
-    it "hands a physical product to Rails", parity: true do
+    it "refuses a physical product that ships nowhere", parity: true do
       set_flag(:is_physical)
       log_in(seller)
 
       schedule
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error_message"]).to eq("The product needs to be shippable to at least one destination.")
     end
 
-    it "hands a seller in a time zone whose abbreviation Node cannot print to Rails", parity: true do
-      seller.update!(timezone: "London")
-      log_in(seller)
+    {
+      "London" => ["Europe/London", "2031-01-15T09:30", "January 15, 2031 at 9:30 AM GMT"],
+      "London (summer)" => ["Europe/London", "2031-07-15T09:30", "July 15, 2031 at 9:30 AM BST"],
+      "Paris" => ["Europe/Paris", "2031-01-15T09:30", "January 15, 2031 at 9:30 AM CET"],
+      "Paris (summer)" => ["Europe/Paris", "2031-07-15T09:30", "July 15, 2031 at 9:30 AM CEST"],
+      "Chicago" => ["America/Chicago", "2031-01-15T09:30", "January 15, 2031 at 9:30 AM CST"],
+      "Chicago (summer)" => ["America/Chicago", "2031-07-15T09:30", "July 15, 2031 at 9:30 AM CDT"],
+      "Sydney" => ["Australia/Sydney", "2031-07-15T09:30", "July 15, 2031 at 9:30 AM AEST"],
+      "Sydney (summer)" => ["Australia/Sydney", "2031-01-15T09:30", "January 15, 2031 at 9:30 AM AEDT"],
+      "Tokyo" => ["Asia/Tokyo", "2031-01-15T09:30", "January 15, 2031 at 9:30 AM JST"],
+      "Kolkata" => ["Asia/Kolkata", "2031-01-15T09:30", "January 15, 2031 at 9:30 AM IST"]
+    }.each do |city, (zone, local_time, label)|
+      it "labels the time of a seller in #{city} with the zone's own abbreviation", parity: true do
+        seller.update!(timezone: ActiveSupport::TimeZone::MAPPING.key(zone))
+        log_in(seller)
 
-      schedule(zone: "Europe/London")
+        send_json(:post, path, local_time:)
 
-      expect(response).to have_http_status(:ok)
-      expect(response.parsed_body["publish_schedule"]["label"]).to match(/(GMT|BST)\z/)
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["publish_schedule"]["label"]).to eq(label)
+      end
     end
 
     it "refuses a support team member", parity: true do

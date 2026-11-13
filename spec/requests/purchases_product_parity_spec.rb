@@ -4,8 +4,11 @@ require "spec_helper"
 
 # GET /purchases/:id/product (Purchases::ProductController#show), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/purchase-pages-guards.replay.test.ts. Node answers the 404 of set_purchase; an example named "hands a ..." is
-# one it leaves to Rails whole, because Rails rebuilds the product from its PaperTrail version at the time of the purchase.
+# one it leaves to Rails whole, because Rails rebuilds the product from its PaperTrail version at the time of the purchase, or, for a
+# signed-in visitor, because the shared product and layout props have drifted from Node (`file_summaries`, the store agent policies).
 describe "Purchase product page", type: :request do
+  include Parity::AudienceSignedIn
+
   let(:seller) { create(:user, name: "Product Page Seller") }
   let(:product) { create(:product, user: seller, name: "As purchased", unique_permalink: "aspurchased", created_at: Time.utc(2025, 1, 1)) }
   # A charged purchase would call Stripe.
@@ -31,6 +34,35 @@ describe "Purchase product page", type: :request do
     expect(response).to be_successful
     expect(response.body).to include("Purchases/Product/Show")
     expect(response.headers["X-Robots-Tag"]).to include("noindex")
+  end
+
+  it "hands a seller who signed in to Rails", parity: true do
+    log_in(seller)
+
+    get "/purchases/#{purchase.external_id}/product"
+
+    expect(response).to be_successful
+    expect(response.body).to include("Purchases/Product/Show")
+  end
+
+  it "hands a signed-in visitor who is nobody to the product to Rails", parity: true do
+    log_in(create(:user, name: "Passing Visitor"))
+
+    get "/purchases/#{purchase.external_id}/product"
+
+    expect(response).to be_successful
+    expect(response.body).to include("Purchases/Product/Show")
+  end
+
+  it "hands a buyer who signed in to Rails", parity: true do
+    buyer = create(:user, name: "Signed In Buyer")
+    purchase.update_columns(purchaser_id: buyer.id)
+    log_in(buyer)
+
+    get "/purchases/#{purchase.external_id}/product"
+
+    expect(response).to be_successful
+    expect(response.body).to include("Purchases/Product/Show")
   end
 
   it "hands a product with variants to Rails, which rebuilds the options as of the purchase", parity: true do
