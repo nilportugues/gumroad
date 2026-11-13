@@ -1,5 +1,6 @@
 // The Settings::* pages (Settings::BaseController and its show/index actions). Registered in
 // ../pages.ts. The form submissions stay in Rails.
+import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { SOCIAL_CONNECTIONS_OPTIONS, socialConnectionsGuard } from "../../controllers/settings-pages.ts";
 import { loadSellerContext, type SellerContext } from "../../policies/seller-context.ts";
 import { settingsAdvancedUserPolicy } from "../../policies/settings/advanced-user.ts";
@@ -9,13 +10,13 @@ import { settingsMainUserPolicy } from "../../policies/settings/main-user.ts";
 import { settingsPasswordUserPolicy } from "../../policies/settings/password-user.ts";
 import { settingsPaymentsUserPolicy } from "../../policies/settings/payments-user.ts";
 import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
+import { settingsTeamInvitationPolicy } from "../../policies/settings/team-invitation.ts";
 import { settingsTeamUserPolicy } from "../../policies/settings/team-user.ts";
-import type { GuardInput } from "../guards.ts";
 import { settingsThirdPartyAnalyticsUserPolicy } from "../../policies/settings/third-party-analytics-user.ts";
-import type { ActionContext } from "../load-page.ts";
-import { NotPortedError } from "../not-ported.ts";
-import type { PageSpec } from "../pages.ts";
 import { remoteIp } from "../audience/events.ts";
+import type { GuardInput } from "../guards.ts";
+import type { ActionContext } from "../load-page.ts";
+import type { PageSpec } from "../pages.ts";
 
 import { settingsGuard } from "./guard.ts";
 import { paymentsProps } from "./payments.ts";
@@ -33,8 +34,6 @@ import {
   thirdPartyAnalyticsPageProps,
 } from "./presenter.ts";
 import { profileProps } from "./profile.ts";
-
-import { settingsTeamInvitationPolicy } from "../../policies/settings/team-invitation.ts";
 
 const NO_EMAIL_ALERT =
   "Your Gumroad account doesn't have an email associated. Please assign and verify your email, and try again.";
@@ -147,7 +146,7 @@ export const OAUTH_APPLICATION_PAGES: Record<string, PageSpec> = {
     component: "Oauth/Applications/Edit",
     guard: async (input: GuardInput) => {
       const context = await loadSellerContext(input.context);
-      if (!context.user) throw new NotPortedError("authenticate_user! for a signed-out visitor");
+      if (!context.user) throw new HandBackToRails("authenticate_user! for a signed-out visitor");
       if (!(await findOwnedApplication(context.seller!, input.params.id ?? ""))) {
         const { protocol, host } = input.urlOptions;
         return {
