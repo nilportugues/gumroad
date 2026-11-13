@@ -127,7 +127,7 @@ const attributesOf = (record: OfferCodeWrite) => ({
 });
 
 // OfferCode#is_amount_valid? (an untiered code)
-async function isAmountValid(record: OfferCodeWrite, product: Link): Promise<boolean> {
+export async function isAmountValid(record: OfferCodeWrite, product: Link): Promise<boolean> {
   const minPrice = currencyOf(product.price_currency_type)!.min_price;
   for (const unitPriceCents of await availablePriceCents(product)) {
     const eligible = (unitPriceCents ?? 0) * eligibleQuantity(record);

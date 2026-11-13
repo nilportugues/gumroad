@@ -2,7 +2,7 @@
 // marketing email carries. Node answers the policy refusal, the links Rails cannot save (a type the email never sends, so no name; a
 // price under the seller's currency minimum, over the unverified maximum or a product a bundle cannot hold) ahead of the first write
 // as the redirect with an alert, and creates the draft bundle (Link, Price and bundle product rows) otherwise. A link without a
-// whole-number price (Rails raises LinkInvalid, a 500), a free bundle (set_customizable_price runs after the save), a products
+// whole-number price (Rails raises LinkInvalid, a 500), a products
 // parameter that is not a list of text and a product with SKUs hand back whole.
 import { Prisma } from "@prisma/client";
 
@@ -69,9 +69,8 @@ async function createFromEmail(input: MutationInput): Promise<ActionResult> {
   const name = typeof type === "string" ? bundleMarketingNames(new Date())[type] : undefined;
   if (name === undefined) return stale();
   const cents = Number(digits);
-  // A price of zero passes price_must_be_within_range and is made pay-what-you-want after the save.
-  if (cents === 0) throw new HandBackToRails("a free bundle");
-  if (cents < currency.min_price) return stale();
+  // price_must_be_within_range lets a price of zero through.
+  if (cents !== 0 && cents < currency.min_price) return stale();
 
   const sellerRow = current.seller;
   const outcome = await createBundleFromEmail(

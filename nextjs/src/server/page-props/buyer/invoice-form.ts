@@ -1,7 +1,8 @@
 // Purchases::InvoicesController#new (GET /purchases/:purchase_id/invoice/new): the invoice form, built from InvoicePresenter.
 //
 // Served for one plain USD purchase seen by a signed-out visitor: a successful single purchase with no tax, shipping, refund, charge,
-// subscription, gift or presentment row, and a buyer in a country where Gumroad prints no tax registration. Everything else goes to
+// subscription, gift, partial refund or presentment row, and a buyer in a country where Gumroad prints no tax registration other
+// than the EU one. Everything else goes to
 // Rails before the page renders. set_purchase (404), the noindex header and require_email_confirmation run ahead, as in
 // controllers/purchase-invoices.ts.
 import { db } from "../../../lib/db.ts";
@@ -59,8 +60,11 @@ const BUSINESS_ID_LABELS: Record<string, string> = {
 };
 
 // The countries SupplierInfo prints a Gumroad tax registration for (the EU, the UK, Canada and the ones in TAX_REGISTRATIONS_BY_COUNTRY).
+const EU_COUNTRY_CODES = new Set(
+  "AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split(" "),
+);
 const SUPPLIER_TAX_COUNTRIES = new Set([
-  ..."AT BE BG HR CY CZ DK EE FI FR DE GR HU IE IT LV LT LU MT NL PL PT RO SK SI ES SE".split(" "),
+  ...EU_COUNTRY_CODES,
   ...["GB", "AU", "NO", "IN", "JP", "NZ", "NG", "SG", "KR", "CH", "TH", "CA"],
 ]);
 
@@ -85,7 +89,8 @@ function countriesForSelect(): Record<string, string> {
   return Object.fromEntries(pairs);
 }
 
-function supplierAttributes() {
+// SupplierInfo#determine_gumroad_tax_labels_and_numbers for an EU country (the UK is checked ahead of the EU list and stays with Rails)
+function supplierAttributes(alpha2: string | null) {
   const country = countryByAlpha2(getConfig("ADDRESS_COUNTRY", "US"));
   if (country === null) throw new HandBackToRails("an ADDRESS_COUNTRY that is not a country code");
   const zipPlusFour = `${getConfig("ADDRESS_ZIP", "94104")}-${getConfig("ADDRESS_ZIP_PLUS_FOUR", "5401")}`;
@@ -99,6 +104,9 @@ function supplierAttributes() {
         country.common_name,
       ].join("\n"),
     },
+    ...(alpha2 !== null && EU_COUNTRY_CODES.has(alpha2)
+      ? [{ label: "VAT Registration Number", value: getConfig("VAT_REGISTRATION_NUMBER", "EU372030009") }]
+      : []),
     { label: "Email", value: noreplyEmail() },
     { label: "Web", value: domainConfig(process.env).rootDomain },
     { label: null, value: "Products supplied by Gumroad." },
@@ -143,11 +151,9 @@ async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
     (BigInt(purchase.flags) & ~INVOICE_NEUTRAL_FLAGS) !== 0n ||
     purchase.subscription_id !== null ||
     purchase.preorder_id !== null ||
-    purchase.stripe_refunded ||
     purchase.stripe_partially_refunded ||
     (purchase.price_cents ?? 0) <= 0 ||
     (purchase.shipping_cents ?? 0) !== 0 ||
-    (purchase.tax_cents ?? 0) !== 0 ||
     (purchase.gumroad_tax_cents ?? 0) !== 0 ||
     purchase.displayed_price_currency_type !== "usd" ||
     purchase.displayed_price_cents !== purchase.price_cents ||
@@ -163,8 +169,8 @@ async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
   if (related > 0) throw new HandBackToRails("a purchase with a presentment, sales tax info, order or refund row");
   const countryName = present(purchase.country) ? purchase.country : purchase.ip_country;
   const alpha2 = alpha2ByName(countryName);
-  if (alpha2 !== null && SUPPLIER_TAX_COUNTRIES.has(alpha2))
-    throw new HandBackToRails("a buyer in a country with a Gumroad tax registration");
+  if (alpha2 !== null && SUPPLIER_TAX_COUNTRIES.has(alpha2) && !EU_COUNTRY_CODES.has(alpha2))
+    throw new HandBackToRails("a buyer in a country with a Gumroad tax registration outside the EU");
 
   const purchaser =
     purchase.purchaser_id === null ? null : await db.user.findUnique({ where: { id: purchase.purchaser_id } });
@@ -210,7 +216,7 @@ async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
       vat_id_label: "Business VAT ID (Optional)",
       business_id_country_codes: BUSINESS_ID_COUNTRY_CODES,
       business_id_labels: BUSINESS_ID_LABELS,
-      supplier_info: { heading: "Supplier", attributes: supplierAttributes() },
+      supplier_info: { heading: "Supplier", attributes: supplierAttributes(alpha2) },
       seller_info: {
         heading: "Creator",
         attributes: [
@@ -225,6 +231,8 @@ async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
           { label: "Item purchased", value: null },
           { label: productLabel, value: formattedDollarAmount(purchase.price_cents) },
           { label: "Payment Total", value: formattedDollarAmount(purchase.total_transaction_cents) },
+          // no refund rows (guarded above), so no "on <date>" suffix
+          ...(purchase.stripe_refunded ? [{ label: "Refund status", value: "Fully refunded" }] : []),
           ...(paymentMethod ? [paymentMethod] : []),
         ],
         invoice_date_attribute: { label: "Date", value: formattedDateAbbrevMonth(purchase.created_at!) },

@@ -94,7 +94,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
       status: FOUND,
       location: NEW_COLLABORATOR_PATH,
       flash: { alert: resolved.message },
-      inertiaErrors: { "collaborator.base": resolved.message },
+      inertiaErrors: resolved.errors ?? { "collaborator.base": resolved.message },
     };
   const id = await createCollaboration(resolved);
   await deliverCollaboratorMail(resolved.invited ? INVITED_MAIL : CREATION_MAIL, id);

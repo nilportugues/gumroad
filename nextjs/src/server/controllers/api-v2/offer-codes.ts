@@ -13,6 +13,7 @@ import {
   assertPlainCode,
   assertPlainProducts,
   buildOfferCode,
+  isAmountValid,
   loadOfferCode,
   OfferCodes,
   productsOfOfferCode,
@@ -88,6 +89,22 @@ export async function hasApplicableOfferCodes(owner: { id: bigint }, product: Li
     Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table(OFFER_CODES)} WHERE ${productCodes(product.id)} UNION ALL SELECT 1 FROM ${table(OFFER_CODES)} WHERE ${universalCodes(owner.id, product.price_currency_type, product.id)}) AS found`,
   );
   return Number(row?.found ?? 0) > 0;
+}
+
+// validate_product_price_against_all_offer_codes? for codes that leave the price at 0 or above the minimum after the discount: true.
+// A code outside the plain shape, or one that puts the price under the minimum (the error message), goes to Rails.
+export async function enableWithValidOfferCodes(owner: { id: bigint }, product: Link): Promise<void> {
+  const rows = [
+    ...(await selectOfferCodes(productCodes(product.id))),
+    ...(await selectOfferCodes(universalCodes(owner.id, product.price_currency_type, product.id))),
+  ];
+  if (rows.length === 0) return;
+  await assertPlainProducts([product]);
+  for (const { created_usec: _usec, ...row } of rows) {
+    await assertPlainCode(row);
+    if (!(await isAmountValid(OfferCodes.load(row), product)))
+      throw new HandBackToRails("an enable of a product a discount code puts under the minimum price");
+  }
 }
 
 // find_by_external_id: nil for an id that does not decrypt.
