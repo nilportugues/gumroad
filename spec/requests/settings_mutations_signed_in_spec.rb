@@ -114,11 +114,55 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload).to have_attributes(disable_third_party_analytics: true, skip_free_sale_analytics: false)
     end
 
-    it "hands a float snippet field to Rails", parity: true do
+    it "stores float snippet fields as their text", parity: true do
       create(:product, user: seller)
       log_in(seller)
 
-      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 1.5, location: "receipt", code: "<script>1</script>", product: nil }]))
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 1.5, location: "receipt", code: 2.0, product: nil }]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+      expect(seller.third_party_analytics.alive.sole).to have_attributes(name: "1.5", location: "receipt", analytics_code: "2.0", link_id: nil)
+    end
+
+    it "stores a float snippet location and a float product permalink that matches no product", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: "Float location", location: 1.5, code: "<script>1</script>", product: 2.5 }]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole).to have_attributes(location: "1.5", link_id: nil)
+    end
+
+    it "refuses two snippets with the same float location for all products", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [
+                                                                       { id: nil, name: "One", location: 1.5, code: "<script>1</script>", product: nil },
+                                                                       { id: nil, name: "Two", location: 1.5, code: "<script>2</script>", product: nil }
+                                                                     ]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to start_with("Only one analytics block is allowed per product.")
+    end
+
+    it "keeps a float and an integer snippet location apart", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [
+                                                                       { id: nil, name: "One", location: 1.0, code: "<script>1</script>", product: nil },
+                                                                       { id: nil, name: "Two", location: 1, code: "<script>2</script>", product: nil }
+                                                                     ]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+      expect(seller.third_party_analytics.alive.order(:id).pluck(:location)).to eq(["1.0", "1"])
+    end
+
+    it "hands a float snippet id to Rails", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: 1.5, name: "One", location: "receipt", code: "<script>1</script>", product: nil }]))
 
       expect(response).to have_http_status(:see_other)
     end
@@ -142,10 +186,20 @@ describe "Settings mutations when signed in", type: :request do
       expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
     end
 
-    it "hands a snippet field with an integer past 2**53 to Rails", parity: true do
+    it "stores snippet fields with an integer past 2**53 digit for digit", parity: true do
       log_in(seller)
 
-      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 12345678901234567890, location: "receipt", code: "<script>1</script>", product: nil }]))
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 12345678901234567890, location: "receipt", code: 98765432109876543210, product: nil }]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+      expect(seller.third_party_analytics.alive.sole).to have_attributes(name: "12345678901234567890", analytics_code: "98765432109876543210")
+    end
+
+    it "hands a snippet id with an integer past 2**53 to Rails", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: 12345678901234567890, name: "One", location: "receipt", code: "<script>1</script>", product: nil }]))
 
       expect(response).to have_http_status(:see_other)
     end
@@ -390,10 +444,17 @@ describe "Settings mutations when signed in", type: :request do
     end
 
     describe "custom domain" do
-      # Gumroad's own targets resolve and nothing else does, so no seller domain points at Gumroad (the verification stays unconfigured).
+      # Gumroad's own targets resolve and the names in CNAMED_TO_GUMROAD carry a CNAME to Gumroad; nothing else resolves, so any other seller
+      # domain does not point at Gumroad. Keep the replay's zone (settings-mutations.replay.test.ts) in sync.
+      CNAMED_TO_GUMROAD = %w[points.example.com verified-old.example.com].freeze
+
       before do
-        allow_any_instance_of(Resolv::DNS).to receive(:getresources) do |_dns, name, _type|
-          [CUSTOM_DOMAIN_CNAME, CUSTOM_DOMAIN_STATIC_IP_HOST].include?(name) ? [double(address: "203.0.113.7")] : []
+        allow_any_instance_of(Resolv::DNS).to receive(:getresources) do |_dns, name, type|
+          if type == Resolv::DNS::Resource::IN::CNAME
+            CNAMED_TO_GUMROAD.include?(name) ? [double(name: CUSTOM_DOMAIN_CNAME)] : []
+          else
+            [CUSTOM_DOMAIN_CNAME, CUSTOM_DOMAIN_STATIC_IP_HOST].include?(name) ? [double(address: "203.0.113.7")] : []
+          end
         end
       end
 
@@ -415,6 +476,60 @@ describe "Settings mutations when signed in", type: :request do
         expect(flash[:notice]).to eq("Your account has been updated!")
         expect(seller.reload.custom_domain).to have_attributes(domain: "store.example.com", state: "unverified", ssl_certificate_issued_at: nil)
         expect(GenerateSslCertificate.jobs.size).to eq(1)
+      end
+
+      it "saves a custom domain that points at Gumroad as verified and schedules its certificate", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "points.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(seller.reload.custom_domain).to have_attributes(domain: "points.example.com", state: "verified", failed_verification_attempts_count: 0, ssl_certificate_issued_at: nil)
+        expect(GenerateSslCertificate.jobs.size).to eq(1)
+      end
+
+      it "verifies an unverified domain that now points at Gumroad and resets its failed attempts", parity: true do
+        stored_domain(domain: "points.example.com", state: "unverified").update_columns(failed_verification_attempts_count: 2)
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "points.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain).to have_attributes(state: "verified", failed_verification_attempts_count: 0)
+        expect(seller.custom_domain.ssl_certificate_issued_at).to be_present
+        expect(GenerateSslCertificate.jobs.size).to eq(0)
+      end
+
+      it "keeps a verified domain verified when it is changed to another that points at Gumroad", parity: true do
+        stored_domain(domain: "old.example.com", state: "verified")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "verified-old.example.com"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain).to have_attributes(domain: "verified-old.example.com", state: "verified", ssl_certificate_issued_at: nil)
+        expect(GenerateSslCertificate.jobs.size).to eq(1)
+      end
+
+      it "refuses a domain another seller already uses even when it points at Gumroad", parity: true do
+        create(:custom_domain, user: create(:user), domain: "points.example.com")
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "points.example.com", endpoint: "https://example.com/ping"))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("The custom domain is already in use.")
+        expect(seller.reload.custom_domain).to be_nil
+      end
+
+      it "verifies the domain as typed, so one padded with spaces is saved unverified", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_advanced_path, advanced(domain: "  points.example.com  "))
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.custom_domain).to have_attributes(domain: "points.example.com", state: "unverified")
       end
 
       it "strips the spaces around the saved domain", parity: true do

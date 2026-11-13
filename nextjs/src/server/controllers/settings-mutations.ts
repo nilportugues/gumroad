@@ -2,9 +2,8 @@
 // (app/controllers/settings/third_party_analytics_controller.rb, advanced_controller.rb).
 //
 // A request Rails would answer differently from what the port can prove is handed back before its first write: a missing or
-// malformed `user` param (strong parameters raise inside the action's own rescue), a float for a string attribute, a JSON-data
-// field that is neither a string nor an integer, and a custom domain to verify, which resolves DNS. Integers and booleans for string columns are
-// cast, arrays and hashes under scalar keys are dropped (as `permit` does), and a numeric or `true` blocked_customer_emails
+// malformed `user` param (strong parameters raise inside the action's own rescue), a float or huge integer for a snippet id, and a
+// JSON-data field that is neither a string nor an integer. Integers, floats and booleans for string columns are cast, arrays and hashes under scalar keys are dropped (as `permit` does), and a numeric or `true` blocked_customer_emails
 // gets the action's own rescue (the generic block failure).
 import type { BillingDetail } from "@prisma/client";
 
@@ -124,12 +123,13 @@ function plainStringValue(value: unknown): string | null {
 }
 
 // A snippet field stays as sent: `save_third_party_analytics` compares and keys on the raw param and casts it only when it
-// assigns a string column or looks a permalink up. A float hands back: the permalink lookup of a float is not recorded.
-export function snippetValue(value: unknown): string | number | boolean | null {
-  if (value instanceof RubyFloat || typeof value === "bigint")
-    throw new HandBackToRails("a float or a huge integer for a snippet field");
+// assigns a string column or looks a permalink up. The `id` is the exception: a float or a huge integer is decoded as an external
+// id, which is not recorded.
+export function snippetValue(value: unknown, key = ""): string | number | bigint | RubyFloat | boolean | null {
+  if (key === "id" && (value instanceof RubyFloat || typeof value === "bigint"))
+    throw new HandBackToRails("a float or a huge integer for a snippet id");
   stringValue(value);
-  return value as string | number | boolean | null;
+  return value as string | number | bigint | RubyFloat | boolean | null;
 }
 
 const FLAG_PARAMS: Record<string, UserFlag> = {
@@ -149,7 +149,7 @@ function permittedSnippets(value: unknown): SnippetParams[] {
     if (!isHash(entry)) throw new HandBackToRails("a snippet that is not a hash");
     const snippet: Record<string, unknown> = {};
     for (const key of SNIPPET_KEYS)
-      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = snippetValue(entry[key]);
+      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = snippetValue(entry[key], key);
     return snippet;
   });
 }
@@ -219,15 +219,21 @@ async function blockCustomerEmails(sellerId: unknown, emails: string[]): Promise
   return null;
 }
 
-// The custom domain branch of Settings::AdvancedController#update for a domain DNS does not point at Gumroad: `verify` marks a verified
-// domain unverified (an unverified one stays so, and the failed-attempts counter is not incremented from here), then one save. Rails
-// saves inside the state event and again after it; the second save has nothing left to write.
-async function saveUnverifiedCustomDomain(seller: UserRecord, domain: string): Promise<string | null> {
+// The custom domain branch of Settings::AdvancedController#update: `verify` marks an unverified domain verified (resetting its failed
+// attempts) when DNS points at Gumroad, and a verified one unverified when it does not (an unverified one stays so, and the
+// failed-attempts counter is not incremented from here), then one save. Rails saves inside the state event and again after it; the
+// second save has nothing left to write, and a refused first save rolls the state back, so one save carries the same outcome.
+async function saveCustomDomain(seller: UserRecord, domain: string, pointsToGumroad: boolean): Promise<string | null> {
   const record =
     (await aliveCustomDomainOf(seller.get("id"), seller.attributes)) ??
     CustomDomains.build({ user_id: Number(seller.get("id")) });
   record.set("domain", domain);
-  if (record.get("state") === "verified") record.set("state", "unverified");
+  if (pointsToGumroad && record.get("state") !== "verified") {
+    record.set("state", "verified");
+    record.set("failed_verification_attempts_count", 0);
+  } else if (!pointsToGumroad && record.get("state") === "verified") {
+    record.set("state", "unverified");
+  }
   if (await CustomDomains.save(record)) return null;
   return toSentence(record.errors.fullMessages());
 }
@@ -240,11 +246,9 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   const { domain, blocked_customer_emails: emails } = input.params;
   if (!(domain === undefined || domain === null || typeof domain === "string"))
     throw new HandBackToRails("a domain that is not a string");
-  // `params[:domain].present?`. The DNS lookup is a read that changes nothing, so it runs before the first write: a domain that
-  // points at Gumroad would be marked verified (and certified) by Rails, which Node does not do, so that request goes back whole.
+  // `params[:domain].present?`. The DNS lookup is a read that changes nothing, so it runs before the first write.
   const customDomain = typeof domain === "string" && !isBlank(domain) ? domain : null;
-  if (customDomain !== null && (await customDomainPointsToGumroad(customDomain)))
-    throw new HandBackToRails("a custom domain that points at Gumroad, which Rails verifies");
+  const pointsToGumroad = customDomain !== null && (await customDomainPointsToGumroad(customDomain));
   if (isHash(emails) || Array.isArray(emails)) throw new HandBackToRails("blocked emails that are a hash or a list");
   const endpoint =
     "notification_endpoint" in user && isPermittedScalar(user.notification_endpoint)
@@ -273,7 +277,7 @@ async function updateAdvanced(input: MutationInput): Promise<ActionResult> {
   }
 
   if (customDomain !== null) {
-    const failure = await saveUnverifiedCustomDomain(seller, customDomain);
+    const failure = await saveCustomDomain(seller, customDomain, pointsToGumroad);
     if (failure !== null) return redirect(ADVANCED_PATH, failure);
   } else if (domain === "") {
     // `params[:domain] == "" && current_seller.custom_domain.present?`

@@ -63,12 +63,13 @@ async function findByHost(host: string | null): Promise<Row | undefined> {
   return (await findAlive(host))[0];
 }
 
-// What a save may change: the soft delete, and what Settings::AdvancedController sets from a domain that does not point at Gumroad
-// (the domain, the verification state, and the owner of a new row). The routability and certificate columns have their own paths.
+// What a save may change: the soft delete, and what Settings::AdvancedController sets (the domain, the verification state and its
+// failed-attempts reset, and the owner of a new row). The routability and certificate columns have their own paths.
 const PORTED_CHANGES = new Set<string>([
   "deleted_at",
   "domain",
   "state",
+  "failed_verification_attempts_count",
   "user_id",
   "created_at",
   "updated_at",

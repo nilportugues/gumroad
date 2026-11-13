@@ -59,6 +59,8 @@ const FLASH_SOMETHING_BROKE = "Something broke. We're looking into what happened
 const FLASH_RESEND_FAILED = "Sorry, something went wrong. Please try again.";
 const FEATURE_ANNOUNCEMENTS_SOURCE = "settings";
 const UNKNOWN_VERSION = -1;
+// An integer past 2**53 equals no stored version, so the subscription reads as changed elsewhere.
+const BEYOND_ANY_VERSION = Number.POSITIVE_INFINITY;
 
 const FLAG_PARAMS: readonly UserFlag[] = [
   "enable_payment_email",
@@ -121,12 +123,18 @@ function integerValue(value: unknown): number | null {
   throw new HandBackToRails("a value an integer column would cast differently");
 }
 
+// An integer past 2**53 reaches the range validation before the column's limit raises, so the record keeps it as a bigint for the
+// validation to refuse. Only the parity limit is validated by range; a refund policy's days hand back.
+function parityLimitValue(value: unknown): number | null {
+  return typeof value === "bigint" ? (value as unknown as number) : integerValue(value);
+}
+
 // `current_seller.assign_attributes(user_params)`, in the order the params arrive.
 function assignAttributes(seller: UserRecord, user: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(user)) {
     if (!PERMITTED_USER_KEYS.has(key) || !isPermittedScalar(value)) continue;
     if ((FLAG_PARAMS as readonly string[]).includes(key)) setFlag(seller, key as UserFlag, trueValue(value));
-    else if (key === "purchasing_power_parity_limit") seller.set(key, integerValue(value));
+    else if (key === "purchasing_power_parity_limit") seller.set(key, parityLimitValue(value));
     else {
       if (value === null && NOT_NULL_PARAMS.includes(key)) throw new HandBackToRails(`a null ${key}`);
       seller.set(key as (typeof STRING_PARAMS)[number], stringValue(value));
@@ -143,7 +151,7 @@ const castBoolean = (value: unknown) =>
 // text ("3.0", "1.0e+20") is never an Integer.
 function renderedVersion(value: unknown): number {
   if (value instanceof RubyFloat) return UNKNOWN_VERSION;
-  if (typeof value === "bigint") throw new HandBackToRails("a feature announcements version past 2**53");
+  if (typeof value === "bigint") return BEYOND_ANY_VERSION;
   if (value === undefined || value === null || typeof value === "boolean" || value === "") return UNKNOWN_VERSION;
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
   if (typeof value === "string" && /^(?:0|-?[1-9]\d*)$/u.test(value)) return Number.parseInt(value, 10);
