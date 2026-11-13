@@ -19,7 +19,7 @@ fi
 e2e_log "dropping gumroad_development_lane$E2E_LANE"
 docker exec "$E2E_DB_CONTAINER" mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS gumroad_development_lane'"$E2E_LANE" 2>/dev/null
 
-e2e_log "flushing Redis dbs 8 and 9"
+e2e_log "flushing Redis dbs $E2E_REDIS_BASE and $E2E_REDIS_SIDEKIQ"
 for db in $E2E_REDIS_BASE $E2E_REDIS_SIDEKIQ; do docker exec "$E2E_REDIS_CONTAINER" sh -c "valkey-cli -n $db flushdb 2>/dev/null || redis-cli -n $db flushdb" >/dev/null; done
 
 e2e_log "deleting *_lane$E2E_LANE Elasticsearch indices"
