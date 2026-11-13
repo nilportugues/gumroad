@@ -13,6 +13,12 @@ import {
 } from "./batched-cleanup-jobs.ts";
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
+import {
+  performPayoutsForUserSliceWorker,
+  performPayoutsForUserSliceWorkerRetriesExhausted,
+  performPayoutsUpToDelayDaysAgoWorker,
+  performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
+} from "./payout-batch-jobs.ts";
 import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
 import { updateTaxRatesJob } from "./update-tax-rates-job.ts";
 import { compileGumroadDailyAnalyticsJob } from "./compile-gumroad-daily-analytics-job.ts";
@@ -314,6 +320,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   MillionDollarMilestoneCheckWorker: millionDollarMilestoneCheckWorker,
   RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
   ProcessPaymentWorker: processPaymentWorker,
+  PerformPayoutsForUserSliceWorker: performPayoutsForUserSliceWorker,
+  PerformPayoutsUpToDelayDaysAgoWorker: performPayoutsUpToDelayDaysAgoWorker,
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
@@ -542,4 +550,6 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   GenerateCommunityChatRecapJob: generateCommunityChatRecapJobRetriesExhausted,
   ReverseDeferredInternalTransferJob: reverseDeferredInternalTransferJobRetriesExhausted,
   GenerateSubscribePreviewJob: generateSubscribePreviewJobRetriesExhausted,
+  PerformPayoutsForUserSliceWorker: performPayoutsForUserSliceWorkerRetriesExhausted,
+  PerformPayoutsUpToDelayDaysAgoWorker: performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
 };
