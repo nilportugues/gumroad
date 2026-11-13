@@ -269,6 +269,20 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
               // The details keep the follow's created_at as an absolute time; the seed's is the replay's clock. The shape is asserted below.
               "db.audience_members.inserted.*.details",
               ...(name.includes("404") ? ["response.body"] : []),
+              // The row's time columns are seeded from the replay's clock while its details hold absolute dates, so the columns
+              // recomputed from the details read as changed (and the Elasticsearch update lists them). The flags, paid amounts and
+              // follower_created_at stay compared.
+              ...(name.includes("keeps-the-audience-member")
+                ? [
+                    "db.audience_members.updated.*.changes.min_created_at",
+                    "db.audience_members.updated.*.changes.max_created_at",
+                    "db.audience_members.updated.*.changes.min_purchase_created_at",
+                    "db.audience_members.updated.*.changes.max_purchase_created_at",
+                    "db.audience_members.updated.*.changes.min_affiliate_created_at",
+                    "db.audience_members.updated.*.changes.max_affiliate_created_at",
+                    "jobs.*.args.1.fields",
+                  ]
+                : []),
             ],
           }
         : name.includes("signed-in-visitor-with-a-verified-email")

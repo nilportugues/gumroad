@@ -2,7 +2,7 @@
 // (`replace_all: true`). Recorded by spec/requests/workflows_emails_update_spec.rb.
 //
 // What Node cannot prove throws NotPortedError before the first write of the transaction, and the controller hands the request
-// to Rails: an email with files, a preview sent through PostEmailApi, a message holding an upsell card, a delay that is not
+// to Rails: an email with files, a preview of an email with files, a message holding an upsell card, a delay that is not
 // a whole number of a known unit, and the seller or file checks the Installment and Workflow writes refuse (installment-writes.ts).
 import { randomUUID } from "node:crypto";
 
@@ -11,6 +11,7 @@ import { Prisma, type Installment, type InstallmentRule, type User, type Workflo
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
+import { PostEmailNotPortedError } from "../mail/post-email-template.ts";
 
 import { currentJobsRuntime } from "./concerns/job-runtime.ts";
 import { jsonData } from "./concerns/json-data.ts";
@@ -23,12 +24,14 @@ import {
   InstallmentRules,
   markDeletedBang as markRuleDeletedBang,
 } from "./installment-rule-writes.ts";
+import { sendPostPreview } from "./installment-send.ts";
 import {
   InstallmentInvalid,
   Installments,
   markDeletedBang as markInstallmentDeletedBang,
   post,
 } from "./installment-writes.ts";
+import { defaultPostEmailDeps, ResendApiResponseError, SendGridApiResponseError } from "./post-email-api.ts";
 import { type Errors, RecordInvalid } from "./runtime/errors.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { transaction } from "./runtime/transaction.ts";
@@ -236,7 +239,25 @@ export const previewNoticeRequested = (params: SaveInstallmentsParams) =>
     return flag !== undefined && flag !== null && flag !== "" && !FALSE_VALUES.includes(flag);
   });
 
-export type PreviewRecipient = { id: number | bigint; unconfirmed_email: string | null; confirmed_at: Date | null };
+export type PreviewRecipient = {
+  id: number | bigint;
+  email: string;
+  unconfirmed_email: string | null;
+  confirmed_at: Date | null;
+};
+
+// Installment#send_preview_email: the provider failing is the seller's error, not a 500. Sent inside the transaction, as
+// Ruby does, so a later failure rolls the save back after the mail has gone.
+export async function previewThroughPostEmailApi(preview: ReturnType<typeof post>, email: string): Promise<void> {
+  try {
+    await sendPostPreview(preview, email, defaultPostEmailDeps());
+  } catch (caught) {
+    if (caught instanceof PostEmailNotPortedError) refuse(caught.message);
+    if (caught instanceof ResendApiResponseError || caught instanceof SendGridApiResponseError)
+      throw new PreviewEmailError("Failed to send preview email. Please try again later.");
+    throw caught;
+  }
+}
 
 export type SaveInstallmentsResult = { ok: true } | { ok: false; error: string; errors: Record<string, string[]> };
 
@@ -264,8 +285,6 @@ export async function saveInstallments(
   const recipientUnconfirmed = recipient !== null && (!!recipient.unconfirmed_email || recipient.confirmed_at === null);
   if (emails.some(previewRequested)) {
     if (recipient === null) refuse("a preview email with no recipient");
-    // A confirmed recipient of a regular workflow gets PostEmailApi.process, which Node does not run.
-    if (!abandoned && !recipientUnconfirmed) refuse("a preview email sent through PostEmailApi");
   }
 
   const previews: { recipientId: number; installmentId: number }[] = [];
@@ -324,7 +343,9 @@ export async function saveInstallments(
 
           if (previewRequested(email)) {
             if (recipientUnconfirmed) throw new PreviewEmailError(PREVIEW_UNCONFIRMED_MESSAGE);
-            previews.push({ recipientId: Number(recipient!.id), installmentId: Number(installment.get("id")) });
+            if (abandoned)
+              previews.push({ recipientId: Number(recipient!.id), installmentId: Number(installment.get("id")) });
+            else await previewThroughPostEmailApi(post(installment), recipient!.email);
           }
         }
 

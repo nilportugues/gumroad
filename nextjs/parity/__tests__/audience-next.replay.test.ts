@@ -149,6 +149,15 @@ function compareFor(file: string, name: string) {
       "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
       "jobs.*.args.*",
     );
+  // The row's time columns are seeded from the replay's clock while its details hold absolute dates, so the columns recomputed from
+  // the details read as changed (and the Elasticsearch update lists them). The flags, paid amounts and follower_created_at stay compared.
+  if (name.includes("keeps-the-audience-member"))
+    ignore.push(
+      ...["min_created_at", "max_created_at", "min_purchase_created_at", "max_purchase_created_at"].map(
+        (column) => `db.audience_members.updated.*.changes.${column}`,
+      ),
+      "jobs.*.args.1.fields",
+    );
   if (typeof body === "string" && body.startsWith(EXCEPTION_PAGE))
     ignore.push("response.headers.content-type", "response.json", "response.body", "response.cookies");
   return { ignore };
@@ -208,6 +217,8 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      // The first re-send of "sends nothing the second time" is not replayed, only its limit: post 6 to purchase 1, as recorded.
+      RAILS_CACHE_TEST_SEED: JSON.stringify({ "post_email:6:1": true }),
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
@@ -216,6 +227,13 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      // The unsubscribe link a re-sent post carries is signed with them.
+      ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")
+        ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! }
+        : {}),
+      ...(testEnv("SECURE_EXTERNAL_ID__KEYS__1")
+        ? { SECURE_EXTERNAL_ID__KEYS__1: testEnv("SECURE_EXTERNAL_ID__KEYS__1")! }
+        : {}),
       ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",

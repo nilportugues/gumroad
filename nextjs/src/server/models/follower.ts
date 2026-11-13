@@ -94,13 +94,8 @@ async function removeFromAudienceMemberDetails(record: FollowerRecord, email: st
   const details = { ...((member.get("details") ?? {}) as Details) };
   delete details.follower;
   member.set("details", details as never);
-  // `member.valid? ? save! : destroy!`: a member who is still a customer or an affiliate is saved with its columns recomputed, which no
-  // recording pins (the details keep absolute dates, the columns replay with the clock).
-  if (await AudienceMembers.valid(member))
-    throw new NotPortedError(
-      "An audience member who is still a customer or an affiliate",
-      "app/models/concerns/follower/audience_member.rb",
-    );
+  // `member.valid? ? save! : destroy!`: a member who is still a customer or an affiliate keeps its row, with its columns recomputed.
+  if (await AudienceMembers.valid(member)) return void (await AudienceMembers.saveBang(member));
   await AudienceMembers.destroyBang(member);
 }
 

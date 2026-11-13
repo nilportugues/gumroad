@@ -122,14 +122,14 @@ describe "Follower cancel and follow page links", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a follower who is also a customer to Rails", parity: true do
+    it "keeps the audience member of a follower who is also a customer", parity: true do
       follower = follow("buyer@example.com")
       member = AudienceMember.find_by!(seller:, email: "buyer@example.com")
       member.update!(details: member.details.merge("purchases" => [{ "id" => 1, "product_id" => 1, "price_cents" => 100, "created_at" => "2025-01-01T12:00:00.000Z" }]))
 
       get cancel_follow_path(follower.external_id), headers: json_headers
 
-      expect(AudienceMember.find_by(seller:, email: "buyer@example.com")).to have_attributes(follower: false, customer: true)
+      expect(AudienceMember.find_by(seller:, email: "buyer@example.com")).to have_attributes(follower: false, customer: true, follower_created_at: nil)
     end
 
     it "hands a follower of a seller with a newsletter cutover to Rails", parity: true do
