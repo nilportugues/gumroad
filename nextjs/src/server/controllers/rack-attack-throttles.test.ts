@@ -36,9 +36,7 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "/two-factor/switch_to_authenticator": ["/params:/two-factor/switch_to_authenticator:post"],
   "\\A/(?:users|mobile)/forgot_password(?:\\.[^/]+)?\\z": ["password_reset/ip", "password_reset/email"],
   "\\A/products/search(?:\\.[^/]+)?\\z": ["products_search/ip"],
-  "\\A/(purchases|service_charges)/.+/resend_receipt\\z": [
-    "/ip:(?-mix:\\A\\/(purchases|service_charges)\\/.+\\/resend_receipt\\z):post",
-  ],
+  "\\A(/(?:purchases|service_charges)/[^/]+/resend_receipt)(?:\\.[^/]+)?\\z": ["/ip:resend_receipt"],
   "\\A/communities/[^/]+/chat_messages\\z": ["/ip/period:(?-mix:\\A\\/communities\\/[^\\/]+\\/chat_messages\\z):post"],
   "\\A/posts/.+/comments\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post"],
   "\\A/posts/.+/comments/.+\\z": ["/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put"],
@@ -50,7 +48,7 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "/follow": ["/ip:/follow:post", "/ip/params:/follow:post"],
   "/follow_from_embed_form": ["/ip:/follow_from_embed_form", "/ip/params:/follow_from_embed_form"],
   // Served by an api-v2 or mobile handler, which also runs through processAction.
-  "\\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\\.[^/]+)?\\z": ["oauth_dynamic_registration/ip"],
+  "\\A/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/register(?:\\.[^/]+)?\\z": ["oauth_dynamic_registration/ip"],
   "ends_with:/v2/sales": ["/api/v2/sales"],
   "\\A/(api/)?v2/user/custom_html(\\.\\w+)?\\z": [
     "/ip:(?-mix:\\A\\/(api\\/)?v2\\/user\\/custom_html(\\.\\w+)?\\z):put",
@@ -82,7 +80,7 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
     "oauth_device_authorization_lookup/ip",
     "oauth_device_authorization_decision/ip",
   ],
-  "\\A(?:/oauth/token|/(?:muse|claude|chatgpt)/v1/oauth2/token)(?:\\.[^/]+)?\\z": ["oauth_token/ip"],
+  "\\A(?:/oauth/token|/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/token)(?:\\.[^/]+)?\\z": ["oauth_token/ip"],
   "\\A/oauth/token(?:\\.[^/]+)?\\z": ["oauth_device_token/ip/device_code"],
   "/settings/totp/confirm": ["/params:/settings/totp/confirm:post"],
   "\\A/settings/passkeys/registration_options(?:\\.[^/]+)?\\z": [
@@ -186,14 +184,21 @@ const RULES: Rule[] = [
   { source: ["\\A/oauth/device/code(?:\\.[^/]+)?\\z"], methods: ["POST"], samples: ["/oauth/device/code"] },
   { source: ["\\A/oauth/device(?:\\.[^/]+)?\\z"], methods: ["GET", "HEAD", "POST"], samples: ["/oauth/device"] },
   {
-    source: ["\\A(?:/oauth/token|/(?:muse|claude|chatgpt)/v1/oauth2/token)(?:\\.[^/]+)?\\z"],
+    source: ["\\A(?:/oauth/token|/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/token)(?:\\.[^/]+)?\\z"],
     methods: ANY,
-    samples: ["/oauth/token", "/muse/v1/oauth2/token", "/claude/v1/oauth2/token", "/chatgpt/v1/oauth2/token"],
+    samples: [
+      "/oauth/token",
+      "/muse/v1/oauth2/token",
+      "/claude/v1/oauth2/token",
+      "/chatgpt/v1/oauth2/token",
+      "/cursor/v1/oauth2/token",
+      "/antigravity/v1/oauth2/token",
+    ],
   },
   {
-    source: ["\\A/(?:muse|claude|chatgpt)/v1/oauth2/register(?:\\.[^/]+)?\\z"],
+    source: ["\\A/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/register(?:\\.[^/]+)?\\z"],
     methods: ["POST"],
-    samples: ["/claude/v1/oauth2/register"],
+    samples: ["/claude/v1/oauth2/register", "/cursor/v1/oauth2/register"],
   },
   { source: ["\\A/oauth/token(?:\\.[^/]+)?\\z"], methods: ["POST"], samples: ["/oauth/token"] },
   {
@@ -247,9 +252,14 @@ const RULES: Rule[] = [
   { source: ["\\A/posts/.+/comments\\z"], methods: ["POST"], samples: ["/posts/p/comments"] },
   { source: ["\\A/posts/.+/comments/.+\\z"], methods: ["PUT"], samples: ["/posts/p/comments/c"] },
   {
-    source: ["\\A/(purchases|service_charges)/.+/resend_receipt\\z"],
+    source: ["\\A(/(?:purchases|service_charges)/[^/]+/resend_receipt)(?:\\.[^/]+)?\\z"],
     methods: ["POST"],
-    samples: ["/purchases/p/resend_receipt", "/service_charges/s/resend_receipt"],
+    samples: ["/purchases/p/resend_receipt", "/service_charges/s/resend_receipt.json"],
+  },
+  {
+    source: ["\\A/purchases/[^/]+/refund_request(?:\\.[^/]+)?\\z"],
+    methods: ["POST"],
+    samples: ["/purchases/p/refund_request", "/purchases/p/refund_request.json"],
   },
   { source: ["\\A/communities/[^/]+/chat_messages\\z"], methods: ["POST"], samples: ["/communities/c/chat_messages"] },
   {

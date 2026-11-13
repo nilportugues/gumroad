@@ -915,6 +915,18 @@ export const JOB_REGISTRY = {
     "recurringLockMaxAttempt": 600,
     "runtime": "node"
   },
+  "DispatchPendingPartnerMigrationNotificationsJob": {
+    "file": "app/sidekiq/dispatch_pending_partner_migration_notifications_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 5,
+      "queue": "default"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
   "DispatchPendingWorkflowInstallmentScheduleIntentsJob": {
     "file": "app/sidekiq/dispatch_pending_workflow_installment_schedule_intents_job.rb",
     "sidekiqJob": true,
@@ -929,6 +941,21 @@ export const JOB_REGISTRY = {
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 600,
     "runtime": "node"
+  },
+  "DispatchProductPublishSchedulesJob": {
+    "file": "app/sidekiq/dispatch_product_publish_schedules_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 1,
+      "queue": "default",
+      "lock": "until_executed",
+      "lock_ttl": 900
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "recurringLockMaxAttempt": 600,
+    "runtime": "ruby"
   },
   "DisputeEvidenceDueSoonReminderJob": {
     "file": "app/sidekiq/dispute_evidence_due_soon_reminder_job.rb",
@@ -1302,6 +1329,19 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "runtime": "node"
+  },
+  "GenerateAvatarVariantJob": {
+    "file": "app/sidekiq/generate_avatar_variant_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 3,
+      "queue": "low",
+      "lock": "until_executing"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
   },
   "GenerateCanadaSalesReportJob": {
     "file": "app/sidekiq/generate_canada_sales_report_job.rb",
@@ -1720,6 +1760,30 @@ export const JOB_REGISTRY = {
     "retriesExhausted": false,
     "runtime": "node"
   },
+  "Mcp::DeleteExpiredEventSubscriptionsJob": {
+    "file": "app/sidekiq/mcp/delete_expired_event_subscriptions_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 5,
+      "queue": "low"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
+  "Mcp::DeliverEventJob": {
+    "file": "app/sidekiq/mcp/deliver_event_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 0,
+      "queue": "low"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
   "MillionDollarMilestoneCheckWorker": {
     "file": "app/sidekiq/million_dollar_milestone_check_worker.rb",
     "sidekiqJob": true,
@@ -1768,6 +1832,32 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "runtime": "node"
+  },
+  "PartnerMigrationImportJob": {
+    "file": "app/sidekiq/partner_migration_import_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "queue": "partner_import",
+      "retry": 5,
+      "lock": "until_executed",
+      "unique_across_queues": true
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": true,
+    "runtime": "ruby"
+  },
+  "PartnerMigrationNotificationJob": {
+    "file": "app/sidekiq/partner_migration_notification_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "queue": "default",
+      "retry": 5
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
   },
   "PayoutUsersWorker": {
     "file": "app/sidekiq/payout_users_worker.rb",
@@ -1944,6 +2034,33 @@ export const JOB_REGISTRY = {
     "retriesExhausted": false,
     "runtime": "node"
   },
+  "PublishScheduledProductJob": {
+    "file": "app/sidekiq/publish_scheduled_product_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": false,
+      "queue": "default"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
+  "PurchaseRefundRequests::EscalateOverdueJob": {
+    "file": "app/sidekiq/purchase_refund_requests/escalate_overdue_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 0,
+      "queue": "low",
+      "lock": "until_executed",
+      "lock_ttl": 1800
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "recurringLockMaxAttempt": 600,
+    "runtime": "ruby"
+  },
   "PurgeOldDeletedAssetPreviewsWorker": {
     "file": "app/sidekiq/purge_old_deleted_asset_previews_worker.rb",
     "sidekiqJob": true,
@@ -2055,6 +2172,34 @@ export const JOB_REGISTRY = {
     "recurringLockMaxAttempt": 2700,
     "runtime": "node"
   },
+  "ReconcileStripePayoutsPauseForSellerJob": {
+    "file": "app/sidekiq/reconcile_stripe_payouts_pause_for_seller_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "queue": "low",
+      "lock": "until_executed",
+      "retry": 2
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
+  "ReconcileStripePayoutsPausesJob": {
+    "file": "app/sidekiq/reconcile_stripe_payouts_pauses_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "queue": "low",
+      "lock": "until_executed",
+      "retry": 2,
+      "lock_ttl": 5400
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "recurringLockMaxAttempt": 1800,
+    "runtime": "ruby"
+  },
   "RecordOrderChargeOutcomeJob": {
     "file": "app/sidekiq/record_order_charge_outcome_job.rb",
     "sidekiqJob": true,
@@ -2094,6 +2239,18 @@ export const JOB_REGISTRY = {
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 1800,
     "runtime": "node"
+  },
+  "RecordUtmLinkVisitJob": {
+    "file": "app/sidekiq/record_utm_link_visit_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "queue": "default",
+      "retry": 3
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
   },
   "RecoverAusBacktaxFromStripeAccountJob": {
     "file": "app/sidekiq/recover_aus_backtax_from_stripe_account_job.rb",
@@ -2617,6 +2774,18 @@ export const JOB_REGISTRY = {
     "retriesExhausted": false,
     "runtime": "node"
   },
+  "ResumeStalledPartnerMigrationsJob": {
+    "file": "app/sidekiq/resume_stalled_partner_migrations_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 5,
+      "queue": "default"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
   "RetryFailedPaypalPayoutsWorker": {
     "file": "app/sidekiq/retry_failed_paypal_payouts_worker.rb",
     "sidekiqJob": true,
@@ -2760,6 +2929,18 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "runtime": "node"
+  },
+  "ScheduleOpenedNoClickWorkflowEmailsJob": {
+    "file": "app/sidekiq/schedule_opened_no_click_workflow_emails_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 3,
+      "queue": "low"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
   },
   "ScheduleWorkflowEmailsWorker": {
     "file": "app/sidekiq/schedule_workflow_emails_worker.rb",
@@ -3024,6 +3205,19 @@ export const JOB_REGISTRY = {
     "retriesExhausted": false,
     "runtime": "node"
   },
+  "SendProductPublishScheduleNoticeJob": {
+    "file": "app/sidekiq/send_product_publish_schedule_notice_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 5,
+      "queue": "default",
+      "lock": "until_executed"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
   "SendPurchaseReceiptJob": {
     "file": "app/sidekiq/send_purchase_receipt_job.rb",
     "sidekiqJob": true,
@@ -3147,6 +3341,30 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "runtime": "node"
+  },
+  "SendWorkflowEmailToOpenedNonClickerJob": {
+    "file": "app/sidekiq/send_workflow_email_to_opened_non_clicker_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 5,
+      "queue": "low"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
+  },
+  "SendWorkflowEmailsToOpenedNonClickersJob": {
+    "file": "app/sidekiq/send_workflow_emails_to_opened_non_clickers_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 5,
+      "queue": "low"
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "runtime": "ruby"
   },
   "SendWorkflowEmailsToPastCanceledMembersJob": {
     "file": "app/sidekiq/send_workflow_emails_to_past_canceled_members_job.rb",
@@ -3342,6 +3560,21 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "runtime": "node"
+  },
+  "SweepClosedSellerConnectAccountsJob": {
+    "file": "app/sidekiq/sweep_closed_seller_connect_accounts_job.rb",
+    "sidekiqJob": true,
+    "options": {
+      "retry": 2,
+      "queue": "low",
+      "lock": "until_executed",
+      "lock_ttl": 5400
+    },
+    "customLockArgs": false,
+    "customRetryIn": false,
+    "retriesExhausted": false,
+    "recurringLockMaxAttempt": 1800,
+    "runtime": "ruby"
   },
   "SyncGuardianToStripeJob": {
     "file": "app/sidekiq/sync_guardian_to_stripe_job.rb",
@@ -3791,7 +4024,7 @@ export const JOB_REGISTRY = {
 
 export type JobClass = keyof typeof JOB_REGISTRY;
 
-export const SIDEKIQ_QUEUES = ["critical","default","exports","long","low"] as const;
+export const SIDEKIQ_QUEUES = ["critical","default","exports","long","low","partner_import"] as const;
 
 export const CRON_SCHEDULE: readonly CronDefinition[] = [
   {
@@ -3799,6 +4032,24 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
     "cron": "0 * * * *",
     "class": "RecoverPendingRefundFeeRetentionJob",
     "description": "Retries fee collection without issuing another customer refund"
+  },
+  {
+    "name": "dispatch_pending_partner_migration_notifications",
+    "cron": "*/10 * * * *",
+    "class": "DispatchPendingPartnerMigrationNotificationsJob",
+    "description": "Re-enqueues finished partner imports whose result email is still pending"
+  },
+  {
+    "name": "escalate_overdue_purchase_refund_requests",
+    "cron": "0 * * * *",
+    "class": "PurchaseRefundRequests::EscalateOverdueJob",
+    "description": "Hands buyer refund requests still unrefunded past their deadline to support"
+  },
+  {
+    "name": "resume_stalled_partner_migrations",
+    "cron": "*/30 * * * *",
+    "class": "ResumeStalledPartnerMigrationsJob",
+    "description": "Re-enqueues partner imports whose job stopped without finishing"
   },
   {
     "name": "dispatch_pending_workflow_installment_schedule_intents",
@@ -4004,6 +4255,13 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
     "description": "Lifts automatic chargeback-rate payout holds for sellers whose rate is back under the limit"
   },
   {
+    "name": "reconcile_stripe_payouts_pauses",
+    "cron": "15 7 * * *",
+    "class": "ReconcileStripePayoutsPausesJob",
+    "queue": "low",
+    "description": "Resumes Stripe-sourced payout pauses whose account.updated resume was never delivered"
+  },
+  {
     "name": "record_social_score_shadow_evaluations",
     "cron": "0 9 * * *",
     "class": "RecordSocialScoreShadowEvaluationsJob",
@@ -4102,6 +4360,13 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
     "description": "Schedules abandoned cart emails for users who have not completed their purchase"
   },
   {
+    "name": "schedule_opened_no_click_workflow_emails",
+    "cron": "0 15 * * *",
+    "class": "ScheduleOpenedNoClickWorkflowEmailsJob",
+    "queue": "low",
+    "description": "Queues workflow emails whose trigger waits on a recipient opening another email"
+  },
+  {
     "name": "alert_on_stalled_abandoned_cart_emails",
     "cron": "0 17 * * *",
     "class": "AlertOnStalledAbandonedCartEmailsJob",
@@ -4181,6 +4446,13 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
     "class": "AlertOnStalledPostEmailBlastsJob",
     "queue": "low",
     "description": "Reports email blasts that started sending hours ago and never completed and, behind a flag, auto-resumes the safe ones (gumroad-private#2106)"
+  },
+  {
+    "name": "sweep_closed_seller_connect_accounts",
+    "cron": "15 13 * * *",
+    "class": "SweepClosedSellerConnectAccountsJob",
+    "queue": "low",
+    "description": "Reports, and behind a flag deletes, live Gumroad-managed custom Connect accounts of closed sellers once every guard passes (gumroad-private#4250)"
   },
   {
     "name": "alert_on_stripe_dob_drift",
@@ -4556,6 +4828,12 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
     "description": "Deletes ping_deliveries rows past the support lookup window"
   },
   {
+    "name": "delete_expired_mcp_event_subscriptions",
+    "cron": "15 2 * * *",
+    "class": "Mcp::DeleteExpiredEventSubscriptionsJob",
+    "description": "Deletes MCP event subscriptions whose lease has ended, with the client secrets they hold"
+  },
+  {
     "name": "australia_backtax_transfer",
     "cron": "0 10 7 * *",
     "class": "RecoverAusBacktaxesFromStripeAccountsJob",
@@ -4591,5 +4869,11 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = [
     "cron": "0 10 2 1 *",
     "class": "SendBundlesMarketingEmailJob",
     "description": "Send marketing emails for bundles every January 2nd"
+  },
+  {
+    "name": "dispatch_product_publish_schedules",
+    "cron": "* * * * *",
+    "class": "DispatchProductPublishSchedulesJob",
+    "description": "Re-enqueues lost scheduled product publishes, resolves stuck claims and resends unsent notices"
   }
 ];

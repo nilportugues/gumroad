@@ -15,10 +15,10 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 138 | 138 | 0 | 0 | 0 |
-| Mobile API (`/mobile` on the API host) | 64 | 64 | 0 | 0 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 146 | 138 | 0 | 8 | 0 |
+| Mobile API (`/mobile` on the API host) | 59 | 59 | 0 | 0 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 78 | 4 | 0 | 3 |
-| Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 23 | 23 | 0 | 0 | 0 |
+| Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 15 | 15 | 0 | 0 | 0 |
 
 ## API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain)
 
@@ -98,6 +98,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/products/:link_id/builds/:id` | `Api::V2::ProductBuildsController#show` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/builds/deploy` | `Api::V2::ProductBuildsController#deploy` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/builds/:id/promote` | `Api::V2::ProductBuildsController#promote` | native | `nextjs_api_v2_products` | y |
+| `POST /v2/products/:link_id/builds/:id/demo` | `Api::V2::ProductBuildsController#select_demo` | not registered | - | n |
+| `DELETE /v2/products/:link_id/builds/:id/demo` | `Api::V2::ProductBuildsController#unselect_demo` | not registered | - | n |
 | `GET /v2/products/:link_id/reviews` | `Api::V2::ProductReviewsController#index` | native | `nextjs_api_v2_product_reviews` | y |
 | `PUT /v2/products/:link_id/bundle_contents` | `Api::V2::BundleContentsController#update` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#create` | native | `nextjs_api_v2_products` | y |
@@ -162,6 +164,12 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/tax_forms` | `Api::V2::TaxFormsController#index` | native | `nextjs_api_v2_tax` | y |
 | `GET /v2/tax_forms/:year/:tax_form_type/download` | `Api::V2::TaxFormsController#download` | native | `nextjs_api_v2_tax` | y |
 | `GET /v2/earnings` | `Api::V2::EarningsController#show` | native | `nextjs_api_v2_tax` | y |
+| `GET /v2/partner/products` | `Api::V2::Partner::ProductsController#index` | not registered | - | n |
+| `GET /v2/partner/creators/top` | `Api::V2::Partner::CreatorsController#top` | not registered | - | n |
+| `GET /v2/partner/categories` | `Api::V2::Partner::CategoriesController#index` | not registered | - | n |
+| `POST /v2/partner/migrations` | `Api::V2::Partner::MigrationsController#create` | not registered | - | n |
+| `POST /v2/partner/sellers` | `Api::V2::Partner::SellersController#create` | not registered | - | n |
+| `GET /v2/partner/migrations/:id` | `Api::V2::Partner::MigrationsController#show` | not registered | - | n |
 
 ## Mobile API (`/mobile` on the API host)
 
@@ -219,11 +227,6 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /mobile/products` | `Api::Mobile::ProductsController#index` | native | `nextjs_mobile_products` | y |
 | `DELETE /mobile/products/:id` | `Api::Mobile::ProductsController#destroy` | native | `nextjs_mobile_products` | y |
 | `GET /mobile/agent/meta` | `Api::Mobile::AgentController#meta` | native | `nextjs_mobile_agent_meta` | n |
-| `GET /mobile/agent/conversations/latest` | `Api::Mobile::AgentController#latest_conversation` | native | `nextjs_mobile_agent` | y |
-| `GET /mobile/agent/turns/:client_turn_id` | `Api::Mobile::AgentController#turn_status` | native | `nextjs_mobile_agent` | y |
-| `POST /mobile/agent/messages` | `Api::Mobile::AgentController#create` | native | `nextjs_mobile_agent` | y |
-| `POST /mobile/agent/messages/stream` | `Api::Mobile::AgentStreamsController#create` | native | `nextjs_mobile_agent` | y |
-| `POST /mobile/agent/actions` | `Api::Mobile::AgentController#execute` | native | `nextjs_mobile_agent` | y |
 | `POST /mobile/devices` | `Api::Mobile::DevicesController#create` | native | `nextjs_mobile_devices` | y |
 | `GET /mobile/installments/:id` | `Api::Mobile::InstallmentsController#show` | native | `nextjs_mobile_installments` | y |
 | `POST /mobile/consumption_analytics` | `Api::Mobile::ConsumptionAnalyticsController#create` | native | `nextjs_mobile_consumption_analytics` | y |
@@ -344,11 +347,3 @@ Unresolved:
 | `POST /internal/product_review_videos/:product_review_video_id/approvals` | `Api::Internal::ProductReviewVideos::ApprovalsController#create` | native | `nextjs_internal_review_videos` | y |
 | `POST /internal/product_review_videos/:product_review_video_id/rejections` | `Api::Internal::ProductReviewVideos::RejectionsController#create` | native | `nextjs_internal_review_videos` | y |
 | `POST /internal/ai_product_details_generations` | `Api::Internal::AiProductDetailsGenerationsController#create` | native | `nextjs_internal_ai_product_details` | y |
-| `POST /internal/agent/messages` | `Api::Internal::AgentMessagesController#create` | native | `nextjs_internal_agent` | y |
-| `POST /internal/agent/messages/stream` | `Api::Internal::AgentMessageStreamsController#create` | native | `nextjs_internal_agent` | y |
-| `POST /internal/agent/actions` | `Api::Internal::AgentMessagesController#execute` | native | `nextjs_internal_agent` | y |
-| `GET /internal/agent/actions/status` | `Api::Internal::AgentConversationsController#action_status` | native | `nextjs_internal_agent` | y |
-| `GET /internal/agent/conversations/latest` | `Api::Internal::AgentConversationsController#latest` | native | `nextjs_internal_agent` | y |
-| `GET /internal/agent/turns/:client_turn_id` | `Api::Internal::AgentConversationsController#turn_status` | native | `nextjs_internal_agent` | y |
-| `POST /internal/agent/custom_html_preview` | `Api::Internal::AgentCustomHtmlPreviewsController#create` | native | `nextjs_internal_agent` | y |
-| `GET /internal/agent/custom_html_previews/:token` | `Api::Internal::AgentCustomHtmlPreviewsController#show` | native | `nextjs_internal_agent` | y |

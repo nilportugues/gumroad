@@ -15,6 +15,7 @@ IP = "203.0.113.9"
 CASES = [
   { name: "discover", method: "GET", path: "/discover" },
   { name: "dynamic registration", method: "POST", path: "/claude/v1/oauth2/register.json" },
+  { name: "dynamic registration cursor", method: "POST", path: "/cursor/v1/oauth2/register" },
   { name: "sales past page ten", method: "GET", path: "/v2/sales?page=11" },
   { name: "sales on page ten", method: "GET", path: "/v2/sales?page=10" },
   { name: "mobile download", method: "GET", path: "/mobile/url_redirects/download/tok/file.json" },
@@ -36,6 +37,10 @@ CASES = [
   { name: "oauth device lookup", method: "GET", path: "/oauth/device" },
   { name: "oauth device decision", method: "POST", path: "/oauth/device.json" },
   { name: "oauth token alias", method: "POST", path: "/claude/v1/oauth2/token" },
+  { name: "oauth token antigravity alias", method: "POST", path: "/antigravity/v1/oauth2/token.json" },
+  { name: "resend receipt", method: "POST", path: "/purchases/abc/resend_receipt" },
+  { name: "resend receipt with a format", method: "POST", path: "/service_charges/abc/resend_receipt.json" },
+  { name: "resend receipt with a nested id", method: "POST", path: "/purchases/a/b/resend_receipt" },
   { name: "oauth device grant", method: "POST", path: "/oauth/token?grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=Abc" },
   { name: "oauth token other grant", method: "POST", path: "/oauth/token?grant_type=password" },
   { name: "totp confirm signed out", method: "POST", path: "/settings/totp/confirm" },

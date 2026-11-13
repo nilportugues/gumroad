@@ -108,7 +108,7 @@ function memoized(discriminator: Throttle["discriminator"]): Throttle["discrimin
 const PASSWORD_RESET_PATH = /^\/(?:users|mobile)\/forgot_password(?:\.[^/]+)?$/u;
 const LANDING_PRODUCTS_PATH = /^\/(?:[^/]+\/)?landing\/products$/u;
 const PRODUCTS_SEARCH_PATH = /^\/products\/search(?:\.[^/]+)?$/u;
-const RESEND_RECEIPT_PATH = /^\/(purchases|service_charges)\/.+\/resend_receipt$/u;
+const RESEND_RECEIPT_PATH = /^(\/(?:purchases|service_charges)\/[^/]+\/resend_receipt)(?:\.[^/]+)?$/u;
 const CHAT_MESSAGES_PATH = /^\/communities\/[^/]+\/chat_messages$/u;
 const COMMENTS_PATH = /^\/posts\/.+\/comments$/u;
 const COMMENT_PATH = /^\/posts\/.+\/comments\/.+$/u;
@@ -194,7 +194,7 @@ const tokenRule =
     request.method === method && path.test(request.path) ? `${request.path}:${v2Token(request) ?? ""}` : null;
 
 const MOBILE_DOWNLOAD_PATH = /^\/(?:api\/)?mobile\/url_redirects\/download\/(?<token>[^/]+)\/(?<file>[^/.]+)/u;
-const MCP_REGISTRATION_PATH = /^\/(?:muse|claude|chatgpt)\/v1\/oauth2\/register(?:\.[^/]+)?$/u;
+const MCP_REGISTRATION_PATH = /^\/(?:muse|claude|chatgpt|cursor|antigravity)\/v1\/oauth2\/register(?:\.[^/]+)?$/u;
 const USER_CUSTOM_HTML_PATH = /^\/(api\/)?v2\/user\/custom_html(\.\w+)?$/u;
 const USER_PREVIEW_PATH = /^\/(api\/)?v2\/user\/preview_custom_html(\.\w+)?$/u;
 const PRODUCTS_PATH = /^\/(api\/)?v2\/products(\.\w+)?$/u;
@@ -208,7 +208,7 @@ const HELP_CONTACT_PATH = /^\/help\/contact(?:\.[^/]+)?$/u;
 const OAUTH_DEVICE_CODE_PATH = /^\/oauth\/device\/code(?:\.[^/]+)?$/u;
 const OAUTH_DEVICE_PATH = /^\/oauth\/device(?:\.[^/]+)?$/u;
 const OAUTH_TOKEN_PATH = /^\/oauth\/token(?:\.[^/]+)?$/u;
-const OAUTH_TOKEN_ALIASES_PATH = /^(?:\/oauth\/token|\/(?:muse|claude|chatgpt)\/v1\/oauth2\/token)(?:\.[^/]+)?$/u;
+const OAUTH_TOKEN_ALIASES_PATH = /^(?:\/oauth\/token|\/(?:muse|claude|chatgpt|cursor|antigravity)\/v1\/oauth2\/token)(?:\.[^/]+)?$/u;
 const PASSKEY_REGISTRATION_OPTIONS_PATH = /^\/settings\/passkeys\/registration_options(?:\.[^/]+)?$/u;
 const PASSKEYS_PATH = /^\/settings\/passkeys(?:\.[^/]+)?$/u;
 const MARKETING_EXECUTE_PATH = /^\/products\/[^/]+\/marketing_actions\/[^/]+\/execute(?:\.[^/]+)?$/u;
@@ -559,12 +559,16 @@ const RULES: Throttle[] = [
   ...backoff(`/ip:${RUBY_PATH.affiliateRequests}:post`, 10, 60, 5, memoized(ipRule(AFFILIATE_REQUESTS_PATH, "POST"))),
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\z):post", 5, 60, 5, memoized(ipRule(COMMENTS_PATH, "POST"))),
   ...backoff("/ip:(?-mix:\\A\\/posts\\/.+\\/comments\\/.+\\z):put", 5, 60, 5, memoized(ipRule(COMMENT_PATH, "PUT"))),
+  // Keyed on the path without its format suffix, so `/resend_receipt.json` shares the bucket.
   ...backoff(
-    "/ip:(?-mix:\\A\\/(purchases|service_charges)\\/.+\\/resend_receipt\\z):post",
+    "/ip:resend_receipt",
     2,
     60,
     5,
-    memoized(ipRule(RESEND_RECEIPT_PATH, "POST")),
+    memoized((request) => {
+      const match = RESEND_RECEIPT_PATH.exec(request.path);
+      return match !== null && request.method === "POST" ? `${match[1]!}:${request.remoteIp}` : null;
+    }),
   ),
   // throttle_by_ip_for_period: one counter, no tiers.
   {
