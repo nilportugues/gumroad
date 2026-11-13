@@ -18,7 +18,11 @@ import { present } from "./base.ts";
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
 
 // Mcp::OauthClientRegistration::MCP_SCOPES
-const MCP_SCOPES = ["view_public", "view_profile", "view_sales", "edit_products", "view_payouts", "account"];
+const MCP_SCOPES = ["view_public", "view_profile", "view_sales", "edit_products", "view_payouts", "view_library"];
+// Not granted by default, but accepted from a client that still names it.
+const LEGACY_SCOPES = ["account"];
+// Native-app callbacks that are neither https nor loopback, accepted only as exact strings.
+const NATIVE_APP_REDIRECT_URIS = ["cursor://anysphere.cursor-mcp/oauth/callback"];
 // Doorkeeper.configuration.public_scopes
 const PUBLIC_SCOPES = [
   "edit_products",
@@ -32,6 +36,7 @@ const PUBLIC_SCOPES = [
   "edit_profile",
   "view_payouts",
   "view_tax_data",
+  "view_library",
   "account",
 ];
 
@@ -64,11 +69,17 @@ export const mcpDiscovery = async (): Promise<ActionResult> => {
   return renderJson({
     name: "Gumroad",
     description:
-      "Sell digital products. Claude, ChatGPT, Muse, and other MCP clients can list products and sales, draft and edit a product, add the files buyers receive and a cover image, publish it, and check payouts for a connected creator.",
+      "Sell digital products. An MCP client can list products and sales, draft and edit a product, add the files and links buyers receive and a cover image, publish it, and check payouts for a connected creator.",
     website: "https://gumroad.com",
     documentation: `${base}/muse`,
     mcp: `${base}/muse/v1/mcp`,
-    clients: { muse: `${base}/muse/v1/mcp`, claude: `${base}/claude/v1/mcp`, chatgpt: `${base}/chatgpt/v1/mcp` },
+    clients: {
+      muse: `${base}/muse/v1/mcp`,
+      claude: `${base}/claude/v1/mcp`,
+      chatgpt: `${base}/chatgpt/v1/mcp`,
+      cursor: `${base}/cursor/v1/mcp`,
+      antigravity: `${base}/antigravity/v1/mcp`,
+    },
     oauth: {
       authorization_endpoint: `${base}/muse/v1/oauth2/authorize`,
       token_endpoint: `${base}/muse/v1/oauth2/token`,
@@ -217,6 +228,7 @@ function redirectUris(params: Record<string, unknown>): string[] {
 
 function validateRedirectUri(value: string): void {
   if (value.includes("*")) throw new RegistrationError("redirect_uris must not contain wildcards");
+  if (NATIVE_APP_REDIRECT_URIS.includes(value)) return;
   let parts;
   try {
     parts = rubyUriParseParts(value);
@@ -271,7 +283,9 @@ function validateRegistration(params: Record<string, unknown>): Registration {
     .split(/[ \t\n\v\f\r]+/u)
     .filter((scope) => scope !== "");
   const chosen =
-    requested.length > 0 ? [...new Set(requested.filter((scope) => MCP_SCOPES.includes(scope)))] : MCP_SCOPES;
+    requested.length > 0
+      ? [...new Set(requested.filter((scope) => [...MCP_SCOPES, ...LEGACY_SCOPES].includes(scope)))]
+      : MCP_SCOPES;
   if (requested.length > 0 && chosen.length === 0) throw new RegistrationError("no supported scopes requested");
   return { redirectUris: uris, name, method: present(given) ? given : "none", scopes: chosen.join(" ") };
 }

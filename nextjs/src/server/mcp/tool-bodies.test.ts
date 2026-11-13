@@ -902,6 +902,15 @@ const detailContext = (scopes: string, row: ProductListRow | null, description: 
   context.products.covers.mockResolvedValue([]);
   return Object.assign(context, {
     productStats: vi.fn().mockResolvedValue({ sales_count: 3, sales_usd_cents: 2500 }),
+    productExtras: vi.fn().mockResolvedValue({
+      category: null,
+      summary: null,
+      additional_details: [],
+      tags: [],
+      custom_receipt_text: null,
+      custom_view_content_button_text: null,
+    }),
+    bundleProducts: vi.fn().mockResolvedValue([]),
   });
 };
 
@@ -938,8 +947,79 @@ describe("get_product", () => {
     covered.products.covers.mockResolvedValue([{ guid: "c", unsplash_url: null, has_oembed: false }]);
     await expect(toolBody("get_product", { id: "x" }, covered)).rejects.toBeInstanceOf(HandBackToRails);
     await expect(
-      toolBody("get_product", { id: "x" }, detailContext("view_public", productRow(1, { flags: BigInt(1 << 25) }))),
+      toolBody("get_product", { id: "x" }, detailContext("view_public", productRow(1, { flags: BigInt(1 << 18) }))),
     ).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("writes the category, summary, additional details, tags and receipt texts in Rails' order, after the description", async () => {
+    const context = detailContext("view_public", productRow(1));
+    context.productExtras.mockResolvedValue({
+      category: { path: "design/3d-assets", label: "3D Assets" },
+      summary: "Sketch every day",
+      additional_details: [{ name: "Pages", value: "40" }],
+      tags: ["field-notes"],
+      custom_receipt_text: "Thanks",
+      custom_view_content_button_text: "Open",
+    });
+    const body = (await toolBody("get_product", { id: "sketchpk" }, context)) as { product: Record<string, unknown> };
+    expect(Object.keys(body.product).slice(-8)).toEqual([
+      "category",
+      "description",
+      "summary",
+      "additional_details",
+      "tags",
+      "custom_receipt_text",
+      "custom_view_content_button_text",
+      "covers",
+    ]);
+    expect(body.product.category).toEqual({ path: "design/3d-assets", label: "3D Assets" });
+  });
+
+  it("lists the products a bundle sells after the covers", async () => {
+    const context = detailContext("view_public", productRow(1, { flags: BigInt(1 << 25) }));
+    context.bundleProducts.mockResolvedValue([{ id: "p1", name: "Icon set", variant_id: "v1", quantity: 2 }]);
+    const body = (await toolBody("get_product", { id: "bundlepk" }, context)) as { product: Record<string, unknown> };
+    expect(context.bundleProducts).toHaveBeenCalledWith(1n);
+    expect(body.product.bundle_products).toEqual([{ id: "p1", name: "Icon set", variant_id: "v1", quantity: 2 }]);
+    expect(Object.keys(body.product).at(-1)).toBe("bundle_products");
+  });
+});
+
+describe("fields Rails writes that Node does not", () => {
+  it.each([
+    ["update_product", { id: "x", summary: "s" }],
+    ["update_product", { id: "x", category: "other" }],
+    ["update_product", { id: "x", tags: [] }],
+    ["update_product", { id: "x", additional_details: [] }],
+    ["update_product", { id: "x", currency: "eur" }],
+    ["update_product", { id: "x", pay_what_you_want: true }],
+    ["update_product", { id: "x", suggested_price_cents: 5 }],
+    ["update_product", { id: "x", custom_receipt_text: "t" }],
+    ["update_product", { id: "x", custom_view_content_button_text: "t" }],
+    ["create_draft_product", { name: "n", price_cents: 5, currency: "eur" }],
+    ["create_draft_product", { name: "n", price_cents: 5, pay_what_you_want: true }],
+    ["create_draft_product", { name: "n", price_cents: 5, suggested_price_cents: 9 }],
+    [
+      "create_draft_product",
+      {
+        name: "n",
+        product_type: "membership",
+        tiers: [{ name: "t", price_cents: 5, recurrence: "monthly", pay_what_you_want: true }],
+      },
+    ],
+  ])("hands %s back for %j before any read or write", async (tool, args) => {
+    const context = detailContext("edit_products", productRow(1));
+    await expect(toolBody(tool, args, context)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(context.products.find).not.toHaveBeenCalled();
+  });
+
+  it("names every field in the update_product argument error", async () => {
+    const context = detailContext("edit_products", productRow(1));
+    await expect(toolBody("update_product", { id: "x" }, context)).rejects.toMatchObject({
+      code: -32602,
+      message:
+        "Pass at least one of name, description, summary, additional_details, category, tags, price_cents, currency, pay_what_you_want, suggested_price_cents, custom_receipt_text, custom_view_content_button_text, or permalink",
+    });
   });
 });
 

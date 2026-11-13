@@ -172,6 +172,18 @@ describe "MCP dynamic client registration", type: :request do
     expect(Rack::Attack.cache.store.keys("rack::attack:*:oauth_dynamic_registration/ip:203.0.113.55").size).to eq(1)
   end
 
+  it "registers Cursor's native-app callback beside an https one", parity: true do
+    body = registered({ redirect_uris: [redirect_uri, "cursor://anysphere.cursor-mcp/oauth/callback"] })
+
+    expect(body["redirect_uris"]).to eq([redirect_uri, "cursor://anysphere.cursor-mcp/oauth/callback"])
+  end
+
+  it "refuses a native-app callback that is not Cursor's", parity: true do
+    register({ redirect_uris: ["cursor://anysphere.cursor-mcp/other"] })
+
+    expect_refusal("redirect_uris must be https (or http on localhost)")
+  end
+
   it "registers a confidential client and returns its secret", parity: true do
     body = registered({ token_endpoint_auth_method: "client_secret_post", scope: "view_public account" })
 

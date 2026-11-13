@@ -133,6 +133,22 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       create_draft({ name: "Notebook", price_cents: 500 })
     end
 
+    it "hands a currency back to Rails", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, currency: "eur" })
+    end
+
+    it "hands a currency Rails does not list back to Rails", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, currency: "xyz" })
+    end
+
+    it "hands a pay what you want price back to Rails", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true, suggested_price_cents: 900 })
+    end
+
+    it "hands a membership tier with a suggested price back to Rails", parity: true do
+      create_draft({ name: "Club", product_type: "membership", tiers: [{ name: "Gold", price_cents: 500, recurrence: "monthly", pay_what_you_want: true, suggested_price_cents: 900 }] })
+    end
+
     it "hands a call without the edit scope back to Rails", parity: true do
       create_draft({ name: "Notebook", price_cents: 500 }, scopes: "view_sales")
     end
@@ -453,6 +469,40 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
     it "hands a tiered membership back to Rails", parity: true do
       membership = create(:membership_product, user: seller, unique_permalink: "clubpk")
       call_tool("update_product", { id: membership.external_id, price_cents: 50 })
+    end
+
+    it "reports the category, summary, additional details, tag and receipt texts the product already has", parity: true do
+      design = create(:taxonomy, slug: "design")
+      product.update!(taxonomy: create(:taxonomy, slug: "3d-assets", parent_id: design.id))
+      product.json_data = { "custom_summary" => "Sketch every day", "custom_receipt_text" => "Thanks for buying", "custom_view_content_button_text" => "Open the pack",
+                            "custom_attributes" => [{ "name" => "Pages", "value" => "40" }] }
+      product.save!
+      product.save_tags!(["field-notes"])
+      update({ price_cents: 450 })
+    end
+
+    it "hands a summary back to Rails", parity: true do
+      update({ summary: "Sketch every day" })
+    end
+
+    it "hands a category back to Rails", parity: true do
+      update({ category: "other" })
+    end
+
+    it "hands a list of tags back to Rails", parity: true do
+      update({ tags: ["field-notes"] })
+    end
+
+    it "hands a currency back to Rails", parity: true do
+      update({ currency: "eur" })
+    end
+
+    it "hands a pay what you want change back to Rails", parity: true do
+      update({ pay_what_you_want: true })
+    end
+
+    it "hands a receipt message back to Rails", parity: true do
+      update({ custom_receipt_text: "Thanks", custom_view_content_button_text: "Open" })
     end
 
     it "hands a call without the edit scope back to Rails", parity: true do
