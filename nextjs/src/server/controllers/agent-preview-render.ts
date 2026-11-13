@@ -114,7 +114,9 @@ const DEFAULT_AVATAR = "gumroad-default-avatar-5.png";
 export async function stageClearedPreview(seller: PreviewSeller): Promise<string> {
   const profile = await db.sellerProfile.findFirst({ where: { seller_id: seller.id }, orderBy: { id: "asc" } });
   // Pages::ProfileData.build, which the document reads: lists products and posts, so it throws for a seller who has any.
-  profileDataJson(await loadProfileDataFacts(seller.id));
+  const facts = await loadProfileDataFacts(seller, new Date());
+  profileDataJson(facts);
+  await enqueueRoutabilityRefresh(facts.routabilityRefresh);
   if (await avatarAttachmentOf(seller.id)) throw new NotPortedError("User#avatar_url of an uploaded avatar");
   const document = defaultProfileDocument({
     nameOrUsername: nameOrUsername(seller),
