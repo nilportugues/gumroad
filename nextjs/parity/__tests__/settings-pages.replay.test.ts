@@ -39,6 +39,9 @@ const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
 
 const COMPARE = {
   ignore: [
+    // The advanced fixtures were re-recorded on a Rails base that no longer has the store agent policies (#8928); Node's policy props
+    // still carry them until ws-agent-removal lands.
+    "response.inertia.props.logged_in_user.policies.user",
     // Added by the test environment's Rack stack, not by the app.
     "response.headers.x-original-headers-class",
     // Next.js owns Cache-Control on rendered HTML (no-store).
