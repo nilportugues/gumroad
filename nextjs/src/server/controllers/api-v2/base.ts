@@ -54,6 +54,8 @@ export type ApiV2Route = {
   requireScope?: string[] | ((params: Params) => string[] | undefined);
   // A partner endpoint: a client-credentials token has no resource owner, so `owner` stays null when the token has none.
   ownerless?: boolean;
+  // False when the scope refusal is rendered before anything read `params`, so a request that sends `Accept` still gets `Vary: Accept`.
+  paramsReadBeforeScope?: boolean;
   unauthorized?(headers: Record<string, string>): Rendered;
   keepSession?: boolean;
   // The action reads the JSON body itself (`request.raw_post`), so a body that is an array or a scalar is not a hand-back.
@@ -189,7 +191,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
         const requiredScope = typeof route.requireScope === "function" ? route.requireScope(params) : route.requireScope;
         if (requiredScope) {
           const refusal = requireOauthScope(token, requiredScope);
-          if (refusal) return { status: refusal.status, body: JSON.stringify(refusal.body), contentType: "application/json; charset=utf-8", rescued: true, paramsRead: true };
+          if (refusal) return { status: refusal.status, body: JSON.stringify(refusal.body), contentType: "application/json; charset=utf-8", rescued: true, paramsRead: route.paramsReadBeforeScope !== false };
         }
         if (!(route.ownerless && token!.resource_owner_id == null)) owner = (await currentApiUser(token))!;
       }
