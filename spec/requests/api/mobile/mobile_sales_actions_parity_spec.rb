@@ -72,12 +72,66 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(response.parsed_body).to eq("success" => true, "missed_posts" => [])
     end
 
-    it "hands a seller with a published post to Rails", parity: true do
-      create(:published_installment, link: product, seller:)
+    # Midday UTC, so the replay clock (whole hours) cannot move a post across a day.
+    def at_midday(days_ago) = days_ago.days.ago.utc.change(hour: 12)
 
-      get "/mobile/sales/#{sale.external_id}/missed_posts", params: auth(seller)
+    def product_post(name, days_ago, **attributes)
+      create(:published_installment, link: product, seller:, installment_type: "product", name:, published_at: at_midday(days_ago), **attributes)
+    end
 
-      expect(response.parsed_body["missed_posts"].size).to eq(1)
+    def missed_posts_of(record)
+      get "/mobile/sales/#{record.external_id}/missed_posts", params: auth(seller)
+      response.parsed_body["missed_posts"]
+    end
+
+    def received(buyer_sale, post)
+      create(:creator_contacting_customers_email_info_delivered, purchase: buyer_sale, installment: post, sent_at: at_midday(1), delivered_at: at_midday(1))
+    end
+
+    it "lists a published post the customer has not received", parity: true do
+      post = product_post("Update", 3)
+
+      posts = missed_posts_of(sale)
+
+      expect(posts.size).to eq(1)
+      expect(posts.first).to include("id" => post.external_id, "name" => "Update", "url" => post.full_url)
+    end
+
+    it "lists posts newest first, oldest id first when published together, without the one already sent", parity: true do
+      older = product_post("Older", 9)
+      first_tie = product_post("First tie", 4)
+      second_tie = product_post("Second tie", 4)
+      newest = product_post("Newest", 2)
+      received(sale, product_post("Sent", 1))
+
+      expect(missed_posts_of(sale).map { _1["id"] }).to eq([newest, first_tie, second_tie, older].map(&:external_id))
+    end
+
+    it "skips a post another sale of the customer received, but not one a refunded or charged back sale received", parity: true do
+      received(purchase_row(link: product, seller:, email: sale.email, purchase_state: "successful"), product_post("Sent", 3))
+      received(purchase_row(link: product, seller:, email: sale.email, purchase_state: "successful", stripe_refunded: true), product_post("Refunded only", 4))
+      received(purchase_row(link: product, seller:, email: sale.email, purchase_state: "successful", chargeback_date: at_midday(2)), product_post("Charged back only", 5))
+      received(purchase_row(link: product, seller:, email: sale.email, purchase_state: "successful", chargeback_date: at_midday(2), chargeback_reversed: true), product_post("Reversed", 6))
+      received(purchase_row(link: product, seller:, email: "stranger@example.com", purchase_state: "successful"), product_post("Other customer", 7))
+
+      expect(missed_posts_of(sale).map { _1["name"] }).to eq(["Refunded only", "Charged back only", "Other customer"])
+    end
+
+    it "skips a draft, a deleted post, a post for one recipient and a post that is not emailed, and lists a seller-wide post", parity: true do
+      create(:installment, link: product, seller:, installment_type: "product", name: "Draft")
+      product_post("Deleted", 3, deleted_at: at_midday(1))
+      product_post("Not emailed", 4, send_emails: false, shown_on_profile: true)
+      product_post("One recipient", 5, single_recipient_email: true)
+      create(:published_installment, link: product, seller: create(:user), installment_type: "product", name: "Another seller", published_at: at_midday(6))
+      everyone = create(:published_installment, seller:, link: nil, installment_type: "seller", name: "To everyone", published_at: at_midday(7))
+
+      expect(missed_posts_of(sale).map { _1["id"] }).to eq([everyone.external_id])
+    end
+
+    it "lists a post of a product the customer did not buy", parity: true do
+      post = create(:published_installment, link: create(:product, user: seller), seller:, installment_type: "product", name: "Other product", published_at: at_midday(3))
+
+      expect(missed_posts_of(sale).map { _1["id"] }).to eq([post.external_id])
     end
   end
 

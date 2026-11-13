@@ -2,8 +2,7 @@
 //
 // Each action runs the checks that answer without writing, sending mail or calling a processor, and hands the request to Rails whole
 // (before any write) once it gets past them. Served here: the 404 of `fetch_purchase` for every member action,
-// `product_purchases` of a sale that is not a bundle, `missed_posts` of a customer who cannot be contacted or a seller with nothing
-// published, `blob_url`'s 404, `update`'s two gift 422s, `variant`'s 404s, `send_post`'s 401/404/422 and `update_review_response`'s 404.
+// `product_purchases` of a sale that is not a bundle, `missed_posts` (the posts the customer has not been sent), `blob_url`'s 404, `update`'s two gift 422s, `variant`'s 404s, `send_post`'s 401/404/422 and `update_review_response`'s 404.
 // Handed back: refund (moves money), mark_as_shipped (mail), resend_ping (webhook), a change_can_contact that Node
 // cannot prove (models/purchase-contact-writes.ts) and update's saves (Purchase callbacks that mirror the opt-out into the newsletter cutover and the audience), a variant swap, a post
 // email, a review reply on a subscription or gift sale, and blob_url's success (a CDN URL for the blob's storage service).
@@ -15,6 +14,8 @@ import { findResponseOfReview, ProductReviewResponses } from "../models/product-
 import { changeCanContact } from "../models/purchase-contact-writes.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { eligibleToSendEmails } from "../models/user-email-eligibility.ts";
+import { missedPosts as missedPostsOf } from "../page-props/customers/customer-details.ts";
+import type { Row } from "../page-props/customers/customers.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 import { present } from "../search/ruby-params.ts";
 
@@ -94,16 +95,14 @@ const productPurchases = memberAction((sale) => {
   return Promise.resolve(renderJson({ success: true, product_purchases: [] }));
 });
 
-// CustomerPresenter#missed_posts. `Installment.missed_for_purchase` starts from the seller's alive, published posts, so with none
-// the list is empty whatever the filters and the email infos say.
+// CustomerPresenter#missed_posts, which the customers page reads too (page-props/customers/customer-details.ts): it hands back what
+// its filters cannot evaluate.
 const missedPosts = memberAction(async (sale) => {
-  if (!isTrue(sale.can_contact)) return renderJson({ success: true, missed_posts: [] });
-  if (sale.link_id === null) throw new HandBackToRails("a sale without a product");
-  const published = await rowExists(
-    Prisma.sql`SELECT 1 FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${sale.seller_id} AND ${column("installments", "deleted_at")} IS NULL AND ${column("installments", "published_at")} IS NOT NULL LIMIT 1`,
+  const [purchase] = await selectRows<Row>(
+    Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${sale.id} LIMIT 1`,
   );
-  if (published) throw new HandBackToRails("a seller with published posts");
-  return renderJson({ success: true, missed_posts: [] });
+  if (purchase === undefined) throw new HandBackToRails("a sale that vanished");
+  return renderJson({ success: true, missed_posts: await missedPostsOf(purchase) });
 });
 
 // `Purchase#gift`: the sender's gift for a sender's purchase, the receiver's for a receiver's.
