@@ -105,7 +105,7 @@ registerApiV2({
         },
         400,
       );
-    if (!externalUserId.isWellFormed()) throw new HandBackToRails("a partner user id that is not valid text");
+    if (/\p{Surrogate}/u.test(externalUserId)) throw new HandBackToRails("a partner user id that is not valid text");
     if (!isAccountActive(Users.load(owner))) return forbidden("This account cannot be linked.");
 
     const [application] = await selectRows<{ name: string }>(
