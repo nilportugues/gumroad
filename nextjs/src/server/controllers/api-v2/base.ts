@@ -52,6 +52,8 @@ export type ApiV2Route = {
   // request keeps its session), and `prepend_before_action`s that answer ahead of the whole chain (they may throw HandBackToRails).
   anonymous?: boolean;
   requireScope?: string[] | ((params: Params) => string[] | undefined);
+  // A partner endpoint: a client-credentials token has no resource owner, so `owner` stays null when the token has none.
+  ownerless?: boolean;
   unauthorized?(headers: Record<string, string>): Rendered;
   keepSession?: boolean;
   // The action reads the JSON body itself (`request.raw_post`), so a body that is an array or a scalar is not a hand-back.
@@ -189,7 +191,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
           const refusal = requireOauthScope(token, requiredScope);
           if (refusal) return { status: refusal.status, body: JSON.stringify(refusal.body), contentType: "application/json; charset=utf-8", rescued: true, paramsRead: true };
         }
-        owner = (await currentApiUser(token))!;
+        if (!(route.ownerless && token!.resource_owner_id == null)) owner = (await currentApiUser(token))!;
       }
       const input: ApiV2Input = { request: railsReq, url, routeParams: routeParams!, params, rawBody: bytes, token: token!, owner: owner!, state: {} };
       const halted = await route.before?.(input);
