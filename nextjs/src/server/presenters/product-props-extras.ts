@@ -1,10 +1,13 @@
 // The parts of ProductPresenter::ProductProps#props that read nothing outside the database: covers that are only a URL, public files
 // without an upload, the waitlist, the visitor's purchases and the visitor's wishlists. What needs a stored upload's URL, Active
 // Storage's signed URLs or `Purchase#purchase_info` still throws NotPortedError, so the page is handed back to Rails.
+import { timingSafeEqual } from "node:crypto";
+
 import { Prisma } from "@prisma/client";
 
-import { encrypt } from "../../lib/obfuscate-ids.ts";
+import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { emailDigest } from "../page-props/buyer/reviews.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { followRecaptchaSiteKey } from "../page-props/settings/profile.ts";
 import { PurchaseFlags } from "../search/flags.ts";
@@ -151,4 +154,27 @@ export async function wishlistProps(row: LinkRow, sellerId: bigint | number) {
         quantity: selection.quantity,
       })),
   }));
+}
+
+// `Link#purchase_for_email_digest` followed by `purchase_info`: a pair that names no purchase of this product, or whose digest is
+// wrong, leaves the page as if neither param were sent. A pair that matches hands back; the review-ability scope Rails adds is not
+// read, so a match it would still drop is handed back too.
+export async function assertNoEmailDigestPurchase(
+  row: LinkRow,
+  purchaseId: string | null,
+  purchaseEmailDigest: string | null,
+): Promise<void> {
+  if (purchaseId === null || purchaseEmailDigest === null) return;
+  const id = decrypt(purchaseId);
+  if (id === null) return;
+  const [purchase] = await selectRows<{ id: bigint; email: string | null }>(
+    Prisma.sql`SELECT ${column("purchases", "id")}, ${column("purchases", "email")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} AND ${column("purchases", "link_id")} = ${row.id} LIMIT 1`,
+  );
+  if (purchase === undefined) return;
+  const expected = emailDigest(purchase);
+  if (expected === null) return;
+  const given = Buffer.from(purchaseEmailDigest);
+  const wanted = Buffer.from(expected);
+  if (given.length === wanted.length && timingSafeEqual(given, wanted))
+    throw new NotPortedError("Purchase#purchase_info for a review-reminder link");
 }
