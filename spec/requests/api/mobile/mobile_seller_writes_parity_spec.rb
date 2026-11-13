@@ -2,8 +2,8 @@
 
 require "spec_helper"
 
-# The Api::Mobile writes and reads the Next.js port answers up to their first write (nextjs/src/server/controllers/mobile-seller-writes.ts,
-# mobile-agent.ts): the 404s, the comma refusal of a refund amount, an already confirmed address and the Agent tab's conversation reads.
+# The Api::Mobile writes and reads the Next.js port answers up to their first write (nextjs/src/server/controllers/mobile-seller-writes.ts):
+# the 404s, the comma refusal of a refund amount and an already confirmed address.
 # The examples that end in `hands a ...` are the cases it leaves to Rails whole; the replay asserts Node forwards each one and writes nothing.
 describe "Mobile API seller writes and the Agent tab", type: :request do
   include Parity::MobileApi
@@ -237,142 +237,6 @@ describe "Mobile API seller writes and the Agent tab", type: :request do
 
     it "refuses a resend with a token that lacks the mobile_api scope", parity: true do
       post "/mobile/sessions/resend_confirmation_email", params: auth(seller, scopes: "creator_api")
-
-      expect(response).to have_http_status(:forbidden)
-    end
-  end
-
-  describe "the Agent tab" do
-    let(:turn_id) { "3f2b7c1e-8d4a-4f6b-9a10-5c2d7e8f9a0b" }
-
-    # User#eligible_for_store_agent?: a completed payout and $100 of sales in the purchases index.
-    def earn_access(user)
-      create(:payment_completed, user:)
-      earner = create(:product, user:, name: "Earner", unique_permalink: "earner", created_at: Time.utc(2025, 1, 1))
-      purchase_row(link: earner, seller: user, price_cents: 20_000, purchase_state: "successful")
-      index_model_records(Purchase)
-    end
-
-    def conversation_with(*messages, title: "Sales questions")
-      create(:ai_conversation, seller:, title:).tap do |conversation|
-        messages.each { |message| create(:ai_message, ai_conversation: conversation, **message) }
-      end
-    end
-
-    before do
-      Purchase.__elasticsearch__.create_index!(force: true)
-      $redis.flushdb
-    end
-
-    it "answers no conversation for a seller who never chatted", parity: true do
-      earn_access(seller)
-
-      get "/mobile/agent/conversations/latest", params: auth(seller)
-
-      expect(response.parsed_body).to eq("success" => true, "conversation" => nil)
-    end
-
-    it "resumes the conversation touched last with its transcript", parity: true do
-      earn_access(seller)
-      conversation_with({ content: "How are my sales doing?" }, { role: "assistant", content: "You made $200.", metadata: { objects: [{ type: "product", name: "Earner" }] } })
-
-      get "/mobile/agent/conversations/latest", params: auth(seller)
-
-      expect(response.parsed_body["conversation"]["messages"].map { _1["role"] }).to eq(%w[user assistant])
-    end
-
-    it "keeps an applied proposal in the transcript", parity: true do
-      earn_access(seller)
-      conversation_with({ role: "assistant", content: "Create LAUNCH?", metadata: { proposed_action: { type: "create_offer_code" }, action_status: "applied" } })
-
-      get "/mobile/agent/conversations/latest", params: auth(seller)
-
-      expect(response.parsed_body["conversation"]["messages"].first).to include("action_status" => "applied")
-    end
-
-    it "hands a proposal that is claimed but unresolved to Rails", parity: true do
-      earn_access(seller)
-      conversation_with({ role: "assistant", content: "Create LAUNCH?", metadata: { proposed_action: { type: "create_offer_code" }, action_status: "unknown" } })
-
-      get "/mobile/agent/conversations/latest", params: auth(seller)
-
-      expect(response.parsed_body["conversation"]["messages"].first).not_to include("action_status")
-    end
-
-    it "refuses the latest conversation to a seller who has not earned the agent", parity: true do
-      get "/mobile/agent/conversations/latest", params: auth(seller)
-
-      expect(response).to have_http_status(:forbidden)
-      expect(response.parsed_body).to eq("success" => false, "error" => "You don't have access to the store agent.")
-    end
-
-    it "returns the persisted turn", parity: true do
-      earn_access(seller)
-      conversation = conversation_with({ role: "assistant", content: "Done", metadata: { client_turn_id: turn_id, objects: [] } })
-
-      get "/mobile/agent/turns/#{turn_id}", params: auth(seller)
-
-      expect(response.parsed_body).to include("success" => true, "status" => "persisted", "conversation_id" => conversation.external_id)
-    end
-
-    it "reports a turn that is still generating", parity: true do
-      earn_access(seller)
-      $redis.set(RedisKey.agent_turn_status(seller.id, turn_id), "in_progress", ex: 180)
-
-      get "/mobile/agent/turns/#{turn_id}", params: auth(seller)
-
-      expect(response.parsed_body).to eq("success" => true, "status" => "in_progress")
-    end
-
-    it "reports a turn nobody has heard of as unknown", parity: true do
-      earn_access(seller)
-
-      get "/mobile/agent/turns/#{turn_id}", params: auth(seller)
-
-      expect(response.parsed_body).to eq("success" => true, "status" => "unknown")
-    end
-
-    it "answers 400 for a malformed turn id", parity: true do
-      earn_access(seller)
-
-      get "/mobile/agent/turns/not-hex", params: auth(seller)
-
-      expect(response).to have_http_status(:bad_request)
-      expect(response.parsed_body).to eq("success" => false, "error" => "Invalid turn id.")
-    end
-
-    it "refuses a turn read to a seller who has not earned the agent", parity: true do
-      get "/mobile/agent/turns/#{turn_id}", params: auth(seller)
-
-      expect(response).to have_http_status(:forbidden)
-    end
-
-    it "hands a turn without messages to Rails", parity: true do
-      earn_access(seller)
-
-      post "/mobile/agent/messages", params: auth(seller)
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
-    it "hands an unsupported confirmed action to Rails", parity: true do
-      earn_access(seller)
-
-      post "/mobile/agent/actions", params: auth(seller).merge(type: "not_a_real_action")
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
-    it "hands a streamed turn without messages to Rails", parity: true do
-      earn_access(seller)
-
-      post "/mobile/agent/messages/stream", params: auth(seller)
-
-      expect(response).to have_http_status(:ok)
-    end
-
-    it "refuses a turn to a seller who has not earned the agent", parity: true do
-      post "/mobile/agent/messages", params: auth(seller)
 
       expect(response).to have_http_status(:forbidden)
     end

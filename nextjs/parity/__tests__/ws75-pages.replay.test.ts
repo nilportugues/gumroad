@@ -21,14 +21,12 @@ const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES_ROOT = "parity/fixtures/requests";
 const SPEC_DIRS = [
-  "agent_signed_in_spec",
   "piracy_reports_signed_in_spec",
   "generate_invoice_redirect_spec",
   "dispute_evidence_signed_in_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 // Every flag in routes.json that a dashboard page sits behind.
 const ROUTE_FLAGS = [
-  "nextjs_agent",
   "nextjs_piracy_reports",
   "nextjs_generate_invoice_redirect",
   "nextjs_dispute_evidence",

@@ -408,12 +408,9 @@ arrivals, restart intent tokens), `Checkout::StripePaymentPresenter` (720 lines 
 GET renders only; recorded by `spec/requests/{agent,piracy_reports,dispute_evidence}_signed_in_spec.rb` and
 `generate_invoice_redirect_spec.rb`, replayed by `parity/__tests__/ws75-pages.replay.test.ts`.
 
-- **Flags**: `nextjs_agent` (`/agent`), `nextjs_piracy_reports` (`/dashboard/piracy_reports`, `/new`, `/:id`),
+- **Flags**: `nextjs_piracy_reports` (`/dashboard/piracy_reports`, `/new`, `/:id`),
   `nextjs_dispute_evidence` and `nextjs_dispute_evidence_success` (`/purchases/:purchase_id/dispute_evidence[/success]`),
   `nextjs_generate_invoice_redirect` (`/purchases/:purchase_id/generate_invoice`).
-- **Agent** (`page-props/agent/pages.ts`): the role gate is `userPolicy.viewStoreAgent`; `eligible` is the store-agent
-  predicate the shared props already use. A seller who has earned access (the Elasticsearch sales aggregate) is covered by the
-  `purchase-sales` golden, not by a replay.
 - **Piracy reports** (`page-props/piracy-reports/pages.ts`): `set_product`/`set_report` run before `authorize`, as in Rails, so
   an unknown product or report redirects to `/products` for any role. `PiracyReports::Eligibility` is read in SQL; the replays leave
   the Elasticsearch-backed earned-access bar unmet.
@@ -820,7 +817,7 @@ WS-17b registers its controllers with WS-17a's dispatcher (`server/controllers/a
 
 ## WS-17d internal API
 
-`Api::Internal::*` (`app/controllers/api/internal`): the JSON the dashboard's React pages and the mobile app fetch. Parity: `spec/requests/{internal_api,internal_agent}_parity_spec.rb` (recorded fixtures:       76 +       25), replayed by `parity/__tests__/internal-api.replay.test.ts` (status, headers, cookies, JSON, every row written and every job; a request the port hands back, named "hands a ...", must reach the stand-in Rails untouched).
+`Api::Internal::*` (`app/controllers/api/internal`): the JSON the dashboard's React pages and the mobile app fetch. Parity: `spec/requests/internal_api_parity_spec.rb`, replayed by `parity/__tests__/internal-api.replay.test.ts` (status, headers, cookies, JSON, every row written and every job; a request the port hands back, named "hands a ...", must reach the stand-in Rails untouched).
 
 - **API-host routes.** `RouteEntry.hosts` gained `"api"` (`ApiDomainConstraint`: `host.api`), for the three `Api::Internal` routes outside the dashboard host. `GET /internal/mobile_minimum_version` and `/internal/home_page_numbers` are dispatcher routes; `POST /internal/grmc/webhook` is a mutation that skips forgery protection. Flag `nextjs_internal_api_host`.
   - *Mobile minimum version* is the first controller on `doorkeeperToken`/`doorkeeperAuthorize` (`:account` or `:mobile_api`); a refusal is the bare `head 401/403` with `WWW-Authenticate`. A Redis read that fails answers `null`.
@@ -833,8 +830,7 @@ WS-17b registers its controllers with WS-17a's dispatcher (`server/controllers/a
   - *Product posts*: `Installment.receivable_by_customers_of_product` and the presenter (`controllers/internal-product-posts.ts`). `DateTime.current + delayed_delivery_time` adds days, so a workflow email always sorts first; posts with equal sort keys, a page past the last (Pagy raises) and a saved filter that is not a list of text go to Rails.
   - *Non-opener resend* (`POST`): the guards, the 24 hour and three-resend limits, the `PostEmailBlast` (`models/post-email-blast.ts` `createBlast`) under a row lock of the post, then `SendPostBlastEmailsJob`. `GET` (the preview counts recipients under a 300 ms statement budget) stays in Rails.
   - *Review video approval and rejection*: `models/product-review-video.ts` (`approved!`/`rejected!` retire the review's other videos in that status under the review's row lock, `video_file` presence validated), `policies/product-review-video.ts`.
-  - *Agent chat reads* (`controllers/internal-agent.ts`): `conversations/latest`, `actions/status`, `turns/:client_turn_id`, behind `use_store_agent?` (the role and the earned-access bar: completed payout and sales in the purchases index). A proposal whose execution is still marked `executing` is handed back (`reconcile_stale_agent_action!` may rewrite it on the database clock).
-- **Not served by Node** (still Rails, not in `routes.json`): the `POST` turns of the Agent (`agent/messages`, `messages/stream`, `actions`, `custom_html_preview`, `custom_html_previews/:token`: they call the language model), `ai_product_details_generations` (language model), `customers/:purchase_id/single_customer_email` and `installments/:id/preview_email` (mailers), `installments/:id/remaining_send` (Sidekiq scans of live senders), `GET installments/:id/non_opener_resend`, `products/:product_id/receipt_preview` (ERB mail view plus Premailer), `product_public_files` (Active Storage signed-id verification and attach).
+- **Not served by Node** (still Rails, not in `routes.json`): `ai_product_details_generations` (language model), `customers/:purchase_id/single_customer_email` and `installments/:id/preview_email` (mailers), `installments/:id/remaining_send` (Sidekiq scans of live senders), `GET installments/:id/non_opener_resend`, `products/:product_id/receipt_preview` (ERB mail view plus Premailer), `product_public_files` (Active Storage signed-id verification and attach).
 
 ## WS-17c API v2 users, content and MCP
 
