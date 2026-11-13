@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 989 | 1008 | 98.1% |
-| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 989 | 1008 | 98.1% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1879 | 1915 | 98.1% |
-| Same, registered in routes.json (upper bound) | 1879 | 1915 | 98.1% |
+| Routes served natively (counted, static check) | 991 | 1008 | 98.3% |
+| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 991 | 1008 | 98.3% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1881 | 1915 | 98.2% |
+| Same, registered in routes.json (upper bound) | 1881 | 1915 | 98.2% |
 | Rails Inertia pages with Node props (counted, string match) | 114 | 115 | 99.1% |
 | Sidekiq job classes running in Node (counted) | 0 | 0 | n/a |
 
@@ -28,8 +28,8 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 186,348 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 334 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 186,674 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 335 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
@@ -44,13 +44,13 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-14 Discover and search | 4 | 4 | 0 | 0 | 100.0% | 5 | 5 | 100.0% |
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
 | WS-16 Library and content delivery | 39 | 39 | 0 | 0 | 100.0% | 51 | 51 | 100.0% |
-| WS-17 Public and mobile API | 194 | 191 | 0 | 3 | 98.5% | 351 | 347 | 98.9% |
+| WS-17 Public and mobile API | 194 | 193 | 0 | 1 | 99.5% | 351 | 349 | 99.4% |
 | WS-18 Admin | 86 | 86 | 0 | 0 | 100.0% | 254 | 254 | 100.0% |
 | WS-19 AI, MCP and moderation | 43 | 43 | 0 | 0 | 100.0% | 129 | 129 | 100.0% |
 | WS-20 Checkout and orders | 73 | 69 | 0 | 4 | 94.5% | 228 | 216 | 94.7% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 1008 | 989 | 0 | 19 | 98.1% | 1915 | 1879 | 98.1% |
+| **All** | 1008 | 991 | 0 | 17 | 98.3% | 1915 | 1881 | 98.2% |
 
 ## Sensitivity to the weights
 
@@ -58,16 +58,16 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 989 | 1008 | 98.1% |
-| Verb only: GET 1, other verbs 2 | 1442 | 1472 | 98.0% |
-| Rubric weights 1 to 4 (the headline) | 1879 | 1915 | 98.1% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2221 | 2261 | 98.2% |
+| Every route counts 1 (the plain route share) | 991 | 1008 | 98.3% |
+| Verb only: GET 1, other verbs 2 | 1444 | 1472 | 98.1% |
+| Rubric weights 1 to 4 (the headline) | 1881 | 1915 | 98.2% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2223 | 2261 | 98.3% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 397 | 391 | 98.5% |
+| 1 | 397 | 393 | 99.0% |
 | 2 | 340 | 331 | 97.4% |
 | 3 | 246 | 242 | 98.4% |
 | 4 | 25 | 25 | 100.0% |
@@ -85,8 +85,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Api::V2::Partner::MigrationsController` | WS-17 Public and mobile API | 2 | 1 | 0 | 1 | 1/2 (3) | 2 |
 | `Products::BuildsController` | WS-12 Products and bundles | 3 | 2 | 0 | 1 | 1/2 (5) | 2 |
-| `Api::V2::Partner::CreatorsController` | WS-17 Public and mobile API | 1 | 0 | 0 | 1 | 1 (1) | 1 |
-| `Api::V2::Partner::ProductsController` | WS-17 Public and mobile API | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ApplicationController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `AcmeChallengesController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
@@ -167,6 +165,8 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Api::V2::OfferCodesController` | WS-17 Public and mobile API | 8 | 8 | 0 | 0 | 1/2 (12) | 0 |
 | `Api::V2::PagesController` | WS-17 Public and mobile API | 5 | 5 | 0 | 0 | 1/2 (8) | 0 |
 | `Api::V2::Partner::CategoriesController` | WS-17 Public and mobile API | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Api::V2::Partner::CreatorsController` | WS-17 Public and mobile API | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Api::V2::Partner::ProductsController` | WS-17 Public and mobile API | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Api::V2::Partner::SellersController` | WS-17 Public and mobile API | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Api::V2::PayoutsController` | WS-17 Public and mobile API | 3 | 3 | 0 | 0 | 2 (6) | 0 |
 | `Api::V2::ProductBuildsController` | WS-17 Public and mobile API | 6 | 6 | 0 | 0 | 1/2 (10) | 0 |
