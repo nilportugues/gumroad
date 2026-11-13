@@ -124,7 +124,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 1800,
-    runtime: "ruby",
+    runtime: "node",
   },
   AlertOnStuckPiracyReportsJob: {
     file: "app/sidekiq/alert_on_stuck_piracy_reports_job.rb",
@@ -3280,7 +3280,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 1800,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendStripeBalanceSummariesReportJob: {
     file: "app/sidekiq/send_stripe_balance_summaries_report_job.rb",
@@ -3574,7 +3574,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 1800,
-    runtime: "ruby",
+    runtime: "node",
   },
   SyncGuardianToStripeJob: {
     file: "app/sidekiq/sync_guardian_to_stripe_job.rb",
@@ -4005,7 +4005,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 1800,
-    runtime: "ruby",
+    runtime: "node",
   },
   WarmSellerReputationSummaryJob: {
     file: "app/sidekiq/warm_seller_reputation_summary_job.rb",

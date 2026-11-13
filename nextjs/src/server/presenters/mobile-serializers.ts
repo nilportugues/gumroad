@@ -94,9 +94,10 @@ function usdCentsToPurchaseCurrency(purchase: Purchase, cents: number): number {
   return rate === null ? cents : usdCentsToCurrencyAtRate(code, cents, rate);
 }
 
-// The prices below are only proven without a recurrence label.
-function assertSimpleMoneyShape(purchase: Purchase): void {
-  if (purchase.price_id != null || purchase.subscription_id != null)
+// A subscription purchase prints its price under the recurrence label of its subscription's price (`recurrenceLabel`, read by
+// `subscriptionRecurrenceLabels`); a purchase with a price record of its own is not proven.
+function assertSimpleMoneyShape(purchase: Purchase, recurrenceLabel?: string): void {
+  if (purchase.price_id != null || (purchase.subscription_id != null && recurrenceLabel === undefined))
     throw new NotPortedError(
       "a purchase with a recurrence price (Purchase#format_price_in_cents with price_for_recurrence)",
     );
@@ -105,17 +106,26 @@ function assertSimpleMoneyShape(purchase: Purchase): void {
 }
 
 // Purchase#formatted_display_price
-export function formattedDisplayPrice(purchase: Purchase): string {
-  assertSimpleMoneyShape(purchase);
-  return formatJustPriceInCents(purchase.displayed_price_cents, purchaseCurrency(purchase).code);
+export function formattedDisplayPrice(purchase: Purchase, recurrenceLabel?: string): string {
+  assertSimpleMoneyShape(purchase, recurrenceLabel);
+  return withRecurrence(
+    formatJustPriceInCents(purchase.displayed_price_cents, purchaseCurrency(purchase).code),
+    recurrenceLabel,
+  );
 }
 
+const withRecurrence = (formatted: string, label: string | undefined) =>
+  label === undefined ? formatted : `${formatted} ${label}`;
+
 // Purchase#formatted_total_price
-export function formattedTotalPrice(purchase: Purchase): string {
-  assertSimpleMoneyShape(purchase);
-  return formatJustPriceInCents(
-    usdCentsToPurchaseCurrency(purchase, purchase.price_cents!),
-    purchaseCurrency(purchase).code,
+export function formattedTotalPrice(purchase: Purchase, recurrenceLabel?: string): string {
+  assertSimpleMoneyShape(purchase, recurrenceLabel);
+  return withRecurrence(
+    formatJustPriceInCents(
+      usdCentsToPurchaseCurrency(purchase, purchase.price_cents!),
+      purchaseCurrency(purchase).code,
+    ),
+    recurrenceLabel,
   );
 }
 
@@ -133,6 +143,8 @@ export type CreatorAppPurchaseInput = {
   // link.thumbnail&.alive&.url.presence
   productThumbnailUrl: string | null;
   now: Date;
+  // see SaleDetails.recurrenceLabel
+  recurrenceLabel?: string;
 };
 
 // Port of app/models/purchase.rb (Purchase#as_json with creator_app_api: true, version 1)
@@ -140,8 +152,8 @@ export function purchaseAsJsonCreatorApp(input: CreatorAppPurchaseInput): Record
   const { purchase, link, seller, purchaser } = input;
   if (purchase.created_at == null) throw new NotPortedError("a purchase without created_at");
   if (seller.timezone == null) throw new NotPortedError("a seller without a time zone");
-  const displayPrice = formattedDisplayPrice(purchase);
-  const totalPrice = formattedTotalPrice(purchase);
+  const displayPrice = formattedDisplayPrice(purchase, input.recurrenceLabel);
+  const totalPrice = formattedTotalPrice(purchase, input.recurrenceLabel);
   const physical = LinkFlags.isSet(link.flags, "is_physical");
   return {
     id: encrypt(purchase.id),
@@ -200,6 +212,8 @@ export type MobilePurchaseInput = {
 };
 
 export type SaleDetails = {
+  // the label of a subscription purchase's price ("a month"); undefined for a purchase that is not a subscription's
+  recurrenceLabel?: string;
   // variant_details_hash of a purchase with one non-SKU variant; null leaves the key out
   variants: Record<string, unknown> | null;
   // { code, displayed_amount_off } of a purchase with an offer code; null leaves the key out
@@ -283,7 +297,7 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
     }
     if (input.saleDetails.offerCode !== null) json.offer_code = input.saleDetails.offerCode;
     if (input.saleDetails.affiliate) json.affiliate = input.saleDetails.affiliate;
-    json.formatted_total_price = formattedTotalPrice(purchase);
+    json.formatted_total_price = formattedTotalPrice(purchase, input.saleDetails.recurrenceLabel);
     json.purchase_daystamp = longFormattedDatetime(purchase.created_at, seller.timezone);
   }
   return json;

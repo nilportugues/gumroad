@@ -5,7 +5,7 @@ import { db } from "../../lib/db.ts";
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 
 import { moneyFormatWithGemSymbol } from "./concerns/money-formatter.ts";
-import { hasDirectAffiliateId } from "./json-direct-affiliate.ts";
+import { hasDirectAffiliateCredit, hasDirectAffiliateId } from "./json-direct-affiliate.ts";
 import { calculatedTrackingUrl } from "./shipment-tracking.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { NotPortedError } from "./user.ts";
@@ -70,8 +70,9 @@ export async function shipmentDetails(sale: Purchase) {
 // The affiliate's form email and the credit it earned. A collaborator's credit is split with a direct affiliate: Rails'.
 export async function affiliateDetails(sale: Purchase) {
   if (sale.affiliate_id === null) return null;
-  if (hasDirectAffiliateId(sale.json_data))
-    throw new NotPortedError("a collaborator sale with a direct affiliate", RUBY_REF);
+  // own_affiliate_credit_cents subtracts the direct affiliate's credit; with none recorded the whole credit is the affiliate's.
+  if (hasDirectAffiliateId(sale.json_data) && hasDirectAffiliateCredit(sale.json_data))
+    throw new NotPortedError("a collaborator sale with a direct affiliate's credit", RUBY_REF);
   const affiliate = await db.affiliate.findUnique({ where: { id: Number(sale.affiliate_id) } });
   const user =
     affiliate?.affiliate_user_id == null

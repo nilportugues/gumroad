@@ -168,7 +168,7 @@ describe "AffiliateRequestsController", type: :request do
       expect(seller.affiliate_requests.count).to eq(2)
     end
 
-    it "hands a request with no affiliate_request parameter to Rails", parity: true do
+    it "answers 400 when affiliate_request is missing", parity: true do
       token = csrf_token
       host! seller.subdomain
       post "/affiliate_requests", params: { authenticity_token: token }
@@ -285,7 +285,7 @@ describe "AffiliateRequestsController", type: :request do
       expect(pending_request.reload.state).to eq("ignored")
     end
 
-    it "hands a request with no affiliate_request parameter to Rails", parity: true do
+    it "answers 400 when affiliate_request is missing", parity: true do
       log_in(seller)
       token = csrf_token
 

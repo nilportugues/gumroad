@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import * as Routes from "@/lib/navigation/routes";
 
+import { HandBackToRails } from "../controllers/application-controller.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { nameOrUsername, subdomainWithProtocol, username, Users } from "../models/user.ts";
 import { pagePolicy } from "../policies/page.ts";
@@ -11,7 +12,6 @@ import { loadSellerContext } from "../policies/seller-context.ts";
 import { squish } from "../search/plaintext.ts";
 
 import type { PageGuard } from "./guards.ts";
-import { NotPortedError } from "./not-ported.ts";
 import { matchPagePath, type PageSpec } from "./pages.ts";
 import { ADD_EMAIL_MESSAGE, notAllowedMessage } from "./settings/guard.ts";
 
@@ -91,14 +91,14 @@ function profileMetaDescription(bio: string | null, name: string | null): string
   return `Get the latest products and updates from ${name} on Gumroad.`;
 }
 
-// The before_actions between `authenticate_user!` (signed-out visitors never reach this: the routes are
-// signedInOnly) and the render: RequireAccountEmail, set_page, then `authorize :page` in the action and
+// The before_actions between `authenticate_user!` (the route gate sends signed-out visitors to Rails; a stale session
+// cookie still gets through, and the guard hands it back) and the render: RequireAccountEmail, set_page, then `authorize :page` in the action and
 // PunditAuthorization#user_not_authorized for a refusal.
 const pagesGuard =
   (query: "index" | "new" | "edit"): PageGuard =>
   async (input) => {
     const context = await loadSellerContext(input.context);
-    if (!context.user) throw new NotPortedError("authenticate_user! for a signed-out visitor");
+    if (!context.user) throw new HandBackToRails("authenticate_user! for a signed-out visitor");
 
     const { user } = context;
     if (!present(user.email) && !present(user.unconfirmed_email) && input.context.impersonatedUser === null) {

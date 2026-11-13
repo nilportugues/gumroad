@@ -23,9 +23,22 @@ async function destroyReviewResponse(input: MobileInput, auth: MobileAuth | null
         );
   if (!purchase) return fetchError("Could not find purchase");
 
-  // Purchase#original_product_review reads the review of another purchase for a subscription's recurrence or a gift's sender.
-  if (purchase.subscription_id !== null || PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase"))
-    throw new NotPortedError("Purchase#original_product_review", "a subscription or gift sale");
+  // Purchase#original_product_review reads the review of the gift's giftee purchase for a gift sender.
+  if (PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase"))
+    throw new NotPortedError("Purchase#original_product_review", "a gift sale");
+
+  // A subscription's review sits on its true original purchase (the first original by id); only the sale that is that purchase is
+  // proven, a renewal charge is Rails'.
+  if (purchase.subscription_id !== null) {
+    const [original] = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} = ${purchase.subscription_id} AND ${PurchaseFlags.condition("is_original_subscription_purchase", true)} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`,
+    );
+    if (original === undefined || BigInt(original.id) !== BigInt(purchase.id))
+      throw new NotPortedError(
+        "Purchase#original_product_review",
+        "a subscription sale that is not its original purchase",
+      );
+  }
 
   const [review] = await selectRows<{ id: bigint }>(
     Prisma.sql`SELECT ${column("product_reviews", "id")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${purchase.id} LIMIT 1`,

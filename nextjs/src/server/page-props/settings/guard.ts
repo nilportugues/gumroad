@@ -3,11 +3,17 @@
 // PunditAuthorization#user_not_authorized handler for a refusal.
 import * as Routes from "@/lib/navigation/routes";
 
-import type { Redirected } from "../../controllers/application-controller.ts";
+import { HandBackToRails, type Redirected } from "../../controllers/application-controller.ts";
 import { notifyError } from "../../infra/error-reporting.ts";
-import { findUserMembershipForSeller, loadSellerContext, MembershipNotFoundError, roleOwnerFor, requireUser, type SellerContext } from "../../policies/seller-context.ts";
+import {
+  findUserMembershipForSeller,
+  loadSellerContext,
+  MembershipNotFoundError,
+  roleOwnerFor,
+  requireUser,
+  type SellerContext,
+} from "../../policies/seller-context.ts";
 import type { GuardInput, PageGuard } from "../guards.ts";
-import { NotPortedError } from "../not-ported.ts";
 
 const GENERIC_NOT_ALLOWED = "You are not allowed to perform this action.";
 export const ADD_EMAIL_MESSAGE = "Please add an email address to your account before continuing.";
@@ -42,10 +48,15 @@ export type SettingsGuardOptions = {
 export function settingsGuard(options: SettingsGuardOptions): PageGuard {
   return async (input) => {
     const context = await loadSellerContext(input.context);
-    if (!context.user) throw new NotPortedError("authenticate_user! for a signed-out visitor");
+    if (!context.user) throw new HandBackToRails("authenticate_user! for a signed-out visitor");
 
     const { user } = context;
-    if (!options.skipRequireAccountEmail && blank(user.email) && blank(user.unconfirmed_email) && input.context.impersonatedUser === null) {
+    if (
+      !options.skipRequireAccountEmail &&
+      blank(user.email) &&
+      blank(user.unconfirmed_email) &&
+      input.context.impersonatedUser === null
+    ) {
       return { status: 302, location: "/settings", rescued: true, flash: { warning: ADD_EMAIL_MESSAGE } };
     }
 
