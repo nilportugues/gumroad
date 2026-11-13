@@ -10,15 +10,30 @@ import { json } from "./json-actions.ts";
 
 const BAD_REQUEST = 400;
 
-// Kernel#Integer(value, exception: false) for what the port can read exactly: plain decimal digits with an optional sign and no
-// leading zero (octal), underscore, prefix or blanks. Absent, empty and text that cannot start a literal (not a digit, sign or
-// blank) are nil; the rest is Rails'.
+// Kernel#Integer(value, exception: false) for a text parameter: ASCII white space around the number, an optional sign, a 0x, 0b, 0o or
+// 0d prefix or a leading 0 for octal, and single underscores between digits. Anything else is nil, as in Ruby; a null byte is Rails'.
+const DIGITS = (digit: string) => `${digit}+(?:_${digit}+)*`;
+const KERNEL_INTEGER = new RegExp(
+  `^[\\t-\\r ]*([+-])?(?:0([xX])(${DIGITS("[0-9a-fA-F]")})|0([bB])(${DIGITS("[01]")})|0([oO])(${DIGITS("[0-7]")})|0([dD])(${DIGITS("[0-9]")})|(0(?:_?[0-7]+)*)|([1-9][0-9]*(?:_[0-9]+)*))[\\t-\\r ]*$`,
+  "u",
+);
+
 export function integerParam(value: unknown): bigint | null {
   if (value === undefined || value === "") return null;
   if (typeof value !== "string") throw new HandBackToRails("a slice parameter that is not text");
-  if (/^[+-]?(0|[1-9]\d*)$/u.test(value)) return BigInt(value);
-  if (/^[^\s+\-0-9]/u.test(value)) return null;
-  throw new HandBackToRails("a slice parameter Kernel#Integer reads in a way the port does not model");
+  if (value.includes("\u0000")) throw new HandBackToRails("a slice parameter with a null byte");
+  const match = KERNEL_INTEGER.exec(value);
+  if (match === null) return null;
+  const [, sign, , hex, , binary, , octal, , decimal, leadingZero, plain] = match;
+  const digits = (text: string | undefined, prefix: string) => BigInt(prefix + (text ?? "").replaceAll("_", ""));
+  let magnitude: bigint;
+  if (hex !== undefined) magnitude = digits(hex, "0x");
+  else if (binary !== undefined) magnitude = digits(binary, "0b");
+  else if (octal !== undefined) magnitude = digits(octal, "0o");
+  else if (decimal !== undefined) magnitude = digits(decimal, "");
+  else if (leadingZero !== undefined) magnitude = digits(leadingZero, "0o");
+  else magnitude = digits(plain, "");
+  return sign === "-" ? -magnitude : magnitude;
 }
 
 export async function customHtmlProductsSlice(

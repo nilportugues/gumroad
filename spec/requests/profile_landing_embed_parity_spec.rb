@@ -214,7 +214,7 @@ describe "Profile landing embed", type: :request do
       expect(JSON.parse(response.body)["products"].size).to eq(1)
     end
 
-    it "hands an offset with a leading zero to Rails", parity: true do
+    it "reads an offset with a leading zero as octal", parity: true do
       create(:product, user: seller, name: "Only")
 
       slice(offset: "010", limit: 10)
