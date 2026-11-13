@@ -5,7 +5,7 @@
 // the session), #create (the attestation checked against that challenge, services/webauthn-attestation.ts), #update (rename) and
 // #destroy.
 // Handed to Rails before the first write: an attestation Node does not verify (a signed format, a key that is not ES256, shapes where
-// the gem raises something Rails does not rescue) and a nickname that is not text.
+// the gem raises something Rails does not rescue) and a nickname that is neither text nor an integer.
 import { createHash, randomBytes } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
@@ -56,6 +56,13 @@ const MAX_PER_USER_ERROR_MESSAGE = `You can add up to ${MAX_PER_USER} passkeys.`
 const UPDATE_ERROR_MESSAGE = "Could not update this passkey.";
 // String#strip: null and ASCII whitespace.
 const RUBY_STRIP = /^[\0\t-\r ]+|[\0\t-\r ]+$/gu;
+
+// `params[:nickname]` as the string column stores it: an integer is saved as its digits. Any other non-text value is handed back.
+function nicknameParam(value: unknown): string | null | undefined {
+  if (value === undefined || value === null || typeof value === "string") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value)) return String(value);
+  throw new HandBackToRails("a passkey nickname that is neither text nor an integer");
+}
 
 type Credential = { id: bigint; nickname: string; created_at: Date; last_used_at: Date | null };
 
@@ -203,9 +210,7 @@ const create = (input: MutationInput) =>
     if (challenge === undefined || challenge === null || rubyBlank(challenge))
       return failure(REGISTRATION_ERROR_MESSAGE);
 
-    const requested = input.params.nickname;
-    if (requested !== undefined && requested !== null && typeof requested !== "string")
-      throw new HandBackToRails("a passkey nickname that is not text");
+    const requested = nicknameParam(input.params.nickname);
     // The refresh of the setup prompt reads the signed-in user, who is the seller for the owner this policy lets in.
     if (chain.auth.context.loggedInUser?.id !== seller.id)
       throw new HandBackToRails("a passkey registered for another account than the signed-in one");
@@ -268,9 +273,7 @@ function credentialAction(
 
 const update = (input: MutationInput) =>
   credentialAction(input, settingsPasskeysUserPolicy.update, async (credential) => {
-    const requested = input.params.nickname;
-    if (requested !== undefined && requested !== null && typeof requested !== "string")
-      throw new HandBackToRails("a passkey nickname that is not text");
+    const requested = nicknameParam(input.params.nickname);
     const nickname = (requested ?? "").replace(RUBY_STRIP, "");
     if (nickname === "" || [...nickname].length > MAX_NICKNAME_LENGTH) return failure(UPDATE_ERROR_MESSAGE);
 

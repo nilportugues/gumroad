@@ -16,6 +16,9 @@ const THRESHOLD_REQUIRED_MESSAGE = "revenue_threshold is required";
 const THRESHOLD_INVALID_MESSAGE = "revenue_threshold must be a positive number";
 const NOT_WATCHED_MESSAGE = "User is not currently being watched";
 const DECIMAL = /^[+-]?(\d+)(?:\.(\d+))?$/u;
+// Whole-number mantissa and a plain exponent: the shape the recording covers. Signed or fractional parts stay with Rails.
+const WHOLE_EXPONENT = /^(\d+)[eE](\d+)$/u;
+const MAX_EXPONENT_DIGITS = 2;
 const NON_FINITE = /^[+-]?(?:Infinity|NaN)$/u;
 const CENTS_PER_UNIT = 100n;
 const ROUND_HALF_UP_DIGIT = 5;
@@ -25,10 +28,16 @@ const MAX_THRESHOLD_CENTS = 2n ** 62n;
 const iso8601 = (time: Date | null): string | null => (time === null ? null : `${time.toISOString().slice(0, 19)}Z`);
 
 // parse_threshold_cents: `(BigDecimal(raw.to_s) * 100).round`, nil unless finite and positive. Shapes BigDecimal() reads in
-// other ways (exponents, underscores, padding, a trailing dot) are handed back rather than guessed at.
+// other ways (signed or fractional exponents, underscores, padding, a trailing dot) are handed back rather than guessed at.
 export function parseThresholdCents(raw: unknown): bigint | null {
   const text = paramToS(raw, SOURCE);
   if (NON_FINITE.test(text)) return null;
+  const exponent = WHOLE_EXPONENT.exec(text);
+  if (exponent !== null && exponent[2]!.length <= MAX_EXPONENT_DIGITS) {
+    const cents = BigInt(exponent[1]!) * 10n ** BigInt(exponent[2]!) * CENTS_PER_UNIT;
+    if (cents > MAX_THRESHOLD_CENTS) throw new NotPortedError("a revenue_threshold past the column's range", SOURCE);
+    return cents > 0n ? cents : null;
+  }
   const match = DECIMAL.exec(text);
   if (match === null) {
     if (/^[A-Za-z]+$/u.test(text)) return null;

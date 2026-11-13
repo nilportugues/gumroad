@@ -61,14 +61,19 @@ const isMissing = (error: unknown) =>
   ["NotFound", "NoSuchKey"].includes((error as { name?: string }).name ?? "") ||
   (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 404;
 
-// GET /d/:id/play/:grant(/*path)
-async function show(input: MutationInput): Promise<ActionResult> {
-  const grant = verifiedPlayerGrant(input.routeParams.grant!, input.routeParams.id!, PLAYER_GRANT_PURPOSE);
+// The buyer's player and the public demo (ProductBuildDemoFilesController) differ in the grant's purpose and in the origins that may
+// frame a document. Fixtures do not carry the Content-Security-Policy, so the demo's documents (the ones that get it) go to Rails.
+export type BuildFileKind = { purpose: string; demo: boolean };
+const PLAYER_FILES: BuildFileKind = { purpose: PLAYER_GRANT_PURPOSE, demo: false };
+
+// GET /d/:id/play/:grant(/*path), and /demo/:id/:grant(/*path) through `kind`.
+export async function serveBuildFile(input: MutationInput, kind: BuildFileKind): Promise<ActionResult> {
+  const grant = verifiedPlayerGrant(input.routeParams.grant!, input.routeParams.id!, kind.purpose);
   if (grant === null) throw new RoutingError("Not Found");
 
   // `new URL` has already resolved `a/../b`, which Rails' router would hand to the controller untouched.
   const target = input.rawTarget?.split("?")[0] ?? "";
-  const rawPath = /^\/d\/[^/]+\/play\/[^/]+\/(.*)$/u.exec(target)?.[1];
+  const rawPath = /^\/(?:d\/[^/]+\/play|demo\/[^/]+)\/[^/]+\/(.*)$/u.exec(target)?.[1];
   const given = rawPath === undefined ? input.routeParams.path : decodeURIComponent(rawPath);
   const path = given === undefined || given === "" ? INDEX : given;
   const segments = path.split("/");
@@ -81,9 +86,11 @@ async function show(input: MutationInput): Promise<ActionResult> {
   if (!config.usingMinio)
     throw new HandBackToRails("a build served from a storage whose signed link is a Cloudflare URL");
   if (PAGE_EXTENSIONS.includes(extension)) throw new HandBackToRails("a page of the build, which gets the save shim");
+  if (kind.demo && DOCUMENT_EXTENSIONS.includes(extension))
+    throw new HandBackToRails("a document of a demo build, whose frame-ancestors the fixtures cannot prove");
   if (typeof grant.site_prefix !== "string") throw new HandBackToRails("a grant without a site prefix");
   const key = `${grant.site_prefix}/${path}`;
-  const cors = { "Access-Control-Allow-Origin": "*" };
+  const cors = { "Access-Control-Allow-Origin": "*", "X-Robots-Tag": "noindex, nofollow" };
 
   if (!SERVED_EXTENSIONS.includes(extension)) {
     // Not served from here: every other file (wasm, images, audio, data) goes to a signed link.
@@ -112,6 +119,8 @@ async function show(input: MutationInput): Promise<ActionResult> {
   }
   return { status: 200, body, contentType: contentType ?? "", headers, paramsRead: true };
 }
+
+const show = (input: MutationInput) => serveBuildFile(input, PLAYER_FILES);
 
 // ProductBuildSave::MAX_BYTE_SIZE * 6 + 64.kilobytes: a full save as JSON, where escaping can turn one byte into six.
 const MAX_SAVE_REQUEST_BYTES = 5 * 1024 * 1024 * 6 + 64 * 1024;

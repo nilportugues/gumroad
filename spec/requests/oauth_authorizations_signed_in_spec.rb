@@ -62,6 +62,34 @@ describe "OAuth authorizations", type: :request do
       expect(response.location).to eq("http://#{DOMAIN}/oauth/login?next=%2Fmuse%2Fv1%2Foauth2%2Fauthorize%2Fabc123")
     end
 
+    it "sends the visitor of the cursor connector authorize page to the login page and back", parity: true do
+      get "/cursor/v1/oauth2/authorize", params: authorize_params(state: "a b")
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("/oauth/login?next=%2Fcursor%2Fv1%2Foauth2%2Fauthorize%3F")
+    end
+
+    it "sends the visitor of the cursor connector code page to the login page and back", parity: true do
+      get "/cursor/v1/oauth2/authorize/abc123"
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://#{DOMAIN}/oauth/login?next=%2Fcursor%2Fv1%2Foauth2%2Fauthorize%2Fabc123")
+    end
+
+    it "sends the visitor of the antigravity connector authorize page to the login page and back", parity: true do
+      get "/antigravity/v1/oauth2/authorize", params: authorize_params(state: "a b")
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to include("/oauth/login?next=%2Fantigravity%2Fv1%2Foauth2%2Fauthorize%3F")
+    end
+
+    it "sends the visitor of the antigravity connector code page to the login page and back", parity: true do
+      get "/antigravity/v1/oauth2/authorize/abc123"
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to eq("http://#{DOMAIN}/oauth/login?next=%2Fantigravity%2Fv1%2Foauth2%2Fauthorize%2Fabc123")
+    end
+
     it "sends the visitor of the IFTTT code page to the login page and back", parity: true do
       get "/ifttt/v1/oauth2/authorize/abc123", params: { state: "a b" }
 
@@ -101,6 +129,12 @@ describe "OAuth authorizations", type: :request do
     it "hands the Notion alias of a signed-in visitor to Rails", parity: true do
       allow_any_instance_of(NotionApi).to receive(:get_bot_token)
       get "/notion/oauth2/authorize", params: authorize_params
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands the cursor connector alias to Rails", parity: true do
+      get "/cursor/v1/oauth2/authorize", params: authorize_params
 
       expect(response).to have_http_status(:ok)
     end

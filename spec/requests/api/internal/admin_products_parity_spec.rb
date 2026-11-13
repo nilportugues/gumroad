@@ -102,7 +102,7 @@ describe "Internal admin API products", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a product with an oembed cover to Rails", parity: true do
+    it "reads a product with an oembed cover", parity: true do
       create(:asset_preview_youtube, link: product)
 
       get "/internal/admin/products", params: { email: seller.email }, headers: headers
@@ -208,7 +208,7 @@ describe "Internal admin API products", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a product with an oembed cover to Rails", parity: true do
+    it "reads a product with an oembed cover", parity: true do
       create(:asset_preview_youtube, link: product)
 
       get "/internal/admin/products/#{product.external_id}", headers: headers

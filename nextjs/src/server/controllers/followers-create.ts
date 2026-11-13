@@ -6,6 +6,7 @@
 // answer of #from_embed_form, which renders an Inertia page that a mutation cannot (its props are page-props/audience/follower-embed-form.ts).
 import { Prisma, type User } from "@prisma/client";
 
+import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
@@ -13,6 +14,7 @@ import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
 import { confirmBang, coveredByCutover, Followers, type FollowerRecord } from "../models/follower.ts";
+import { LinkFlags } from "../models/link.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, isRecordNotUnique, selectRows, table } from "../models/sql.ts";
@@ -23,6 +25,7 @@ import { HandBackToRails, type ActionResult } from "./application-controller.ts"
 import { json } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
+import { notFoundJson } from "./seller-json.ts";
 
 const SEE_OTHER = 303;
 const FOUND = 302;
@@ -92,14 +95,29 @@ async function sendConfirmationEmail(follower: FollowerRecord): Promise<void> {
   );
 }
 
+// `waitlist_product_from_params`: a product of the seller whose waitlist is switched off is ignored and the follow goes on as a plain one.
+// A product that takes signups, one the seller does not own and a seller that does not exist are not proven, so Rails keeps them.
+export async function requireNoWaitlistProduct(productId: unknown, seller: Seller | null): Promise<void> {
+  if (productId === undefined || productId === "") return;
+  if (typeof productId === "string" && seller !== null) {
+    const id = decrypt(productId);
+    if (id !== null) {
+      const [row] = await selectRows<{ flags: bigint }>(
+        Prisma.sql`SELECT ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} AND ${column("links", "user_id")} = ${seller.get("id")} LIMIT 1`,
+      );
+      if (row !== undefined && !LinkFlags.isSet(row.flags, "waitlist_enabled")) return;
+    }
+  }
+  throw new HandBackToRails("a follow from a waitlist");
+}
+
 type Outcome = { follower: FollowerRecord | null; seller: Seller | null };
 
 // FollowersController#create_follower and Follower::CreateService#perform, for a request without a waitlist product.
 async function createFollower(input: MutationInput, source: string | null): Promise<Outcome> {
   const { params } = input;
   const seller = await followedUser(params);
-  if (params.product_id !== undefined && params.product_id !== "")
-    throw new HandBackToRails("a follow from a waitlist");
+  await requireNoWaitlistProduct(params.product_id, seller);
   if (seller === null || !isAccountActive(seller)) return { follower: null, seller };
 
   const email = params.email;
@@ -177,7 +195,7 @@ async function fromEmbedForm(input: MutationInput): Promise<ActionResult> {
   const { follower } = await createFollower(input, EMBED_FORM);
   if (follower === null || !follower.errors.isEmpty()) {
     // `e404_json unless user.try(:username)`: no seller at all (User#username falls back to the external id).
-    if (seller === null) throw new HandBackToRails("an embed follow for an unknown seller");
+    if (seller === null) return notFoundJson();
     return json({ success: false, message: failureMessage(follower) ?? EMBED_FORM_FAILURE }, UNPROCESSABLE_ENTITY);
   }
   return json({ success: true, message: followConfirmationMessage(seller!, follower.get("confirmed_at") !== null) });

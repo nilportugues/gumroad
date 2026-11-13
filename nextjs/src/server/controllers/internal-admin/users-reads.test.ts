@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { NotPortedError } from "../../models/user.ts";
+
 import { findAdminRoute } from "./registry.ts";
-import { counterparty, lastEmailSentAt, taxIdLastFour } from "./users-reads.ts";
+import { addressOf, counterparty, lastEmailSentAt, taxIdLastFour } from "./users-reads.ts";
 
 type Counterparty = NonNullable<Parameters<typeof counterparty>[0]>;
 
@@ -22,7 +23,11 @@ describe("counterparty", () => {
   });
 
   it("prefers the name", () => {
-    expect(counterparty(user({ name: "Ada", username: "ada" }))).toEqual({ id: "ext123", email: "a@example.com", name: "Ada" });
+    expect(counterparty(user({ name: "Ada", username: "ada" }))).toEqual({
+      id: "ext123",
+      email: "a@example.com",
+      name: "Ada",
+    });
   });
 
   it("falls back to the email when the username is the default external id", () => {
@@ -47,7 +52,9 @@ describe("lastEmailSentAt", () => {
   });
 
   it("reads the last time of the list", () => {
-    expect(lastEmailSentAt('{"emails_sent_at":["2026-01-01T00:00:00Z","2026-01-02T03:04:05Z"]}')).toBe("2026-01-02T03:04:05Z");
+    expect(lastEmailSentAt('{"emails_sent_at":["2026-01-01T00:00:00Z","2026-01-02T03:04:05Z"]}')).toBe(
+      "2026-01-02T03:04:05Z",
+    );
   });
 
   it("hands back a time that is not an ISO 8601 string", () => {
@@ -70,5 +77,27 @@ describe("user read routes", () => {
       expect(findAdminRoute("GET", `/api/internal/admin/users/${action}`)).not.toBeNull();
       expect(findAdminRoute("POST", `/internal/admin/users/${action}`)).toBeNull();
     }
+  });
+});
+
+describe("addressOf", () => {
+  it("answers CA for California in the United States", () => {
+    expect(addressOf("1 Main St", "San Francisco", "California", "94107", "United States", "US").state_code).toBe("CA");
+    expect(addressOf(null, null, "california", null, "United States", "US").state_code).toBe("CA");
+  });
+
+  it("answers no state code for California in a country that has no such subdivision", () => {
+    expect(addressOf(null, null, "California", null, "Ireland", "IE").state_code).toBeNull();
+  });
+
+  it("leaves a blank or missing state without a code", () => {
+    expect(addressOf(null, null, null, null, "United States", "US").state_code).toBeNull();
+    expect(addressOf(null, null, "", null, "United States", "US").state_code).toBeNull();
+  });
+
+  it("hands back a state the recordings do not cover", () => {
+    expect(() => addressOf(null, null, "Texas", null, "United States", "US")).toThrow(NotPortedError);
+    expect(() => addressOf(null, null, "California", null, "Mexico", "MX")).toThrow(NotPortedError);
+    expect(() => addressOf(null, null, "California", null, null, null)).toThrow(NotPortedError);
   });
 });

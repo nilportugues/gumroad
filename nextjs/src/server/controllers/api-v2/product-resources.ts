@@ -4,6 +4,7 @@ import type { BaseVariant, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { storageConfig } from "../../infra/storage.ts";
+import { demoSelectedBuildIds } from "../../models/product-build-demo.ts";
 import { promoteBuildBang } from "../../models/product-build-promote.ts";
 import { hasEditorContent } from "../../models/rich-content.ts";
 import { HandBackToRails } from "../application-controller.ts";
@@ -223,19 +224,27 @@ registerApiV2(
     pattern: "/v2/products/:link_id/builds",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadProduct("link_id"),
-    run: async (input) =>
-      renderResponse(true, {
+    run: async (input) => {
+      const demos = await demoSelectedBuildIds(productOf(input).id);
+      return renderResponse(true, {
         builds: (
           await db.productBuild.findMany({ where: { product_id: productOf(input).id }, orderBy: { number: "asc" } })
-        ).map(productBuildJson),
-      }),
+        ).map((build) => productBuildJson(build, demos.has(build.id))),
+      });
+    },
   },
   {
     method: "GET",
     pattern: "/v2/products/:link_id/builds/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadBuild,
-    run: async (input) => renderResponse(true, { build: productBuildJson(input.state.build) }),
+    run: async (input) =>
+      renderResponse(true, {
+        build: productBuildJson(
+          input.state.build,
+          (await demoSelectedBuildIds(productOf(input).id)).has(input.state.build.id),
+        ),
+      }),
   },
   // #deploy copies the seller's upload inside S3 under the product lock, which Rails takes once the checks below pass. #promote runs in
   // Node for a product with one set of pages (promoteBuildBang); a live build, versions and folders are handed back from inside it.
@@ -253,7 +262,9 @@ registerApiV2(
     before: loadBuild,
     async run(input) {
       const build = await promoteBuildBang(productOf(input).id, input.state.build.id);
-      return renderResponse(true, { build: productBuildJson(build) });
+      return renderResponse(true, {
+        build: productBuildJson(build, (await demoSelectedBuildIds(productOf(input).id)).has(build.id)),
+      });
     },
   },
 );
@@ -271,7 +282,10 @@ async function deployBuild(input: ApiV2Input) {
     where: { product_id: productOf(input).id, source_url: url },
     orderBy: { id: "asc" },
   });
-  if (existing) return renderResponse(true, { build: productBuildJson(existing) });
+  if (existing)
+    return renderResponse(true, {
+      build: productBuildJson(existing, (await demoSelectedBuildIds(productOf(input).id)).has(existing.id)),
+    });
   throw new HandBackToRails("a build deployed from an upload in S3");
 }
 

@@ -3,14 +3,15 @@
 //
 // A membership change that fails validation raises RecordInvalid, which processAction answers with Rails' 422 page.
 //
-// Handed to Rails before the first write: a missing `team_membership` hash and the removal of a member of the Gumroad account, whose
-// user update runs the whole User save.
+// Handed to Rails before the first write: a missing `team_membership` hash and the removal of a member of the Gumroad account who is
+// flagged `is_team_member`, whose user update writes the flag through the whole User save. A member who is not flagged makes that
+// update a no-op, so the removal runs here.
 import type { TeamMembership } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { sellerMembershipById, TeamMembershipDeletable, TeamMemberships } from "../models/team-membership.ts";
-import { findUserBang, setFlag, Users } from "../models/user.ts";
+import { findUser, findUserBang, isFlagSet, setFlag, Users } from "../models/user.ts";
 import { eligibleForAiProductGeneration } from "../page-props/seller-products/new-page.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { teamMemberInfos } from "../page-props/settings/presenter.ts";
@@ -117,8 +118,11 @@ const updateMember = (input: MutationInput) =>
 const destroyMember = (input: MutationInput) =>
   memberAction(input, settingsTeamMembershipPolicy.destroy, async (membership) => {
     // `@team_membership.user.update!(is_team_member: false) if @team_membership.seller.gumroad_account?`
-    if (String(input.context.currentSeller!.email ?? "").startsWith(GUMROAD_ACCOUNT_EMAIL_PREFIX))
-      throw new HandBackToRails("removing a member of the Gumroad account");
+    if (String(input.context.currentSeller!.email ?? "").startsWith(GUMROAD_ACCOUNT_EMAIL_PREFIX)) {
+      const member = await findUser(membership.get("user_id"));
+      if (member === null || isFlagSet(member, "is_team_member"))
+        throw new HandBackToRails("removing a team member of the Gumroad account, which clears the member's flag");
+    }
     await TeamMembershipDeletable.markDeletedBang(membership);
     return success();
   });

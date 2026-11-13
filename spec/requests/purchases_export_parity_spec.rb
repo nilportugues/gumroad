@@ -283,8 +283,8 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(SalesExport.last.query.to_s).to include("2026-01-11T00:00:00-08:00", "2026-01-13T00:00:00-08:00")
   end
 
-  # Rails reads whitespace as blank, so the dates stay UTC days; Node only judges a plain word.
-  it "hands a whitespace-only in_seller_time_zone to Rails", parity: true do
+  # Rails reads whitespace as blank, so the dates stay UTC days.
+  it "reads a whitespace-only in_seller_time_zone as blank", parity: true do
     sell(created_at: Time.utc(2026, 1, 11, 3))
 
     export({ in_seller_time_zone: " ", start_time: "2026-01-11" })

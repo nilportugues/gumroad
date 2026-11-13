@@ -161,16 +161,30 @@ function signatureParts(header: string): { timestamp: string | undefined; signat
   return { timestamp, signature };
 }
 
-// A JSON value whose Ruby parse Node writes back byte for byte: integers within 2^53 and no floats, so `perform_async` serializes
-// the same arguments.
-function plainJson(text: string): JsonValue {
+// Ruby's Float#to_s (which `JSON.generate` uses) writes plain decimals only from 1e-4 up to 1e16; Node's JSON.stringify keeps going to 1e-6.
+const MIN_PLAIN_FLOAT = 1e-4;
+const MAX_PLAIN_FLOAT = 1e15;
+
+// A JSON value whose Ruby parse Node writes back byte for byte: integers within 2^53, and fractions both sides print as a plain
+// decimal (an integer-valued float such as 1.0 or 1e2 is a Ruby Float that JavaScript cannot tell from an Integer), so `perform_async`
+// serializes the same arguments.
+export function plainJson(text: string): JsonValue {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text, ((_key: string, value: unknown, context: { source?: string }) => {
-      if (typeof value === "number" && !/^-?(0|[1-9]\d*)$/u.test(context.source ?? ""))
-        throw new HandBackToRails("a webhook number that is not an integer");
-      if (typeof value === "number" && !Number.isSafeInteger(value))
-        throw new HandBackToRails("a webhook integer beyond 2^53");
+      if (typeof value !== "number") return value;
+      if (/^-?(0|[1-9]\d*)$/u.test(context.source ?? "")) {
+        if (!Number.isSafeInteger(value)) throw new HandBackToRails("a webhook integer beyond 2^53");
+        return value;
+      }
+      const magnitude = Math.abs(value);
+      if (
+        !Number.isFinite(value) ||
+        Number.isInteger(value) ||
+        magnitude < MIN_PLAIN_FLOAT ||
+        magnitude >= MAX_PLAIN_FLOAT
+      )
+        throw new HandBackToRails("a webhook number that is not an integer or a plain fraction");
       return value;
     }) as Parameters<typeof JSON.parse>[1]);
   } catch (error) {
@@ -301,10 +315,13 @@ const RECIPIENT_COUNT_LISTS = [
 
 const isScalar = (value: unknown): value is string | null => value === null || typeof value === "string";
 
-// A cents filter stays the string the query carried; the filter reads it as the integer it spells.
-function centsValue(name: string, value: string | null): number | null {
+// A cents filter stays the string the query carried; the filter reads it as the number it spells: plain digits, or digits and a
+// decimal exponent (`3e2`), which MySQL converts to 300 when it compares the string with a column.
+const CENTS_FILTER = /^\d{1,15}(?:e\d{1,2})?$/u;
+export function centsValue(name: string, value: string | null): number | null {
   if (value === null || value.trim() === "") return null;
-  if (!/^\d{1,15}$/u.test(value)) throw new NotPortedError(`${name} that is not plain digits`, "installment.rb");
+  if (!CENTS_FILTER.test(value) || !Number.isSafeInteger(Number(value)))
+    throw new NotPortedError(`${name} that is not plain digits`, "installment.rb");
   return Number(value);
 }
 

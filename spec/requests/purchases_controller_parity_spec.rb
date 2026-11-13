@@ -137,12 +137,59 @@ describe "Purchases controller guards", type: :request do
       expect(purchase.reload.can_contact).to be(false)
     end
 
-    it "hands a missing value to Rails, which stores NULL", parity: true do
+    it "stores NULL for a missing value", parity: true do
+      free_purchase.update_columns(updated_at: 1.hour.ago)
       log_in(seller)
 
       send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", {})
 
       expect(response).to have_http_status(:no_content)
+      expect(free_purchase.reload.can_contact).to be_nil
+    end
+
+    it "stores NULL for an empty string", parity: true do
+      free_purchase.update_columns(updated_at: 1.hour.ago)
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: "" })
+
+      expect(response).to have_http_status(:no_content)
+      expect(free_purchase.reload.can_contact).to be_nil
+    end
+
+    it "stores NULL for a null value", parity: true do
+      free_purchase.update_columns(updated_at: 1.hour.ago)
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: nil })
+
+      expect(response).to have_http_status(:no_content)
+      expect(free_purchase.reload.can_contact).to be_nil
+    end
+
+    it "writes nothing when a missing value meets a purchase that is already NULL", parity: true do
+      free_purchase.update_columns(can_contact: nil)
+      log_in(seller)
+
+      send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", {})
+
+      expect(response).to have_http_status(:no_content)
+    end
+
+    [
+      ["a list of off values", ["off"]],
+      ["an empty list", []],
+      ["an object of off values", { "value" => "off" }]
+    ].each do |label, value|
+      it "reads #{label} as true", parity: true do
+        free_purchase.update_columns(can_contact: false, updated_at: 1.hour.ago)
+        log_in(seller)
+
+        send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: value })
+
+        expect(response).to have_http_status(:no_content)
+        expect(free_purchase.reload.can_contact).to be(true)
+      end
     end
 
     it "hands the change of a seller under a newsletter cutover to Rails", parity: true do

@@ -5,16 +5,16 @@ import { Errors, RecordInvalid } from "../models/runtime/errors.ts";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, sellerMembershipById, updateBang, markUndeletedBang, teamMemberInfos, markDeletedBang } = vi.hoisted(
-  () => ({
+const { specs, sellerMembershipById, updateBang, markUndeletedBang, teamMemberInfos, markDeletedBang, findUser } =
+  vi.hoisted(() => ({
     specs: [] as MutationSpec[],
+    findUser: vi.fn(),
     teamMemberInfos: vi.fn(),
     markDeletedBang: vi.fn(),
     sellerMembershipById: vi.fn(),
     updateBang: vi.fn(),
     markUndeletedBang: vi.fn(),
-  }),
-);
+  }));
 
 vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void specs.push(...registered),
@@ -27,6 +27,10 @@ vi.mock("../models/team-membership.ts", () => ({
   sellerMembershipById,
   TeamMemberships: { updateBang },
   TeamMembershipDeletable: { markUndeletedBang, markDeletedBang },
+}));
+vi.mock("../models/user.ts", async (original) => ({
+  ...(await original<typeof import("../models/user.ts")>()),
+  findUser,
 }));
 vi.mock("../policies/settings/team-membership.ts", () => ({
   settingsTeamMembershipPolicy: { update: () => true, destroy: () => true, restore: () => true },
@@ -54,7 +58,8 @@ function invalid(attribute: string, message: string): RecordInvalid {
 }
 
 beforeEach(() => {
-  sellerMembershipById.mockReset().mockResolvedValue({ attributes: {} });
+  sellerMembershipById.mockReset().mockResolvedValue({ attributes: {}, get: () => 9n });
+  findUser.mockReset();
   updateBang.mockReset();
   markUndeletedBang.mockReset();
   markDeletedBang.mockReset();
@@ -78,12 +83,41 @@ describe("GET /settings/team/members.json", () => {
 describe("DELETE /settings/team/members/:id", () => {
   const destroy = find("DELETE", MEMBER);
 
-  it("hands the removal of a member of the Gumroad account to Rails before writing", async () => {
+  const gumroadSeller = () => {
     const gumroad = input({});
     (gumroad.context.currentSeller as { email: string }).email = "hi@example.com";
+    return gumroad;
+  };
+  // `User.flags` bit 28 is `is_team_member`.
+  const memberWith = (flags: bigint) => ({ get: (name: string) => (name === "flags" ? flags : null) });
 
-    await expect(destroy.run(gumroad)).rejects.toBeInstanceOf(HandBackToRails);
+  it("hands the removal of a flagged team member of the Gumroad account to Rails before writing", async () => {
+    findUser.mockResolvedValue(memberWith(1n << 27n));
+
+    await expect(destroy.run(gumroadSeller())).rejects.toBeInstanceOf(HandBackToRails);
+    expect(findUser).toHaveBeenCalledWith(9n);
     expect(markDeletedBang).not.toHaveBeenCalled();
+  });
+
+  it("hands the removal of a member who is gone to Rails", async () => {
+    findUser.mockResolvedValue(null);
+
+    await expect(destroy.run(gumroadSeller())).rejects.toBeInstanceOf(HandBackToRails);
+    expect(markDeletedBang).not.toHaveBeenCalled();
+  });
+
+  it("removes a member of the Gumroad account who is not flagged, where Rails' user update changes nothing", async () => {
+    findUser.mockResolvedValue(memberWith(0n));
+
+    const result = (await destroy.run(gumroadSeller())) as { body: string };
+    expect(JSON.parse(result.body)).toEqual({ success: true });
+    expect(markDeletedBang).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not read the member of an account other than the Gumroad account's", async () => {
+    await destroy.run(input({}));
+    expect(findUser).not.toHaveBeenCalled();
+    expect(markDeletedBang).toHaveBeenCalledTimes(1);
   });
 });
 

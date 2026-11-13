@@ -67,9 +67,16 @@ describe("skuDetails", () => {
     });
   });
 
-  it("hands back a product with two categories", async () => {
-    selectRows.mockResolvedValue([{ title: "Size" }, { title: "Color" }]);
-    await expect(skuDetails(sku())).rejects.toThrow("several categories");
+  it("joins the titles of a product with several categories in the order of their ids", async () => {
+    selectRows.mockResolvedValue([{ title: "Size" }, { title: "Color" }, { title: null }]);
+    const result = await skuDetails(sku());
+    expect(Object.keys(result.variants)).toEqual(["Size - Color - "]);
+    expect(String(selectRows.mock.calls[0]![0].sql)).toContain("ORDER BY");
+  });
+
+  it("hands back a default SKU with a custom SKU", async () => {
+    selectRows.mockResolvedValue([]);
+    await expect(skuDetails(sku({ flags: 1, custom_sku: "LRG-1" }))).rejects.toThrow("a default SKU with a custom SKU");
   });
 });
 
