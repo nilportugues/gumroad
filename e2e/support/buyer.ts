@@ -20,7 +20,10 @@ export const startCheckout = async (page: Page, permalink: string) => {
 };
 
 /** Completes a free checkout. The email field is only shown (and required) when not signed in. */
-export const completeFreeCheckout = async (page: Page, { email }: { email?: string } = {}) => {
+export const completeFreeCheckout = async (
+  page: Page,
+  { email, landing = /\/d\/[a-f0-9]+/u }: { email?: string; landing?: RegExp } = {},
+) => {
   // Waits for hydration: checking visibility first races it and submits an empty email.
   if (email) await page.getByLabel("Email address").fill(email);
   const submit = page.getByRole("button", { name: "Get", exact: true });
@@ -29,11 +32,24 @@ export const completeFreeCheckout = async (page: Page, { email }: { email?: stri
   // Bounded: a discounted checkout keeps a request in flight, so idle may never come.
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   await submit.click();
-  await page.waitForURL(/\/d\/[a-f0-9]+/u, { timeout: 90_000 });
+  await page.waitForURL(landing, { timeout: 90_000 });
 };
 
 export const buyFreeProduct = async (page: Page, permalink: string, opts: { email?: string } = {}) => {
   await openProduct(page, permalink);
   await startCheckout(page, permalink);
   await completeFreeCheckout(page, opts);
+};
+
+/** A signed-in account's saved cart can carry items from other runs; removes everything but `productName`. */
+export const removeOtherCartItems = async (page: Page, productName: string) => {
+  const others = page
+    .getByRole("listitem")
+    .filter({ hasNotText: productName })
+    .filter({ has: page.getByRole("button", { name: "Remove" }) });
+  while ((await others.count()) > 0) {
+    const before = await others.count();
+    await others.first().getByRole("button", { name: "Remove" }).click();
+    await expect(others).toHaveCount(before - 1);
+  }
 };

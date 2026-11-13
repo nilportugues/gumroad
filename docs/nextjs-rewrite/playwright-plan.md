@@ -18,7 +18,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [x] 1.4 Support helpers: auth, buyer, seller, fixtures, recorder (`e2e/support/`)
 - [x] 1.5 One-command local environment: `bin/e2e-up`, `bin/e2e-run`, `bin/e2e-down` on lane 3
 - [x] 1.6 `e2e/README.md` with setup and preconditions
-- [ ] 1.7 Suite merged into `nextjs-rewrite` (branches `ws-e2e-1` and `ws-e2e-2` pushed, integration-8 verifying)
+- [x] 1.7 Suite merged into `nextjs-rewrite` (ws-e2e-1 and ws-e2e-2 landed via integration-8; e2e-3 to e2e-5 via integration-12 and integration-16)
 
 ## Phase 2: regression specs that exist
 
@@ -36,11 +36,11 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [ ] 3.1 Paid card checkout with a Stripe test card; needs test keys, currently skipped (`paid-checkout.stripe.spec.ts`)
 - [x] 3.2 Discount code applied at checkout changes the total (`checkout-discount.spec.ts`)
 - [x] 3.3 Buying through an affiliate link records the affiliate (`affiliate-purchase.spec.ts`)
-- [ ] 3.4 Membership: subscribe, see it in the library, cancel
+- [x] 3.4 Membership: a free membership is created and published, a buyer subscribes, sees it under Library > Subscriptions and cancels it (`membership.spec.ts`; the buyer is the confirmed seeded `gumbo_audio` account because the seller's own purchases are test purchases and never reach the library); a paid recurring charge needs Stripe test keys and stays with 3.1
 - [x] 3.5 Seller edits a product price and the product page follows (`product-price-edit.spec.ts`)
 - [ ] 3.6 Seller refunds a sale (needs Stripe test keys or a free-sale equivalent)
 - [x] 3.7 Customers page renders and its CSV export downloads with the sales columns (`customers.spec.ts`); listing a sale made during the run needs Sidekiq indexing, see 5.1
-- [ ] 3.8 Bundle created, published and bought
+- [x] 3.8 Bundle created, published and bought (`bundle.spec.ts`; free bundle of the seeded free product, the buyer lands on the library filtered to the bundle); bundle product purchases are created by Sidekiq and are not asserted
 - [x] 3.9 Buyer downloads a file from the content page (`download-file.spec.ts`)
 - [x] 3.10 Analytics and dashboard pages render with the seeded data (`dashboard-analytics.spec.ts`)
 - [x] 3.11 Payouts and payment settings pages render (render only, no live Stripe) (`payouts.spec.ts`)
