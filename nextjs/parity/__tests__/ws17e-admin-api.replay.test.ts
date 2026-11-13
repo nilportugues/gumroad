@@ -29,7 +29,10 @@ const CONTROLLER_DIRS = (process.env.WS17E_SPECS?.split(",") ?? readdirSync(CONT
   existsSync(path.join(CONTROLLER_ROOT, dir)),
 );
 const REQUEST_DIRS = existsSync(REQUEST_ROOT)
-  ? readdirSync(REQUEST_ROOT).filter((dir) => /^admin_.*_parity_spec$/u.test(dir))
+  ? readdirSync(REQUEST_ROOT).filter(
+      (dir) =>
+        /^admin_.*_parity_spec$/u.test(dir) && (process.env.WS17E_REQUEST_SPECS?.split(",").includes(dir) ?? true),
+    )
   : [];
 // The controller specs stub GUMROAD_ADMIN_ID to a fresh user's id, which a replayed server cannot reproduce: the request spec covers the legacy token.
 const LEGACY_TOKEN_CASE = /legacy|configured-bearer-token|rotation-point/u;
