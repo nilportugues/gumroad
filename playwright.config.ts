@@ -45,7 +45,7 @@ export default defineConfig({
     {
       name: "bot",
       testDir: "./e2e/bot",
-      testMatch: /bot\.bot\.ts/u,
+      testMatch: /\.bot\.ts$/u,
       dependencies: ["preflight"],
       timeout: 0,
       use: { ...devices["Desktop Chrome"] },

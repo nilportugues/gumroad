@@ -51,7 +51,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 
 - [x] 4.1 Seeded bot with `BOT_SEED`, `BOT_SESSIONS`, `BOT_STEPS` (`e2e/bot/`)
 - [x] 4.2 Recorder writes request and response pairs as JSONL under `e2e/.out/`
-- [ ] 4.3 Determinism check: the same seed gives the same request sequence twice
+- [x] 4.3 Determinism check: the same seed gives the same request sequence twice (`e2e/bot/determinism.bot.ts`, `npm run e2e:determinism`)
 - [ ] 4.4 Replay tool sends a recording to a Rails server
 - [ ] 4.5 Replay tool sends the same recording to the Node server
 - [ ] 4.6 Diff report between the two replays, with known differences masked
