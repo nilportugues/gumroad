@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, selectRows, eligibleToSendEmails, isSuspended } = vi.hoisted(() => ({
+const { specs, selectRows, eligibleToSendEmails, isSuspended, createInstallment, subdomain } = vi.hoisted(() => ({
   specs: [] as MutationSpec[],
+  createInstallment: vi.fn(),
+  subdomain: vi.fn(),
   selectRows: vi.fn(),
   eligibleToSendEmails: vi.fn(),
   isSuspended: vi.fn(),
@@ -18,6 +20,12 @@ vi.mock("./json-seller.ts", () => ({
 vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
   selectRows,
+}));
+vi.mock("../models/runtime/transaction.ts", () => ({ transaction: (run: () => unknown) => run() }));
+vi.mock("../models/installment-writes.ts", () => ({ Installments: { create: createInstallment } }));
+vi.mock("../presenters/product.ts", () => ({
+  longUrl: () => "https://seller.example.com/l/launch",
+  subdomainWithProtocol: subdomain,
 }));
 vi.mock("../models/user-email-eligibility.ts", () => ({
   MINIMUM_SALES_CENTS_VALUE: 100_00,
@@ -43,6 +51,8 @@ const answers = (...rows: unknown[][]) => {
 beforeEach(() => {
   eligibleToSendEmails.mockReset().mockResolvedValue(true);
   isSuspended.mockReset().mockReturnValue(false);
+  createInstallment.mockReset();
+  subdomain.mockReset();
   answers([{ id: 3n }], [{ id: 11n, json_data: marker(3) }]);
 });
 
@@ -108,10 +118,46 @@ describe("Products::WaitlistEmailsController#create", () => {
     );
   });
 
-  it("hands the first press to Rails", async () => {
-    answers([{ id: 3n }], [{ id: 11n, json_data: marker(4) }]);
+  // The first press is replayed against Rails in waitlist_emails_signed_in_spec.
+  describe("on the first press", () => {
+    const firstPress = () =>
+      answers(
+        [{ id: 3n }],
+        [{ id: 11n, json_data: marker(4) }],
+        [{ id: 3n, name: "Launch <1>", unique_permalink: "launch" }],
+        [{ id: 11n, json_data: marker(4) }],
+      );
 
-    await expect(run()).rejects.toBeInstanceOf(HandBackToRails);
+    it("builds the launch email and answers its edit url", async () => {
+      firstPress();
+      subdomain.mockReturnValue("https://seller.example.com");
+      createInstallment.mockResolvedValue({ persisted: true, get: () => 99n });
+
+      expect(body(await run())).toEqual({ success: true, edit_url: "/emails/enc99/edit" });
+      expect(createInstallment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          seller_id: 7,
+          name: "Launch <1> is out now",
+          installment_type: "follower",
+          json_data: expect.stringContaining('"waitlist_launch_product_id":3') as string,
+        }),
+      );
+    });
+
+    it("hands a seller without a subdomain to Rails", async () => {
+      firstPress();
+      subdomain.mockReturnValue(null);
+
+      await expect(run()).rejects.toBeInstanceOf(HandBackToRails);
+    });
+
+    it("hands a launch email that fails validation to Rails", async () => {
+      firstPress();
+      subdomain.mockReturnValue("https://seller.example.com");
+      createInstallment.mockResolvedValue({ persisted: false, get: () => null });
+
+      await expect(run()).rejects.toBeInstanceOf(HandBackToRails);
+    });
   });
 
   it("hands a marker that is not a number to Rails", async () => {
