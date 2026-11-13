@@ -2,10 +2,14 @@
 # Everything the Rails app needs lives in one container on the shared gumroad_default network, next to the
 # shared MySQL, Redis, Elasticsearch and DynamoDB containers, which this tooling only ever uses, never recreates.
 
-E2E_LANE=3
-E2E_CONTAINER="${E2E_CONTAINER:-gr-e2e-lane3}"
+# E2E_LANE picks the dev lane (1-3, default 3); each lane has its own port, database, Redis dbs, indices and container.
+E2E_LANE="${E2E_LANE:-3}"
+[[ "$E2E_LANE" =~ ^[1-3]$ ]] || { echo "[e2e] ERROR: E2E_LANE must be 1, 2 or 3" >&2; exit 1; }
+E2E_CONTAINER="${E2E_CONTAINER:-gr-e2e-lane$E2E_LANE}"
 E2E_NETWORK="${E2E_NETWORK:-gumroad_default}"
-E2E_PORT=3003
+E2E_PORT=$((3000 + E2E_LANE))
+E2E_REDIS_BASE=$((4 + (E2E_LANE - 1) * 2))
+E2E_REDIS_SIDEKIQ=$((E2E_REDIS_BASE + 1))
 E2E_APP_DIR=/work
 E2E_NODE_DIR=/opt/node
 # The image only needs Ruby 3.4 plus the native libs the shared gr_bundle volume was compiled against.
@@ -33,13 +37,13 @@ e2e_lane_env() {
   out="$("$E2E_ROOT/bin/dev-lane" "$E2E_LANE" --print-env)"
   out="${out//localhost:6379/redis:6379}"
   out="${out//redis:\/\/localhost/redis://redis}"
-  grep -qx 'DATABASE_NAME=gumroad_development_lane3' <<<"$out" &&
-    grep -qx 'REDIS_HOST=redis:6379/8' <<<"$out" &&
-    grep -qx 'RPUSH_REDIS_HOST=redis:6379/8' <<<"$out" &&
-    grep -qx 'SIDEKIQ_REDIS_HOST=redis:6379/9' <<<"$out" &&
-    grep -qx 'RACK_ATTACK_REDIS_HOST=redis:6379/9' <<<"$out" &&
-    grep -qx 'ES_INDEX_SUFFIX=_lane3' <<<"$out" &&
-    grep -qx 'DYNAMODB_TABLE_PREFIX=lane3_' <<<"$out" || e2e_die "bin/dev-lane 3 no longer resolves to the lane 3 resources"
+  grep -qx "DATABASE_NAME=gumroad_development_lane$E2E_LANE" <<<"$out" &&
+    grep -qx "REDIS_HOST=redis:6379/$E2E_REDIS_BASE" <<<"$out" &&
+    grep -qx "RPUSH_REDIS_HOST=redis:6379/$E2E_REDIS_BASE" <<<"$out" &&
+    grep -qx "SIDEKIQ_REDIS_HOST=redis:6379/$E2E_REDIS_SIDEKIQ" <<<"$out" &&
+    grep -qx "RACK_ATTACK_REDIS_HOST=redis:6379/$E2E_REDIS_SIDEKIQ" <<<"$out" &&
+    grep -qx "ES_INDEX_SUFFIX=_lane$E2E_LANE" <<<"$out" &&
+    grep -qx "DYNAMODB_TABLE_PREFIX=lane${E2E_LANE}_" <<<"$out" || e2e_die "bin/dev-lane $E2E_LANE no longer resolves to the lane $E2E_LANE resources"
   printf '%s\n' "$out"
   printf '%s\n' \
     "RAILS_ENV=development" "BUNDLE_PATH=/bundle" "SKIP_TEST_DATABASE=true" \

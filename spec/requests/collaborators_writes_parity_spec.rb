@@ -154,12 +154,13 @@ describe "Collaborators::MainController writes", type: :request, parity_timeline
       expect(flash[:alert]).to eq("You cannot add this user as a collaborator")
     end
 
-    it "hands a commission above the limit to Rails", parity: true do
+    it "refuses a commission above the limit", parity: true do
       log_in(seller)
 
       create_collaboration(email: invitee.email, apply_to_all_products: true, percent_commission: 60, products: [{ id: product.external_id }])
 
       expect(response).to redirect_to(new_collaborator_path)
+      expect(flash[:alert]).to eq("Product affiliates affiliate basis points must be less than or equal to 5000")
     end
 
     it "hands a product that already has a direct affiliate to Rails", parity: true do

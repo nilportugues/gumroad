@@ -13,7 +13,7 @@ import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.t
 import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { timeAsJson } from "../search/es-json.ts";
 
-import { type ActionResult, HandBackToRails } from "./application-controller.ts";
+import { type ActionResult, HandBackToRails, RoutingError } from "./application-controller.ts";
 import { jsonAction, json } from "./json-actions.ts";
 import type { MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
@@ -163,8 +163,8 @@ async function show(input: MutationInput): Promise<ActionResult> {
       : await selectRows<ReviewRow>(
           Prisma.sql`SELECT ${REVIEW_COLUMNS} ${REVIEWS_WITH_APPROVED_VIDEO} WHERE ${column("product_reviews", "deleted_at")} IS NULL AND ${VISIBLE_ON_PRODUCT_PAGE} AND ${column("product_reviews", "id")} = ${id} LIMIT 1`,
         );
-  // RecordNotFound: Rails answers it with its exception page, which the port does not render.
-  if (!review) throw new HandBackToRails("a review that is not visible on the product page");
+  // `find_by_external_id!` raises RecordNotFound, a 404 like `e404`.
+  if (!review) throw new RoutingError("Not Found");
   if (review.link_id === null) throw new HandBackToRails("a review without a product");
   return json({ review: await reviewProps(review, await sellerIdOfProduct(review.link_id), input) });
 }

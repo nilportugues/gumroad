@@ -155,7 +155,7 @@ describe "Bundles create from email", type: :request do
     expect(response).to redirect_to("/products")
   end
 
-  it "hands a bundle priced at zero to Rails", parity: true do
+  it "makes a bundle priced at zero pay what you want", parity: true do
     log_in(seller)
 
     best_selling([product.external_id], price: 0)

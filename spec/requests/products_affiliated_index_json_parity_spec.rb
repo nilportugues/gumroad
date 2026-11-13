@@ -125,7 +125,7 @@ describe "Products::AffiliatedController#index as JSON", type: :request do
     expect(response.parsed_body).to eq("success" => false, "error_message" => "Please add an email address to your account before continuing.")
   end
 
-  it "hands a query with a bracketed parameter it does not read to Rails", parity: true do
+  it "ignores a hash parameter the action does not permit", parity: true do
     log_in(affiliate_user)
 
     fetch("other" => { "key" => "1" })
