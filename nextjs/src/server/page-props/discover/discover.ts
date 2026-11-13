@@ -1,7 +1,7 @@
 // DiscoverController#index (Discover/Index): the search params, the taxonomy lookup, the product search and its
 // cards, the DiscoverSearch write and the SEO meta tags. Whatever the port cannot prove is handed to Rails whole
 // by the controller's filter (controllers/discover-page.ts), before anything renders: the deferred props the port
-// cannot answer, an autocomplete request it cannot answer and curated products.
+// cannot answer, an autocomplete request it cannot answer and curated products seeded by 4 or more ids.
 import { timingSafeEqual } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
@@ -23,8 +23,8 @@ import {
   tagPageTitle,
   taxonomyLabel,
 } from "../../presenters/discover/seo.ts";
-import { bit, findLink } from "../../presenters/product-reads.ts";
-import { cardForWeb, type PresenterRequest } from "../../presenters/product.ts";
+import { bit, findLink, type LinkRow } from "../../presenters/product-reads.ts";
+import { cardForWeb, linkFields, type PresenterRequest } from "../../presenters/product.ts";
 import { type Params, present } from "../../search/ruby-params.ts";
 import {
   normalizeSearchParamValues,
@@ -49,6 +49,10 @@ const GUMROAD_SEARCH_RECOMMENDATION = "search";
 const GUMROAD_DISCOVER_RECOMMENDATION = "discover";
 const FEATURED_DESCRIPTION_MAX_LENGTH = 300;
 const DISCOVER_LAYOUT = "discover";
+const GUMROAD_PRODUCTS_FOR_YOU_RECOMMENDATION = "products_for_you";
+// RecommendedProductsService::MODELS has the one model, which set_recommender_model_name puts in every session.
+const RECOMMENDER_MODEL_NAME = "sales";
+const CURATED_SORT = "curated";
 const RECENTLY_VIEWED_FEATURE = "discover_recently_viewed";
 const NON_SEARCH_PARAMS = new Set(["taxonomy", "format"]);
 
@@ -74,6 +78,8 @@ export type PreparedSearch = {
   params: Params;
   taxonomy: TaxonomyRow | null;
   searchParams: Params;
+  // DiscoverCuratedProducts#curated_products
+  curated: LinkRow[];
 };
 
 const rubyPresent = (value: unknown): boolean => present(Array.isArray(value) ? value.length > 0 : value);
@@ -131,9 +137,8 @@ async function findTaxonomy(taxonomyParam: unknown): Promise<TaxonomyRow | null>
 export const showsNsfwProducts = (visitor: DiscoverVisitor) =>
   visitor ? bit(visitor.flags, SHOW_NSFW_PRODUCTS_FLAG) : null;
 
-// Curated products come from RecommendedProducts::DiscoverService, which the port does not run. It seeds on the
-// visitor's `Cart.fetch_by(...)` alive cart_products plus `User#purchased_products`; with neither seed
-// SalesRelatedProductsInfo.related_products returns Link.none and the list is empty, which the port answers itself.
+// Whether the visitor has a curated-product seed (an alive cart product or a purchase): the product and wishlist pages,
+// which do not port the curated list, hand back on it. Discover itself uses curatedProducts().
 // `fetch_by` is `user.carts.alive.first` (lowest id) or the guest cart for the guid, so only that one cart seeds.
 export async function hasCuratedProductSources(visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
   const cartId = visitor
@@ -169,11 +174,16 @@ export async function hasCuratedProductSources(visitor: DiscoverVisitor, guid: s
   );
 }
 
-// DiscoverController#index up to the search: format_search_params!, the `from` skip past the recommendations
-// strip, the taxonomy and the search params.
+// DiscoverController#show_curated_products?
+const showsCuratedProducts = (prepared: Pick<PreparedSearch, "params" | "taxonomy" | "curated">): boolean =>
+  !rubyPresent(prepared.params.offer_code) && !prepared.taxonomy && prepared.curated.length > 0;
+
+// DiscoverController#index up to the search: format_search_params!, the curated sort, the `from` skip past the
+// recommendations strip, the taxonomy and the search params.
 export async function prepareSearch(
   request: Pick<DiscoverRequest, "path" | "queryString">,
   visitor: DiscoverVisitor,
+  curated: LinkRow[],
 ): Promise<PreparedSearch> {
   const params = await normalizeSearchParamValues(requestParams(request.path, request.queryString), {
     validFilterTokens,
@@ -182,7 +192,11 @@ export async function prepareSearch(
     params.offer_code = NO_MATCH_OFFER_CODE;
 
   const taxonomy = await findTaxonomy(params.taxonomy);
-  // Curated products are empty here (see hasCuratedProductSources), so the recommendations strip is not curated.
+  // The strip already shows the first products of a curated list, so the rest is what the search ranks first.
+  if (!rubyPresent(params.sort) && curated.length > 0) {
+    params.sort = CURATED_SORT;
+    params.curated_product_ids = curated.slice(RECOMMENDED_PRODUCTS_COUNT).map((row) => Number(row.id));
+  }
   if (Object.keys(params).every((key) => NON_SEARCH_PARAMS.has(key))) params.from = RECOMMENDED_PRODUCTS_COUNT + 1;
 
   const searchParams: Params = { ...params };
@@ -192,7 +206,7 @@ export async function prepareSearch(
   }
   searchParams.include_rated_as_adult = showsNsfwProducts(visitor);
   searchParams.size = INITIAL_PRODUCTS_COUNT;
-  return { params, taxonomy, searchParams };
+  return { params, taxonomy, searchParams, curated };
 }
 
 export function presenterRequest(request: DiscoverRequest): PresenterRequest {
@@ -388,8 +402,8 @@ export const isAutocompleteOnlyRequest = (headers: Headers) =>
   headers.get("x-inertia-partial-data") === "autocomplete_results";
 
 // What a deferred-only request asks for, when the port can answer all of it: the other props are Rails'.
-// recommended_wishlists is answered for any visitor that reached here (curated sources are handed back earlier);
-// recently_viewed is answered at any ramp stage.
+// recommended_wishlists is answered for any visitor that reached here (curated products seeded by 4 or more ids are
+// handed back earlier); recently_viewed is answered at any ramp stage.
 export async function deferredPropsPortable(
   requested: string[],
   prepared: PreparedSearch,
@@ -399,13 +413,18 @@ export async function deferredPropsPortable(
 ): Promise<boolean> {
   for (const name of requested) {
     if (name === "recommended_products") {
-      // The root page's strip is a random sample of a cached list (`discover_all_top_products`).
-      if (!rubyPresent(prepared.params.offer_code) && !prepared.taxonomy) return false;
+      // Without curated products the root page's strip is a random sample of a cached list (`discover_all_top_products`).
+      if (!rubyPresent(prepared.params.offer_code) && !prepared.taxonomy && !showsCuratedProducts(prepared))
+        return false;
     } else if (name === "recently_viewed") {
       // A dry run: the exposure line is written once, when the prop resolves.
       if (await notPorted(() => recentlyViewedData(prepared, visitor, request, { logExposure: false }))) return false;
     } else if (name === "recommended_wishlists") {
-      if (await notPorted(() => recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId)))
+      if (
+        await notPorted(() =>
+          recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId, curatedIds(prepared)),
+        )
+      )
         return false;
     } else {
       return false;
@@ -413,6 +432,8 @@ export async function deferredPropsPortable(
   }
   return true;
 }
+
+const curatedIds = (prepared: Pick<PreparedSearch, "curated">): bigint[] => prepared.curated.map((row) => row.id);
 
 // Whether a prop the port builds hits something it cannot reproduce.
 async function notPorted(build: () => Promise<unknown>): Promise<boolean> {
@@ -488,6 +509,21 @@ async function recommendedProducts(
 ): Promise<Record<string, unknown>[]> {
   // Don't show any recommended/featured products when offer codes are present
   if (rubyPresent(prepared.params.offer_code)) return [];
+  if (showsCuratedProducts(prepared)) {
+    const cards: Record<string, unknown>[] = [];
+    for (const row of prepared.curated.slice(0, RECOMMENDED_PRODUCTS_COUNT))
+      cards.push(
+        await cardForWeb(row.id, {
+          request: presenterRequest(request),
+          recommendedBy: GUMROAD_PRODUCTS_FOR_YOU_RECOMMENDATION,
+          target: DISCOVER_LAYOUT,
+          recommenderModelName: RECOMMENDER_MODEL_NAME,
+          affiliateId: null,
+          descriptionMaxLength: FEATURED_DESCRIPTION_MAX_LENGTH,
+        }),
+      );
+    return cards;
+  }
   if (!prepared.taxonomy) throw new NotPortedError("Discover recommended_products");
 
   const result = await searchProductsWithFacets({
@@ -520,7 +556,7 @@ export function deferredProps(
   return {
     recommended_products: defer(() => recommendedProducts(prepared, request)),
     recommended_wishlists: defer(() =>
-      recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId),
+      recommendedWishlistsProps(prepared.taxonomy?.id ?? null, request.currentSellerId, curatedIds(prepared)),
     ),
     recently_viewed: defer(() => recentlyViewedData(prepared, visitor, request)),
   };
@@ -537,8 +573,10 @@ export async function discoverProps(
   return {
     search_results: results,
     currency_code: visitor?.currency_type ?? "usd",
-    taxonomies_for_nav: await taxonomiesForNav(),
-    curated_product_ids: [],
+    taxonomies_for_nav: await taxonomiesForNav(
+      prepared.curated.flatMap((row) => (row.taxonomy_id === null ? [] : [row.taxonomy_id as bigint])),
+    ),
+    curated_product_ids: prepared.curated.map((row) => linkFields.externalId(row)),
     search_offset: params.from ?? 0,
     show_black_friday_hero: blackFridayStats !== null,
     is_black_friday_page: params.offer_code === BLACK_FRIDAY_CODE,

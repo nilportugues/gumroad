@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   affiliateCookieForParams: vi.fn(),
-  hasCuratedProductSources: vi.fn(),
+  curatedProducts: vi.fn(),
+  prepareSearch: vi.fn(),
   autocompleteResults: vi.fn(),
   blackFridayFeatureActive: vi.fn(),
   blackFridayStats: vi.fn(),
@@ -17,19 +18,20 @@ vi.mock("../page-props/discover/discover.ts", () => ({
   BLACK_FRIDAY_CODE: "BLACKFRIDAY2025",
   blackFridayFeatureActive: mocks.blackFridayFeatureActive,
   deferredPropsPortable: async () => true,
-  hasCuratedProductSources: mocks.hasCuratedProductSources,
   isAutocompleteOnlyRequest: (headers: Headers) => headers.has("x-autocomplete"),
   isDeferredOnlyRequest: mocks.isDeferredOnlyRequest,
-  prepareSearch: async () => ({}),
+  prepareSearch: mocks.prepareSearch,
   requestedDeferredProps: () => [],
   requestParams: () => ({}),
   searchResults: async () => ({}),
 }));
+vi.mock("../page-props/discover/curated-products.ts", () => ({ curatedProducts: mocks.curatedProducts }));
 vi.mock("../page-props/discover/black-friday-stats.ts", () => ({ blackFridayStats: mocks.blackFridayStats }));
 vi.mock("./application-controller.ts", () => ({ HandBackToRails: class HandBackToRails extends Error {} }));
 
 import { NotPortedError } from "../page-props/not-ported.ts";
 
+import { HandBackToRails } from "./application-controller.ts";
 import { discoverFilters } from "./discover-page.ts";
 
 const NOW = new Date("2026-01-01T00:00:00Z");
@@ -48,7 +50,8 @@ const chainOf = (headers: Record<string, string> = {}) => {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.hasCuratedProductSources.mockResolvedValue(false);
+  mocks.curatedProducts.mockResolvedValue([]);
+  mocks.prepareSearch.mockResolvedValue({});
   mocks.autocompleteResults.mockResolvedValue([]);
   mocks.blackFridayFeatureActive.mockResolvedValue(false);
   mocks.isDeferredOnlyRequest.mockReturnValue(false);
@@ -113,5 +116,36 @@ describe("discoverFilters Black Friday", () => {
     mocks.blackFridayFeatureActive.mockResolvedValue(true);
     mocks.blackFridayStats.mockRejectedValue(new NotPortedError("tiers"));
     await expect(discoverFilters(chainOf().chain)).rejects.toThrow();
+  });
+});
+
+describe("discoverFilters curated products", () => {
+  beforeEach(() => {
+    mocks.affiliateCookieForParams.mockResolvedValue(null);
+  });
+
+  it("prepares the search with the visitor's curated products", async () => {
+    const curated = [{ id: 20n }];
+    mocks.curatedProducts.mockResolvedValue(curated);
+    const { chain, request } = chainOf();
+    await discoverFilters(chain);
+    expect(mocks.curatedProducts).toHaveBeenCalledWith(null, null);
+    expect(mocks.prepareSearch).toHaveBeenCalledWith(request, null, curated);
+  });
+
+  it("hands back a visitor whose curated products Rails samples at random, before preparing the search", async () => {
+    mocks.curatedProducts.mockRejectedValue(new NotPortedError("sampled"));
+    await expect(discoverFilters(chainOf().chain)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.prepareSearch).not.toHaveBeenCalled();
+  });
+
+  it("lets a failure that is not a hand-back through", async () => {
+    mocks.curatedProducts.mockRejectedValue(new Error("db down"));
+    await expect(discoverFilters(chainOf().chain)).rejects.toThrow("db down");
+  });
+
+  it("reads no curated products for a search box request", async () => {
+    await discoverFilters(chainOf({ "x-autocomplete": "1" }).chain);
+    expect(mocks.curatedProducts).not.toHaveBeenCalled();
   });
 });

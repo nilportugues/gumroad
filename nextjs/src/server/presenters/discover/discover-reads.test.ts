@@ -281,6 +281,46 @@ describe("RecommendedWishlistsService", () => {
     await expect(recommendedWishlistIds(5n)).rejects.toBeInstanceOf(NotPortedError);
   });
 
+  describe("with curated products", () => {
+    const CANDIDATES =
+      "(SELECT `wishlists`.* FROM `wishlists` WHERE `wishlists`.`recommendable` = TRUE ORDER BY `wishlists`.`recent_follower_count` DESC LIMIT 10000) `wishlists` INNER JOIN `wishlist_products` ON `wishlist_products`.`wishlist_id` = `wishlists`.`id`";
+
+    it("takes the wishlists holding a curated product from the top ten thousand", async () => {
+      sqlRows = [[{ id: 3n }, { id: 1n }, { id: 2n }, { id: 6n }]];
+      expect(await recommendedWishlistIds(null, null, [10n, 11n])).toEqual([3n, 1n, 2n, 6n]);
+      expect(sentSql).toEqual([
+        `SELECT DISTINCT \`wishlists\`.* FROM ${CANDIDATES} WHERE \`wishlist_products\`.\`product_id\` IN (10, 11) LIMIT 4`,
+      ]);
+    });
+
+    it("tops a partial match up with the best remaining wishlists", async () => {
+      sqlRows = [[{ id: 3n }], [{ id: 8n }, { id: 9n }, { id: 4n }]];
+      expect(await recommendedWishlistIds(null, 8n, [10n])).toEqual([3n, 8n, 9n, 4n]);
+      expect(sentSql[1]).toBe(
+        "SELECT `wishlists`.* FROM `wishlists` WHERE `wishlists`.`recommendable` = TRUE AND `wishlists`.`user_id` != 8 AND `wishlists`.`id` != 3 ORDER BY `wishlists`.`recent_follower_count` DESC LIMIT 3",
+      );
+    });
+
+    it("does not top up a full match, or a match of nothing", async () => {
+      sqlRows = [[{ id: 1n }, { id: 2n }, { id: 3n }, { id: 4n }]];
+      await recommendedWishlistIds(null, null, [10n]);
+      expect(sentSql).toHaveLength(1);
+      sentSql.length = 0;
+      sqlRows = [[]];
+      await expect(recommendedWishlistIds(null, null, [10n])).rejects.toBeInstanceOf(NotPortedError);
+      expect(sentSql).toHaveLength(1);
+    });
+
+    it("does not top up a taxonomy page, and matches one wishlist product against both the products and the taxonomy", async () => {
+      sqlRows = [[{ id: 3n }]];
+      expect(await recommendedWishlistIds(5n, null, [10n])).toEqual([3n]);
+      expect(sentSql).toHaveLength(1);
+      expect(sentSql[0]).toContain(
+        "INNER JOIN `links` ON `links`.`id` = `wishlist_products`.`product_id` WHERE `wishlist_products`.`product_id` = 10 AND `links`.`taxonomy_id` = 5 LIMIT 4",
+      );
+    });
+  });
+
   it("builds a discover card per wishlist in the service's order", async () => {
     sqlRows = [[{ id: 3n }, { id: 1n }]];
     mocks.wishlists = [{ id: 1n }, { id: 3n }];
