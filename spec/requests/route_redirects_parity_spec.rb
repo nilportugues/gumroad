@@ -60,6 +60,8 @@ describe "Route redirects", type: :request do
       "/products/a%26b%3Dc" => "/l/a&b=c",
       "/products/a%21%24%27%28%29%2A%2C%3B%7E" => "/l/a!$'()*,;~",
       "/products/a%3Cb%3E" => "/l/a%3Cb%3E",
+      "/agent" => "/mcp",
+      "/agent?x=1" => "/mcp",
       "/analytics" => "/dashboard/sales",
       "/analytics?x=1" => "/dashboard/sales",
       "/audience" => "/dashboard/audience",

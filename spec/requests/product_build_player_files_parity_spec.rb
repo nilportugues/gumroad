@@ -5,7 +5,7 @@ require "spec_helper"
 # ProductBuildPlayerFilesController#show, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/product-build-player-files.replay.test.ts, which sends the last request of each example. An example named
 # "hands a ..." records what Node passes to Rails whole. A page of the build (the save shim, which needs the widget bundle
-# `rake vite:build_widget` builds) is handed to Rails and is not recorded. The save endpoint (POST /d/:id/play/:grant/save) runs in Node.
+# `rake vite:build_widget` builds) is handed to Rails and is not recorded. The save endpoint (POST /d/:id/play/:grant/save) and the heartbeat of an open play session run in Node.
 describe "ProductBuildPlayerFilesController", type: :request do
   let(:seller) { create(:user, name: "Build Seller") }
   let(:product) { create(:product, user: seller, name: "Build product") }
@@ -253,6 +253,71 @@ describe "ProductBuildPlayerFilesController", type: :request do
       save({ set: { "level" => "4" } }, grant: missing)
 
       expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  describe "beating from the player page" do
+    let(:play_session) { ProductBuildPlaySession.start!(product_build: build, purchase:, at: 30.seconds.ago) }
+
+    def beat(session_id: play_session.id, grant: nil, token: self.token, purchase_id: purchase.id)
+      grant ||= build.player_heartbeat_grant(url_redirect_token: token, purchase_id:, session_id:)
+      post "/d/#{token}/play/#{grant}/heartbeat"
+    end
+
+    it "extends an open session", parity: true do
+      play_session
+
+      beat
+
+      expect(response).to have_http_status(:no_content)
+      expect(play_session.reload.last_heartbeat_at).to be > 5.seconds.ago
+      expect(ProductBuildPlaySession.count).to eq(1)
+    end
+
+    it "answers 404 for a grant of another content page token", parity: true do
+      other = create(:url_redirect, link: product, purchase: create(:free_purchase, link: product, email: "other@example.com"), uses: 0, expires_at: nil)
+
+      beat(token: other.token, grant: build.player_heartbeat_grant(url_redirect_token: token, purchase_id: purchase.id, session_id: play_session.id))
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a grant that is not one", parity: true do
+      beat(grant: "not-a-grant")
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a save grant used for a heartbeat", parity: true do
+      beat(grant: ProductBuild.player_save_grant(url_redirect_token: token, purchase_id: purchase.id))
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a session that does not exist", parity: true do
+      beat(session_id: 987_654)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for a session of another purchase and leaves it alone", parity: true do
+      other = create(:free_purchase, link: product, email: "other@example.com")
+      other_session = ProductBuildPlaySession.start!(product_build: build, purchase: other, at: 30.seconds.ago)
+
+      beat(session_id: other_session.id)
+
+      expect(response).to have_http_status(:not_found)
+      expect(other_session.reload.last_heartbeat_at).to be < 20.seconds.ago
+    end
+
+    it "hands an expired session to Rails, which starts a new one", parity: true do
+      expired = ProductBuildPlaySession.start!(product_build: build, purchase:, at: 10.minutes.ago)
+
+      beat(session_id: expired.id)
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["heartbeat_path"]).to match(%r{\A/d/#{token}/play/.+/heartbeat\z})
+      expect(ProductBuildPlaySession.count).to eq(2)
     end
   end
 end
