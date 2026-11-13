@@ -246,4 +246,6 @@ export const PORTED_JOBS: readonly string[] = [
   "SendRemindersForOutstandingUserComplianceInfoRequestsWorker",
   "AlertOnBlockedEstablishedSubscribersJob",
   "RequeueTransientlyFailedPayoutsJob",
+  "ReconcilePendingPaypalRefundsJob",
+  "SendWorkflowEmailsToPastCanceledMembersJob",
 ];
