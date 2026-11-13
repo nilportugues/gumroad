@@ -96,10 +96,24 @@ describe("DELETE /mobile/sales/:id/review_response", () => {
     expect(destroyBang).toHaveBeenCalledWith(reply);
   });
 
-  it("hands a subscription sale back to Rails before reading any review", async () => {
-    selectRows.mockResolvedValueOnce([sale({ subscription_id: 3n })]);
+  it("destroys the reply on the sale that is its subscription's first original purchase", async () => {
+    const reply = { id: 9n };
+    selectRows
+      .mockResolvedValueOnce([sale({ subscription_id: 3n })])
+      .mockResolvedValueOnce([{ id: 11n }])
+      .mockResolvedValueOnce([{ id: 5n }]);
+    findResponseOfReview.mockResolvedValue(reply);
+    const result = await action.run(input("11"), auth);
+    expect(body(result)).toEqual({ success: true });
+    expect(destroyBang).toHaveBeenCalledWith(reply);
+  });
+
+  it.each([
+    ["a renewal charge", [{ id: 4n }]],
+    ["a subscription without an original purchase", []],
+  ])("hands %s back to Rails", async (_name, originals) => {
+    selectRows.mockResolvedValueOnce([sale({ subscription_id: 3n })]).mockResolvedValueOnce(originals);
     await expect(action.run(input("11"), auth)).rejects.toBeInstanceOf(NotPortedError);
-    expect(selectRows).toHaveBeenCalledTimes(1);
     expect(destroyBang).not.toHaveBeenCalled();
   });
 

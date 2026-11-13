@@ -155,10 +155,20 @@ describe("affiliateDetails", () => {
     });
   });
 
-  it("hands back a direct affiliate on a collaborator sale and an affiliate without a user", async () => {
-    await expect(affiliateDetails(referred({ json_data: '{"direct_affiliate_id":7}' }))).rejects.toThrow(
-      "direct affiliate",
-    );
+  it("reads the whole credit as the collaborator's when a direct affiliate has no credit recorded", async () => {
+    db.affiliate.findUnique.mockResolvedValue({ affiliate_user_id: 4 });
+    db.user.findUnique.mockResolvedValue({ email: "a@example.com", unconfirmed_email: "" });
+    expect(
+      await affiliateDetails(referred({ affiliate_credit_cents: 100, json_data: '{"direct_affiliate_id":7}' })),
+    ).toEqual({ email: "a@example.com", amount: "$1" });
+  });
+
+  it("hands back a direct affiliate's credit on a collaborator sale and an affiliate without a user", async () => {
+    await expect(
+      affiliateDetails(
+        referred({ json_data: '{"direct_affiliate_id":7,"direct_affiliate_credit_cents":40}' }),
+      ),
+    ).rejects.toThrow("direct affiliate");
     db.affiliate.findUnique.mockResolvedValue({ affiliate_user_id: 4 });
     db.user.findUnique.mockResolvedValue(null);
     await expect(affiliateDetails(referred())).rejects.toThrow("user row is missing");

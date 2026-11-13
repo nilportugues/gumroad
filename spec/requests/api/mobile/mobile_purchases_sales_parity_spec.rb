@@ -4,7 +4,7 @@ require "spec_helper"
 
 # The Api::Mobile purchases and sales answers the Next.js port serves itself (nextjs/src/server/controllers/mobile-purchases.ts):
 # the unconfirmed 403, the 404 for a purchase that is not the caller's, the empty listings and the sales rows whose
-# Purchase#as_json(creator_app_api: true) is ported (USD, no recurrence, no uploaded thumbnail). The examples that end in
+# Purchase#as_json(creator_app_api: true) is ported (USD or a stored rate, a monthly subscription label, no uploaded thumbnail). The examples that end in
 # `hands a ...` are the cases it leaves to Rails whole; the replay asserts Node forwards each one and writes nothing.
 describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::MobileApi
@@ -754,7 +754,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["purchase"]["affiliate"]).to eq("email" => "new-affiliate@example.com", "amount" => "$2")
       end
 
-      it "hands a sale with a collaborator and a direct affiliate to Rails", parity: true do
+      it "reads the whole credit as the collaborator's when the direct affiliate has none recorded", parity: true do
         collaborator = create(:collaborator, seller:, affiliate_user: create(:user), products: [product])
         direct = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
         referred = purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", affiliate: collaborator)
@@ -775,7 +775,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands a sale of a membership to Rails", parity: true do
+      it "serves a sale of a membership", parity: true do
         membership = create(:membership_product, user: seller)
         recurring = purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
 
@@ -821,7 +821,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body).to include("purchases" => [], "pagination" => { "count" => 1, "page" => 2, "pages" => 1, "next" => nil })
     end
 
-    it "hands a sales page with a subscription sale to Rails", parity: true do
+    it "serves a sales page with a subscription sale", parity: true do
       membership = create(:membership_product, user: seller)
       purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
       index_model_records(Purchase)
@@ -870,7 +870,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["message"]).to eq("Could not find review response")
       end
 
-      it "hands a review response removal of a subscription sale to Rails", parity: true do
+      it "removes the reply to the review of a subscription sale", parity: true do
         membership = create(:membership_product, user: seller)
         recurring = purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
         review = create(:product_review, purchase: recurring, link: membership, rating: 5, message: "Fine")

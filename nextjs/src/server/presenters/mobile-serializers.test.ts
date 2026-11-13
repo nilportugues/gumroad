@@ -129,9 +129,21 @@ describe("formatted prices", () => {
     ["a currency the money gem does not know", { displayed_price_currency_type: "zzz", rate_converted_to_usd: "1.0" }],
     ["no currency", { displayed_price_currency_type: null }],
     ["a recurrence price", { price_id: 5n }],
-    ["a subscription", { subscription_id: 5n }],
+    ["a subscription without a recurrence label", { subscription_id: 5n }],
   ])("refuses %s", (_name, overrides) => {
     expect(() => formattedDisplayPrice(purchase(overrides as Partial<Purchase>))).toThrow(/not ported/u);
+  });
+});
+
+describe("formatted prices of a subscription purchase", () => {
+  it("appends the recurrence label of the subscription's price", () => {
+    const membership = purchase({ subscription_id: 5n, price_cents: 300, displayed_price_cents: 300 });
+    expect(formattedTotalPrice(membership, "a month")).toBe("$3 a month");
+    expect(formattedDisplayPrice(membership, "a month")).toBe("$3 a month");
+  });
+
+  it("still refuses a purchase with a price record of its own", () => {
+    expect(() => formattedTotalPrice(purchase({ price_id: 5n, subscription_id: 5n }), "a month")).toThrow(/not ported/u);
   });
 });
 
