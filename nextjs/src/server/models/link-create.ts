@@ -31,6 +31,8 @@ import {
   LinkInvalid,
   Links,
   MAX_NAME_LENGTH,
+  MAX_PURCHASE_COUNT_RANGE,
+  setCustomizablePrice,
   type LinkRecord,
 } from "./link.ts";
 import { defineModel, type Callback } from "./runtime/define-model.ts";
@@ -450,6 +452,18 @@ async function initializeSuggestedAmount(link: LinkRecord, ctx: { now?: () => Da
 
 const beforeValidation: Callback<Link>[] = [
   {
+    // MaxPurchaseCount: the assignment happens even when the value is already in range.
+    name: "constrain_max_purchase_count_within_range",
+    run(link) {
+      const count = link.get("max_purchase_count");
+      if (count == null) return;
+      link.set(
+        "max_purchase_count",
+        Math.min(Math.max(count, MAX_PURCHASE_COUNT_RANGE[0]), MAX_PURCHASE_COUNT_RANGE[1]),
+      );
+    },
+  },
+  {
     name: "set_unique_permalink",
     async run(link) {
       if (link.get("unique_permalink") == null)
@@ -491,6 +505,16 @@ const validations: Callback<Link>[] = [
     name: "validates :unique_permalink, presence: true",
     run(link) {
       if (isBlank(link.get("unique_permalink"))) link.errors.add("unique_permalink", "blank");
+    },
+  },
+  {
+    // Product::Prices#suggested_price_greater_than_price; the default price is the column until the product is saved.
+    name: "suggested_price_greater_than_price",
+    run(link) {
+      const suggested = link.get("suggested_price_cents");
+      if (suggested == null || !link.get("customizable_price") || link.get("price_cents") == null) return;
+      if (suggested < Number(link.get("price_cents")))
+        link.errors.add("base", "The suggested price you entered was too low.");
     },
   },
   {
@@ -622,6 +646,8 @@ export const LinkCreations = defineModel<Link>({
     { name: "add_to_profile_sections", run: addToProfileSections },
     { name: "initialize_suggested_amount_if_needed!", run: initializeSuggestedAmount },
   ],
+  // The form sets customizable_price itself (`price_range=`), the API only assigns the cents, so only the API create needs the callback.
+  afterSave: [{ ...setCustomizablePrice, if: (link) => link.ivars.priceFromCents === true }],
 });
 
 export type CreateOutcome =
@@ -725,11 +751,15 @@ export type ApiCreateParams = {
   // An explicit taxonomy; null falls back to the "other" taxonomy.
   taxonomyId: bigint | null;
   customSummary: string | null;
+  // The mass-assigned columns, already cast; undefined when the key is absent.
+  maxPurchaseCount?: number | null;
+  customizablePrice?: boolean;
+  suggestedPriceCents?: number | null;
 };
 
 // Api::V2::LinksController#create from `links.build` to the first `save!`: a digital product that starts as a draft with purchases
-// disabled. `price_cents=` on a new record only writes the attribute, so customizable_price stays unset and a zero price is not served
-// (set_customizable_price would run after the save).
+// disabled. `price_cents=` on a new record only writes the attribute, so a zero price gets customizable_price from the after_save
+// set_customizable_price.
 export async function createApiLink(
   seller: CreateSeller,
   params: ApiCreateParams,
@@ -757,12 +787,16 @@ export async function createApiLink(
     taxonomy_id: taxonomyId,
     flags: LinkFlags.set(0n, "display_product_reviews", true),
     json_data: rubyJsonGenerate(new RubyHash(jsonData)),
+    ...(params.maxPurchaseCount !== undefined && { max_purchase_count: params.maxPurchaseCount }),
+    ...(params.customizablePrice !== undefined && { customizable_price: params.customizablePrice }),
+    ...(params.suggestedPriceCents !== undefined && { suggested_price_cents: params.suggestedPriceCents }),
   } as Partial<Link>);
   link.ivars.sellerMaxProductPrice = seller.verified ? null : MAX_PRICE_USD_CENTS_UNLESS_VERIFIED;
   link.ivars.sellerDiscoverBoost = UserFlags.isSet(seller.flags, "discover_boost_enabled");
   link.ivars.tiered = false;
   link.ivars.priceCopies = 1;
   link.ivars.untieredFirstSave = false;
+  link.ivars.priceFromCents = true;
   link.ivars.dailyCreationLimit = seller.isTeamMember
     ? null
     : (dailyProductCreationLimit(seller.json_data) ??

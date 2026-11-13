@@ -62,7 +62,7 @@ export const DEFAULT_BOOSTED_DISCOVER_FEE_PER_THOUSAND = 300;
 const MAX_VIEW_CONTENT_BUTTON_TEXT_LENGTH = 26;
 const MAX_CUSTOM_RECEIPT_TEXT_LENGTH = 500;
 const MAX_CUSTOM_FAILED_PAYMENT_TEXT_LENGTH = 500;
-const MAX_PURCHASE_COUNT_RANGE = [0, 10_000_000] as const;
+export const MAX_PURCHASE_COUNT_RANGE = [0, 10_000_000] as const;
 const MIN_PRICE_CENTS = -2_147_483_648;
 const MAX_PRICE_CENTS = 2_147_483_647;
 const NON_PLAIN_TEXT_PATTERN = /[<>]|https?:|www\.|\b[a-z0-9-]+\.[a-z]{2,}\b/iu;
@@ -942,6 +942,29 @@ export async function invalidateProductCache(linkId: bigint | number, now?: () =
 const paperTrail = hasPaperTrail<Link>("Link", { itemType: "Link" });
 const savedKeys = (link: LinkRecord) => Object.keys(link.savedChanges);
 
+// Product::Prices#set_customizable_price, writing with update_column. Shared with LinkCreations, whose API create runs it after the first save.
+export const setCustomizablePrice: Callback<Link> = {
+  // Product::Prices#set_customizable_price, writing with update_column.
+  name: "set_customizable_price",
+  async run(link, ctx) {
+    if (isFlagSet(link, "is_tiered_membership")) return;
+    if ((await defaultPriceCents(link)) !== 0) return;
+    if (link.get("native_type") === "coffee") return;
+    const [row] = await selectRows<Record<string, unknown>>(
+      Prisma.sql`SELECT SUM(${column("base_variants", "price_difference_cents")}) FROM ${table("variant_categories")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "variant_category_id")} = ${column("variant_categories", "id")} AND ${column("base_variants", "type")} = 'Variant' WHERE ${column("variant_categories", "link_id")} = ${link.get("id")} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "deleted_at")} IS NULL`,
+    );
+    const sum = row ? Object.values(row)[0] : null;
+    if (sum != null && Number(sum) > 0) return;
+    if (link.get("customizable_price") === true) return;
+    await execute(
+      Prisma.sql`UPDATE ${table("links")} SET ${column("links", "customizable_price")} = TRUE WHERE ${column("links", "id")} = ${link.get("id")}`,
+    );
+    link.set("customizable_price", true);
+    link.clearAttributeChanges(["customizable_price"]);
+    await enqueueIndexUpdateFor(link, ["customizable_price"], ctx);
+  },
+};
+
 export const Links = defineModel<Link>({
   rubyClass: "Link",
   prismaModel: "Link",
@@ -1004,27 +1027,7 @@ export const Links = defineModel<Link>({
         stagedPermalinks.set(link, [...(stagedPermalinks.get(link) ?? []), outgoing!]);
       },
     },
-    {
-      // Product::Prices#set_customizable_price, writing with update_column.
-      name: "set_customizable_price",
-      async run(link, ctx) {
-        if (isFlagSet(link, "is_tiered_membership")) return;
-        if ((await defaultPriceCents(link)) !== 0) return;
-        if (link.get("native_type") === "coffee") return;
-        const [row] = await selectRows<Record<string, unknown>>(
-          Prisma.sql`SELECT SUM(${column("base_variants", "price_difference_cents")}) FROM ${table("variant_categories")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "variant_category_id")} = ${column("variant_categories", "id")} AND ${column("base_variants", "type")} = 'Variant' WHERE ${column("variant_categories", "link_id")} = ${link.get("id")} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "deleted_at")} IS NULL`,
-        );
-        const sum = row ? Object.values(row)[0] : null;
-        if (sum != null && Number(sum) > 0) return;
-        if (link.get("customizable_price") === true) return;
-        await execute(
-          Prisma.sql`UPDATE ${table("links")} SET ${column("links", "customizable_price")} = TRUE WHERE ${column("links", "id")} = ${link.get("id")}`,
-        );
-        link.set("customizable_price", true);
-        link.clearAttributeChanges(["customizable_price"]);
-        await enqueueIndexUpdateFor(link, ["customizable_price"], ctx);
-      },
-    },
+    setCustomizablePrice,
   ],
   afterRollback: [
     {
