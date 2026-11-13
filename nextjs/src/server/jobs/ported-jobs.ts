@@ -275,4 +275,8 @@ export const PORTED_JOBS: readonly string[] = [
   "ReconcileStripePayoutsPausesJob",
   "ReconcileStripePayoutsPauseForSellerJob",
   "SendPostBlastEmailsSliceJob",
+  "SendStripeBalanceCheckNotificationJob",
+  "VerifyFinanceReportsDeliveryJob",
+  "SweepClosedSellerConnectAccountsJob",
+  "AlertOnStripeDobDriftJob",
 ];
