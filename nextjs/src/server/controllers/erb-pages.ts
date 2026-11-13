@@ -115,8 +115,9 @@ export function renderApplicationPage(
   action: ActionContext,
   page: PageMeta | null,
   view: ErbView,
+  options: { status?: number; analyticsFirst?: boolean } = {},
 ): Promise<Rendered> {
-  return renderErbPage(request, action, "application", page, view, {});
+  return renderErbPage(request, action, "application", page, view, {}, options);
 }
 
 async function renderErbPage(
@@ -126,6 +127,7 @@ async function renderErbPage(
   page: PageMeta | ((origin: string) => PageMeta) | null,
   view: ErbView,
   response: { paramsRead?: boolean; headers?: Record<string, string> },
+  options: { status?: number; analyticsFirst?: boolean } = {},
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
   // `signed_in?` is the Warden session, which an impersonating admin has as themselves.
@@ -139,7 +141,8 @@ async function renderErbPage(
     config,
     csrfToken: formAuthenticityToken(state.csrfToken),
     ports: PORTS,
-    analyticsFirst: layout === "application",
+    // Devise's controllers re-declare the meta before_actions, which puts the analytics tags first; ApplicationController's do not.
+    analyticsFirst: options.analyticsFirst ?? layout === "application",
   });
   if (page !== null) pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
   const nonce = generateCspNonce();
@@ -171,7 +174,7 @@ async function renderErbPage(
     throw error;
   }
   return {
-    status: 200,
+    status: options.status ?? 200,
     body: renderedBody,
     contentType: HTML,
     headers: { ...response.headers, link },

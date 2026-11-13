@@ -36,6 +36,7 @@ import { discordHandlers } from "./discord.ts";
 import { gumclawPage } from "./erb-pages.ts";
 import { embeddedJavascript } from "./embedded-javascripts.ts";
 import { homePage, homePageOptions } from "./home-pages.ts";
+import { integrationsOauthRedirectPage } from "./integrations-oauth-redirect.ts";
 import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
@@ -326,6 +327,7 @@ const HANDLERS: Record<string, Handler> = {
   },
   gumclaw: { run: (request, _url, action) => gumclawPage(request, action) },
   confirmation_new: { run: (request, _url, action) => confirmationNewPage(request, action) },
+  integrations_oauth_redirect: { run: (request, _url, action) => integrationsOauthRedirectPage(request, action) },
   home_page: {
     options: homePageOptions,
     run: (request, url, action) => homePage(request, action, url.pathname.replace(/^\/|\/$/gu, "")),

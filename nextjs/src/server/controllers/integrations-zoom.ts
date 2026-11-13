@@ -1,5 +1,5 @@
 // Integrations::ZoomController#account_info (GET /integrations/zoom/account_info): the signed-in seller's Zoom account, behind an OAuth code.
-// #oauth_redirect renders the application layout and stays in Rails.
+// #oauth_redirect renders the application layout (integrations-oauth-redirect.ts).
 import { getConfig } from "../infra/config.ts";
 import { outboundFetch } from "../infra/outbound-http.ts";
 import { Ratelimit } from "../services/ratelimit.ts";
