@@ -128,6 +128,7 @@ import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
 import { mcpDeleteExpiredEventSubscriptionsJob } from "./mcp-delete-expired-event-subscriptions-job.ts";
 import { mcpDeliverEventJob } from "./mcp-deliver-event-job.ts";
+import { alertOnStripeDobDriftJob, sweepClosedSellerConnectAccountsJob } from "./merchant-account-cursor-sweep-jobs.ts";
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
@@ -166,6 +167,7 @@ import {
   reindexRecommendableProductsWorker,
   sendToElasticsearchWorker,
 } from "./product-search-jobs.ts";
+import { sendStripeBalanceCheckNotificationJob, verifyFinanceReportsDeliveryJob } from "./production-only-jobs.ts";
 import { publishScheduledPostJob } from "./publish-scheduled-post-job.ts";
 import { publishScheduledProductJob } from "./publish-scheduled-product-job.ts";
 import {
@@ -182,14 +184,6 @@ import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
-import {
-  alertOnStripeDobDriftJob,
-  sweepClosedSellerConnectAccountsJob,
-} from "./merchant-account-cursor-sweep-jobs.ts";
-import {
-  sendStripeBalanceCheckNotificationJob,
-  verifyFinanceReportsDeliveryJob,
-} from "./production-only-jobs.ts";
 import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
 import { reconcileStripePayoutsPauseForSellerJob } from "./reconcile-stripe-payouts-pause-for-seller-job.ts";
 import { reconcileStripePayoutsPausesJob } from "./reconcile-stripe-payouts-pauses-job.ts";

@@ -9,7 +9,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { type JsonValue, parseRubyJson } from "../../server/jobs/sidekiq/ruby-json.ts";
 
-import { contextFor, recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids, type RedisSnapshot } from "./__fixtures__/golden.ts";
+import {
+  contextFor,
+  recordingSidekiqRedis,
+  rubyRuntimeRegistry,
+  sequentialJids,
+  type RedisSnapshot,
+} from "./__fixtures__/golden.ts";
 import { sendStripeBalanceCheckNotificationJob, verifyFinanceReportsDeliveryJob } from "./production-only-jobs.ts";
 
 type Case = {

@@ -57,7 +57,8 @@ const sweepJobWith =
     if (candidates.length > 0) throw new HandBackToRuby("the page of candidates is walked against Stripe");
     if (afterId > 0n) {
       // Exhausted the population: wrap, unless the first page is not empty, which Rails walks.
-      if ((await sweep.candidates(0n)).length > 0) throw new HandBackToRuby("the wrapped page is walked against Stripe");
+      if ((await sweep.candidates(0n)).length > 0)
+        throw new HandBackToRuby("the wrapped page is walked against Stripe");
       try {
         await redis.set(sweep.cursorKey, "0");
       } catch (error) {
