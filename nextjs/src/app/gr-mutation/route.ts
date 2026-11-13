@@ -127,6 +127,7 @@ import "@/server/controllers/checkout-write-guards";
 import "@/server/controllers/recommended-products";
 import "@/server/controllers/mobile-tracking";
 import "@/server/controllers/checkout-cart-save";
+import "@/server/controllers/paypal-billing-agreements";
 import { mutationResponse } from "@/server/controllers/mutation";
 
 // GET: the logout and emailed two-factor links, which change state without a form.
