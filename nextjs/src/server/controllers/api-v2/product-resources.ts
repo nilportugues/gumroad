@@ -240,7 +240,10 @@ registerApiV2(
     before: loadBuild,
     run: async (input) =>
       renderResponse(true, {
-        build: productBuildJson(input.state.build, (await demoSelectedBuildIds(productOf(input).id)).has(input.state.build.id)),
+        build: productBuildJson(
+          input.state.build,
+          (await demoSelectedBuildIds(productOf(input).id)).has(input.state.build.id),
+        ),
       }),
   },
   // #deploy copies the seller's upload inside S3 under the product lock, which Rails takes once the checks below pass. #promote runs in

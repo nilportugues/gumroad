@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 146 | 140 | 0 | 6 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 146 | 142 | 0 | 4 | 0 |
 | Mobile API (`/mobile` on the API host) | 59 | 59 | 0 | 0 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 78 | 4 | 0 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 15 | 15 | 0 | 0 | 0 |
@@ -98,8 +98,8 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/products/:link_id/builds/:id` | `Api::V2::ProductBuildsController#show` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/builds/deploy` | `Api::V2::ProductBuildsController#deploy` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/builds/:id/promote` | `Api::V2::ProductBuildsController#promote` | native | `nextjs_api_v2_products` | y |
-| `POST /v2/products/:link_id/builds/:id/demo` | `Api::V2::ProductBuildsController#select_demo` | not registered | - | n |
-| `DELETE /v2/products/:link_id/builds/:id/demo` | `Api::V2::ProductBuildsController#unselect_demo` | not registered | - | n |
+| `POST /v2/products/:link_id/builds/:id/demo` | `Api::V2::ProductBuildsController#select_demo` | native | `nextjs_api_v2_products` | y |
+| `DELETE /v2/products/:link_id/builds/:id/demo` | `Api::V2::ProductBuildsController#unselect_demo` | native | `nextjs_api_v2_products` | y |
 | `GET /v2/products/:link_id/reviews` | `Api::V2::ProductReviewsController#index` | native | `nextjs_api_v2_product_reviews` | y |
 | `PUT /v2/products/:link_id/bundle_contents` | `Api::V2::BundleContentsController#update` | native | `nextjs_api_v2_products` | y |
 | `POST /v2/products/:link_id/thumbnail` | `Api::V2::ThumbnailsController#create` | native | `nextjs_api_v2_products` | y |

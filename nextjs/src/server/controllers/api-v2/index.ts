@@ -3,6 +3,7 @@ import "./categories.ts";
 import "./partner-migrations.ts";
 import "./partner-categories.ts";
 import "./product-resources.ts";
+import "./product-build-demos.ts";
 import "./refund-policies.ts";
 import "./product-resource-writes.ts";
 import "./product-custom-html.ts";

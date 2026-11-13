@@ -26,7 +26,10 @@ export async function findDemoBuild(buildId: bigint): Promise<DemoBuildRow | und
     Prisma.sql`SELECT ${Prisma.raw("`product_builds`.*")} FROM ${table("product_builds")} WHERE ${column("product_builds", "id")} = ${buildId} LIMIT 1`,
   );
   if (row === undefined) return undefined;
-  return { ...castRow<ProductBuild & Record<string, unknown>>("ProductBuild", row), demo_selected_at: (row.demo_selected_at as Date | null) ?? null };
+  return {
+    ...castRow<ProductBuild & Record<string, unknown>>("ProductBuild", row),
+    demo_selected_at: (row.demo_selected_at as Date | null) ?? null,
+  };
 }
 
 // The builds of the product that are the demo, for `demo: demo_selected?` in ProductBuild#as_json.
@@ -37,15 +40,23 @@ export async function demoSelectedBuildIds(productId: bigint): Promise<Set<bigin
   return new Set(rows.map((row) => BigInt(row.id)));
 }
 
-// ProductBuild.free_product?: a product nobody pays for in any version.
+// ProductBuild.free_product?: a product nobody pays for in any version. `price_cents` is the default buy price (Product::Prices), not the
+// legacy `links.price_cents` column.
 async function freeProduct(productId: bigint): Promise<boolean> {
-  const [product] = await selectRows<{ price_cents: number | bigint | null; purchase_type: number | null; flags: bigint | number | null }>(
-    Prisma.sql`SELECT ${column("links", "price_cents")}, ${column("links", "purchase_type")}, ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} = ${productId} LIMIT 1`,
+  const [product] = await selectRows<{
+    price_currency_type: string | null;
+    purchase_type: number | null;
+    flags: bigint | number | null;
+  }>(
+    Prisma.sql`SELECT ${column("links", "price_currency_type")}, ${column("links", "purchase_type")}, ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} = ${productId} LIMIT 1`,
   );
   if (product === undefined) return false;
   if (Number(product.purchase_type) === RENT_ONLY) return false;
   if ((BigInt(product.flags ?? 0) & IS_RECURRING_BILLING) !== 0n) return false;
-  if (Number(product.price_cents) !== 0) return false;
+  const [buyPrice] = await selectRows<{ price_cents: number | bigint | null }>(
+    Prisma.sql`SELECT ${column("prices", "price_cents")} FROM ${table("prices")} WHERE ${column("prices", "link_id")} = ${productId} AND ${column("prices", "deleted_at")} IS NULL AND ${column("prices", "currency")} = ${product.price_currency_type} AND (${column("prices", "flags")} & ${IS_RENTAL}) = 0 ORDER BY ${column("prices", "id")} DESC LIMIT 1`,
+  );
+  if (buyPrice === undefined || Number(buyPrice.price_cents) !== 0) return false;
 
   const aliveVariants = Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} INNER JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("variant_categories", "link_id")} = ${productId} AND ${column("variant_categories", "deleted_at")} IS NULL AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL`;
   const [dearer] = await selectRows(
@@ -53,7 +64,7 @@ async function freeProduct(productId: bigint): Promise<boolean> {
   );
   if (dearer !== undefined) return false;
   const [priced] = await selectRows(
-    Prisma.sql`SELECT 1 AS one FROM ${table("prices")} WHERE ${column("prices", "type")} = 'VariantPrice' AND ${column("prices", "deleted_at")} IS NULL AND (${column("prices", "flags")} & ${IS_RENTAL}) = 0 AND ${column("prices", "variant_id")} IN (${aliveVariants}) AND ${column("prices", "price_cents")} > 0 LIMIT 1`,
+    Prisma.sql`SELECT 1 AS one FROM ${table("prices")} WHERE ${column("prices", "deleted_at")} IS NULL AND (${column("prices", "flags")} & ${IS_RENTAL}) = 0 AND ${column("prices", "variant_id")} IN (${aliveVariants}) AND ${column("prices", "price_cents")} > 0 LIMIT 1`,
   );
   return priced === undefined;
 }
@@ -70,10 +81,7 @@ export const hasUnpackError = (build: DemoBuildRow) => present(build.site_unpack
 
 // ProductBuild#select_as_demo!: serialised on the product row, the other demo is cleared and this build is marked. Returns the stored build.
 // A build that no longer validates is handed back before its first write (update! would raise).
-export async function selectAsDemoBang(
-  build: DemoBuildRow,
-  options: { now?: () => Date } = {},
-): Promise<DemoBuildRow> {
+export async function selectAsDemoBang(build: DemoBuildRow, options: { now?: () => Date } = {}): Promise<DemoBuildRow> {
   const now = options.now ?? (() => new Date());
   if (!productBuildValid(build)) throw new NotPortedError("a build that no longer validates", FILE);
   await transaction(async () => {
