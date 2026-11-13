@@ -241,7 +241,7 @@ export const previewNoticeRequested = (params: SaveInstallmentsParams) =>
 
 export type PreviewRecipient = {
   id: number | bigint;
-  email: string;
+  email: string | null;
   unconfirmed_email: string | null;
   confirmed_at: Date | null;
 };
@@ -345,7 +345,10 @@ export async function saveInstallments(
             if (recipientUnconfirmed) throw new PreviewEmailError(PREVIEW_UNCONFIRMED_MESSAGE);
             if (abandoned)
               previews.push({ recipientId: Number(recipient!.id), installmentId: Number(installment.get("id")) });
-            else await previewThroughPostEmailApi(post(installment), recipient!.email);
+            else {
+              const email = recipient!.email ?? refuse("a preview email to a user with no email address");
+              await previewThroughPostEmailApi(post(installment), email);
+            }
           }
         }
 
