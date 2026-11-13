@@ -64,6 +64,10 @@ export const UNSUPPORTED_PRODUCT_PARAMS = [
   "debug",
   "currency",
 ];
+// The page itself reads `purchase_id` and the digest (a matching pair is still handed back) and acts on `wanted` only when it is "true".
+const UNSUPPORTED_PAGE_PARAMS = UNSUPPORTED_PRODUCT_PARAMS.filter(
+  (name) => !["wanted", "purchase_id", "purchase_email_digest"].includes(name),
+);
 const DISCOVER_RECOMMENDERS = ["search", "discover"];
 const GUID_COOKIE = "_gumroad_guid";
 
@@ -546,7 +550,9 @@ async function recordDiscoverClick(chain: Chain, product: LinkRow, query: Query)
 
 export async function assertRenderable(context: RenderContext): Promise<{ storefrontWrapped: boolean }> {
   const { chain, product, seller, query, code } = context;
-  for (const name of UNSUPPORTED_PRODUCT_PARAMS) if (name in query) throw new HandBackToRails();
+  for (const name of UNSUPPORTED_PAGE_PARAMS) if (name in query) throw new HandBackToRails();
+  // Only `wanted=true` redirects to checkout; any other value is never read.
+  if (query.wanted === "true") throw new HandBackToRails();
   // A layout that is not text (`layout[]=x`) matches no branch in Rails but reaches the bundle links as a hash or list.
   if ("layout" in query && typeof query.layout !== "string") throw new HandBackToRails();
   const discoverRecommended =

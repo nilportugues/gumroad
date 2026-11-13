@@ -70,6 +70,11 @@ type Case = { name: string; file: string; index: number; served: boolean; status
 const RENDERED = new Set(
   [
     "renders-a-digital-product",
+    "renders-the-page-for-a-wanted-value-other-than-true",
+    "with-a-review-reminder-link-renders-the-page-when-the-link-carries-a-purchase-and-no-d472d123",
+    "with-a-review-reminder-link-renders-the-page-when-the-digest-belongs-to-no-purchase",
+    "with-a-review-reminder-link-renders-the-page-when-the-purchase-id-is-unknown",
+    "with-a-review-reminder-link-renders-the-page-when-the-purchase-belongs-to-another-pro-2c312f92",
     "renders-a-product-whose-cover-is-a-youtube-video",
     "renders-a-product-whose-cover-is-an-uploaded-gif",
     "renders-a-product-whose-cover-is-an-uploaded-image-the-retina-worker-has-not-processe-34e98bca",

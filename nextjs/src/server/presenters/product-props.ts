@@ -28,6 +28,7 @@ import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayabl
 import {
   assertNoAttachedPublicFiles,
   assertNoBoughtPurchase,
+  assertNoEmailDigestPurchase,
   coverProps,
   waitlistProps,
   wishlistProps,
@@ -796,8 +797,7 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     );
     if (viewer.context.seller) wishlists = await wishlistProps(row, viewer.context.seller.id);
   }
-  if (viewer.purchaseId !== null || viewer.purchaseEmailDigest !== null)
-    throw new NotPortedError("Link#purchase_for_email_digest");
+  await assertNoEmailDigestPurchase(row, viewer.purchaseId, viewer.purchaseEmailDigest);
   await assertNoBoughtPurchase(
     row,
     { userId: viewer.user && viewer.context ? viewer.user.id : null, browserGuid: viewer.browserGuid },

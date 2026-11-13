@@ -722,6 +722,59 @@ describe "Product page", type: :request do
       expect(response).to have_http_status(:found)
     end
 
+    it "renders the page for a wanted value other than true", parity: true do
+      product = create(:product, user: seller, name: "Not wanted", price_cents: 700)
+
+      get "/l/#{product.unique_permalink}?wanted=false"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["product"]).to include("name" => "Not wanted")
+    end
+
+    describe "with a review-reminder link" do
+      let(:product) { create(:product, user: seller, name: "Reminded", price_cents: 700) }
+      let(:purchase) do
+        build(:purchase, link: product, email: "reminded@example.com", purchase_state: "successful").tap { |sale| sale.save!(validate: false) }
+      end
+
+      it "renders the page when the link carries a purchase and no digest", parity: true do
+        get "/l/#{product.unique_permalink}?purchase_id=#{purchase.external_id}"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["purchase"]).to be_nil
+      end
+
+      it "renders the page when the digest belongs to no purchase", parity: true do
+        get "/l/#{product.unique_permalink}?purchase_id=#{purchase.external_id}&purchase_email_digest=wrong"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["purchase"]).to be_nil
+      end
+
+      it "renders the page when the purchase id is unknown", parity: true do
+        get "/l/#{product.unique_permalink}?purchase_id=unknown&purchase_email_digest=#{purchase.email_digest}"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["purchase"]).to be_nil
+      end
+
+      it "renders the page when the purchase belongs to another product", parity: true do
+        other = create(:product, user: seller, name: "Other", price_cents: 700)
+
+        get "/l/#{other.unique_permalink}?purchase_id=#{purchase.external_id}&purchase_email_digest=#{purchase.email_digest}"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["purchase"]).to be_nil
+      end
+
+      it "hands a matching purchase and digest to Rails", parity: true do
+        get "/l/#{product.unique_permalink}?purchase_id=#{purchase.external_id}&purchase_email_digest=#{purchase.email_digest}"
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["purchase"]).to be_present
+      end
+    end
+
     it "renders the iframe layout for embeds", parity: true do
       product = create(:product, user: seller)
 
