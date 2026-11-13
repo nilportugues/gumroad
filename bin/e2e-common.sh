@@ -17,7 +17,8 @@ E2E_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 E2E_DB_CONTAINER=gumroad-db-1
 E2E_REDIS_CONTAINER=gumroad-redis-1
 E2E_ES_CONTAINER=gumroad-elasticsearch-1
-E2E_DYNAMO_CONTAINER=gr-dynamo
+# CI starts the services from docker/docker-compose-local.yml, where DynamoDB is gumroad-dynamodb-1.
+E2E_DYNAMO_CONTAINER="${E2E_DYNAMO_CONTAINER:-gr-dynamo}"
 
 e2e_log() { printf '[e2e] %s\n' "$*" >&2; }
 e2e_die() { e2e_log "ERROR: $*"; exit 1; }
@@ -58,7 +59,8 @@ e2e_write_env() {
 
 # Runs a shell snippet in the app dir with the lane environment and Node on PATH.
 e2e_exec() {
-  docker exec -i -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; export PATH=$E2E_NODE_DIR/bin:\$PATH; $*"
+  # CI and E2E_RETRIES reach Playwright (playwright.config.ts picks its retry count from them).
+  docker exec -i -e CI -e E2E_RETRIES -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; export PATH=$E2E_NODE_DIR/bin:\$PATH; $*"
 }
 
 e2e_runner() { e2e_exec "bundle exec rails runner '$1'"; }

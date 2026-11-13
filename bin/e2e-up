@@ -63,7 +63,13 @@ if [[ "$(e2e_exec 'cat node_modules/.e2e-lock 2>/dev/null' || true)" != "$lock_s
 fi
 
 # 5. Gems come from the shared gr_bundle volume; fail rather than mutate it.
-e2e_exec 'bundle check >/dev/null' || e2e_die "gr_bundle lacks this checkout's gems; run bundle install once in a container that mounts it"
+# CI has a fresh volume, so it sets E2E_BUNDLE_INSTALL=1 to fill it (BUNDLE_GEMS__CONTRIBSYS__COM comes from the host environment).
+if ! e2e_exec 'bundle check >/dev/null'; then
+  [[ "${E2E_BUNDLE_INSTALL:-0}" == 1 ]] || e2e_die "gr_bundle lacks this checkout's gems; run bundle install once in a container that mounts it, or set E2E_BUNDLE_INSTALL=1"
+  e2e_log "bundle install into the gr_bundle volume"
+  docker exec -e BUNDLE_GEMS__CONTRIBSYS__COM -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; bundle install --jobs 4 --retry 3" ||
+    e2e_die "bundle install failed"
+fi
 
 # 5b. --reseed: same lane 3 resources, same commands as bin/e2e-down, minus removing the container.
 if [[ "$reseed" == 1 ]]; then

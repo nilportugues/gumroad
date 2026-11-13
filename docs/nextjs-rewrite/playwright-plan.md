@@ -52,18 +52,20 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [x] 4.1 Seeded bot with `BOT_SEED`, `BOT_SESSIONS`, `BOT_STEPS` (`e2e/bot/`)
 - [x] 4.2 Recorder writes request and response pairs as JSONL under `e2e/.out/`
 - [ ] 4.3 Determinism check: the same seed gives the same request sequence twice
-- [ ] 4.4 Replay tool sends a recording to a Rails server
-- [ ] 4.5 Replay tool sends the same recording to the Node server
-- [ ] 4.6 Diff report between the two replays, with known differences masked
+- [ ] 4.4 Replay tool sends a recording to a Rails server (tool built in `e2e/replay/`, unit-tested against a stub server; remaining: run it on a real bot recording against lane 3)
+- [ ] 4.5 Replay tool sends the same recording to the Node server (same tool; remaining: a running Node server and a restored seed snapshot)
+- [ ] 4.6 Diff report between the two replays, with known differences masked (`e2e/replay/diff.ts` and mask built and unit-tested; remaining: a real Rails-vs-Node diff, and checking the mask against real volatile fields)
 
 ## Phase 5: running it for real
 
 - [ ] 5.1 Sidekiq in the e2e environment so emails, receipts and reindexing happen without manual steps
 - [ ] 5.2 Suite runs green against the Node server, not only Rails
-- [ ] 5.3 CI job runs the suite on pull requests
-- [ ] 5.4 Flaky-test policy: retries, trace on failure, a list of quarantined specs
-- [ ] 5.5 Seed reset between runs so a second run does not depend on the first
+- [ ] 5.3 CI job runs the suite on pull requests (`.github/workflows/e2e.yml` written, YAML parses, `bin/e2e-up` accepts `E2E_BUNDLE_INSTALL=1`; remaining: a real run on GitHub Actions, never executed)
+- [x] 5.4 Flaky-test policy: retries, trace on first retry, a list of quarantined specs (`e2e/README.md`, `e2e/quarantine.json`; checked with a throwaway spec that failed once: reported flaky and wrote `trace.zip`; quarantine moves a spec from `chromium` to `quarantine` in `--list`)
+- [ ] 5.5 Seed reset between runs so a second run does not depend on the first (`bin/e2e-up --reseed` written and `bash -n` clean; remaining: run it against lane 3 and show a second suite run passes)
 
 ## Last measured result
 
 `bin/e2e-run` on lane 3: 53 passed (19 guard, 34 chromium), 1 skipped (the Stripe spec), 0 failed.
+
+Unit tests of the replay, diff and quarantine code (`npx vitest run e2e`, no app): 20 passed, 0 failed. Mutation-checked (break, a test fails, revert): both host guards, the cookie jar, the body-skip rule, the csrf-meta, timestamp, id-key and numeric-path mask rules, each compared field, the skip handling, the quarantine anchor and reason check. The csrf-form-field and token-keys rules are covered by an assertion but were not mutated.
