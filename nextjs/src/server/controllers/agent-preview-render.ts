@@ -3,13 +3,17 @@
 // profile payload, the interpolator) reaches Rails with nothing written.
 import { randomBytes } from "node:crypto";
 
+import { db } from "../../lib/db.ts";
 import { rubyBlank as blank, sanitizeWithReport } from "../ai/page-sanitizer.ts";
 import { type ParentNode, removeNode } from "../html/libxml2-tree.ts";
 import { fragmentToHtml, html4Fragment } from "../html/loofah.ts";
 import { getRedis } from "../infra/redis.ts";
-import { domainConfig } from "../page-props/domain.ts";
+import { domainConfig, assetHost } from "../page-props/domain.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import { enqueueRoutabilityRefresh } from "../services/custom-domain-hosts.ts";
+
+import { avatarAttachmentOf } from "../page-props/signed-in/reads.ts";
+import { defaultProfileDocument } from "../services/pages-default-profile-document.ts";
 import { interpolateProfile } from "../services/pages-interpolator.ts";
 import { referencedInPrices } from "../services/pages-product-prices.ts";
 import { loadProfileDataFacts, profileDataJson } from "../services/pages-profile-data.ts";
@@ -81,8 +85,8 @@ export async function stagePreview(
   markedHtml: string | null,
 ): Promise<string> {
   const sanitized = sanitizeWithReport(resultingHtml).html;
-  // A page that sanitizes down to nothing unpublishes: previewed as the default storefront (Pages::DefaultProfileDocument).
-  if (blank(sanitized)) throw new NotPortedError("Pages::DefaultProfileDocument");
+  // A page that sanitizes down to nothing unpublishes: previewed as the default storefront.
+  if (blank(sanitized)) return stageClearedPreview(seller);
 
   const [displayHtml, scrollToChange] = markedPreviewHtml(sanitized, markedHtml);
   if (referencedInPrices(sanitized)) throw new NotPortedError("Pages::ProductPrices.build");
@@ -100,5 +104,23 @@ export async function stagePreview(
     tailwindHead: pagesTailwindHead(`${protocol}://${assetDomain}`),
   });
   await enqueueRoutabilityRefresh(facts.routabilityRefresh);
+  return stageDocument(seller.id, document);
+}
+
+const DEFAULT_AVATAR = "gumroad-default-avatar-5.png";
+
+// render_cleared_page_preview: a proposal that unpublishes the page previews as the default storefront. Only a seller who lists nothing
+// and has no uploaded avatar is rendered here (see pages-default-profile-document.ts); the checks read before anything is staged.
+export async function stageClearedPreview(seller: PreviewSeller): Promise<string> {
+  const profile = await db.sellerProfile.findFirst({ where: { seller_id: seller.id }, orderBy: { id: "asc" } });
+  // Pages::ProfileData.build, which the document reads: lists products and posts, so it throws for a seller who has any.
+  profileDataJson(await loadProfileDataFacts(seller.id));
+  if (await avatarAttachmentOf(seller.id)) throw new NotPortedError("User#avatar_url of an uploaded avatar");
+  const document = defaultProfileDocument({
+    nameOrUsername: nameOrUsername(seller),
+    bio: seller.bio,
+    avatarUrl: `${assetHost(domainConfig(process.env)) ?? ""}/images/${DEFAULT_AVATAR}`,
+    profile: profile && { background_color: profile.background_color, highlight_color: profile.highlight_color },
+  });
   return stageDocument(seller.id, document);
 }

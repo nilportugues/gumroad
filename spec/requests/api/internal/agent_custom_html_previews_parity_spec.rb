@@ -7,7 +7,7 @@ require "spec_helper"
 # Node answers the gates, every proposal the controller refuses before it sanitizes anything, GET #show (a Redis read) and the previews it can
 # prove byte-equal: the examples that start "renders" post a proposal, then fetch the staged document, and the replay compares the document
 # Node stages with the one Rails staged. The examples that start "hands a" are the proposals that stay in Rails: a page that references
-# prices, a seller with products, a page that sanitizes to nothing, markup the sanitizer port cannot prove, a guarded undo.
+# prices, a seller with products, markup the sanitizer port cannot prove, a seller with an uploaded avatar, a guarded undo.
 describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::AudienceSignedIn
 
@@ -220,12 +220,12 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
         expect(response.parsed_body["success"]).to be(true)
       end
 
-      it "hands a page that sanitizes to nothing to Rails", parity: true do
+      it "renders the default storefront for a page that sanitizes to nothing", parity: true do
         ready_seller
 
         post_preview(endpoint: "update_user_custom_html", custom_html: '<iframe src="https://example.com"></iframe><marquee></marquee>')
 
-        expect(response.parsed_body["success"]).to be(true)
+        fetch_staged_preview
       end
 
       it "hands a page with an xml:lang attribute to Rails", parity: true do
@@ -244,20 +244,20 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
         expect(response.parsed_body["success"]).to be(true)
       end
 
-      it "hands a proposal that clears the page to Rails", parity: true do
+      it "renders the default storefront for a proposal that clears the page", parity: true do
         ready_seller
 
         post_preview(endpoint: "update_user_custom_html", custom_html: "  ")
 
-        expect(response.parsed_body["success"]).to be(true)
+        fetch_staged_preview
       end
 
-      it "hands a null custom_html to Rails", parity: true do
+      it "renders the default storefront for a null custom_html", parity: true do
         ready_seller
 
         post_preview(endpoint: "update_user_custom_html", custom_html: nil)
 
-        expect(response.parsed_body["success"]).to be(true)
+        fetch_staged_preview
       end
     end
 
@@ -367,12 +367,12 @@ describe "Agent custom HTML previews", type: :request, elasticsearch_wait_for_re
         fetch_staged_preview
       end
 
-      it "hands an edit that sanitizes the page to nothing to Rails", parity: true do
+      it "renders the default storefront for an edit that sanitizes the page to nothing", parity: true do
         ready_seller(html: "<p>one</p>")
 
         post_preview(endpoint: "edit_user_custom_html", find: "<p>one</p>", replace: '<iframe src="https://example.com"></iframe>')
 
-        expect(response.parsed_body["success"]).to be(true)
+        fetch_staged_preview
       end
 
       it "renders an edit whose snippet differs from the page only in whitespace", parity: true do
