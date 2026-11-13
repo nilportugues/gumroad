@@ -247,6 +247,7 @@ describe SettingsPresenter do
       before do
         allow(CustomDomainVerificationService).to receive(:new).and_return(double(process: true))
         seller.update!(notification_endpoint: "https://example.org")
+        seller.create_ping_signing_setting!(secret: "abc123")
       end
 
       it "returns correct props" do
@@ -254,6 +255,7 @@ describe SettingsPresenter do
                                                  settings_pages: presenter.pages,
                                                  user_id: ObfuscateIds.encrypt(seller.id),
                                                  notification_endpoint: "https://example.org",
+                                                 ping_signing_secret: "abc123",
                                                  blocked_customer_emails: "",
                                                  custom_domain_name: "example.com",
                                                  custom_domain_verification_status: { message: "example.com domain is correctly configured!", success: true },
@@ -277,6 +279,7 @@ describe SettingsPresenter do
                                                  settings_pages: presenter.pages,
                                                  user_id: ObfuscateIds.encrypt(seller.id),
                                                  notification_endpoint: "",
+                                                 ping_signing_secret: nil,
                                                  blocked_customer_emails: "test1@example.com\ntest2@example.net",
                                                  custom_domain_name: "example.com",
                                                  custom_domain_verification_status: nil,
@@ -298,6 +301,7 @@ describe SettingsPresenter do
                                                  settings_pages: presenter.pages,
                                                  user_id: ObfuscateIds.encrypt(seller.id),
                                                  notification_endpoint: "",
+                                                 ping_signing_secret: nil,
                                                  blocked_customer_emails: "",
                                                  custom_domain_name: "example.com",
                                                  custom_domain_verification_status: { message: "Domain verification failed. Please make sure you have correctly configured the DNS record for example.com.", success: false },
@@ -762,7 +766,10 @@ describe SettingsPresenter do
           individual_tax_id_last_four: nil,
           individual_tax_id_is_last_four: false,
           has_outstanding_full_ssn_requirement: false,
+          has_outstanding_identity_document_requirement: false,
           has_outstanding_nationality_requirement: false,
+          has_outstanding_state_requirement: false,
+          has_outstanding_business_state_requirement: false,
           business_tax_id_entered: false,
           business_tax_id_last_four: nil,
           requires_credit_card: false,
@@ -844,6 +851,7 @@ describe SettingsPresenter do
         payouts_paused_internally: false,
         payout_reserve_available: false,
         payouts_paused_by: nil,
+        payouts_paused_for_failed_payouts: false,
         payout_reserve_percent: nil,
         payouts_paused_by_user: false,
         payout_threshold_cents: Payouts::MIN_AMOUNT_CENTS,
@@ -1059,7 +1067,11 @@ describe SettingsPresenter do
                                               verification_error: { code: "verification_failed_keyed_identity" })
 
         expect(presenter.payments_props).to eq(@base_us_props.merge!({
-                                                                       user: @base_us_props[:user].merge({ need_full_ssn: true, has_outstanding_full_ssn_requirement: true }),
+                                                                       user: @base_us_props[:user].merge(
+                                                                         need_full_ssn: true,
+                                                                         has_outstanding_full_ssn_requirement: true,
+                                                                         has_outstanding_identity_document_requirement: true,
+                                                                       ),
                                                                        account_status: @base_us_props[:account_status].merge(
                                                                          show_section: true,
                                                                          compliance_actions: [{ message: "Complete pending verification requirements via Stripe", href: "/settings/payments/remediation" }],
@@ -1497,6 +1509,7 @@ describe SettingsPresenter do
         seller.put_on_probation!(author_name: "test")
 
         expect(presenter.payments_props).to eq(@base_us_props.merge!({
+                                                                       user: @base_us_props[:user].merge(has_outstanding_identity_document_requirement: true),
                                                                        account_status: @base_us_props[:account_status].merge(
                                                                          show_section: true,
                                                                          compliance_actions: [{ message: "Complete pending verification requirements via Stripe", href: "/settings/payments/remediation" }],
@@ -1513,6 +1526,7 @@ describe SettingsPresenter do
         seller.update!(payouts_paused_internally: true)
 
         expect(presenter.payments_props).to eq(@base_us_props.merge!({
+                                                                       user: @base_us_props[:user].merge(has_outstanding_identity_document_requirement: true),
                                                                        payouts_paused_internally: true,
                                                                        payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_ADMIN,
                                                                        account_status: @base_us_props[:account_status].merge(
@@ -1530,6 +1544,7 @@ describe SettingsPresenter do
         seller.update!(payouts_paused_internally: true)
 
         expect(presenter.payments_props).to eq(@base_us_props.merge!({
+                                                                       user: @base_us_props[:user].merge(has_outstanding_identity_document_requirement: true),
                                                                        payouts_paused_internally: true,
                                                                        payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_ADMIN,
                                                                        account_status: @base_us_props[:account_status].merge(
@@ -1665,6 +1680,27 @@ describe SettingsPresenter do
       end
     end
 
+    describe "has_outstanding_identity_document_requirement" do
+      it "is true when Stripe's verification.document request is open" do
+        create(:user_compliance_info_request, user: seller,
+                                              field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID)
+
+        expect(presenter.payments_props[:user][:has_outstanding_identity_document_requirement]).to be(true)
+      end
+
+      it "is false once the document request was provided" do
+        request = create(:user_compliance_info_request, user: seller,
+                                                        field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID)
+        request.mark_provided!
+
+        expect(presenter.payments_props[:user][:has_outstanding_identity_document_requirement]).to be(false)
+      end
+
+      it "is false when no document request exists" do
+        expect(presenter.payments_props[:user][:has_outstanding_identity_document_requirement]).to be(false)
+      end
+    end
+
     describe "has_outstanding_nationality_requirement" do
       it "is true when Stripe's individual.nationality requirement is open" do
         create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::NATIONALITY)
@@ -1687,6 +1723,26 @@ describe SettingsPresenter do
 
       it "is false when no nationality request exists" do
         expect(presenter.payments_props[:user][:has_outstanding_nationality_requirement]).to be(false)
+      end
+    end
+
+    describe "outstanding state requirements" do
+      it "flags the individual state when Stripe's individual.address.state requirement is open" do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::Address::STATE)
+
+        expect(presenter.payments_props[:user]).to include(has_outstanding_state_requirement: true, has_outstanding_business_state_requirement: false)
+      end
+
+      it "flags the business state when Stripe's company.address.state requirement is open" do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::LegalEntity::Address::STATE)
+
+        expect(presenter.payments_props[:user]).to include(has_outstanding_state_requirement: false, has_outstanding_business_state_requirement: true)
+      end
+
+      it "flags neither once the state request was provided" do
+        create(:user_compliance_info_request, user: seller, field_needed: UserComplianceInfoFields::Individual::Address::STATE).mark_provided!
+
+        expect(presenter.payments_props[:user]).to include(has_outstanding_state_requirement: false, has_outstanding_business_state_requirement: false)
       end
     end
 
@@ -1863,6 +1919,13 @@ describe SettingsPresenter do
         expect(presenter.payments_props[:payouts_paused_by_user]).to be(false)
         expect(presenter.payments_props[:payouts_paused_by]).to eq(nil)
       end
+    end
+
+    it "masks a cross-border SEPA IBAN without the seller's country" do
+      create(:user_compliance_info, user: seller, country: "Czechia")
+      create(:czech_republic_bank_account, user: seller, account_number: "LT121000011101001000", account_number_last_four: "1000")
+
+      expect(presenter.payments_props[:bank_account_details][:account_number_visual]).to eq("******1000")
     end
   end
 

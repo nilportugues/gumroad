@@ -14,27 +14,22 @@ import { WithTooltip } from "$app/components/WithTooltip";
 
 export type InputtedDiscount = { type: "percent" | "cents"; value: null | number; error?: boolean };
 
-export const DiscountInput = ({
-  discount,
-  setDiscount,
-  currencyCode,
-  currencyCodeSelector,
-  disableFixedAmount,
-  ref,
-}: {
-  discount: InputtedDiscount;
-  setDiscount: (newDiscount: InputtedDiscount) => void;
-  currencyCode: CurrencyCode;
-  currencyCodeSelector?: { options: CurrencyCode[]; onChange: (currencyCode: CurrencyCode) => void } | undefined;
-  disableFixedAmount?: boolean;
-  ref?: React.RefObject<HTMLInputElement>;
-}) => {
+export const DiscountInput = React.forwardRef<
+  HTMLInputElement,
+  {
+    discount: InputtedDiscount;
+    setDiscount: (newDiscount: InputtedDiscount) => void;
+    currencyCode: CurrencyCode;
+    currencyCodeSelector?: { options: CurrencyCode[]; onChange: (currencyCode: CurrencyCode) => void } | undefined;
+    disableFixedAmount?: boolean;
+    ariaDescribedBy?: string | undefined;
+  }
+>(({ discount, setDiscount, currencyCode, currencyCodeSelector, disableFixedAmount, ariaDescribedBy }, ref) => {
   const fixedAmountFieldset = (
     <Fieldset state={discount.type === "cents" && discount.error ? "danger" : undefined}>
       <div className="grid items-center gap-4 md:grid-cols-[auto_1fr]!">
         <Label>
           <Radio
-            ref={ref}
             checked={discount.type === "cents"}
             onChange={(evt) => {
               if (evt.target.checked) setDiscount({ type: "cents", value: 0 });
@@ -44,6 +39,7 @@ export const DiscountInput = ({
           Fixed amount
         </Label>
         <PriceInput
+          ref={discount.type === "cents" ? ref : undefined}
           currencyCode={currencyCode}
           currencyCodeSelector={currencyCodeSelector}
           cents={discount.type === "cents" ? discount.value : null}
@@ -52,6 +48,7 @@ export const DiscountInput = ({
           disabled={disableFixedAmount || discount.type !== "cents"}
           hasError={discount.error ?? false}
           ariaLabel="Fixed amount"
+          ariaDescribedBy={discount.type === "cents" ? ariaDescribedBy : undefined}
         />
       </div>
     </Fieldset>
@@ -84,11 +81,15 @@ export const DiscountInput = ({
             >
               {(props) => (
                 <Input
+                  // The ref points at whichever amount input is live, so a caller can focus the field
+                  // that is invalid.
+                  ref={discount.type === "percent" ? ref : undefined}
                   type="text"
                   placeholder="0"
                   disabled={discount.type !== "percent"}
                   aria-label="Percentage"
                   aria-invalid={discount.error}
+                  aria-describedby={discount.type === "percent" ? ariaDescribedBy : undefined}
                   {...props}
                 />
               )}
@@ -106,4 +107,5 @@ export const DiscountInput = ({
       )}
     </div>
   );
-};
+});
+DiscountInput.displayName = "DiscountInput";

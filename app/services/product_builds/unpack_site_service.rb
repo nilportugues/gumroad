@@ -17,44 +17,14 @@
 class ProductBuilds::UnpackSiteService
   class UnpackError < StandardError; end
 
-  # What the browser needs to run a build's files without sniffing them.
-  CONTENT_TYPES = {
-    "html" => "text/html",
-    "htm" => "text/html",
-    "js" => "text/javascript",
-    "mjs" => "text/javascript",
-    "cjs" => "text/javascript",
-    "css" => "text/css",
-    "json" => "application/json",
-    "wasm" => "application/wasm",
-    "txt" => "text/plain",
-    "xml" => "application/xml",
-    "svg" => "image/svg+xml",
-    "png" => "image/png",
-    "jpg" => "image/jpeg",
-    "jpeg" => "image/jpeg",
-    "gif" => "image/gif",
-    "webp" => "image/webp",
-    "avif" => "image/avif",
-    "ico" => "image/vnd.microsoft.icon",
-    "mp3" => "audio/mpeg",
-    "ogg" => "audio/ogg",
-    "oga" => "audio/ogg",
-    "wav" => "audio/wav",
-    "m4a" => "audio/mp4",
-    "mp4" => "video/mp4",
-    "webm" => "video/webm",
-    "woff" => "font/woff",
-    "woff2" => "font/woff2",
-    "ttf" => "font/ttf",
-    "otf" => "font/otf",
-  }.freeze
-  DEFAULT_CONTENT_TYPE = "application/octet-stream"
   ENTRY_NAME_MAX_LENGTH = 100
   S3_DELETE_BATCH_SIZE = 1_000
   S3_KEY_MAX_BYTES = 1_024
   UNREADABLE_ARCHIVE = "The zip could not be read, so there is nothing to play."
   FINDER_METADATA_FOLDER = "__MACOSX"
+  # Unproven sellers' builds with these pages are held for support review.
+  PHISHING_WORDS = /\b(log\s*in|sign\s*in|verify|verification|payouts?|wallet|seed phrase|recovery phrase|bank account|paypal)\b/i
+  CREDENTIAL_PAGE_HELD = "This build has a page that asks for a password or sign-in details, so it needs a quick review before it can go live. Contact support and we'll take a look."
 
   # rubyzip holds every central-directory record in memory the moment the archive is opened, so the
   # directory is walked here first, with the budgets a build may hold. Counting entries alone would
@@ -324,6 +294,7 @@ class ProductBuilds::UnpackSiteService
           raise UnpackError, "An HTML page can be at most #{ProductBuild::MAX_PAGE_BYTE_SIZE / 1.megabyte} MB: #{shown(path)}."
         end
 
+        check_credential_page!(file, path)
         file.rewind
         key = "#{build.site_prefix}/#{path}"
         # Tracked before the call: a put that times out after S3 stored the object must still be cleaned up.
@@ -333,7 +304,7 @@ class ProductBuilds::UnpackSiteService
           key:,
           body: file,
           content_length: copied,
-          content_type: content_type_for(path),
+          content_type: ProductBuild.content_type_for(path),
         )
         copied
       end
@@ -393,8 +364,27 @@ class ProductBuilds::UnpackSiteService
       segments.join("/")
     end
 
-    def content_type_for(path)
-      CONTENT_TYPES[File.extname(path).delete_prefix(".").downcase] || DEFAULT_CONTENT_TYPE
+    def check_credential_page!(file, path)
+      return unless ProductBuild::PAGE_EXTENSIONS.include?(File.extname(path).delete_prefix(".").downcase)
+      return unless credential_check_applies?
+
+      file.rewind
+      page = file.read.force_encoding(Encoding::UTF_8).scrub
+      return unless credential_page?(page)
+
+      Rails.logger.info("[ProductBuildCredentialPage] #{{ build_id: build.id, product_id: build.product_id, seller_id: build.product.user_id, path: }.to_json}")
+      raise UnpackError, CREDENTIAL_PAGE_HELD
+    end
+
+    def credential_page?(page)
+      types = Nokogiri::HTML(page).css("input").map { _1["type"].to_s.strip.downcase }
+      types.include?("password") || (types.include?("email") && page.match?(PHISHING_WORDS))
+    end
+
+    def credential_check_applies?
+      return @credential_check_applies if defined?(@credential_check_applies)
+
+      @credential_check_applies = ContentModeration::GumroadImpersonation.unproven_seller?(build.product.user)
     end
 
     def shown(name)

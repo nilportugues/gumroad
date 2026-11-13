@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getReusablePaymentMethodResult } from "$app/data/payment_method_result";
 import SubscriptionsManage from "$app/pages/Subscriptions/Manage";
 
 import { LoggedInUserProvider } from "$app/components/LoggedInUser";
@@ -257,6 +258,18 @@ describe("SubscriptionsManage saved payment method", () => {
     expect(await screen.findByRole("radio", { name: "Card" })).toHaveProperty("checked", true);
   });
 
+  it("offers the payment method fields while this period is free but the renewal is paid", () => {
+    const free = { ...pageProps().subscription, price: 0, pre_discount_price: 500 };
+    renderManage(pageProps({ subscription: free, used_card: savedCard, used_paypal: null }));
+    expect(screen.queryByLabelText("Saved credit card")).toBeNull();
+    cleanup();
+
+    renderManage(
+      pageProps({ subscription: { ...free, next_charge_price: 500 }, used_card: savedCard, used_paypal: null }),
+    );
+    expect(screen.getByLabelText("Saved credit card").textContent).toBe("**** 4242");
+  });
+
   it("shows no saved PayPal for a card or for no saved payment method", () => {
     renderManage(pageProps({ used_paypal: null, used_card: savedCard }));
     expect(savedPayPalRadio()).toBeNull();
@@ -282,7 +295,10 @@ describe("SubscriptionsManage saved payment method", () => {
     expect(mocks.updateSubscription).toHaveBeenCalledWith(
       expect.objectContaining({ cardParams: mocks.newCard.cardParamsResult.cardParams }),
     );
-    expect(screen.getByRole("radio", { name: "Card" })).toHaveProperty("checked", true);
+    // The saved PayPal account is gone, so the radio rows only appear once the PayPal SDK has
+    // decided whether PayPal is still available (usePayPalImplementation loads it in an effect).
+    // Asserting synchronously here races that load.
+    expect(await screen.findByRole("radio", { name: "Card" })).toHaveProperty("checked", true);
     expect(savedPayPalRadio()).toBeNull();
   });
 
@@ -339,5 +355,269 @@ describe("SubscriptionsManage saved payment method", () => {
       expect(screen.getByRole("radio", { name: "PayPal · paypal-buyer@example.com" })).toHaveProperty("checked", true);
       expect(screen.queryByText(giftWarning)).toBeNull();
     });
+  });
+});
+
+describe("SubscriptionsManage current plan status", () => {
+  afterEach(cleanup);
+
+  const tieredProps = (overrides: Record<string, unknown>) =>
+    pageProps({
+      product: {
+        ...pageProps().product,
+        is_tiered_membership: true,
+        options: [
+          {
+            id: "option-1",
+            name: "Tier",
+            quantity_left: null,
+            description: null,
+            price_difference_cents: null,
+            recurrence_price_values: { monthly: { price_cents: 500, suggested_price_cents: null } },
+            is_pwyw: false,
+            duration_in_minutes: null,
+          },
+        ],
+      },
+      subscription: subscription({ option_id: "option-1", ...overrides }),
+    });
+
+  it("states the next charge instead of promising that a free current price will remain", () => {
+    renderManage(tieredProps({ price: 0, pre_discount_price: 0, next_charge_price: 500 }));
+    expect(screen.queryByText(/based on previous pricing\. Your next charge will be \$5\./u)).not.toBeNull();
+    expect(screen.queryByText(/will remain the same/u)).toBeNull();
+  });
+
+  it("keeps the previous-pricing promise when the next charge stays at the current price", () => {
+    renderManage(tieredProps({ price: 300, pre_discount_price: 300, next_charge_price: 300 }));
+    expect(
+      screen.queryByText(
+        /based on previous pricing\. This price will remain the same when updating your payment method\./u,
+      ),
+    ).not.toBeNull();
+  });
+});
+
+describe("SubscriptionsManage pay-what-you-want hint", () => {
+  afterEach(cleanup);
+
+  const pwywProps = (discount: Record<string, unknown>) =>
+    pageProps({
+      product: {
+        ...pageProps().product,
+        is_tiered_membership: true,
+        price_cents: 0,
+        recurrences: [{ id: "price-monthly", recurrence: "monthly", price_cents: 2400 }],
+        options: [
+          {
+            id: "option-1",
+            name: "Tier",
+            quantity_left: null,
+            description: null,
+            price_difference_cents: null,
+            recurrence_price_values: { monthly: { price_cents: 2400, suggested_price_cents: 2400 } },
+            is_pwyw: true,
+            duration_in_minutes: null,
+          },
+        ],
+      },
+      subscription: subscription({
+        option_id: "option-1",
+        price: 1680,
+        pre_discount_price: 2400,
+        discount,
+        option_discounts: { "option-1": discount },
+      }),
+    });
+
+  it("offers the payment method fields to an unchanged pay-what-you-want plan that is free now but paid at renewal", () => {
+    const props = pwywProps({
+      type: "percent",
+      percents: 100,
+      product_ids: null,
+      expires_at: null,
+      minimum_quantity: null,
+      duration_in_billing_cycles: null,
+      minimum_amount_cents: null,
+    });
+    renderManage({
+      ...props,
+      subscription: { ...props.subscription, price: 0, next_charge_price: 2400 },
+      used_card: savedCard,
+      used_paypal: null,
+    });
+    expect(screen.getByLabelText("Saved credit card").textContent).toBe("**** 4242");
+  });
+
+  const pwywInput = () => {
+    const inputs = screen
+      .getAllByLabelText("Name a fair price:")
+      .filter((element): element is HTMLInputElement => element instanceof HTMLInputElement);
+    const input = inputs.at(0);
+    if (inputs.length !== 1 || !input) throw new Error(`expected one amount input, found ${inputs.length}`);
+    return input;
+  };
+
+  it("hints the amount after a percent code, which is what the subscriber pays", () => {
+    renderManage(
+      pwywProps({
+        type: "percent",
+        percents: 30,
+        product_ids: null,
+        expires_at: null,
+        minimum_quantity: null,
+        duration_in_billing_cycles: null,
+        minimum_amount_cents: null,
+      }),
+    );
+
+    expect(pwywInput().getAttribute("placeholder")).toBe("16.80+");
+  });
+
+  it("hints the full amount for a once-per-cart amount, which the cart subtracts", () => {
+    renderManage(
+      pwywProps({
+        type: "fixed",
+        cents: 720,
+        once_per_cart: true,
+        once_per_cart_amount_cents: 720,
+        product_ids: null,
+        expires_at: null,
+        minimum_quantity: null,
+        duration_in_billing_cycles: null,
+        minimum_amount_cents: null,
+      }),
+    );
+
+    expect(pwywInput().getAttribute("placeholder")).toBe("24+");
+  });
+
+  it("drops the code from the hint when fewer seats no longer meet its minimum", () => {
+    const discount = {
+      type: "percent",
+      percents: 30,
+      product_ids: null,
+      expires_at: null,
+      minimum_quantity: 2,
+      duration_in_billing_cycles: null,
+      minimum_amount_cents: null,
+    };
+    const props = pwywProps(discount);
+    renderManage({
+      ...props,
+      product: {
+        ...props.product,
+        is_multiseat_license: true,
+        recurrences: [{ id: "price-monthly", recurrence: "monthly", price_cents: 1000 }],
+        options: [
+          {
+            id: "option-1",
+            name: "Tier",
+            quantity_left: null,
+            description: null,
+            price_difference_cents: null,
+            recurrence_price_values: { monthly: { price_cents: 1000, suggested_price_cents: 2400 } },
+            is_pwyw: true,
+            duration_in_minutes: null,
+          },
+        ],
+      },
+      subscription: { ...props.subscription, quantity: 2 },
+    });
+    expect(pwywInput().getAttribute("placeholder")).toBe("16.80+");
+
+    fireEvent.change(screen.getByLabelText("Seats"), { target: { value: "1" } });
+
+    expect(pwywInput().getAttribute("placeholder")).toBe("24+");
+  });
+});
+
+describe("SubscriptionsManage selected plan for a new card's future charges", () => {
+  beforeEach(() => {
+    mocks.updateSubscription.mockReset();
+    mocks.updateSubscription.mockResolvedValue({
+      type: "done",
+      message: "Your membership has been updated.",
+      next: null,
+    });
+    vi.mocked(getReusablePaymentMethodResult).mockClear();
+  });
+  afterEach(cleanup);
+
+  const tier = (id: string, name: string, monthly: number, yearly: number) => ({
+    id,
+    name,
+    quantity_left: null,
+    description: null,
+    price_difference_cents: null,
+    recurrence_price_values: {
+      monthly: { price_cents: monthly, suggested_price_cents: null },
+      yearly: { price_cents: yearly, suggested_price_cents: null },
+    },
+    is_pwyw: false,
+    duration_in_minutes: null,
+  });
+
+  const tieredProps = (gold: { monthly: number; yearly: number }) =>
+    pageProps({
+      product: {
+        ...pageProps().product,
+        is_tiered_membership: true,
+        price_cents: 0,
+        recurrences: [
+          { id: "price-monthly", recurrence: "monthly", price_cents: 0 },
+          { id: "price-yearly", recurrence: "yearly", price_cents: 0 },
+        ],
+        options: [
+          tier("tier-silver", "Silver", 500, 5000),
+          tier("tier-gold", "Gold", gold.monthly, gold.yearly),
+          tier("tier-bronze", "Bronze", gold.monthly, gold.yearly),
+        ],
+      },
+      subscription: subscription({ option_id: "tier-silver" }),
+      used_paypal: null,
+    });
+
+  const preparedPlan = () => {
+    const call = vi.mocked(getReusablePaymentMethodResult).mock.lastCall;
+    return call?.[1].products[0]?.subscriptionPlan;
+  };
+
+  it("prepares the card with the tier and billing period the buyer picked", async () => {
+    renderManage(tieredProps({ monthly: 900, yearly: 9000 }));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Gold" }));
+    fireEvent.change(screen.getByLabelText("Recurrence"), { target: { value: "yearly" } });
+    await submitUpdate();
+
+    await waitFor(() => expect(mocks.updateSubscription).toHaveBeenCalledTimes(1));
+    expect(getReusablePaymentMethodResult).toHaveBeenCalledTimes(1);
+    expect(preparedPlan()).toEqual({
+      variants: ["tier-gold"],
+      price_id: "price-yearly",
+      quantity: 1,
+      price_range: undefined,
+      perceived_price_cents: 9000,
+    });
+    expect(mocks.updateSubscription).toHaveBeenCalledWith(expect.objectContaining(preparedPlan()));
+  });
+
+  it("prepares the card with the last tier picked when it costs the same as the one picked before", async () => {
+    renderManage(tieredProps({ monthly: 900, yearly: 9000 }));
+
+    fireEvent.click(screen.getByRole("radio", { name: "Gold" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Bronze" }));
+    await submitUpdate();
+
+    await waitFor(() => expect(mocks.updateSubscription).toHaveBeenCalledTimes(1));
+    expect(getReusablePaymentMethodResult).toHaveBeenCalledTimes(1);
+    expect(preparedPlan()).toEqual({
+      variants: ["tier-bronze"],
+      price_id: "price-monthly",
+      quantity: 1,
+      price_range: undefined,
+      perceived_price_cents: 900,
+    });
+    expect(mocks.updateSubscription).toHaveBeenCalledWith(expect.objectContaining(preparedPlan()));
   });
 });

@@ -52,6 +52,17 @@ import { Select } from "$app/components/ui/Select";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
 import { useRunOnce } from "$app/components/useRunOnce";
 
+// The words the seller sees in the product editor, so a picker's group name matches the version,
+// variant or tier they built. A call's options are its durations.
+const optionSetLabel = (product: Product) =>
+  product.is_tiered_membership
+    ? "Tier"
+    : product.native_type === "physical"
+      ? "Variant"
+      : product.native_type === "call"
+        ? "Duration"
+        : "Version";
+
 const PWYWInput = React.forwardRef<
   HTMLInputElement,
   {
@@ -685,7 +696,7 @@ const PaymentOptionSelector = ({
   return (
     <section>
       <h4 className="mb-2">Payment option</h4>
-      <Tabs variant="buttons" role="radiogroup">
+      <Tabs variant="buttons" role="radiogroup" aria-label="Payment option">
         <Tab isSelected={!selection.payInInstallments} asChild>
           <Button
             role="radio"
@@ -744,6 +755,9 @@ export const ConfigurationSelector = React.forwardRef<
     hidePrices?: boolean;
     initialSelection?: PriceSelection;
     pwywMinimumPriceCents?: number;
+    // The product page's buy button divides the box amount by the code before sending it, so its box — and hint —
+    // hold the amount after the code. Checkout puts the box amount on the item price and applies the code on top.
+    pwywAmountIsAfterDiscount?: boolean;
     showInstallmentPlan?: boolean;
   }
 >((props, ref) => {
@@ -758,6 +772,7 @@ export const ConfigurationSelector = React.forwardRef<
     hidePrices,
     initialSelection,
     pwywMinimumPriceCents,
+    pwywAmountIsAfterDiscount = false,
     showInstallmentPlan = false,
   } = props;
   const update = (update: Partial<PriceSelection> | ((selection: PriceSelection) => Partial<PriceSelection>)) =>
@@ -774,7 +789,9 @@ export const ConfigurationSelector = React.forwardRef<
   const selectedOption = product.options.find(({ id }) => id === selection.optionId) ?? null;
   const {
     basePriceCents,
+    applicableDiscount,
     discountedPriceCents,
+    pppDiscounted,
     isPWYW,
     maxQuantity,
     hasOptions,
@@ -785,10 +802,23 @@ export const ConfigurationSelector = React.forwardRef<
     discountConditionsVerified: !!discountForSelection,
     preserveOncePerCartAllocation: !!discountForSelection,
   });
-  const suggestedPriceCents = Math.max(
+  const configuredSuggestedPriceCents =
     (selectedOption && selection.recurrence
       ? selectedOption.recurrence_price_values?.[selection.recurrence]?.suggested_price_cents
-      : product.pwyw?.suggested_price_cents) ?? 0,
+      : product.pwyw?.suggested_price_cents) ?? 0;
+  // CtaButton undoes PPP when PPP priced the selection, and the code otherwise, so the hint applies the same one.
+  const hintDiscount = discountForSelection ? discountForSelection(selection) : applicableDiscount;
+  const suggestedPriceCents = Math.max(
+    !pwywAmountIsAfterDiscount
+      ? configuredSuggestedPriceCents
+      : pppDiscounted
+        ? computeDiscountedPrice(configuredSuggestedPriceCents, null, product).value
+        : computeSelectionDiscountedPrice(
+            configuredSuggestedPriceCents,
+            hintDiscount,
+            { ...product, ppp_details: null },
+            selection.quantity,
+          ).value,
     pwywMinimumPriceCents ?? discountedPriceCents,
   );
   const usePreexistingPrice =
@@ -873,6 +903,7 @@ export const ConfigurationSelector = React.forwardRef<
         <Tabs
           variant="buttons"
           role="radiogroup"
+          aria-label="Amount"
           className="md:grid-flow-row"
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(6rem, 100%), 1fr))" }}
         >
@@ -956,6 +987,7 @@ export const ConfigurationSelector = React.forwardRef<
         <Tabs
           variant="buttons"
           role="radiogroup"
+          aria-label="Rent or buy"
           className="md:grid-flow-row"
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(15rem, 100%), 1fr))" }}
           itemProp="offers"
@@ -996,6 +1028,7 @@ export const ConfigurationSelector = React.forwardRef<
           <Tabs
             variant="buttons"
             role="radiogroup"
+            aria-label={optionSetLabel(product)}
             className="md:grid-flow-row"
             style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(15rem, 100%), 1fr))" }}
             itemProp="offers"

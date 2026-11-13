@@ -23,16 +23,13 @@ class RedisKey
     def api_v2_sales_deprecated_pagination_query_timeout = "api_v2_sales_deprecated_pagination_query_timeout"
     def api_v2_sales_page_key_query_timeout = "api_v2_sales_page_key_query_timeout"
     def mcp_protocol_requests(date) = "mcp:protocol_requests:#{date.to_date.iso8601}"
+    def mcp_tool_calls(date) = "mcp:tool_calls:#{date.to_date.iso8601}"
     def free_purchases_watch_hours = "free_purchases_watch_hours"
     def max_allowed_free_purchases_of_same_product = "max_allowed_free_purchases_of_same_product"
     def auto_topup_negative_destination_balance_last_amount(merchant_account_id) = "auto_topup_negative_destination_balance:#{merchant_account_id}:last_amount_cents"
     def ai_request_throttle(user_id) = "ai_request_throttle:#{user_id}"
-    def agent_request_throttle(user_id) = "agent_request_throttle:#{user_id}"
     def team_invitation_send_throttle(seller_id) = "team_invitation_send_throttle:#{seller_id}"
     def team_invitation_burst_reported(seller_id) = "team_invitation_burst_reported:#{seller_id}"
-    def agent_turn_status(user_id, client_turn_id) = "agent_turn_status:#{user_id}:#{client_turn_id}"
-    def agent_custom_html_preview(user_id, token) = "agent_custom_html_preview:#{user_id}:#{token}"
-    def agent_custom_html_preview_index(user_id) = "agent_custom_html_preview_index:#{user_id}"
     def fraudulent_free_purchases_block_hours = "fraudulent_free_purchases_block_hours"
     def recaptcha_score_threshold(surface) = "recaptcha_score_threshold:#{surface}"
     def recaptcha_challenge_offer(browser_guid) = "recaptcha_challenge_offer:#{browser_guid}"
@@ -65,6 +62,7 @@ class RedisKey
     def workflow_installment_rule_version(installment_id) = "workflow_installment_rule:#{installment_id}:version"
     def workflow_installment_rule_pending_token(installment_id) = "workflow_installment_rule:#{installment_id}:pending_token"
     def audience_member_load_max_execution_time_seconds = "audience_member_load:max_execution_time_seconds"
+    def behavior_decision_max_execution_time_seconds = "behavior_decision:max_execution_time_seconds"
     def impersonated_user(admin_user_id) = "impersonated_user_by_admin_#{admin_user_id}"
     def undeliverable_ping_subscription_notified(resource_subscription_id, reason) = "undeliverable_ping_subscription:#{resource_subscription_id}:#{reason}"
     def undeliverable_ping_subscription_enqueued(resource_subscription_id, reason) = "undeliverable_ping_subscription_enqueued:#{resource_subscription_id}:#{reason}"
@@ -129,6 +127,7 @@ class RedisKey
     def order_charge_outcome_repair_recent_mark = "order_charge_outcome_repair:recent_mark"
     # High-water mark for AlertOnStripeDobDriftJob: the last merchant_accounts id it compared.
     def stripe_dob_drift_sweep_cursor = "stripe_dob_drift_sweep:cursor"
+    def closed_seller_connect_sweep_cursor = "closed_seller_connect_sweep:cursor"
     # Purchases whose notice was claimed but never transmitted. The cursor is already past their
     # email_infos rows, so this set is the only thing that brings them back.
     def undelivered_receipt_pending_retry = "undelivered_receipt_sweep:pending_retry"

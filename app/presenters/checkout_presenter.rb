@@ -89,6 +89,40 @@ class CheckoutPresenter
     }
   end
 
+  # Saved-cart lines the buyer already owns, so the page can warn before a repeat charge.
+  def owned_products_in_cart(cart:)
+    return [] if cart.blank? || cart.user_id.blank?
+
+    owned = cart.purchased_cart_products
+    ActiveRecord::Associations::Preloader.new(records: owned, associations: [:product, :option]).call
+    owned.map { { permalink: _1.product.unique_permalink, option_id: _1.option&.external_id, name: _1.product.name } }
+  end
+
+  # The product link adds nothing because its tier, or every tier, is closed or sold out (see
+  # add_single_product_props), so the page has to say why. Name the product and its real state, and
+  # link to the product page: "pick another option" is a dead end on a single-tier membership, and
+  # the /checkout link carries no way back on its own.
+  def sold_out_arrival_notice(params:)
+    product = single_product(params)
+    return if product.blank?
+
+    cart_item = product.cart_item(params)
+    return unless no_selectable_tier?(product, cart_item)
+
+    tiers = product.tiers.alive.to_a
+    requested = tiers.find { _1.external_id == params[:option] }
+    message = if requested && tiers.many?
+      # The default tier is named "Untitled"; checkout shows it under the product's name.
+      tier = requested.name.blank? || requested.name == "Untitled" ? "This tier of #{product.name}" : "#{product.name} (#{requested.name})"
+      "#{tier} #{requested.closed_to_new_buyers? ? "isn't open to new members right now" : "is sold out"}."
+    elsif tiers.all?(&:closed_to_new_buyers?)
+      "#{product.name} isn't open to new members right now."
+    else
+      "#{product.name} is sold out."
+    end
+    { message:, url: product.long_url }
+  end
+
   # Gift-wishlist arrivals replace the saved cart; all other URL products extend it.
   def checkout_seller_context(arrival_props:)
     add_products = arrival_props[:add_products]
@@ -100,7 +134,8 @@ class CheckoutPresenter
       products: add_products.filter_map do |product|
         permalink = product.dig(:product, :permalink)
         seller_id = seller_ids[permalink]
-        { seller_id:, cart_key: [permalink, product[:option_id]] } if seller_id
+        # nil-check, not presence: the frontend treats any recurrences value, even [], as recurring.
+        { seller_id:, cart_key: [permalink, product[:option_id]], recurring: !product.dig(:product, :recurrences).nil? } if seller_id
       end,
     }
   end
@@ -302,6 +337,9 @@ class CheckoutPresenter
         option_id: (subscription.original_purchase.variant_attributes[0] || product.default_tier)&.external_id,
         recurrence: subscription.recurrence,
         price: subscription_price,
+        # Display only: priced for the subscription's account, as the renewal charge is, not for whoever is viewing.
+        # A fixed-length membership that has collected every charge never bills again.
+        next_charge_price: subscription.charges_completed? ? 0 : subscription.next_charge_price_cents,
         pre_discount_price:,
         prorated_discount_price_cents: subscription.prorated_discount_price_cents,
         quantity: subscription.original_purchase.quantity,
@@ -365,9 +403,17 @@ class CheckoutPresenter
     def add_single_product_props(params:, user:)
       product = single_product(params, user:)
       cart_item = product.cart_item(params) if product
+      # No selectable tier (closed or sold out): arriving would add a zero-quantity, $0 line.
+      product = nil if product && no_selectable_tier?(product, cart_item)
       {
         add_products: [checkout_product(product, cart_item, params, arrival: true)].compact
       }
+    end
+
+    # Preserve cart_item's fallback from a closed tier to an open tier.
+    # A linked tier with no inventory stays selected and reports 0 left.
+    def no_selectable_tier?(product, cart_item)
+      product.is_tiered_membership && (cart_item[:option].nil? || cart_item[:option][:quantity_left] == 0)
     end
 
     def checkout_wishlist_props(params:)

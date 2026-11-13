@@ -83,6 +83,39 @@ describe Order::PreparePaymentIntentService, :vcr do
       end
     end
 
+    context "with a card cart and the 3DS challenge flag" do
+      before { create(:merchant_account, user: seller) }
+
+      after { Feature.deactivate_user(Checkout::ThreeDSecure::FEATURE, seller) }
+
+      def card_intent_create_args
+        preview = Stripe::StripeObject.construct_from(type: "card", card: { country: "US" })
+        allow(Stripe::ConfirmationToken).to receive(:retrieve)
+          .and_return(Stripe::StripeObject.construct_from(payment_method_preview: preview))
+
+        charge_intent = instance_double(StripeChargeIntent, id: "pi_3ds", client_secret: "pi_3ds_secret")
+        create_args = nil
+        allow(StripeDeferredPaymentIntent).to receive(:create) do |**kwargs|
+          create_args = kwargs
+          charge_intent
+        end
+
+        order, params = build_order
+        described_class.new(order:, params:, confirmation_token: "ctoken_3ds").perform
+        create_args
+      end
+
+      it "asks the Payment Element to request authentication when the flag is on for the seller" do
+        Feature.activate_user(Checkout::ThreeDSecure::FEATURE, seller)
+
+        expect(card_intent_create_args[:payment_method_options]).to eq(card: { request_three_d_secure: "any" })
+      end
+
+      it "leaves the decision to Stripe when the flag is off" do
+        expect(card_intent_create_args[:payment_method_options].to_h[:card]).to be_nil
+      end
+    end
+
     context "when the previewed card country fails purchasing power parity verification" do
       before { create(:merchant_account, user: seller) }
 
@@ -530,6 +563,51 @@ describe Order::PreparePaymentIntentService, :vcr do
         expect(responses["unique-id-0"][:error_code]).to eq(PurchaseErrorCode::BLOCKED_CUSTOMER_EMAIL_ADDRESS)
         expect(order.charges).to be_empty
         expect(order.purchases.first.reload).to be_failed
+      end
+    end
+
+    context "when the seller matches the chargeback-ring signal with enforcement on" do
+      before do
+        MerchantAccount.gumroad(StripeChargeProcessor.charge_processor_id) ||
+          create(:merchant_account, user: nil, charge_processor_merchant_id: "acct_#{SecureRandom.hex(8)}")
+        create(:merchant_account, user: seller, charge_processor_merchant_id: "acct_test")
+        # Seeded before the flags so the history itself isn't evaluated.
+        ring_product = create(:product, user: seller, price_cents: 2200)
+        5.times { |i| create(:purchase, link: ring_product, seller:, card_country: "BR", ip_address: "151.240.1.#{i + 1}") }
+        Feature.activate_user(Purchase::ChargebackRingSignal::FEATURE_FLAG, seller)
+        Feature.activate_user(Purchase::ChargebackRingSignal::ENFORCE_FLAG, seller)
+        allow(ErrorNotifier).to receive(:notify)
+
+        preview = Stripe::StripeObject.construct_from(card: { country: "BR" })
+        allow(Stripe::ConfirmationToken).to receive(:retrieve)
+          .and_return(Stripe::StripeObject.construct_from(payment_method_preview: preview))
+      end
+
+      it "refuses a buyer carrying the ring evidence before the PaymentIntent exists" do
+        order, params = build_order
+        order.purchases.each { _1.update!(ip_address: "151.240.7.7") }
+        expect(StripeDeferredPaymentIntent).not_to receive(:create)
+
+        responses = described_class.new(order:, params:, confirmation_token: "ctoken_ring").perform
+
+        expect(responses["unique-id-0"][:success]).to eq(false)
+        expect(responses["unique-id-0"][:error_code]).to eq(PurchaseErrorCode::CHARGEBACK_RING_SIGNAL)
+        expect(responses["unique-id-0"][:error_message]).to eq("Your card was not charged.")
+        expect(order.charges).to be_empty
+        purchase = order.purchases.first.reload
+        expect(purchase).to be_failed
+        expect(purchase.error_code).to eq(PurchaseErrorCode::CHARGEBACK_RING_SIGNAL)
+      end
+
+      it "creates the PaymentIntent as usual for a buyer on a non-hosting IP" do
+        order, params = build_order
+        charge_intent = instance_double(StripeChargeIntent, id: "pi_ring_allowed", client_secret: "pi_ring_allowed_secret")
+        expect(StripeDeferredPaymentIntent).to receive(:create).once.and_return(charge_intent)
+
+        responses = described_class.new(order:, params:, confirmation_token: "ctoken_ring").perform
+
+        expect(responses["unique-id-0"][:requires_payment_confirmation]).to eq(true)
+        expect(order.purchases.first.reload).to be_in_progress
       end
     end
 
@@ -2644,7 +2722,7 @@ describe Order::PreparePaymentIntentService, :vcr do
         Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::LISTED_CURRENCY_DIRECT_CHARGE_FEATURE_NAME, seller)
       end
 
-      def perform_with_direct_listed_card(order, params, mount_currency: Currency::CAD)
+      def perform_with_direct_listed_card(order, params, mount_currency: Currency::CAD, wallet: nil)
         params[:payment_details_source] = PurchasePaymentFlow::PAYMENT_ELEMENT
         params[:payment_element_mount_currency] = mount_currency
         purchase = order.purchases.first
@@ -2663,7 +2741,7 @@ describe Order::PreparePaymentIntentService, :vcr do
             currency: mount_currency
           )
         end
-        preview = Stripe::StripeObject.construct_from(type: "card", card: { country: "CA" })
+        preview = Stripe::StripeObject.construct_from(type: "card", card: { country: "CA", wallet: wallet && { type: wallet } }.compact)
         allow(Stripe::ConfirmationToken).to receive(:retrieve)
           .and_return(Stripe::StripeObject.construct_from(payment_method_preview: preview))
 
@@ -2839,6 +2917,97 @@ describe Order::PreparePaymentIntentService, :vcr do
         expect(purchase.reload).to be_failed
         expect(order.charges.last.charge_presentment).to be_nil
         expect(purchase.purchase_presentment).to be_nil
+      end
+
+      context "when the buyer pays with a wallet" do
+        before do
+          Feature.activate_user(Checkout::BuyerCurrencyEligibility::PAYMENT_ELEMENT_WALLETS_FEATURE_NAME, seller)
+          Feature.activate_user(Checkout::BuyerCurrencyEligibility::WALLETS_FEATURE_NAME, seller)
+        end
+
+        after do
+          Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::PAYMENT_ELEMENT_WALLETS_FEATURE_NAME, seller)
+          Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::WALLETS_FEATURE_NAME, seller)
+        end
+
+        def wallet_order(tax_cents: 0)
+          order, params = build_order
+          purchase = order.purchases.first
+          purchase.update!(displayed_price_cents: 15_00,
+                           displayed_price_currency_type: Currency::CAD,
+                           rate_converted_to_usd: BigDecimal("0.8"))
+          params[:wallet_type] = "apple_pay"
+          params[:direct_listed_amount_token] = Checkout::DirectListedAmountToken.issue(
+            allocations: [{
+              permalink: product.unique_permalink,
+              price_cents: 15_00,
+              tip_cents: 0,
+              tax_cents:,
+              shipping_cents: 0,
+              total_cents: 15_00 + tax_cents,
+            }],
+            sellers: [seller],
+            currency: Currency::CAD
+          )
+          [order, params, purchase]
+        end
+
+        it "charges exactly the listed total the wallet sheet showed" do
+          order, params, = wallet_order
+
+          create_args, responses = perform_with_direct_listed_card(order, params, wallet: "apple_pay")
+
+          expect(responses["unique-id-0"][:success]).to eq(true)
+          expect(create_args[:currency]).to eq(Currency::CAD)
+          expect(create_args[:amount_cents]).to eq(15_00)
+        end
+
+        # A card buyer may be charged less than the reviewed total; a wallet sheet already
+        # authorized one exact amount, so a lower prepare total is refused instead.
+        it "refuses a prepare total below the total the wallet sheet showed" do
+          order, params, purchase = wallet_order(tax_cents: 1_00)
+
+          create_args, responses = perform_with_direct_listed_card(order, params, wallet: "apple_pay")
+
+          expect(create_args).to be_nil
+          expect(responses["unique-id-0"][:error_code]).to eq(PurchaseErrorCode::BUYER_CURRENCY_QUOTE_INVALID)
+          expect(purchase.reload).to be_failed
+        end
+
+        it "refuses a wallet that sent no listed amount token" do
+          order, params, purchase = wallet_order
+          params[:direct_listed_amount_token] = nil
+
+          create_args, responses = perform_with_direct_listed_card(order, params, wallet: "apple_pay")
+
+          expect(create_args).to be_nil
+          expect(responses["unique-id-0"][:success]).to eq(false)
+          expect(purchase.reload).to be_failed
+        end
+
+        it "still charges a USD-mounted wallet in USD when the buyer-currency wallet flag is off" do
+          Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::WALLETS_FEATURE_NAME, seller)
+          order, params, = wallet_order
+          params[:direct_listed_amount_token] = nil
+
+          create_args, responses = perform_with_direct_listed_card(order, params, mount_currency: Currency::USD, wallet: "apple_pay")
+
+          expect(responses["unique-id-0"][:success]).to eq(true)
+          expect(create_args[:currency]).to eq(Currency::USD)
+        end
+
+        it "refuses a Stripe-previewed wallet when the buyer-currency wallet flag is off, even without wallet_type" do
+          Feature.deactivate_user(Checkout::BuyerCurrencyEligibility::WALLETS_FEATURE_NAME, seller)
+          order, params, purchase = wallet_order
+          params.delete(:wallet_type)
+
+          create_args, responses = perform_with_direct_listed_card(order, params, wallet: "google_pay")
+
+          expect(create_args).to be_nil
+          expect(responses["unique-id-0"][:success]).to eq(false)
+          expect(responses["unique-id-0"][:error_message]).to eq(described_class::WALLET_UNAVAILABLE_MESSAGE)
+          expect(purchase.reload).to be_failed
+        end
       end
 
       it "rejects a tampered tip even when the listed price matches" do
@@ -4014,6 +4183,50 @@ describe Order::PreparePaymentIntentService, :vcr do
         expect(charge.successful_purchases).to include(free_purchase)
         # The charge amount stays paid-only; the free item contributes nothing.
         expect(charge.amount_cents).to eq(paid_purchase.total_transaction_cents)
+      end
+
+      # Marking the free line successful enqueues its purchase receipt before the line joins the
+      # charge; that job runs while the paid line is still being confirmed (gp#4453).
+      it "waits for the paid line before sending receipts when the free line's receipt job runs first" do
+        free_product = create(:product, user: seller, price_cents: 0, name: "Free Line")
+        product.update!(name: "Paid Line")
+        params = {
+          line_items: [
+            line_item,
+            { uid: "unique-id-1", permalink: free_product.unique_permalink, perceived_price_cents: 0, quantity: 1 },
+          ],
+        }.merge(common_params)
+        order, = Order::CreateService.new(params:).perform
+        paid_purchase = order.purchases.find { _1.link_id == product.id }
+
+        free_purchase = order.purchases.find { _1.link_id == free_product.id }
+        receipts = -> { ActionMailer::Base.deliveries.select { _1.to == [common_params[:email]] } }
+
+        preview = Stripe::StripeObject.construct_from(card: { country: "US" })
+        # The token lookup runs after the free line is marked successful and before build_charge.
+        allow(Stripe::ConfirmationToken).to receive(:retrieve) do
+          SendPurchaseReceiptJob.perform_one
+          Stripe::StripeObject.construct_from(payment_method_preview: preview)
+        end
+        charge_intent = instance_double(StripeChargeIntent, id: "pi_test", client_secret: "pi_test_secret")
+        allow(StripeDeferredPaymentIntent).to receive(:create).and_return(charge_intent)
+
+        described_class.new(order:, params:, confirmation_token: "ctoken_test").perform
+        expect(receipts.call).to be_empty
+        expect(SendPurchaseReceiptJob).to have_enqueued_sidekiq_job(free_purchase.id, false, 1)
+
+        expect(paid_purchase.reload).to be_in_progress
+        SendPurchaseReceiptJob.drain
+        expect(receipts.call).to be_empty
+
+        paid_purchase.update!(purchase_state: "successful", stripe_transaction_id: "ch_test", stripe_fingerprint: "fp_test")
+        order.send_charge_receipts
+        SendChargeReceiptJob.drain
+
+        # Two lines on one charge get one receipt per line.
+        bodies = receipts.call.map { _1.body.encoded }
+        expect(bodies.size).to eq(2)
+        expect(bodies.join).to include("Free Line").and include("Paid Line")
       end
     end
   end

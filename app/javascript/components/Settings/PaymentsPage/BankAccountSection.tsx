@@ -1299,13 +1299,13 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="12345678"
                     maxLength={8}
                     required
                     disabled={isFormDisabled}
                     aria-invalid={errorFieldNames.has("bank_code")}
                     onChange={(evt) => updateBankAccount({ bank_code: evt.target.value })}
                   />
+                  <FieldsetDescription>The 8-digit code of your own bank.</FieldsetDescription>
                 </Fieldset>
               ) : user.country_code === "TW" ? (
                 <Fieldset state={errorFieldNames.has("bank_code") ? "danger" : undefined}>
@@ -1315,7 +1315,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAATWTXXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1350,7 +1350,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMAMAXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1416,13 +1416,13 @@ const BankAccountSection = ({
                     <Input
                       type="text"
                       id={`${uid}-bank-code`}
-                      placeholder="123"
                       maxLength={3}
                       required
                       disabled={isFormDisabled}
                       aria-invalid={errorFieldNames.has("bank_code")}
                       onChange={(evt) => updateBankAccount({ bank_code: evt.target.value })}
                     />
+                    <FieldsetDescription>The 3-digit code of your own bank.</FieldsetDescription>
                   </Fieldset>
                   <Fieldset state={errorFieldNames.has("branch_code") ? "danger" : undefined}>
                     <FieldsetTitle>
@@ -1431,13 +1431,13 @@ const BankAccountSection = ({
                     <Input
                       type="text"
                       id={`${uid}-branch-code`}
-                      placeholder="12345"
                       maxLength={5}
                       required
                       disabled={isFormDisabled}
                       aria-invalid={errorFieldNames.has("branch_code")}
                       onChange={(evt) => updateBankAccount({ branch_code: evt.target.value })}
                     />
+                    <FieldsetDescription>The 5-digit code of your own bank branch.</FieldsetDescription>
                   </Fieldset>
                 </>
               ) : user.country_code === "UY" ? (
@@ -1464,7 +1464,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAAGAGXYZ"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1480,7 +1480,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAALCLCXYZ"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1496,7 +1496,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAATZTXXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1512,7 +1512,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAANANXXYZ"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1673,7 +1673,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAARWRWXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1689,7 +1689,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAECE1XXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1705,7 +1705,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAABWBWXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1721,7 +1721,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAOMOMXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1753,7 +1753,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMGMGXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1769,13 +1769,15 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="123456"
                     maxLength={6}
+                    pattern="(?!123456$)[0-9]{6}"
+                    title="Enter the 6-digit sort code of your own bank branch"
                     required
                     disabled={isFormDisabled}
                     aria-invalid={errorFieldNames.has("bank_code")}
                     onChange={(evt) => updateBankAccount({ bank_code: evt.target.value })}
                   />
+                  <FieldsetDescription>The 6-digit sort code of your own bank branch.</FieldsetDescription>
                 </Fieldset>
               ) : user.country_code === "US" ? (
                 <Fieldset state={errorFieldNames.has("routing_number") ? "danger" : undefined}>
@@ -1801,7 +1803,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMDMDXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1817,7 +1819,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAPAPAXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1927,7 +1929,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAANGLAXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1943,7 +1945,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAAMNNXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -1960,7 +1962,7 @@ const BankAccountSection = ({
                     <Input
                       type="text"
                       id={`${uid}-bank-code`}
-                      placeholder="AAAALKLXXXX"
+                      placeholder="Your bank's SWIFT / BIC code"
                       maxLength={11}
                       required
                       disabled={isFormDisabled}
@@ -1992,7 +1994,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAETETXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2008,7 +2010,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAABNBBXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2025,7 +2027,7 @@ const BankAccountSection = ({
                     <Input
                       type="text"
                       id={`${uid}-bank-code`}
-                      placeholder="AAAAGYGGXYZ"
+                      placeholder="Your bank's SWIFT / BIC code"
                       maxLength={11}
                       required
                       disabled={isFormDisabled}
@@ -2058,7 +2060,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMK2XXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2074,7 +2076,6 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="123456789"
                     maxLength={9}
                     pattern="[0-9]{9}"
                     inputMode="numeric"
@@ -2083,6 +2084,7 @@ const BankAccountSection = ({
                     aria-invalid={errorFieldNames.has("bank_code")}
                     onChange={(evt) => updateBankAccount({ bank_code: evt.target.value })}
                   />
+                  <FieldsetDescription>The 9-digit BEFTN routing number of your own bank.</FieldsetDescription>
                 </Fieldset>
               ) : user.country_code === "BT" ? (
                 <Fieldset state={errorFieldNames.has("bank_code") ? "danger" : undefined}>
@@ -2092,7 +2094,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAABTBTXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2108,7 +2110,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAALALAXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2124,7 +2126,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMZMXXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2159,7 +2161,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAGAGAXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2191,7 +2193,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAABSNSXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2207,7 +2209,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAKHPPXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2223,7 +2225,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMNUBXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2239,7 +2241,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAADZDZXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2255,7 +2257,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAAMOMXXXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2271,7 +2273,7 @@ const BankAccountSection = ({
                   <Input
                     type="text"
                     id={`${uid}-bank-code`}
-                    placeholder="AAAASVS1XXX"
+                    placeholder="Your bank's SWIFT / BIC code"
                     maxLength={11}
                     required
                     disabled={isFormDisabled}
@@ -2290,7 +2292,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAPKKAXXX"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2306,7 +2308,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAGTGCXYZ"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2374,7 +2376,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAMUMUXYZ"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2390,7 +2392,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAKZKZXXX"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2406,7 +2408,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAALTXXXX"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2422,7 +2424,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAABHBMXYZ"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2438,7 +2440,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAJOJOXXX"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2455,13 +2457,13 @@ const BankAccountSection = ({
                         <Input
                           type="text"
                           id={`${uid}-bank-code`}
-                          placeholder="123456"
                           maxLength={6}
                           required
                           disabled={isFormDisabled}
                           aria-invalid={errorFieldNames.has("bank_code")}
                           onChange={(evt) => updateBankAccount({ bank_code: evt.target.value })}
                         />
+                        <FieldsetDescription>The 6-digit code of your own bank.</FieldsetDescription>
                       </Fieldset>
                       <Fieldset state={errorFieldNames.has("branch_code") ? "danger" : undefined}>
                         <FieldsetTitle>
@@ -2470,13 +2472,13 @@ const BankAccountSection = ({
                         <Input
                           type="text"
                           id={`${uid}-branch-code`}
-                          placeholder="234567"
                           maxLength={6}
                           required
                           disabled={isFormDisabled}
                           aria-invalid={errorFieldNames.has("branch_code")}
                           onChange={(evt) => updateBankAccount({ branch_code: evt.target.value })}
                         />
+                        <FieldsetDescription>The 6-digit code of your own bank branch.</FieldsetDescription>
                       </Fieldset>
                     </>
                   ) : user.country_code === "AO" ? (
@@ -2487,7 +2489,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAAOAOXXX"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2503,7 +2505,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAASMSMXXX"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}
@@ -2519,7 +2521,7 @@ const BankAccountSection = ({
                       <Input
                         type="text"
                         id={`${uid}-bank-code`}
-                        placeholder="AAAAKWKWXYZ"
+                        placeholder="Your bank's SWIFT / BIC code"
                         maxLength={11}
                         required
                         disabled={isFormDisabled}

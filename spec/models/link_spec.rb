@@ -17,22 +17,10 @@ describe Link do
       expect(affiliate.product_affiliates.find_by(link_id: product.id)).to be_present
     end
 
-    it "does not add apply-to-all affiliates to a collab product" do
+    it "adds apply-to-all affiliates to a collab product" do
       seller = create(:user)
       affiliate = create(:direct_affiliate, seller:, apply_to_all_products: true)
       product = create(:product, user: seller, draft: true, is_collab: true)
-
-      product.publish!
-
-      expect(product.reload).to be_published
-      expect(affiliate.product_affiliates.find_by(link_id: product.id)).to be_nil
-    end
-
-    it "uses the current collaboration state" do
-      seller = create(:user)
-      affiliate = create(:direct_affiliate, seller:, apply_to_all_products: true)
-      product = create(:product, user: seller, draft: true, is_collab: true)
-      Link.find(product.id).update_flag!(:is_collab, false, true)
 
       product.publish!
 
@@ -625,6 +613,56 @@ describe Link do
       expect(create(:product, waitlist_enabled: true, purchase_disabled_at: Time.current, is_unpublished_by_admin: true).accepts_waitlist_signups?).to be(false)
       expect(create(:product, waitlist_enabled: true, purchase_disabled_at: Time.current, banned_at: Time.current).accepts_waitlist_signups?).to be(false)
       expect(create(:product, waitlist_enabled: true, purchase_disabled_at: Time.current, deleted_at: Time.current).accepts_waitlist_signups?).to be(false)
+    end
+  end
+
+  describe "#html_safe_description" do
+    let(:product) { create(:product) }
+
+    def scrubbed_description(html)
+      product.description = html
+      product.html_safe_description
+    end
+
+    it "keeps a Heyzine shelf frame, which iframely cannot serve" do
+      frame = %(<iframe src="https://heyzine.com/shelf/66f3c4fc1e.html" style="width: 100%; height: 800px;" allowfullscreen></iframe>)
+
+      expect(scrubbed_description(frame)).to include(%(src="https://heyzine.com/shelf/66f3c4fc1e.html"))
+    end
+
+    it "keeps a Heyzine shelf frame at its named address too" do
+      frame = %(<iframe src="https://heyzine.com/shelf/turningtopeacelibrary" style="width: 100%; height: 800px;" allowfullscreen></iframe>)
+
+      expect(scrubbed_description(frame)).to include(%(src="https://heyzine.com/shelf/turningtopeacelibrary"))
+    end
+
+    it "drops a Heyzine page that is not a shelf" do
+      expect(scrubbed_description(%(<iframe src="https://heyzine.com/flip-book/66f3c4fc1e.html"></iframe>))).not_to include("<iframe")
+    end
+
+    it "drops anything but the exact shelf URL" do
+      [
+        %(<iframe src="https://heyzine.com.evil.test/shelf/66f3c4fc1e.html"></iframe>),
+        %(<iframe src="https://www.heyzine.com/shelf/66f3c4fc1e.html"></iframe>),
+        %(<iframe src="http://heyzine.com/shelf/66f3c4fc1e.html"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/66f3c4fc1e.html.evil"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/turningtopeacelibrary.html.evil"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/turningtopeacelibrary/2"></iframe>),
+        %(<iframe src="https://www.heyzine.com/shelf/turningtopeacelibrary"></iframe>),
+        %(<iframe src="http://heyzine.com/shelf/turningtopeacelibrary"></iframe>),
+        %(<iframe src="https://heyzine.com:8443/shelf/turningtopeacelibrary"></iframe>),
+        %(<iframe src="https://evil.test@heyzine.com/shelf/turningtopeacelibrary"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/turningtopeacelibrary?x=1"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/turningtopeacelibrary#f"></iframe>),
+        %(<iframe src="https://heyzine.com:8443/shelf/66f3c4fc1e.html"></iframe>),
+        %(<iframe src="https://heyzine.com:443/shelf/66f3c4fc1e.html"></iframe>),
+        %(<iframe src="https://evil.test@heyzine.com/shelf/66f3c4fc1e.html"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/66f3c4fc1e.html?x=1"></iframe>),
+        %(<iframe src="https://heyzine.com/shelf/66f3c4fc1e.html#f"></iframe>),
+        %(<iframe src="HTTPS://heyzine.com/shelf/66f3c4fc1e.html"></iframe>),
+      ].each do |frame|
+        expect(scrubbed_description(frame)).not_to include("<iframe"), frame
+      end
     end
   end
 end

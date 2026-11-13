@@ -170,6 +170,65 @@ describe CheckoutPresenter do
       expect(@instance.checkout_props(params:, browser_guid:)[:add_products].first[:accepted_offer]).to be_nil
     end
 
+    describe "arriving on a tiered membership with no selectable tier" do
+      let(:seller) { create(:named_user) }
+      let(:membership) { create(:membership_product, user: seller) }
+      let(:tier) { membership.tiers.first }
+
+      it "adds nothing and names the product and the state when the only tier is closed to new buyers" do
+        Feature.activate_user(:close_membership_tier_to_new_buyers, seller)
+        tier.update!(closed_to_new_purchases: true)
+
+        params = { product: membership.unique_permalink, option: tier.external_id }
+        props = @instance.checkout_props(params:, browser_guid:)
+
+        expect(props[:add_products]).to be_empty
+        expect(@instance.sold_out_arrival_notice(params:)).to eq(
+          message: "#{membership.name} isn't open to new members right now.",
+          url: membership.long_url,
+        )
+      end
+
+      it "adds nothing when the linked tier is sold out, without swapping in another open tier" do
+        create(:variant, variant_category: membership.tier_category, name: "Open tier")
+        tier.update!(name: "Basic", max_purchase_count: 0)
+
+        params = { product: membership.unique_permalink, option: tier.external_id }
+        props = @instance.checkout_props(params:, browser_guid:)
+
+        expect(props[:add_products]).to be_empty
+        expect(@instance.sold_out_arrival_notice(params:)).to eq(
+          message: "#{membership.name} (#{tier.name}) is sold out.",
+          url: membership.long_url,
+        )
+
+        tier.update!(name: "Untitled")
+        expect(@instance.sold_out_arrival_notice(params:)).to eq(
+          message: "This tier of #{membership.name} is sold out.",
+          url: membership.long_url,
+        )
+      end
+
+      it "has no notice when the linked tier is selectable" do
+        params = { product: membership.unique_permalink, option: tier.external_id }
+
+        expect(@instance.checkout_props(params:, browser_guid:)[:add_products]).to be_present
+        expect(@instance.sold_out_arrival_notice(params:)).to be_nil
+      end
+
+      it "reports sold-out inventory when all tiers are sold out and the link names no tier" do
+        tier.update!(max_purchase_count: 0)
+
+        params = { product: membership.unique_permalink }
+
+        expect(@instance.checkout_props(params:, browser_guid:)[:add_products]).to be_empty
+        expect(@instance.sold_out_arrival_notice(params:)).to eq(
+          message: "#{membership.name} is sold out.",
+          url: membership.long_url,
+        )
+      end
+    end
+
     describe "restart intent" do
       let(:membership) { create(:membership_product, user: create(:named_user)) }
 
@@ -816,6 +875,54 @@ describe CheckoutPresenter do
     end
   end
 
+  describe "#owned_products_in_cart" do
+    let(:buyer) { create(:user) }
+    let(:owned) { create(:product, name: "Owned thing") }
+    let(:fresh) { create(:product, name: "Fresh thing") }
+    let(:cart) { create(:cart, user: buyer) }
+    let(:instance) { described_class.new(logged_in_user: buyer, ip: "104.193.168.19") }
+
+    before do
+      create(:free_purchase, link: owned, purchaser: buyer, email: buyer.email)
+      create(:cart_product, cart:, product: owned)
+      create(:cart_product, cart:, product: fresh)
+    end
+
+    it "returns only products the buyer already owns" do
+      expect(instance.owned_products_in_cart(cart:)).to eq([{ permalink: owned.unique_permalink, option_id: nil, name: "Owned thing" }])
+    end
+
+    it "returns only the carted variant the buyer owns" do
+      versioned = create(:product, name: "Versioned thing")
+      category = create(:variant_category, link: versioned)
+      owned_variant = create(:variant, variant_category: category)
+      other_variant = create(:variant, variant_category: category)
+      create(:purchase, link: versioned, email: buyer.email, purchaser: buyer, variant_attributes: [owned_variant])
+      create(:cart_product, cart:, product: versioned, option: owned_variant)
+      create(:cart_product, cart:, product: versioned, option: other_variant)
+
+      expect(instance.owned_products_in_cart(cart: cart.reload)).to contain_exactly(
+        { permalink: owned.unique_permalink, option_id: nil, name: "Owned thing" },
+        { permalink: versioned.unique_permalink, option_id: owned_variant.external_id, name: "Versioned thing" },
+      )
+    end
+
+    it "ignores a fully refunded purchase" do
+      Purchase.where(link: owned).update_all(stripe_refunded: true)
+      expect(instance.owned_products_in_cart(cart:)).to eq([])
+    end
+
+    it "returns nothing for a guest cart" do
+      guest_cart = create(:cart, user: nil, email: buyer.email)
+      create(:cart_product, cart: guest_cart, product: owned)
+      expect(instance.owned_products_in_cart(cart: guest_cart)).to eq([])
+    end
+
+    it "returns nothing without a cart" do
+      expect(instance.owned_products_in_cart(cart: nil)).to eq([])
+    end
+  end
+
   describe "#checkout_payment_props" do
     let(:instance) { described_class.new(logged_in_user: nil, ip: "104.193.168.19") }
 
@@ -1147,6 +1254,7 @@ describe CheckoutPresenter do
                                  quantity: 1,
                                  price: @original_price_cents,
                                  pre_discount_price: @original_price_cents,
+                                 next_charge_price: @original_price_cents,
                                  prorated_discount_price_cents: @subscription.prorated_discount_price_cents,
                                  alive: false,
                                  pending_cancellation: true,

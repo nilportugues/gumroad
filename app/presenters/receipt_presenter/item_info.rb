@@ -18,7 +18,8 @@ class ReceiptPresenter::ItemInfo
   # the buyer's currency would sit under a USD total. Left undecided by the mails that
   # render a single item section with no receipt around it (the upcoming-call reminder),
   # which then decide from this purchase alone.
-  def initialize(purchase, presentment_currency: BuyerPresentmentDisplay::PRESENTMENT_CURRENCY_UNDECIDED)
+  def initialize(purchase, presentment_currency: BuyerPresentmentDisplay::PRESENTMENT_CURRENCY_UNDECIDED, screen_seller_text: true)
+    @screen_seller_text = screen_seller_text
     @product = purchase.link
     @purchase = purchase
     @seller = purchase.link.user
@@ -37,6 +38,15 @@ class ReceiptPresenter::ItemInfo
       product: product_props,
       manage_subscription_note:
     }
+  end
+
+  # Also read by the seller's sale notification to decide whether to link the buyer's receipt.
+  def show_download_button
+    !purchase.is_gift_sender_purchase &&
+    !purchase.is_preorder_authorization &&
+    (purchase.url_redirect.present? || purchase.is_commission_completion_purchase?) &&
+    purchase.link.native_type != Link::NATIVE_TYPE_COFFEE &&
+    !empty_member_bundle_without_content?
   end
 
   private
@@ -68,7 +78,10 @@ class ReceiptPresenter::ItemInfo
     end
 
     def custom_receipt_note
-      product.custom_receipt_text.presence
+      text = product.custom_receipt_text.presence
+      return text unless @screen_seller_text
+
+      ContentModeration::SellerMailTextGuard.screen(text, seller:, source: "receipt custom text on product ##{product.id}")
     end
 
     def free_trial_purchase_note
@@ -104,14 +117,6 @@ class ReceiptPresenter::ItemInfo
           purchase.link.preorder_link.release_at,
           purchase.link.user.timezone
         )}."
-    end
-
-    def show_download_button
-      !purchase.is_gift_sender_purchase &&
-      !purchase.is_preorder_authorization &&
-      (purchase.url_redirect.present? || purchase.is_commission_completion_purchase?) &&
-      purchase.link.native_type != Link::NATIVE_TYPE_COFFEE &&
-      !empty_member_bundle_without_content?
     end
 
     # Empty-member bundles still render on the receipt (see Chargeable#unbundled_purchases).
@@ -304,9 +309,18 @@ class ReceiptPresenter::ItemInfo
       return if purchase.is_gift_receiver_purchase && subscription.credit_card_id.blank?
       return gift_subscription_renewal_note if subscription.gift? && subscription.credit_card_id.blank?
       return single_charge_membership_note if subscription.single_charge? && !purchase.is_free_trial_purchase?
+      return free_membership_note if purchase.free_membership_purchase?
 
       <<~HTML.squish.html_safe
         You will be charged once #{recurrence_long_indicator(subscription.recurrence)}.
+        If you would like to manage your membership you can visit
+        #{link_to("subscription settings", manage_subscription_href, target: "_blank")}.
+      HTML
+    end
+
+    def free_membership_note
+      <<~HTML.squish.html_safe
+        Your free membership renews once #{recurrence_long_indicator(subscription.recurrence)}.
         If you would like to manage your membership you can visit
         #{link_to("subscription settings", manage_subscription_href, target: "_blank")}.
       HTML

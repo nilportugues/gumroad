@@ -13,6 +13,7 @@ import {
 import { CreatorProfile } from "$app/parsers/profile";
 import { cast } from "$app/utils/cast";
 import { classNames } from "$app/utils/classNames";
+import { selectAdjacentRadio } from "$app/utils/radioGroupKeyboard";
 import { assertResponseError } from "$app/utils/request";
 
 import { Button, NavigationButton } from "$app/components/Button";
@@ -39,6 +40,7 @@ import { Label } from "$app/components/ui/Label";
 import { PageHeader } from "$app/components/ui/PageHeader";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
 import { Textarea } from "$app/components/ui/Textarea";
+import { usePageHeaderOffset } from "$app/components/ui/usePageHeaderOffset";
 import { useReactNativeMessage } from "$app/components/useReactNativeMessage";
 
 type ProfileSettingsTab = "about" | "design" | "pages" | "share";
@@ -71,21 +73,6 @@ const COLOR_PRESETS = [
 
 // Keys are the values SellerProfile stores. "none" reads as "no corners" under a Corners title.
 const BORDER_RADIUS_LABELS: Record<string, string> = { none: "Square" };
-
-// Arrow keys move focus and selection through a group of role="radio" buttons, wrapping at the
-// ends. Pair with a roving tabIndex so the group is a single tab stop.
-const RADIO_ARROW_STEPS: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
-const selectAdjacentRadio = (event: React.KeyboardEvent<HTMLElement>) => {
-  const step = RADIO_ARROW_STEPS[event.key];
-  if (step === undefined) return;
-  const radios = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("[role=radio]:not(:disabled)")];
-  const index = radios.findIndex((radio) => radio === event.target);
-  if (index === -1) return;
-  event.preventDefault();
-  const next = radios[(index + step + radios.length) % radios.length];
-  next?.focus();
-  next?.click();
-};
 
 type ProfilePageProps = {
   profile_settings: ProfileSettingsForm;
@@ -180,6 +167,7 @@ export default function SettingsPage() {
 
   const isDirtyRef = React.useRef(isDirty);
   isDirtyRef.current = isDirty;
+  const headerRef = usePageHeaderOffset();
   // Remembers the user's most recent answer to the unsaved-changes prompt so that a burst of
   // navigation attempts (for example a caller that retries after being blocked, or several visits
   // queued while the dialog was open) reuses that answer instead of opening one dialog per attempt.
@@ -249,7 +237,14 @@ export default function SettingsPage() {
     try {
       await saveProfileSettings({
         ...changedSettings,
-        ...(profileChanged ? { tabs, sections, profileVersion: profile_version } : {}),
+        ...(profileChanged
+          ? {
+              tabs,
+              sections,
+              displayedPostIds: editableProfile.posts.map((post) => post.id),
+              profileVersion: profile_version,
+            }
+          : {}),
       });
       lastSavedSettings.current = settings;
       lastSavedProfile.current = { sections, tabs };
@@ -289,6 +284,9 @@ export default function SettingsPage() {
       preset.background_color === profileSettings.background_color.toLowerCase() &&
       preset.highlight_color === profileSettings.highlight_color.toLowerCase(),
   );
+  // A stored font that is no longer one of the choices matches none; the first choice then takes
+  // the group's tab stop.
+  const hasChosenFont = FONT_CHOICES.includes(profileSettings.font);
 
   const customLandingPageActive = custom_html_pages_enabled && has_custom_landing_page;
   const showPagesTab = !customLandingPageActive;
@@ -414,6 +412,7 @@ export default function SettingsPage() {
         <div className="border-b border-border p-4 md:p-8">{tabBar}</div>
       ) : (
         <PageHeader
+          ref={headerRef}
           className="sticky top-0 z-10 bg-body"
           title="Profile settings"
           actions={
@@ -518,14 +517,21 @@ export default function SettingsPage() {
               ) : null}
               <Fieldset>
                 <FieldsetTitle>Font</FieldsetTitle>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3" role="radiogroup">
-                  {FONT_CHOICES.map((font) => {
+                <div
+                  className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3"
+                  role="radiogroup"
+                  aria-label="Font"
+                  onKeyDown={selectAdjacentRadio}
+                >
+                  {FONT_CHOICES.map((font, index) => {
                     const isSelected = font === profileSettings.font;
+                    const isTabStop = hasChosenFont ? isSelected : index === 0;
                     return (
                       <Button
                         role="radio"
                         key={font}
                         aria-checked={isSelected}
+                        tabIndex={isTabStop ? 0 : -1}
                         onClick={() => updateProfileSettings({ font })}
                         style={{ fontFamily: font === DEFAULT_PROFILE_FONT ? undefined : font }}
                         disabled={!canUpdate}
@@ -656,7 +662,7 @@ export default function SettingsPage() {
               <section className="grid gap-8 p-4! md:p-8!">
                 <Alert role="status" variant="info">
                   Use this editor to lay out your profile with sections. You can also build a fully custom page with
-                  your own agent or Gumroad's Agent tab. Open your{" "}
+                  your own agent. Open your{" "}
                   <Link href={Routes.edit_page_path("profile")} className="underline">
                     Home page under Pages
                   </Link>{" "}

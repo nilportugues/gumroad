@@ -439,6 +439,73 @@ describe DiscoverController, type: :controller, inertia: true do
     context "server-rendered crawl links" do
       render_views
 
+      it "renders a heading in the initial HTML of /discover" do
+        get :index
+
+        expect(response.body).to include("<h1>Discover digital products from independent creators</h1>")
+      end
+
+      it "renders the category title and description as the page heading" do
+        get :index, params: { taxonomy: "3d" }
+
+        doc = Nokogiri::HTML.parse(response.body)
+        expect(doc.at_css("noscript h1").text.strip).to eq("3D")
+        expect(doc.at_css("noscript h1").text).not_to include("Gumroad")
+        expect(doc.at_css("noscript p").text).to include("products from independent creators")
+      end
+
+      it "renders the taxonomy trail as the heading of a nested and of a filtered category page" do
+        get :index, params: { taxonomy: "3d/3d-modeling", sort: "hot_and_new" }
+
+        doc = Nokogiri::HTML.parse(response.body)
+        expect(doc.at_css("noscript h1").text.strip).to eq("3D / 3D Modeling")
+        expect(doc.at_css("noscript p")).to be_nil
+      end
+
+      it "renders a heading on a leaf category, which has no subcategory links" do
+        leaf = Taxonomy.all.find { |taxonomy| taxonomy.children.empty? && taxonomy.parent.present? }
+        get :index, params: { taxonomy: leaf.self_and_ancestors.reverse.map(&:slug).join("/") }
+
+        doc = Nokogiri::HTML.parse(response.body)
+        expect(doc.at_css("noscript h1").text.strip).to be_present
+        expect(doc.at_css("noscript nav[aria-label='Categories']")).to be_nil
+      end
+
+      context "on a search page" do
+        let(:seller) { create(:compliant_user, name: "Search Seller") }
+        let!(:product) { create(:product, :recommendable, user: seller, name: "Inkwell brush pack") }
+        let!(:hostile_product) { create(:product, :recommendable, user: seller, name: %(Inkwell </noscript><img src=x onerror="alert(1)">)) }
+
+        before do
+          Link.import(refresh: true, force: true)
+        end
+
+        it "renders the first page of results as titles and links in the initial HTML" do
+          get :index, params: { query: "Inkwell" }
+
+          doc = Nokogiri::HTML.parse(response.body)
+          expect(doc.at_css("noscript h1").text.strip).to eq(%(Search results for "Inkwell"))
+          links = doc.css("noscript nav[aria-label='Search results'] a")
+          expect(links.map(&:text)).to eq(inertia.props[:search_results][:products].map { _1[:name] })
+          expect(links.map { [_1.text, _1[:href]] }).to include([product.name, product.long_url])
+        end
+
+        it "keeps a product name from closing the noscript element" do
+          get :index, params: { query: "Inkwell" }
+
+          expect(response.body.scan(%r{</noscript}i).size).to eq(1)
+          expect(response.body).to include("Inkwell &lt;/noscript&gt;&lt;img")
+          expect(Nokogiri::HTML.parse(response.body).css("img[onerror]")).to be_empty
+        end
+
+        it "keeps a search query from closing the noscript element" do
+          get :index, params: { query: %(</noscript><img src=x onerror="alert(1)">) }
+
+          expect(response.body.scan(%r{</noscript}i).size).to eq(1)
+          expect(Nokogiri::HTML.parse(response.body).css("img[onerror]")).to be_empty
+        end
+      end
+
       it "renders top-level category links in the initial HTML of /discover" do
         get :index
 

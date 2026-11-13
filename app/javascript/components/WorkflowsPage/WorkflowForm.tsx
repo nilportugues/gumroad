@@ -38,6 +38,7 @@ import audienceTriggerImage from "$assets/images/workflows/triggers/audience.svg
 import memberCancelsTriggerImage from "$assets/images/workflows/triggers/member_cancels.svg";
 import newAffiliateTriggerImage from "$assets/images/workflows/triggers/new_affiliate.svg";
 import newSubscriberTriggerImage from "$assets/images/workflows/triggers/new_subscriber.svg";
+import openedNoClickTriggerImage from "$assets/images/workflows/triggers/opened_no_click.svg";
 import purchaseTriggerImage from "$assets/images/workflows/triggers/purchase.svg";
 
 // "legacy_audience" is for backwards compatibility and is only shown while editing an existing workflow of that type
@@ -46,6 +47,7 @@ export type WorkflowTrigger =
   | "purchase"
   | "new_subscriber"
   | "member_cancels"
+  | "opened_no_click"
   | "new_affiliate"
   | "abandoned_cart";
 
@@ -55,6 +57,7 @@ export const determineWorkflowTrigger = (workflow: Workflow): WorkflowTrigger =>
   if (workflow.workflow_type === "follower") return "new_subscriber";
   if (workflow.workflow_type === "affiliate") return "new_affiliate";
   if (workflow.workflow_trigger === "member_cancellation") return "member_cancels";
+  if (workflow.workflow_trigger === "opened_no_click") return "opened_no_click";
   return "purchase";
 };
 
@@ -78,6 +81,7 @@ const selectableProductAndVariantOptions = (
 type WorkflowFormState = {
   name: string;
   trigger: WorkflowTrigger;
+  triggerPostId: string;
   sendToPastCustomers: boolean;
   affiliatedProducts: string[];
   bought: string[];
@@ -101,6 +105,7 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
       return {
         name: "",
         trigger: "purchase",
+        triggerPostId: "",
         sendToPastCustomers: false,
         affiliatedProducts: [],
         bought: [],
@@ -121,6 +126,7 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
     return {
       name: workflow.name,
       trigger: determineWorkflowTrigger(workflow),
+      triggerPostId: workflow.workflow_trigger_post_id ?? "",
       sendToPastCustomers: workflow.send_to_past_customers,
       affiliatedProducts: workflow.affiliate_products ?? [],
       bought,
@@ -141,6 +147,7 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
   const baseError = Array.isArray(baseErrors) ? baseErrors[0] : baseErrors;
   const [invalidFields, setInvalidFields] = React.useState<Set<keyof WorkflowFormState>>(() => new Set());
   const nameInputRef = React.useRef<HTMLInputElement>(null);
+  const triggerPostRef = React.useRef<HTMLSelectElement>(null);
   const paidMoreThanInputRef = React.useRef<HTMLInputElement>(null);
   const afterDateInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -151,8 +158,14 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
     formState.trigger === "new_subscriber" ||
     formState.trigger === "abandoned_cart";
   const triggerSupportsDateFilters = formState.trigger !== "abandoned_cart";
-  const triggerSupportsPaidFilters = formState.trigger === "purchase" || formState.trigger === "member_cancels";
-  const triggerSupportsFromCountryFilter = formState.trigger === "purchase" || formState.trigger === "member_cancels";
+  const triggerSupportsPaidFilters =
+    formState.trigger === "purchase" ||
+    formState.trigger === "member_cancels" ||
+    formState.trigger === "opened_no_click";
+  const triggerSupportsFromCountryFilter =
+    formState.trigger === "purchase" ||
+    formState.trigger === "member_cancels" ||
+    formState.trigger === "opened_no_click";
 
   const updateFormState = (value: Partial<WorkflowFormState>) => {
     const updatedInvalidFields = new Set(invalidFields);
@@ -184,6 +197,11 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
     }
 
     if (wasPublishedPreviously) return invalidFieldNames.size === 0;
+
+    if (formState.trigger === "opened_no_click" && formState.triggerPostId === "") {
+      invalidFieldNames.add("triggerPostId");
+      invalidFieldRefs.push(triggerPostRef);
+    }
 
     if (
       triggerSupportsPaidFilters &&
@@ -222,7 +240,11 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
     );
     const workflowType = determineWorkflowType(formState.trigger, boughtItems);
     const workflowTrigger: LegacyWorkflowTrigger =
-      formState.trigger === "member_cancels" ? "member_cancellation" : null;
+      formState.trigger === "member_cancels"
+        ? "member_cancellation"
+        : formState.trigger === "opened_no_click"
+          ? "opened_no_click"
+          : null;
     const productPermalink =
       workflowType === "product" || workflowType === "variant" ? (boughtItems[0]?.product_permalink ?? null) : null;
     const variantId = workflowType === "variant" ? (boughtItems[0]?.id ?? null) : null;
@@ -251,6 +273,7 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
         name: formState.name,
         workflow_type: workflowType,
         workflow_trigger: workflowTrigger,
+        workflow_trigger_post_id: formState.trigger === "opened_no_click" ? formState.triggerPostId : null,
         bought_products: bought.productIds,
         bought_variants: bought.variantIds,
         variant_external_id: variantId,
@@ -364,6 +387,7 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
               variant="buttons"
               className="gap-4 sm:grid-cols-2 md:grid-flow-row md:grid-cols-3 2xl:grid-cols-5"
               role="radiogroup"
+              aria-label="Trigger"
             >
               {workflow && workflow.workflow_type === "audience" ? (
                 <Tab isSelected={formState.trigger === "legacy_audience"} asChild>
@@ -426,6 +450,26 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
                   />
                   <div>
                     <h4 className="font-bold">Member cancels</h4>A membership product subscriber cancels
+                  </div>
+                </Button>
+              </Tab>
+              <Tab isSelected={formState.trigger === "opened_no_click"} asChild>
+                <Button
+                  className="flex-col"
+                  role="radio"
+                  aria-checked={formState.trigger === "opened_no_click"}
+                  disabled={wasPublishedPreviously}
+                  onClick={() => updateFormState({ trigger: "opened_no_click" })}
+                >
+                  <img
+                    src={openedNoClickTriggerImage}
+                    width={40}
+                    height={40}
+                    className="shrink-0"
+                    style={{ objectFit: "contain" }}
+                  />
+                  <div>
+                    <h4 className="font-bold">Opened, no click</h4>A customer opens an email and doesn&apos;t click
                   </div>
                 </Button>
               </Tab>
@@ -508,6 +552,36 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
               )}
             </Fieldset>
           ) : null}
+          {formState.trigger === "opened_no_click" ? (
+            <Fieldset state={invalidFields.has("triggerPostId") ? "danger" : undefined}>
+              <FieldsetTitle>
+                <Label htmlFor="workflow_trigger_post">Email to watch</Label>
+              </FieldsetTitle>
+              {context.emailed_posts.length > 0 ? (
+                <Select
+                  id="workflow_trigger_post"
+                  ref={triggerPostRef}
+                  value={formState.triggerPostId}
+                  disabled={wasPublishedPreviously}
+                  onChange={(event) => updateFormState({ triggerPostId: event.target.value })}
+                  // A native select has no placeholder, so the unset option is muted like the composer's.
+                  style={formState.triggerPostId ? undefined : { color: "var(--color-muted)" }}
+                >
+                  <option value="">Select…</option>
+                  {context.emailed_posts.map((post) => (
+                    <option key={post.external_id} value={post.external_id}>
+                      {post.name}
+                    </option>
+                  ))}
+                </Select>
+              ) : null}
+              <FieldsetDescription>
+                {context.emailed_posts.length > 0
+                  ? "Your email's delay is counted from each customer's own open of this email. Opens are approximate: a mail app can open an email the customer never read."
+                  : "Publish an email first. This trigger waits on one of your sent emails, and your delivered emails will show up here."}
+              </FieldsetDescription>
+            </Fieldset>
+          ) : null}
           {triggerSupportsBoughtFilter ? (
             <Fieldset>
               <FieldsetTitle>
@@ -547,6 +621,11 @@ const WorkflowForm = ({ context, workflow }: WorkflowFormProps) => {
                 tagList={selectableProductAndVariantOptions(context.products_and_variant_options, formState.notBought)}
                 onChangeTagIds={(notBought) => updateFormState({ notBought })}
               />
+              {formState.trigger === "abandoned_cart" ? null : (
+                <FieldsetDescription>
+                  Customers who bought any of these won't get emails from this workflow
+                </FieldsetDescription>
+              )}
             </Fieldset>
           ) : null}
           {triggerSupportsPaidFilters ? (

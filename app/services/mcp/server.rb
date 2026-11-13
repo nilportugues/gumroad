@@ -5,6 +5,12 @@ module Mcp
   # Tools are a slim, agent-oriented view of the public v2 API — same auth, same records.
   class Server
     LEGACY_PROTOCOL_VERSION = "2025-03-26"
+    # Characters simple_query_string treats as operators: a query made only of these matches
+    # everything, which is not something an assistant should be able to ask for.
+    QUERY_OPERATOR_CHARACTERS = /[+\-=&|><!(){}\[\]^"~*?:\\\/]/
+    SEARCH_QUERY_MAX_LENGTH = 200
+    SEARCH_DEFAULT_LIMIT = 10
+    SEARCH_MAX_LIMIT = 25
     # A client on this revision declares its version per request and never handshakes.
     MODERN_PROTOCOL_VERSION = "2026-07-28"
     SUPPORTED_VERSIONS = [LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION].freeze
@@ -17,15 +23,26 @@ module Mcp
     HEADER_MISMATCH = -32020
     UNSUPPORTED_PROTOCOL_VERSION = -32022
     TRANSPORT_ERROR_CODES = [HEADER_MISMATCH, UNSUPPORTED_PROTOCOL_VERSION].freeze
-    # A caller only ever sees their own store, so no result of ours is shareable between callers.
+    # Most tools answer for the caller's own store, so no result of ours is shareable between callers.
     TOOLS_LIST_CACHE = { ttlMs: 0, cacheScope: "private" }.freeze
-    # Nothing in it is caller-specific, but its versions follow the flag, so it is never fresh.
+    # Its versions follow a flag, so it is never fresh.
     DISCOVER_CACHE = { ttlMs: 0, cacheScope: "public" }.freeze
-    INSTRUCTIONS = "Use these tools for a connected creator's own store: products, sales, and payouts. Confirm with the person before publishing or unpublishing. Buyers still check out on the product URL. This server does not take payment."
+    # Mcp::Events follows ChatGPT's draft of the extension, which another client would misread.
+    EVENTS_CONNECTOR = "chatgpt"
+    INSTRUCTIONS = "Use these tools for a connected creator's own store: products, sales, and payouts. search_products also searches the rest of Gumroad's catalogue. Confirm with the person before publishing or unpublishing. Buyers still check out on the product URL. This server does not take payment."
     DEFAULT_BUNDLE_MEMBER_QUANTITY = 1
     SERVER_INFO = { name: "gumroad", title: "Gumroad", version: "1.0.0" }.freeze
     PRODUCT_TYPES = %w[digital membership].freeze
     TIER_KEYS = %w[name price_cents recurrence].freeze
+    TIER_PRICING_KEYS = %w[pay_what_you_want suggested_price_cents].freeze
+    # The product editor's currency list (config/currencies.json). Link#price_currency_type= only
+    # downcases what it is given, so the tools check the list themselves — in any case, since a
+    # caller writes "USD" as readily as "usd".
+    CURRENCIES = CURRENCY_CHOICES.keys.map(&:to_s).freeze
+    # The editor's tag picker: up to ten tags of two to twenty characters each.
+    MAX_TAGS = 10
+    MIN_TAG_LENGTH = 2
+    MAX_TAG_LENGTH = 20
     MICROSECONDS_PER_SECOND = 1_000_000
     # The last year MySQL DATETIME holds; a bound outside 0..this year fails in SQL instead of as a bad argument.
     MAX_DATETIME_YEAR = 9999
@@ -57,6 +74,8 @@ module Mcp
     CUSTOMER_REFUNDED = "COALESCE(purchases.stripe_refunded, 0) = 1"
     CUSTOMER_FREE = "COALESCE(purchases.price_cents, 0) = 0"
     TOTALS_BREAKDOWNS = %w[product country day week month].freeze
+    # An unknown category answers with the likeliest few; the whole tree is too long for an error.
+    MAX_CATEGORY_SUGGESTIONS = 10
     TOTALS_DEFAULT_DAYS = 30
     TOTALS_MAX_DAYS = 366
     # A store can have thousands of products, and there are ~250 countries; period rows are bounded by the range.
@@ -76,6 +95,15 @@ module Mcp
       "max_purchase_count" => { type: "integer", description: "How many times the code can be used in total. 0 or more." }
     }.freeze
 
+    # A scope check failed where no step-up is possible - a batch, or a client that registered none
+    # of the accepted scopes. The caller gets the same plain error as before; the counter still
+    # records it as lost scope rather than as a tool failure.
+    class MissingScope < Error; end
+
+    # The caller's arguments do not fit the tool's schema. Counted apart from a tool failure,
+    # because the fix is on the client side and it would otherwise inflate the error rate.
+    class InvalidArguments < Error; end
+
     # A tool's scope check failed. `scope` is what the client should re-authorize with: the
     # scopes the token already holds plus the missing one, so the step-up keeps the old grant.
     class InsufficientScope < Error
@@ -94,6 +122,8 @@ module Mcp
       @protocol_version_header = protocol_version_header
       @method_header = method_header
       @name_header = name_header
+      # Per-request tool counters, flushed with the protocol counters in `handle`'s ensure.
+      @tool_counts = Hash.new(0)
       @era = :legacy
     end
 
@@ -117,20 +147,24 @@ module Mcp
 
       handle_message(body)
     ensure
-      ProtocolTelemetry.record(@connector, @protocol_counts)
+      # One stalled Redis costs the request one short timeout, not two: the tool counter rides the
+      # same connection, so a failed protocol write means the tool write would only stall again.
+      ProtocolTelemetry.record_tools(@connector, @tool_counts) if ProtocolTelemetry.record(@connector, @protocol_counts)
     end
 
     def self.discovery(base_url)
       {
         name: "Gumroad",
-        description: "Sell digital products. Claude, ChatGPT, Muse, and other MCP clients can list products and sales, draft and edit a product, add the files buyers receive and a cover image, publish it, and check payouts for a connected creator.",
+        description: "Sell digital products. An MCP client can list products and sales, draft and edit a product, add the files and links buyers receive and a cover image, publish it, and check payouts for a connected creator.",
         website: "https://gumroad.com",
         documentation: "#{base_url}/muse",
         mcp: "#{base_url}/muse/v1/mcp",
         clients: {
           muse: "#{base_url}/muse/v1/mcp",
           claude: "#{base_url}/claude/v1/mcp",
-          chatgpt: "#{base_url}/chatgpt/v1/mcp"
+          chatgpt: "#{base_url}/chatgpt/v1/mcp",
+          cursor: "#{base_url}/cursor/v1/mcp",
+          antigravity: "#{base_url}/antigravity/v1/mcp"
         },
         oauth: {
           authorization_endpoint: "#{base_url}/muse/v1/oauth2/authorize",
@@ -275,6 +309,14 @@ module Mcp
 
       # This revision removed the handshake and ping: a modern client starts at server/discover.
       def dispatch(method, params)
+        # Either revision: ChatGPT handshakes without one and declares it on later calls.
+        if Events::METHODS.include?(method) && events_enabled?
+          # Each first subscribe can wait seconds on a challenge, and a batch has no size limit.
+          raise Error.new("Send events/subscribe on its own, not in a batch.", code: -32600) if @batch && method == "events/subscribe"
+
+          return events.call(method, params)
+        end
+
         if era == :modern
           case method
           when "server/discover" then discover_result
@@ -302,11 +344,34 @@ module Mcp
       def discover_result
         {
           supportedVersions: supported_versions,
-          capabilities: { tools: { listChanged: false } },
+          capabilities:,
           _meta: { SERVER_INFO_META_KEY => SERVER_INFO },
           instructions: INSTRUCTIONS,
-          **DISCOVER_CACHE
+          # The events capability follows a per-seller flag, so a result that carries it is the caller's own.
+          **(events_enabled? ? DISCOVER_CACHE.merge(cacheScope: "private") : DISCOVER_CACHE)
         }
+      end
+
+      def capabilities
+        capabilities = { tools: { listChanged: false } }
+        # Top-level, where ChatGPT reads it: see Mcp::Events.
+        capabilities[:events] = {} if events_enabled?
+        capabilities
+      end
+
+      def events_enabled?
+        return @events_enabled if defined?(@events_enabled)
+
+        @events_enabled = @connector == EVENTS_CONNECTOR && token&.application_id.present? && Feature.active?(:mcp_events, user)
+      end
+
+      def events
+        @events ||= Events.new(
+          user:,
+          token:,
+          authorize_sales: -> { require_scopes!(*McpEventSubscription::SCOPES, subject: "Subscribing to an event") },
+          validate_arguments: method(:validate_tool_arguments!)
+        )
       end
 
       def valid_id?(id)
@@ -325,7 +390,7 @@ module Mcp
       def initialize_result
         {
           protocolVersion: LEGACY_PROTOCOL_VERSION,
-          capabilities: { tools: { listChanged: false } },
+          capabilities:,
           serverInfo: SERVER_INFO,
           instructions: INSTRUCTIONS
         }
@@ -338,12 +403,16 @@ module Mcp
                  "limit" => { type: "integer", description: "Max products to return (1-50, default 25)." },
                  "cursor" => { type: "string", description: "next_cursor from the previous page." }
                }, read_only: true),
-          tool("get_product", "Fetch one product by id or permalink, with its description and covers, and the products a bundle sells. The first cover is the main one.", {
+          tool("get_product", "Fetch one product by id or permalink, with its category, description, summary, additional details, tags, covers, receipt message and button text, and the products a bundle sells. The first cover is the main one.", {
                  "id" => { type: "string", description: "Product id or permalink." }
                }, required: %w[id], read_only: true),
+          tool("list_categories", "Every product category, as a slug path joined by / with the name the product editor shows. update_product takes one of these paths as its category; the category decides where the product appears in Discover.", {}, read_only: true),
           tool("create_draft_product", "Create a draft digital product, or a draft membership with tiers billed on a recurring period. It is not for sale until publish_product runs. Confirm the name and prices with the creator first.", {
                  "name" => { type: "string", description: "Product name." },
                  "price_cents" => { type: "integer", description: "Price in minor units (cents for USD). Use 0 for a free product. Required for a digital product; not accepted for a membership, whose prices are set on its tiers." },
+                 "currency" => { type: "string", description: "Currency to price the product in, spelled as the product editor's list does it, e.g. usd, eur or jpy. Defaults to the creator's own currency. price_cents, and every tier's price_cents, are in this currency." },
+                 "pay_what_you_want" => { type: "boolean", description: "Whether buyers may pay more than price_cents, which stays the minimum. Not accepted for a membership; set it on each tier." },
+                 "suggested_price_cents" => { type: "integer", description: "The amount the price box suggests to buyers when pay what you want is on, in minor units. Must be at least price_cents. Needs pay_what_you_want true in the same call." },
                  "description" => { type: "string", description: "HTML or plain-text description." },
                  "product_type" => { type: "string", enum: PRODUCT_TYPES, description: "digital (default) or membership." },
                  "tiers" => {
@@ -354,7 +423,9 @@ module Mcp
                      type: "object",
                      properties: {
                        "name" => { type: "string", description: "Tier name." },
-                       "price_cents" => { type: "integer", description: "Price per billing period in minor units of the creator's currency. 0 makes the tier pay what you want." },
+                       "price_cents" => { type: "integer", description: "Price per billing period in minor units of the product's currency. 0 makes the tier pay what you want." },
+                       "pay_what_you_want" => { type: "boolean", description: "Whether buyers may pay more than this tier's price_cents, which stays the minimum." },
+                       "suggested_price_cents" => { type: "integer", description: "The amount this tier's price box suggests to buyers, in minor units. Must be at least the tier's price_cents. Needs pay_what_you_want true on the same tier." },
                        "recurrence" => { type: "string", enum: BasePrice::Recurrence::ALLOWED_RECURRENCES, description: "Billing period." }
                      },
                      required: TIER_KEYS,
@@ -362,11 +433,34 @@ module Mcp
                    }
                  }
                }, required: %w[name]),
-          tool("update_product", "Change the name, description, price, or URL of an existing product. Pass only the fields to change. The new description replaces the old one. Confirm the changes with the creator first.", {
+          tool("update_product", "Change the name, description, summary, additional details, category, tags, price, currency, pay-what-you-want amount, URL, receipt message, or receipt button text of an existing product. Pass only the fields to change. The new description replaces the old one. Confirm the changes with the creator first.", {
                  "id" => { type: "string", description: "Product id or permalink." },
                  "name" => { type: "string", description: "New product name." },
+                 "category" => { type: "string", description: "Category slug path from the list_categories result, e.g. 3d/3d-assets/blender. \"other\" means not categorised." },
                  "description" => { type: "string", description: "New HTML or plain-text description." },
+                 "summary" => { type: "string", description: "New summary: the short plain-text line under the buy button on the product page. Send an empty string to remove it." },
+                 "additional_details" => {
+                   type: "array",
+                   description: "The name and value rows the product page shows in the card with the summary, e.g. \"Pages: 40\", in the order to show them. This replaces the whole list; send an empty array to remove every row.",
+                   items: {
+                     type: "object",
+                     properties: {
+                       "name" => { type: "string", description: "Row label, e.g. \"Pages\"." },
+                       "value" => { type: "string", description: "Row value, e.g. \"40\"." }
+                     }
+                   }
+                 },
+                 "tags" => {
+                   type: "array",
+                   description: "The tags Discover matches the product to shoppers by, e.g. \"field-notes\". Up to ten, two to twenty characters each. This replaces the whole list; send an empty array to remove every tag.",
+                   items: { type: "string" }
+                 },
                  "price_cents" => { type: "integer", description: "New price in minor units of the product's currency. Not available for memberships with tiers." },
+                 "currency" => { type: "string", description: "Currency to re-denominate the product in. The current price, and the rental price of a product that has one, carry across at the same number, so pass price_cents too when the amount should change with it. Not available for a membership with tiers or a product sold on several payment options." },
+                 "pay_what_you_want" => { type: "boolean", description: "Whether buyers may pay more than the price, which stays the minimum. Not available for memberships with tiers, whose tiers carry their own switch; a product priced 0 stays pay what you want." },
+                 "suggested_price_cents" => { type: "integer", description: "The amount the price box suggests to buyers when pay what you want is on, in minor units of the product's currency. Must be at least the price. Needs pay what you want to be on, from this call or already." },
+                 "custom_receipt_text" => { type: "string", description: "The message the buyer sees on the receipt, up to #{Product::Validations::MAX_CUSTOM_RECEIPT_TEXT_LENGTH} characters. Send an empty string to remove it." },
+                 "custom_view_content_button_text" => { type: "string", description: "The text on the receipt's button that opens the product, up to #{Product::Validations::MAX_VIEW_CONTENT_BUTTON_TEXT_LENGTH} characters. Send an empty string to remove it." },
                  "permalink" => { type: "string", description: "New URL slug, the part after /l/. Letters, numbers, dashes, and underscores only. The old URL keeps working. Send an empty string to go back to the default URL." }
                }, required: %w[id], destructive: true),
           tool("add_cover", "Add a cover image or video to a product from a public URL. The first cover is the main one on the product page.", {
@@ -376,10 +470,17 @@ module Mcp
           tool("list_files", "The files a buyer receives with this product: name, type, size, and position. The download page lists them in this order.", {
                  "id" => { type: "string", description: "Product id or permalink." }
                }, required: %w[id], read_only: true),
-          tool("add_file", "Add a file that buyers receive with the product, from a public https URL. Files up to #{Mcp::ProductFileIngest::MAX_BYTES / 1.megabyte} MB; larger files, like a long video, must be uploaded in the product editor. Ask the creator for the link if they have not given one.", {
+          tool("add_file", "Add a file that buyers receive with the product. Pass a public https url for a file the creator already has; ask for the link if they have not given one. Pass content and a filename only for text the creator is writing with you here (markdown, text, csv, json, ics, srt or vtt), which needs no hosting. Never stand in text you wrote for a file the creator owns. Files up to #{Mcp::ProductFileIngest::MAX_BYTES / 1.megabyte} MB from a URL, #{Mcp::ProductFileIngest::INLINE_MAX_BYTES / 1.megabyte} MB from content; larger files, like a long video, must be uploaded in the product editor.", {
                  "id" => { type: "string", description: "Product id or permalink." },
-                 "url" => { type: "string", description: "Public https URL of the file." },
-                 "display_name" => { type: "string", description: "Name shown to the buyer. Defaults to the name in the URL." }
+                 "url" => { type: "string", description: "Public https URL of the file. Omit when passing content." },
+                 "content" => { type: "string", description: "The file's full text, written here rather than uploaded. Omit when passing url." },
+                 "filename" => { type: "string", description: "File name with an extension, used for content, like field-notes.md. Ignored with url." },
+                 "display_name" => { type: "string", description: "Name shown to the buyer. Defaults to the name in the URL, or the filename." }
+               }, required: %w[id]),
+          tool("add_content_link", "Add a button with a link to a product's content page, which the buyer opens after purchase. Use it when the product is delivered as a link, like a Notion template's duplication link. Confirm the link and the button text with the creator first.", {
+                 "id" => { type: "string", description: "Product id or permalink." },
+                 "url" => { type: "string", description: "The link the buyer opens. https is assumed when the value has no scheme." },
+                 "label" => { type: "string", description: "Text on the button. Defaults to the URL." }
                }, required: %w[id url]),
           tool("publish_product", "Make a draft product purchasable. Confirm with the creator first.", {
                  "id" => { type: "string", description: "Product id or permalink." }
@@ -427,6 +528,14 @@ module Mcp
                }, read_only: true),
           tool("list_payouts", "Recent payouts to the creator's bank or PayPal.", {
                  "limit" => { type: "integer", description: "Max payouts to return (1-50, default 10)." },
+                 "cursor" => { type: "string", description: "next_cursor from the previous page." }
+               }, read_only: true),
+          tool("search_products", "Search Gumroad's catalogue, not just the connected creator's own products. These are the same results the discover page shows. Use it when someone wants to see what exists in a topic, compare prices, or find something to learn a skill from. Each URL carries the MCP referrer, so a visit or purchase that starts from this result is distinguishable from the creator's own traffic.", {
+                 "query" => { type: "string", description: "What to search for, e.g. \"learn to draw\" or \"tax spreadsheet\"." },
+                 "limit" => { type: "integer", description: "Max products to return (1-#{SEARCH_MAX_LIMIT}, default #{SEARCH_DEFAULT_LIMIT})." }
+               }, required: %w[query], read_only: true),
+          tool("list_purchases", "The products the connected creator bought, newest first, so an assistant can answer \"what did I buy?\" and open it. Each purchase links to the creator's library. When next_cursor is returned, pass it as cursor for the next page.", {
+                 "limit" => { type: "integer", description: "Max purchases to return (1-50, default 25)." },
                  "cursor" => { type: "string", description: "next_cursor from the previous page." }
                }, read_only: true),
           tool("create_bundle", "Create a draft bundle: one product that sells several of the creator's own products together at the bundle's own price. It is not for sale until publish_product runs. Confirm the products and the price with the creator first.", {
@@ -477,30 +586,62 @@ module Mcp
       def call_tool(params)
         name = params["name"]
         definition = tools.find { |tool| tool[:name] == name }
-        raise Error.new("Unknown tool: #{name}", code: -32602) unless definition
+        # A retired or misspelled name is the caller's mistake, and tool_bucket folds it into
+        # OTHER, so a client stuck on an old tool list still shows up.
+        raise InvalidArguments.new("Unknown tool: #{name}", code: -32602) unless definition
 
         arguments = params.fetch("arguments", {})
-        raise Error.new("arguments must be an object", code: -32602) unless arguments.is_a?(Hash)
+        raise InvalidArguments.new("arguments must be an object", code: -32602) unless arguments.is_a?(Hash)
         validate_tool_arguments!(definition[:inputSchema], arguments)
 
         payload = send("tool_#{name}", arguments)
-        { content: [{ type: "text", text: JSON.pretty_generate(payload) }], structuredContent: payload }
+        response = { content: [{ type: "text", text: JSON.pretty_generate(payload) }], structuredContent: payload }
+        # Counted only once the response is serialised, so a payload that cannot be rendered is
+        # not recorded as a success.
+        count_tool(name, "ok")
+        response
+      rescue InvalidArguments
+        # The caller never reached the tool, and the fix is on the client side.
+        count_tool(name, "invalid")
+        raise
+      rescue InsufficientScope, MissingScope
+        # Losing a creator to a missing scope is a funnel step, not an error to bury.
+        count_tool(name, "scope")
+        raise
       rescue ToolError, Link::LinkInvalid, ActiveRecord::RecordInvalid => e
+        count_tool(name, "error")
         message = e.is_a?(ActiveRecord::RecordInvalid) ? e.record.errors.full_messages.to_sentence : e.message
         { content: [{ type: "text", text: message }], isError: true }
+      rescue Error
+        # A tool that rejected the call itself (a missing price, an unknown category) is an error
+        # the caller saw, so it counts, and the JSON-RPC layer still answers it.
+        count_tool(name, "error")
+        raise
+      rescue StandardError
+        # A tool that crashed is exactly the call the counter must not hide: count it, then let the
+        # exception travel as it did before.
+        count_tool(name, "error")
+        raise
+      end
+
+      # One counter per call, best-effort: telemetry never changes what the caller gets back.
+      # A call with no name at all still counts, folded into OTHER by tool_bucket, so a malformed
+      # tools/call cannot vanish from the tool counter while it shows up in the protocol counter.
+      def count_tool(name, outcome)
+        @tool_counts[ProtocolTelemetry.tool_bucket(name, outcome)] += 1
       end
 
       def validate_tool_arguments!(schema, arguments)
         (schema[:required] || []).each do |key|
-          raise Error.new("#{key} is required", code: -32602) unless arguments.key?(key)
+          raise InvalidArguments.new("#{key} is required", code: -32602) unless arguments.key?(key)
         end
         arguments.each do |key, value|
           property = schema[:properties][key]
-          raise Error.new("Unknown argument: #{key}", code: -32602) unless property
+          raise InvalidArguments.new("Unknown argument: #{key}", code: -32602) unless property
 
-          type = { "integer" => Integer, "array" => Array }.fetch(property[:type], String)
-          raise Error.new("#{key} must be #{property[:type] == 'array' ? 'an' : 'a'} #{property[:type]}", code: -32602) unless value.is_a?(type)
-          raise Error.new("#{key} must be one of: #{property[:enum].join(', ')}", code: -32602) if property[:enum] && !property[:enum].include?(value)
+          types = { "integer" => [Integer], "array" => [Array], "boolean" => [TrueClass, FalseClass] }.fetch(property[:type], [String])
+          raise InvalidArguments.new("#{key} must be #{property[:type] == 'array' ? 'an' : 'a'} #{property[:type]}", code: -32602) unless types.any? { |type| value.is_a?(type) }
+          raise InvalidArguments.new("#{key} must be one of: #{property[:enum].join(', ')}", code: -32602) if property[:enum] && !property[:enum].include?(value)
         end
       end
 
@@ -525,7 +666,7 @@ module Mcp
       def tool_get_product(args)
         require_scopes!(:view_profile, :view_public, :edit_products, :account)
         product = find_product!(args["id"])
-        details = { description: product.description, covers: covers_payload(product) }
+        details = { category: category_payload(product), description: product.description, summary: product.custom_summary, additional_details: additional_details_payload(product), tags: product.tags.pluck(:name), custom_receipt_text: product.custom_receipt_text, custom_view_content_button_text: product.custom_view_content_button_text, covers: covers_payload(product) }
         # A caller editing a bundle needs the members it has now, before replacing them.
         details[:bundle_products] = bundle_products_payload(product) if product.is_bundle?
         # The same rule as the public API: sales figures need a sales scope.
@@ -536,18 +677,25 @@ module Mcp
       def tool_create_draft_product(args)
         membership = args["product_type"] == "membership"
         # Argument errors come before the scope check, so a bad call does not ask the creator for write access.
+        currency = validated_currency!(args["currency"])
         if membership
           raise Error.new("price_cents is not accepted for a membership; set each tier's price_cents", code: -32602) if args.key?("price_cents")
+          if args.key?("pay_what_you_want") || args.key?("suggested_price_cents")
+            raise Error.new("pay_what_you_want and suggested_price_cents are not accepted for a membership; set them on each tier", code: -32602)
+          end
           tiers = validated_tiers!(args["tiers"])
         else
           raise Error.new("price_cents is required", code: -32602) unless args.key?("price_cents")
           raise Error.new("tiers are only accepted with product_type membership", code: -32602) if args.key?("tiers")
+          if args.key?("suggested_price_cents") && !args["pay_what_you_want"]
+            raise Error.new("suggested_price_cents needs pay_what_you_want: true in the same call", code: -32602)
+          end
         end
 
         require_scopes!(:edit_products, :account)
         name = args["name"].strip
         raise Error.new("name is required", code: -32602) if name.blank?
-        return create_draft_membership(args, name, tiers) if membership
+        return create_draft_membership(args, name, tiers, currency) if membership
 
         price_cents = args["price_cents"]
         raise Error.new("price_cents must be zero or more", code: -32602) if price_cents.negative?
@@ -557,7 +705,9 @@ module Mcp
           description: args["description"].to_s,
           native_type: Link::NATIVE_TYPE_DIGITAL,
           price_cents:,
-          price_currency_type: user.currency_type,
+          customizable_price: args["pay_what_you_want"],
+          suggested_price_cents: args["suggested_price_cents"],
+          price_currency_type: currency,
           draft: true,
           purchase_disabled_at: Time.current,
           display_product_reviews: true
@@ -567,7 +717,7 @@ module Mcp
         { product: product_payload(product), message: "Draft saved. It is not for sale until publish_product." }
       end
 
-      def create_draft_membership(args, name, tiers)
+      def create_draft_membership(args, name, tiers, currency)
         recurrence = tiers.first["recurrence"]
         product = user.links.build(
           name:,
@@ -579,7 +729,7 @@ module Mcp
           subscription_duration: recurrence,
           # Seeds the default tier's price, as the web create form does.
           price_cents: tiers.first["price_cents"],
-          price_currency_type: user.currency_type,
+          price_currency_type: currency,
           draft: true,
           purchase_disabled_at: Time.current,
           display_product_reviews: true
@@ -594,7 +744,9 @@ module Mcp
               {
                 id: index.zero? ? product.default_tier.external_id : nil,
                 name: tier["name"].strip,
-                recurrence_price_values: { recurrence => { enabled: true, price_cents: tier["price_cents"] } }
+                customizable_price: tier["pay_what_you_want"],
+                # The tier updater refuses a suggested amount below the tier's price, as in the editor.
+                recurrence_price_values: { recurrence => { enabled: true, price_cents: tier["price_cents"], suggested_price_cents: tier["suggested_price_cents"] } }
               }
             end
             Product::VariantsUpdaterService.new(product:, variants_params: [{ id: product.tier_category.external_id, name: product.tier_category.title, options: }]).perform
@@ -611,13 +763,20 @@ module Mcp
 
         tiers.each_with_index do |tier, index|
           raise Error.new("tiers[#{index}] must be an object", code: -32602) unless tier.is_a?(Hash)
-          unknown = tier.keys - TIER_KEYS
+          unknown = tier.keys - TIER_KEYS - TIER_PRICING_KEYS
           raise Error.new("tiers[#{index}] has unknown argument: #{unknown.first}", code: -32602) if unknown.any?
           missing = TIER_KEYS - tier.keys
           raise Error.new("tiers[#{index}].#{missing.first} is required", code: -32602) if missing.any?
           raise Error.new("tiers[#{index}].name must be a non-blank string", code: -32602) unless tier["name"].is_a?(String) && tier["name"].strip.present?
           raise Error.new("tiers[#{index}].price_cents must be an integer of zero or more", code: -32602) unless tier["price_cents"].is_a?(Integer) && tier["price_cents"] >= 0
           raise Error.new("tiers[#{index}].price_cents must be at most #{BasePrice::Shared::MAX_PRICE_CENTS}", code: -32602) if tier["price_cents"] > BasePrice::Shared::MAX_PRICE_CENTS
+          raise Error.new("tiers[#{index}].pay_what_you_want must be a boolean", code: -32602) if tier.key?("pay_what_you_want") && ![true, false].include?(tier["pay_what_you_want"])
+          if tier.key?("suggested_price_cents")
+            suggested_price_cents = tier["suggested_price_cents"]
+            raise Error.new("tiers[#{index}].suggested_price_cents must be an integer of zero or more", code: -32602) unless suggested_price_cents.is_a?(Integer) && suggested_price_cents >= 0
+            raise Error.new("tiers[#{index}].suggested_price_cents must be at most #{BasePrice::Shared::MAX_PRICE_CENTS}", code: -32602) if suggested_price_cents > BasePrice::Shared::MAX_PRICE_CENTS
+            raise Error.new("tiers[#{index}].suggested_price_cents needs pay_what_you_want: true on the same tier", code: -32602) unless tier["pay_what_you_want"] == true
+          end
           unless BasePrice::Recurrence::ALLOWED_RECURRENCES.include?(tier["recurrence"])
             raise Error.new("tiers[#{index}].recurrence must be one of: #{BasePrice::Recurrence::ALLOWED_RECURRENCES.join(', ')}", code: -32602)
           end
@@ -628,11 +787,27 @@ module Mcp
         tiers
       end
 
+      # The product editor's currency list. Absent means the creator's own currency, which is what
+      # the web create form defaults to; anything else has to be one of CURRENCIES, in any case.
+      def validated_currency!(value)
+        return user.currency_type if value.nil?
+
+        currency = value.to_s.strip.downcase
+        raise Error.new("currency must be one of: #{CURRENCIES.join(', ')}", code: -32602) unless CURRENCIES.include?(currency)
+
+        currency
+      end
+
       def tool_update_product(args)
         require_scopes!(:edit_products, :account)
         product = find_product!(args["id"])
-        changes = args.slice("name", "description", "price_cents", "permalink")
-        raise Error.new("Pass at least one of name, description, price_cents, or permalink", code: -32602) if changes.empty?
+        changes = args.slice("name", "description", "summary", "additional_details", "category", "tags", "price_cents", "currency", "pay_what_you_want", "suggested_price_cents", "custom_receipt_text", "custom_view_content_button_text", "permalink")
+        raise Error.new("Pass at least one of name, description, summary, additional_details, category, tags, price_cents, currency, pay_what_you_want, suggested_price_cents, custom_receipt_text, custom_view_content_button_text, or permalink", code: -32602) if changes.empty?
+
+        # Resolved before the transaction: an unknown category or currency is an argument error,
+        # not a rollback.
+        taxonomy = resolve_category!(changes["category"]) if changes.key?("category")
+        currency = validated_currency!(changes["currency"]) if changes.key?("currency")
 
         # An empty permalink is how the editor clears a custom URL, so it must stay distinct from "unchanged".
         # Whitespace-only is neither: allowing it through would store a value the model treats as blank
@@ -646,6 +821,11 @@ module Mcp
           end
         end
 
+        # A currency change moves every price row, so it is decided under the lock below; the
+        # warning after the save needs to know whether it happened, and which discount codes were
+        # attached before it did.
+        currency_changed = false
+        codes_before_currency_change = nil
         # `price_cents=` saves its Price row at once, so a later validation failure must roll it back.
         ActiveRecord::Base.transaction do
           if changes.key?("permalink")
@@ -664,6 +844,41 @@ module Mcp
 
             product.name = name
           end
+          # Currency before price: `price_cents=` writes its Price row scoped to the currency in
+          # force at that moment, so the amounts have to be carried into the new currency or the
+          # product is left with no price in it. This is the v2 API's carry, rental price
+          # included (a buy_and_rent product would otherwise lose its rental offer).
+          if changes.key?("currency") && currency != product.price_currency_type
+            if product.is_tiered_membership
+              raise ToolError, "Currency cannot be changed for a membership with tiers: its tier prices are stored per currency. Change it in the product editor."
+            end
+            raise ToolError, "Currency cannot be changed for a product sold on more than one payment option: only one of its prices could be carried across. Change it in the product editor." if product.has_multiple_recurrences?
+
+            # universal_offer_codes is scoped to the product's price_currency_type, so the codes
+            # denominated in the old currency leave that list the moment the new one lands: capture
+            # them first, or the warning below never sees the codes this change strands.
+            # Bundles::ProductController#update takes the same precaution.
+            codes_before_currency_change = product.product_and_universal_offer_codes
+            carried_price_cents = product.default_price_cents
+            carried_rental_price_cents = product.rentable? ? product.rental_price_cents : nil
+            previous_currency = product.price_currency_type
+            product.price_currency_type = currency
+            # The tools have no rental price field, so a rental price the new currency rejects is
+            # refused by name, as the editor does; the generic price error would point at price_cents.
+            if product.buy_and_rent? && carried_rental_price_cents.present? && (violation = product.price_range_violation(carried_rental_price_cents))
+              rental_price = ->(currency_type) { MoneyFormatter.format(carried_rental_price_cents, currency_type.to_sym, no_cents_if_whole: true, symbol: true) }
+              problem = violation == :below_minimum ? "below the #{product.min_price_formatted} minimum" : "above the price limit"
+              raise ToolError, "Currency cannot be changed: the #{rental_price.(previous_currency)} rental price would become #{rental_price.(currency)}, #{problem}. Keep the current currency, or contact Gumroad support."
+            end
+            product.price_cents = carried_price_cents if carried_price_cents.present?
+            product.rental_price_cents = carried_rental_price_cents if carried_rental_price_cents.present?
+            # available_price_cents reads every alive buy row, so one left in the old currency would be
+            # checked against the new currency's minimum below; retire it, as save_recurring_prices! does.
+            retired_prices = product.prices.alive.where.not(currency: currency)
+            retired_prices.map(&:mark_deleted!)
+            product.enqueue_index_update_for(["price_cents", "available_price_cents"]) if retired_prices.any?
+            currency_changed = true
+          end
           if changes.key?("price_cents")
             raise Error.new("price_cents must be zero or more", code: -32602) if changes["price_cents"].negative?
             # Tier prices live on the variants; the product-level price is a placeholder.
@@ -671,18 +886,56 @@ module Mcp
 
             product.price_cents = changes["price_cents"]
           end
+          if changes.key?("pay_what_you_want") || changes.key?("suggested_price_cents")
+            # A membership with tiers keeps both on its tiers, priced per billing period.
+            raise ToolError, "Pay what you want is set on each tier of a membership, not on the product. Edit the tiers in the product editor." if product.is_tiered_membership
+          end
+          # After price_cents: the suggested price is validated against the price set in this save.
+          product.customizable_price = changes["pay_what_you_want"] if changes.key?("pay_what_you_want")
+          if changes.key?("suggested_price_cents")
+            # Checked against the switch the lock reloaded, not the pre-lock read: an amount stored
+            # while it is off reads back as no suggested price, so the caller's write would look lost.
+            raise Error.new("suggested_price_cents needs pay what you want on: pass pay_what_you_want: true in this call", code: -32602) unless product.customizable_price?
+
+            product.suggested_price_cents = changes["suggested_price_cents"]
+          end
           if changes.key?("description")
             product.description = SaveContentUpsellsService.new(seller: user, content: changes["description"], old_content: product.description).from_html
           end
+          # The same json_data key the editor's Summary field writes; an empty value clears it.
+          product.json_data = product.json_data.to_h.merge("custom_summary" => changes["summary"].to_s.presence) if changes.key?("summary")
+          # The same json_data keys the editor's Additional details rows write; the list is replaced whole.
+          product.json_data = product.json_data.to_h.merge("custom_attributes" => normalized_additional_details(changes["additional_details"])) if changes.key?("additional_details")
+          # The Receipt tab's two fields, the same json_data keys the editor writes; an empty value clears one.
+          product.json_data = product.json_data.to_h.merge("custom_receipt_text" => changes["custom_receipt_text"].to_s.presence) if changes.key?("custom_receipt_text")
+          product.json_data = product.json_data.to_h.merge("custom_view_content_button_text" => changes["custom_view_content_button_text"].to_s.presence) if changes.key?("custom_view_content_button_text")
           # Link's validations enforce the editor's permalink rules, and its after_commit redirects the outgoing slug.
           product.custom_permalink = permalink if changes.key?("permalink")
+          product.taxonomy = taxonomy if taxonomy
+          # The editor re-normalizes the seller's answers on a category switch; clearing them in this
+          # save keeps the taxonomy change the last write, so the product's after_commit classification
+          # still sees it and a second save does not swallow the callback.
+          product.json_data = product.json_data.to_h.merge("taxonomy_attribute_values" => {}) if taxonomy && product.taxonomy_id_changed?
           product.save!
+          # Tag rows after the product row, in the same transaction, so one call still saves
+          # all-or-nothing with every field above.
+          product.save_tags!(normalized_tags(changes["tags"], product)) if changes.key?("tags")
         end
-        result = { product: product_payload(product.reload).merge(description: product.description) }
-        # A lower price can push an existing discount below the minimum; the editor warns rather than refuses.
-        if changes.key?("price_cents")
-          invalid_codes = product.product_and_universal_offer_codes.reject { _1.is_amount_valid?(product) }.map(&:code)
-          result[:warning] = "These discount codes would discount this product below #{product.min_price_formatted}: #{invalid_codes.join(', ')}. Edit or delete them in Gumroad." if invalid_codes.any?
+        result = { product: product_payload(product.reload).merge(category: category_payload(product), description: product.description, summary: product.custom_summary, additional_details: additional_details_payload(product), tags: product.tags.pluck(:name), custom_receipt_text: product.custom_receipt_text, custom_view_content_button_text: product.custom_view_content_button_text) }
+        # A lower price can push an existing discount below the minimum, and a new currency strands
+        # the codes denominated in the old one; the editor warns rather than refuses. Both checks run
+        # on either change: the minimum is per currency, so re-denominating at the same number can
+        # put a percentage code under the new currency's minimum with nothing else moved.
+        if changes.key?("price_cents") || currency_changed
+          codes = (codes_before_currency_change || []) | product.product_and_universal_offer_codes
+          mismatched_codes = currency_changed ? codes.reject { _1.is_currency_valid?(product) } : []
+          # A code in the wrong currency no longer applies at all, so it is named only once, above.
+          below_minimum_codes = (codes - mismatched_codes).reject { _1.is_amount_valid?(product) }.map(&:code)
+          warnings = []
+          # Not "delete": an all-products code, or one shared with other products, still works on those.
+          warnings << "These discount codes are in a different currency than the product now uses, so they no longer apply to it: #{mismatched_codes.map(&:code).join(', ')}. Edit them in Gumroad if they should." if mismatched_codes.any?
+          warnings << "These discount codes would discount this product below #{product.min_price_formatted}: #{below_minimum_codes.join(', ')}. Edit or delete them in Gumroad." if below_minimum_codes.any?
+          result[:warning] = warnings.join(" ") if warnings.any?
         end
         result
       rescue Link::PermalinkChangedDuringLock
@@ -735,6 +988,53 @@ module Mcp
         product.display_asset_previews.map { |preview| { id: preview.guid, url: preview.url, type: preview.display_type } }
       end
 
+      # The rows the product page shows in the card with the summary: the editor's Additional
+      # details, in order, with the same blank rows skipped as the presenters skip.
+      def additional_details_payload(product)
+        product.custom_attributes.filter_map do |row|
+          { name: row["name"], value: row["value"] } if row["name"].present? || row["value"].present?
+        end
+      end
+
+      # The editor's tag picker takes up to ten tags of two to twenty characters, and a product that
+      # already has more than ten can only lose them. The rest of the Tag rules (no commas, no
+      # leading hash) are its own.
+      def normalized_tags(tags, product)
+        names = tags.map do |tag|
+          raise Error.new("each tag must be text", code: -32602) unless tag.is_a?(String)
+
+          tag.downcase.strip.gsub(/[[:space:]]+/, " ")
+        end.uniq
+        raise Error.new("each tag must be #{MIN_TAG_LENGTH}-#{MAX_TAG_LENGTH} characters", code: -32602) if names.any? { !_1.length.between?(MIN_TAG_LENGTH, MAX_TAG_LENGTH) }
+        raise Error.new("a product can have up to #{MAX_TAGS} tags", code: -32602) if names.length > MAX_TAGS && names.length >= product.tags.length
+
+        names
+      end
+
+      def normalized_additional_details(rows)
+        rows.map do |row|
+          raise Error.new("each additional detail must be an object with name and value", code: -32602) unless row.is_a?(Hash)
+
+          name = additional_detail_text(row["name"], "name")
+          value = additional_detail_text(row["value"], "value")
+          # The editor keeps a row only when it has a name, so a value on its own is refused rather
+          # than dropped without telling the caller.
+          raise Error.new("each additional detail needs a name", code: -32602) if name.blank? && value.present?
+
+          { "name" => name, "value" => value }
+        end.reject { _1["name"].blank? && _1["value"].blank? }
+      end
+
+      # Both fields are declared as strings. Anything else would be stored as Ruby's own text for
+      # the object and shown to buyers as the value, so it is refused rather than coerced.
+      def additional_detail_text(field, key)
+        return "" if field.nil?
+
+        raise Error.new("additional detail #{key} must be text", code: -32602) unless field.is_a?(String)
+
+        field
+      end
+
       def tool_list_files(args)
         require_scopes!(:edit_products, :account)
         product = find_product!(args["id"])
@@ -745,14 +1045,35 @@ module Mcp
         require_scopes!(:edit_products, :account)
         product = find_product!(args["id"])
         url = args["url"].to_s.strip
-        raise Error.new("url is required", code: -32602) if url.blank?
+        content = args["content"]
+        raise Error.new("content must be a string", code: -32602) unless content.nil? || content.is_a?(String)
+        # An empty string is a caller that meant to pass nothing, not a file of zero bytes.
+        has_content = content.present?
+        raise Error.new("Pass url or content, not both", code: -32602) if url.present? && has_content
+        raise Error.new("url is required, or pass content and filename to write the file out here", code: -32602) if url.blank? && !has_content
 
+        inline = url.blank?
         begin
-          file = Mcp::ProductFileIngest.new(seller: user, product:, url:, display_name: args["display_name"]).perform
+          file = if inline
+            filename = args["filename"].to_s.strip
+            raise Error.new("filename is required with content", code: -32602) if filename.blank?
+
+            Mcp::ProductFileIngest.new(seller: user, product:, display_name: args["display_name"]).perform_inline(content:, filename:)
+          else
+            Mcp::ProductFileIngest.new(seller: user, product:, url:, display_name: args["display_name"]).perform
+          end
+        rescue Mcp::ProductFileIngest::InvalidContent => e
+          raise Error.new(e.message, code: -32602)
         rescue Mcp::ProductFileIngest::TooLarge
-          raise ToolError, "That file is larger than #{Mcp::ProductFileIngest::MAX_BYTES / 1.megabyte} MB, which is the most this tool can fetch. Upload it in the product editor instead: #{product.long_url}/edit"
+          limit = (inline ? Mcp::ProductFileIngest::INLINE_MAX_BYTES : Mcp::ProductFileIngest::MAX_BYTES) / 1.megabyte
+          action = inline ? "can write out here" : "can fetch"
+          raise ToolError, "That file is larger than #{limit} MB, which is the most this tool #{action}. Upload it in the product editor instead: #{product.long_url}/edit"
         rescue Mcp::ProductFileIngest::InvalidUrl, *INTERNET_EXCEPTIONS
-          raise ToolError, "Could not download a file from that URL. Use a public https link to the file itself."
+          raise ToolError, if inline
+            "Could not store that file right now. Try again, or upload it in the product editor."
+          else
+            "Could not download a file from that URL. Use a public https link to the file itself."
+          end
         rescue Mcp::ProductFileIngest::DownloadFailed
           raise ToolError, "That link did not return a file. Use a public https link to the file itself."
         rescue Aws::S3::Errors::ServiceError
@@ -763,6 +1084,23 @@ module Mcp
 
         product.reload
         { product: product_payload(product), files: files_payload(product), message: "#{file&.name_displayable || 'File'} is now attached to #{product.name}." }
+      end
+
+      def tool_add_content_link(args)
+        require_scopes!(:edit_products, :account)
+        product = find_product!(args["id"])
+        url = args["url"].to_s.strip
+        raise Error.new("url is required", code: -32602) if url.blank?
+
+        begin
+          links = Mcp::ProductContentLink.new(product:, url:, label: args["label"]).perform
+        rescue Mcp::ProductContentLink::BlockedScheme
+          raise ToolError, "A content link cannot use a #{RichContent::BLOCKED_HREF_SCHEMES.join(', ')} URL, because a browser would run it instead of opening a page."
+        rescue Mcp::ProductContentLink::InvalidUrl
+          raise ToolError, "That is not a link. Use a full URL, like https://example.com/your-template."
+        end
+
+        { product: product_payload(product.reload), links:, message: "Buyers now see this link as a button on #{product.name}'s content page." }
       end
 
       def tool_publish_product(args)
@@ -1185,6 +1523,38 @@ module Mcp
         raise ToolError, "Churn took too long for this range. Try a shorter range."
       end
 
+      # The creator is also a buyer: this is the shelf behind "what did I buy, and where is it".
+      # Read through the same purchases the library shows, so an assistant cannot see anything the
+      # creator cannot open themselves.
+      def tool_list_purchases(args)
+        # Deliberately not :account, which every older tool still accepts: the creator's own
+        # library needs its own consent, not the legacy blanket scope.
+        require_scopes!(:view_library)
+        purchases = user.purchases.all_success_states.not_is_gift_sender_purchase.not_recurring_charge
+          .where.not(link_id: nil)
+          .includes(:link, :seller)
+          .order(created_at: :desc)
+        page, next_cursor = paginate(purchases, args, default: 25, table: "purchases")
+        {
+          purchases: page.filter_map do |purchase|
+            next unless purchase.link
+
+            {
+              id: purchase.external_id,
+              product_name: purchase.link.name,
+              product_permalink: purchase.link.unique_permalink,
+              seller_name: purchase.seller.display_name,
+              price_cents: purchase.displayed_price_cents,
+              currency: purchase.displayed_price_currency_type.to_s,
+              purchased_at: purchase.created_at&.iso8601,
+              refunded: purchase.refunded?,
+              url: "#{PROTOCOL}://#{DOMAIN}/library"
+            }
+          end,
+          next_cursor:
+        }.compact
+      end
+
       def tool_list_payouts(args)
         require_scopes!(:view_payouts, :account)
         page, next_cursor = paginate(user.payments, args, default: 10, table: "payments")
@@ -1220,6 +1590,55 @@ module Mcp
           variant = kept&.variant || product.variants_or_skus.first
           { product_id: product.external_id, variant_id: variant&.external_id, quantity: kept&.quantity || DEFAULT_BUNDLE_MEMBER_QUANTITY, position: }
         end
+      end
+
+      # Search runs over the same index the discover page uses, so results are what a shopper would
+      # see, not a second catalogue that can drift from it.
+      def tool_search_products(args)
+        require_scopes!(:view_public, :account)
+        query = args["query"].to_s.strip
+        raise InvalidArguments.new("query is required", code: -32602) if query.empty?
+        raise InvalidArguments.new("query is longer than #{SEARCH_QUERY_MAX_LENGTH} characters", code: -32602) if query.length > SEARCH_QUERY_MAX_LENGTH
+
+        # An empty query is not the only way to ask for everything: "*" and friends are operators
+        # inside simple_query_string, so the words are all that get sent to the index.
+        words = query.gsub(QUERY_OPERATOR_CHARACTERS, " ").squish
+        raise InvalidArguments.new("query needs at least one word", code: -32602) if words.blank?
+
+        limit = args["limit"].to_i
+        limit = SEARCH_DEFAULT_LIMIT if limit <= 0
+        limit = [limit, SEARCH_MAX_LIMIT].min
+
+        # The index lags the database. Only these row states are re-checked here: unpublished, deleted,
+        # banned, adult, seller suspended. The rest of Discover eligibility waits for the reindex.
+        hits = Link.search(Link.search_options(query: words, size: limit)).records
+        # Reload in one query with the Discover card's associations, keeping the index order.
+        loaded = Link.where(id: hits.map(&:id)).includes(ProductPresenter::ASSOCIATIONS_FOR_CARD).index_by(&:id)
+        products = hits.filter_map { |hit| loaded[hit.id] }
+          .select { |product| product.alive? && !product.rated_as_adult? && product.user.present? && !product.user.suspended? }
+        {
+          products: products.map do |product|
+            {
+              id: product.external_id,
+              name: product.name,
+              seller_name: product.user.name_or_username,
+              price_cents: product.discounted_price_cents(product.display_price_cents(for_default_duration: true)),
+              currency: product.price_currency_type,
+              recurring: product.is_recurring_billing?,
+              recurrence: product.default_price_recurrence&.recurrence,
+              pay_what_you_want: product.has_customizable_price_option?,
+              thumbnail_url: product.thumbnail_or_cover_url,
+              url: with_mcp_referrer(product.long_url)
+            }
+          end
+        }
+      end
+
+      def with_mcp_referrer(url)
+        uri = URI.parse(url)
+        params = Rack::Utils.parse_nested_query(uri.query.to_s).merge("referrer" => "#{PROTOCOL}://#{DOMAIN}/mcp")
+        uri.query = params.to_query
+        uri.to_s
       end
 
       def tool_create_bundle(args)
@@ -1435,7 +1854,7 @@ module Mcp
 
         # Built from the loaded associations, so list_products preloads them instead of querying per tier.
         recurrences = product.alive_prices.filter_map { _1.recurrence if _1.is_buy? }
-        tier_records = product.tier_categories.flat_map(&:alive_variants).sort_by { [_1.position_in_category.to_i, _1.created_at] }
+        tier_records = product.tier_categories.flat_map(&:alive_variants).sort_by { [_1.position_in_category.to_i, _1.created_at || Time.at(0)] }
         tiers = tier_records.map do |tier|
           prices = tier.alive_prices.select { _1.is_buy? && recurrences.include?(_1.recurrence) }
             .to_h { [_1.recurrence, { price_cents: _1.price_cents, suggested_price_cents: tier.customizable_price? ? _1.suggested_price_cents : nil }] }
@@ -1445,6 +1864,73 @@ module Mcp
         offered = tier_records.reject(&:closed_to_new_buyers?).presence || tier_records
         # The product-level price is a $0 placeholder that would read as free.
         { price_cents: nil, pay_what_you_want: offered.any?(&:customizable_price?), suggested_price_cents: nil, tiers: }
+      end
+
+      # What the product is filed under in Discover: the slug path update_product accepts back, and
+      # the name the product editor shows for it.
+      def category_payload(product)
+        taxonomy = product.taxonomy
+        return if taxonomy.nil?
+
+        { path: category_slug_path_for(taxonomy), label: category_label(taxonomy) }
+      end
+
+      def category_label(taxonomy)
+        Discover::TaxonomyPresenter::TAXONOMY_LABELS[taxonomy.slug].presence || taxonomy.slug
+      end
+
+      # Walked from parent_id like taxonomy_paths, not from ancestry_path: the closure table can lag a
+      # moved node, and the path we return has to be one update_product accepts back.
+      def category_slug_path_for(taxonomy)
+        @category_paths ||= taxonomy_paths.each_with_object({}) { |(path, record), paths| paths[record.id] = path }
+        @category_paths[taxonomy.id] || taxonomy.slug
+      end
+
+      def tool_list_categories(_args)
+        require_scopes!(:view_profile, :view_public, :edit_products, :account)
+        { categories: taxonomy_paths.sort_by { |path, _| path }.map { |path, taxonomy| { path:, label: category_label(taxonomy) } } }
+      end
+
+      # A category is written the way Discover reads it: slug segments from the root down, joined by
+      # "/". A bare leaf slug is accepted when the tree holds exactly one, so "blender" works too.
+      def resolve_category!(value)
+        raise Error.new("category must be a non-blank string", code: -32602) unless value.is_a?(String) && value.strip.present?
+
+        wanted = value.strip.downcase
+        paths = taxonomy_paths
+        return paths[wanted] if paths.key?(wanted)
+
+        matches = paths.select { |path, _| path.split("/").last == wanted }
+        return matches.values.first if matches.size == 1
+        raise ToolError, "The category \"#{value}\" matches more than one: #{matches.keys.sort.join(', ')}. Pass the full path." if matches.any?
+
+        # Answering with what the caller probably meant is the difference between one retry and a
+        # dead end, because the whole tree is too long to repeat in an error.
+        closest = paths.keys.select { |path| path.split("/").last.start_with?(wanted) || path.include?(wanted) }.first(MAX_CATEGORY_SUGGESTIONS)
+        message = if closest.any?
+          "The category \"#{value}\" was not found. Closest categories: #{closest.join(', ')}."
+        else
+          "The category \"#{value}\" was not found. A category is a slug path such as \"design/ui-and-web/figma\"."
+        end
+        raise ToolError, "#{message} Call list_categories for every category."
+      end
+
+      # Slug path -> Taxonomy for the whole tree, walked in memory: a few hundred rows, one query,
+      # however deep the path the caller sent. Read live, not through Discover::TaxonomyPresenter's
+      # hour-long nav cache: update_product writes the id it resolves, which must be in the current tree.
+      def taxonomy_paths
+        @taxonomy_paths ||= begin
+          taxonomies = Taxonomy.all.to_a
+          by_id = taxonomies.index_by(&:id)
+          paths = {}
+          resolve = lambda do |taxonomy|
+            paths[taxonomy.id] ||= begin
+              parent = by_id[taxonomy.parent_id]
+              parent ? "#{resolve.call(parent)}/#{taxonomy.slug}" : taxonomy.slug
+            end
+          end
+          taxonomies.index_by { |taxonomy| resolve.call(taxonomy).downcase }
+        end
       end
 
       def find_product!(id)
@@ -1491,24 +1977,24 @@ module Mcp
         n
       end
 
-      def require_scopes!(*scopes)
+      def require_scopes!(*scopes, subject: "This tool")
         token_scopes = token.scopes
         return if scopes.any? { |scope| token_scopes.include?(scope.to_s) }
 
-        message = "This tool requires the #{scopes.to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')} scope."
+        message = "#{subject} requires the #{scopes.to_sentence(two_words_connector: ' or ', last_word_connector: ' or ')} scope."
         missing = obtainable_scope(scopes)
         # No challenge for a batch, or when the client registered none of the accepted scopes:
         # either step-up would fail, and a plain error stops the client from retrying.
-        raise Error.new(message) if @batch || missing.nil?
+        raise MissingScope.new(message) if @batch || missing.nil?
 
         @insufficient_scope = InsufficientScope.new(message, scope: (token_scopes.to_a + [missing]).join(" "))
         raise @insufficient_scope
       end
 
-      # A dynamic client may have registered only some of the scopes a tool accepts; naming one
-      # it never registered sends it into an invalid_scope error on re-authorization.
+      # Naming a scope the client cannot request sends it into an invalid_scope error on
+      # re-authorization. Must match what authorization accepts.
       def obtainable_scope(scopes)
-        registered = token.application&.scopes.presence
+        registered = token.application && DynamicClientOauth.requestable_scopes(token.application).presence
         scopes.map(&:to_s).find { |scope| registered.nil? || registered.include?(scope) }
       end
 

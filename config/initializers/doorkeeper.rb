@@ -7,7 +7,7 @@ module VisibleScopes
   # These are the scopes that the public should be aware of. Update this list when adding scopes to Doorkeeper.
   # Mobile Api scope is not included because we don't want the public to have knowledge of that scope.
   def public_scopes
-    %i[edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account]
+    %i[edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data view_library account]
   end
 
   def public_api_read_scopes
@@ -39,8 +39,9 @@ Doorkeeper.configure do
 
   # access token scopes for providers
   default_scopes :view_public
-  optional_scopes :edit_products, :edit_emails, :view_sales, :view_payouts, :mark_sales_as_shipped, :refund_sales, :edit_sales, :revenue_share, :ifttt, :mobile_api,
-                  :creator_api, :view_profile, :edit_profile, :unfurl, :helper_api, :view_tax_data, :account
+  optional_scopes :edit_products, :edit_emails, :view_sales, :view_payouts, :view_library, :mark_sales_as_shipped, :refund_sales, :edit_sales, :revenue_share, :ifttt, :mobile_api,
+                  :creator_api, :view_profile, :edit_profile, :unfurl, :helper_api, :view_tax_data, :account,
+                  :partner_api
 
   use_refresh_token
 
@@ -58,9 +59,11 @@ Doorkeeper.configure do
 
   # A refreshed brand token keeps the team membership of the token it replaces.
   before_successful_strategy_response do |request|
-    next unless request.is_a?(Doorkeeper::OAuth::RefreshTokenRequest)
-
-    team_membership_id = MobileAccountToken.team_membership_id(request.refresh_token)
+    source = case request
+             when Doorkeeper::OAuth::RefreshTokenRequest then request.refresh_token
+             when Doorkeeper::OAuth::AuthorizationCodeRequest then request.grant
+    end
+    team_membership_id = MobileAccountToken.team_membership_id(source)
     request.access_token.update_column(:team_membership_id, team_membership_id) if team_membership_id
   end
 

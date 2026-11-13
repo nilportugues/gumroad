@@ -292,6 +292,10 @@ class GdprDataErasureService
       }
       @user.update_columns(pii)
 
+      # The signing secret is a credential in its own table (CONTRIBUTING forbids schema changes on
+      # `users`), so the update_columns above cannot reach it.
+      @user.ping_signing_setting&.delete
+
       # A removed PayPal payout address is the same email PII as `payment_address` above, just moved
       # into json_data (Payment#invalidate_paypal_payout_address). update_columns bypasses the
       # attr_json accessor, so it has to be written through the model.
@@ -839,7 +843,21 @@ class GdprDataErasureService
         zip_code: nil,
         country: nil,
         ip_address: nil,
+        ip_country: nil,
+        ip_state: nil,
         browser_guid: nil,
+        stripe_fingerprint: nil,
+        stripe_card_id: nil,
+        card_type: nil,
+        card_visual: nil,
+        card_bin: nil,
+        card_country: nil,
+        card_expiry_month: nil,
+        card_expiry_year: nil,
+        credit_card_zipcode: nil,
+        session_id: nil,
+        referrer: nil,
+        custom_fields: nil,
       }
       opted_out = Purchase.where(id: purchase_ids, can_contact: false).distinct.pluck(:seller_id, :email)
       Purchase.where(id: purchase_ids).update_all(pii)
@@ -847,6 +865,23 @@ class GdprDataErasureService
       # cutover may have counted.
       opted_out.each { |seller_id, email| FeatureAnnouncementNewsletterCutover.fence_buyer_resubscribe(seller_id, email) }
       @counts[:versions] += GdprVersionRedactor.redact!(item_type: "Purchase", item_ids: purchase_ids, attributes: pii.keys)
+      anonymize_events!(purchase_ids)
+    end
+
+    def anonymize_events!(purchase_ids)
+      Event.where(purchase_id: purchase_ids).or(Event.where(user_id: @user.id)).update_all(
+        email: nil,
+        ip_address: nil,
+        ip_country: nil,
+        ip_state: nil,
+        billing_zip: nil,
+        card_type: nil,
+        card_visual: nil,
+        fingerprint: nil,
+        browser_fingerprint: nil,
+        browser_plugins: nil,
+        browser_guid: nil,
+      )
     end
 
     def remove_profile_assets!

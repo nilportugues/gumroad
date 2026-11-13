@@ -33,6 +33,8 @@ class User < ApplicationRecord
   has_many :social_connect_verifications, dependent: :destroy
   has_one :youtube_identity, class_name: "UserYoutubeIdentity", dependent: :destroy
   has_one :instagram_identity, class_name: "UserInstagramIdentity", dependent: :destroy
+  # The Ping signing secret sits in its own table: CONTRIBUTING forbids schema changes on `users`.
+  has_one :ping_signing_setting, dependent: :destroy
   has_one :tiktok_identity, class_name: "UserTiktokIdentity", dependent: :destroy
 
   stripped_fields :name, :facebook_meta_tag, :google_analytics_id, :username, :email, :support_email
@@ -96,6 +98,10 @@ class User < ApplicationRecord
   # expires. Shared via memcached across the fleet, so it also bounds the storage
   # lookups per variant to about one per window.
   AVATAR_VARIANT_PRESENCE_CACHE_TTL = 5.minutes
+
+  # 400x400 so avatars stay sharp on Retina/high-DPI screens: the profile
+  # settings preview box is 200 CSS px, which is 400 device px at 2x.
+  AVATAR_VARIANT_TRANSFORMATIONS = { resize_to_limit: [400, 400] }.freeze
 
   has_many :affiliate_credits, foreign_key: "affiliate_user_id"
   has_many :affiliate_partial_refunds, foreign_key: "affiliate_user_id"
@@ -201,18 +207,18 @@ class User < ApplicationRecord
   has_one :totp_credential, dependent: :destroy
   has_many :webauthn_credentials, dependent: :destroy
   has_many :utm_links, dependent: :destroy, foreign_key: :seller_id
-  # Persisted store Agent chats (the conversational assistant on the Agent tab).
-  has_many :ai_conversations, dependent: :destroy, foreign_key: :seller_id
   has_many :seller_communities, class_name: "Community", foreign_key: :seller_id, dependent: :destroy
   has_many :community_chat_messages, dependent: :destroy
   has_many :last_read_community_chat_messages, dependent: :destroy
   has_many :community_notification_settings, dependent: :destroy
   has_many :seller_community_chat_recaps, class_name: "CommunityChatRecap", foreign_key: :seller_id, dependent: :destroy
 
+  # Declared above has_one_attached: after_commit callbacks run in reverse order here,
+  # so the variant job it enqueues follows the avatar upload.
+  after_commit :reset_avatar_changed
   has_one_attached :avatar
   attr_accessor :avatar_changed
   before_save :set_avatar_changed
-  after_commit :reset_avatar_changed
 
   scope :by_email, ->(email) { where(email:) }
   scope :compliant, -> { where(user_risk_state: "compliant") }
@@ -361,6 +367,7 @@ class User < ApplicationRecord
 
   validates :name, length: { maximum: MAX_LENGTH_NAME, too_long: "Your name is too long. Please try again with a shorter one." },
                    format: { without: INVALID_NAME_FOR_EMAIL_DELIVERY_REGEX, message: "cannot contain colons (:) as it causes email delivery problems. Please remove any colons from your name and try again.", if: :name_changed? }
+  validate :name_does_not_impersonate_gumroad, if: :name_changed?
   validates :facebook_meta_tag, length: { maximum: MAX_LENGTH_FACEBOOK_META_TAG }
   validates :purchasing_power_parity_limit, allow_nil: true, numericality: { greater_than_or_equal_to: 1, less_than_or_equal_to: 100 }
 
@@ -622,8 +629,8 @@ class User < ApplicationRecord
 
     variant_url = cached_avatar_variant_url
 
-    # Falling back to the original upload, which is the size the seller
-    # uploaded but is otherwise correct, beats showing no avatar at all.
+    # The original upload, while GenerateAvatarVariantJob resizes it: the size
+    # the seller uploaded but otherwise correct.
     return avatar.url if variant_url.blank?
 
     cdn_url_for(variant_url)
@@ -632,12 +639,10 @@ class User < ApplicationRecord
     avatar.url
   end
 
-  def avatar_variant(verify_storage: false)
+  def avatar_variant
     return unless avatar.attached?
 
-    # 400x400 so avatars stay sharp on Retina/high-DPI screens: the profile
-    # settings preview box is 200 CSS px, which is 400 device px at 2x.
-    stored_avatar_variant(verify_storage:, resize_to_limit: [400, 400])
+    stored_avatar_variant(**AVATAR_VARIANT_TRANSFORMATIONS)
   end
 
   def username
@@ -1247,6 +1252,7 @@ class User < ApplicationRecord
     Doorkeeper::AccessGrant.where(resource_owner_id: id, revoked_at: nil).update_all(revoked_at:)
     Doorkeeper::AccessToken.where(resource_owner_id: id, revoked_at: nil).update_all(revoked_at:)
     resource_subscriptions.alive.update_all(deleted_at: revoked_at)
+    McpEventSubscription.where(user_id: id).delete_all
   end
 
   # Confirmation can sign in a record that fails validation; that must not keep its old sessions alive.
@@ -1273,6 +1279,7 @@ class User < ApplicationRecord
 
     transaction do
       self.notification_endpoint = nil
+      ping_signing_setting&.destroy
       self.payment_address = ""
       self.invalidated_paypal_payout_address = nil
       self.check_merchant_account_is_linked = false
@@ -1772,6 +1779,13 @@ class User < ApplicationRecord
     end
 
   private
+    def name_does_not_impersonate_gumroad
+      return unless ContentModeration::GumroadImpersonation.impersonates?(name)
+      return unless ContentModeration::GumroadImpersonation.unproven_seller?(self)
+
+      errors.add(:name, ContentModeration::GumroadImpersonation::MESSAGE)
+    end
+
     def administered_by?(parent)
       seller_memberships.not_deleted.role_admin.exists?(user_id: parent.id)
     end
@@ -1810,15 +1824,17 @@ class User < ApplicationRecord
         return cached[:url]
       end
 
-      # Ask storage directly rather than trusting the presence entry: this URL
-      # is about to be remembered for a day, so it has to be true at the moment
-      # we write it.
-      variant = avatar_variant(verify_storage: true)
-      url = variant&.url.presence
-      # Never cache a blank URL — that would hide the avatar until expiry.
-      if url && variant.key.present?
-        Rails.cache.write(cache_key, { url:, key: variant.key }, expires_in: AVATAR_VARIANT_URL_CACHE_TTL)
+      # A request never resizes: a missing or vanished variant is the job's to
+      # write. Storage is asked directly because this URL is about to be
+      # remembered for a day.
+      variant = avatar.variant(**AVATAR_VARIANT_TRANSFORMATIONS)
+      unless variant.key.present? && avatar_variant_file_present?(variant.key, verify_storage: true)
+        generate_avatar_variant_later
+        return
       end
+
+      url = variant.url
+      Rails.cache.write(cache_key, { url:, key: variant.key }, expires_in: AVATAR_VARIANT_URL_CACHE_TTL)
       url
     end
 
@@ -1826,9 +1842,10 @@ class User < ApplicationRecord
     # exists — it never checks storage. A missing file + surviving row therefore
     # yields a 403 URL with nothing raised. Destroy the stale row and resize
     # from the original.
-    def stored_avatar_variant(verify_storage: false, **transformations)
+    def stored_avatar_variant(**transformations)
       variant = avatar.variant(**transformations).processed
-      return variant if avatar_variant_file_present?(variant.key, verify_storage:)
+      # A record whose image is gone has no key, and would never be rebuilt.
+      return variant if variant.key.present? && avatar_variant_file_present?(variant.key)
 
       Rails.logger.warn("User#stored_avatar_variant (#{id}): variant file missing from storage, regenerating it")
       variant.destroy
@@ -2029,7 +2046,19 @@ class User < ApplicationRecord
     end
 
     def reset_avatar_changed
+      # Enqueued here rather than from its own after_commit, so it can't depend on
+      # callback order to still see the flag set.
+      generate_avatar_variant_later if avatar_changed
       self.avatar_changed = false
+    end
+
+    def generate_avatar_variant_later
+      return unless avatar.attached?
+
+      GenerateAvatarVariantJob.perform_async(id)
+    rescue *REDIS_TRANSPORT_ERRORS => e
+      # The save has already committed; a missed pre-resize must not fail the request.
+      Rails.logger.warn("Avatar variant enqueue skipped for user #{id}: #{e.class}")
     end
 
     def to_email_domain(value)

@@ -226,6 +226,7 @@ class ProductPresenter
         covers: product.display_asset_previews.as_json,
         is_published: !product.draft && product.alive?,
         first_published_at: product.first_published_at&.iso8601,
+        **PublishSchedulePresenter.editor_props(product),
         require_shipping: product.require_shipping?,
         integrations: Integration::ALL_NAMES.index_with { |name| @product.find_integration_by_name(name).as_json },
         variants: product.alive_variants.in_order.includes(:variant_category, :alive_rich_contents).map do |variant|
@@ -395,6 +396,7 @@ class ProductPresenter
       # chrome can show an honest From value.
       receipt_email_from: from_address_with_name(product.user.name, "noreply@#{CUSTOMERS_MAIL_DOMAIN}"),
       price_checker_enabled: Feature.active?(:price_checker, product.user),
+      web_build_player_enabled: product.build_player_enabled?,
       has_web_builds: product.build_player_enabled? && product.product_builds.exists?,
       custom_html_pages_enabled: Feature.active?(:custom_html_pages, product.user),
       auto_marketing_enabled: Marketing::Eligibility.enabled_for?(product.user),

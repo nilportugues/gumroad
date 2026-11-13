@@ -3,6 +3,21 @@ recover_pending_refund_fee_retention:
   class: RecoverPendingRefundFeeRetentionJob
   description: Retries fee collection without issuing another customer refund
 
+dispatch_pending_partner_migration_notifications:
+  cron: "*/10 * * * *"
+  class: DispatchPendingPartnerMigrationNotificationsJob
+  description: Re-enqueues finished partner imports whose result email is still pending
+
+escalate_overdue_purchase_refund_requests:
+  cron: "0 * * * *"
+  class: PurchaseRefundRequests::EscalateOverdueJob
+  description: Hands buyer refund requests still unrefunded past their deadline to support
+
+resume_stalled_partner_migrations:
+  cron: "*/30 * * * *"
+  class: ResumeStalledPartnerMigrationsJob
+  description: Re-enqueues partner imports whose job stopped without finishing
+
 # Every minute
 dispatch_pending_workflow_installment_schedule_intents:
   cron: "* * * * *" # Every minute
@@ -142,6 +157,11 @@ release_chargeback_rate_payout_pauses:
   class: ReleaseChargebackRatePayoutPausesJob
   queue: low
   description: Lifts automatic chargeback-rate payout holds for sellers whose rate is back under the limit
+reconcile_stripe_payouts_pauses:
+  cron: "15 7 * * *" # UTC 07:15 daily, ahead of the 08:00 daily and 10:00 scheduled payout runs
+  class: ReconcileStripePayoutsPausesJob
+  queue: low
+  description: Resumes Stripe-sourced payout pauses whose account.updated resume was never delivered
 record_social_score_shadow_evaluations:
   cron: "0 9 * * *" # UTC 09:00 daily, after the 07:30 chargeback-rate release so already-lifted holds aren't scored as held
   class: RecordSocialScoreShadowEvaluationsJob
@@ -208,6 +228,11 @@ schedule_abandoned_cart_emails:
   cron: "0 14 * * *" # UTC 14:00
   class: ScheduleAbandonedCartEmailsJob
   description: Schedules abandoned cart emails for users who have not completed their purchase
+schedule_opened_no_click_workflow_emails:
+  cron: "0 15 * * *" # UTC 15:00, an hour after the abandoned cart scan
+  class: ScheduleOpenedNoClickWorkflowEmailsJob
+  queue: low
+  description: Queues workflow emails whose trigger waits on a recipient opening another email
 alert_on_stalled_abandoned_cart_emails:
   cron: "0 17 * * *" # UTC 17:00, three hours after the send job starts
   class: AlertOnStalledAbandonedCartEmailsJob
@@ -265,6 +290,11 @@ alert_on_stalled_post_email_blasts:
   class: AlertOnStalledPostEmailBlastsJob
   queue: low
   description: Reports email blasts that started sending hours ago and never completed and, behind a flag, auto-resumes the safe ones (gumroad-private#2106)
+sweep_closed_seller_connect_accounts:
+  cron: "15 13 * * *" # UTC 13:15
+  class: SweepClosedSellerConnectAccountsJob
+  queue: low
+  description: Reports, and behind a flag deletes, live Gumroad-managed custom Connect accounts of closed sellers once every guard passes (gumroad-private#4250)
 alert_on_stripe_dob_drift:
   cron: "30 12 * * 1" # UTC 12:30 Monday
   class: AlertOnStripeDobDriftJob
@@ -550,6 +580,10 @@ delete_old_ping_deliveries:
   cron: "45 1 * * *" # UTC 01:45
   class: DeleteOldPingDeliveriesJob
   description: Deletes ping_deliveries rows past the support lookup window
+delete_expired_mcp_event_subscriptions:
+  cron: "15 2 * * *" # UTC 02:15
+  class: Mcp::DeleteExpiredEventSubscriptionsJob
+  description: Deletes MCP event subscriptions whose lease has ended, with the client secrets they hold
 australia_backtax_transfer:
   cron: "0 10 7 * *" # UTC 10:00 on 7th of every month
   class: RecoverAusBacktaxesFromStripeAccountsJob
@@ -579,3 +613,7 @@ send_bundles_marketing_email:
   cron: "0 10 2 1 *" # UTC 10:00 on 2nd of January every year.
   class: SendBundlesMarketingEmailJob
   description: Send marketing emails for bundles every January 2nd
+dispatch_product_publish_schedules:
+  cron: "* * * * *" # Every minute
+  class: DispatchProductPublishSchedulesJob
+  description: Re-enqueues lost scheduled product publishes, resolves stuck claims and resends unsent notices

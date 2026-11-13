@@ -1,6 +1,6 @@
 import cx from "classnames";
 import * as React from "react";
-import { Link, useMatches, useNavigate } from "react-router-dom";
+import { Link, NavigationType, useBlocker, useMatches, useNavigate } from "react-router-dom";
 
 import { setProductPublished } from "$app/data/publish_product";
 import { classNames } from "$app/utils/classNames";
@@ -12,11 +12,13 @@ import { useCurrentSeller } from "$app/components/CurrentSeller";
 import { useDomains } from "$app/components/DomainSettings";
 import { Preview } from "$app/components/Preview";
 import { PreviewChrome, PreviewSidebar, WithPreviewSidebar } from "$app/components/PreviewSidebar";
+import { PublishScheduleCard } from "$app/components/PublishScheduleCard";
 import { useImageUploadSettings } from "$app/components/RichTextEditor";
 import { showAlert } from "$app/components/server-components/Alert";
 import { Alert } from "$app/components/ui/Alert";
 import { PageHeader } from "$app/components/ui/PageHeader";
 import { Tab, Tabs } from "$app/components/ui/Tabs";
+import { usePageHeaderOffset } from "$app/components/ui/usePageHeaderOffset";
 import { useRefToLatest } from "$app/components/useRefToLatest";
 import { WithTooltip } from "$app/components/WithTooltip";
 
@@ -138,7 +140,7 @@ export const Layout = ({
   // preview body), shown in the Receipt tab's email chrome. Null while the preview is loading.
   receiptSubject?: string | null;
 }) => {
-  const { product, updateProduct, uniquePermalink, saving, saveBlocked, save, receiptEmailFrom } =
+  const { product, updateProduct, uniquePermalink, saving, saveBlocked, save, receiptEmailFrom, webAppUploading } =
     useProductEditContext();
   const currentSeller = useCurrentSeller();
   const rootPath = Routes.edit_link_path(uniquePermalink);
@@ -170,6 +172,7 @@ export const Layout = ({
       ? `https://fonts.googleapis.com/css2?family=${currentSeller.profileFont}:wght@400;600&display=swap`
       : null;
 
+  const headerRef = usePageHeaderOffset();
   const [isPublishing, setIsPublishing] = React.useState(false);
   const setPublished = async (published: boolean) => {
     try {
@@ -184,11 +187,18 @@ export const Layout = ({
       // The publish request is what records the date, so take it from the response — otherwise
       // the editor keeps showing the listing as never published until a full reload.
       const { first_published_at } = await setProductPublished(uniquePermalink, published);
-      updateProduct(first_published_at ? { is_published: published, first_published_at } : { is_published: published });
+      updateProduct({
+        is_published: published,
+        ...(first_published_at ? { first_published_at } : {}),
+        // Publishing deletes a pending schedule on the server, and a product that has been live can't be scheduled.
+        ...(published ? { publish_schedule: null, can_create_publish_schedule: false } : {}),
+      });
       showAlert(published ? "Published!" : "Unpublished!", "success");
       if (tab === "share") {
-        if (product.native_type === "coffee") navigate.current(rootPath);
-        else navigate.current(`${rootPath}/content`);
+        if (!published) {
+          if (product.native_type === "coffee") navigate.current(rootPath);
+          else navigate.current(`${rootPath}/content`);
+        }
       } else if (published) {
         navigate.current(`${rootPath}/share`);
       }
@@ -219,14 +229,14 @@ export const Layout = ({
           : undefined;
 
   React.useEffect(() => {
-    if (!isUploadingFilesOrImages) return;
+    if (!isUploadingFilesOrImages && !webAppUploading) return;
 
     const beforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
 
     window.addEventListener("beforeunload", beforeUnload);
 
     return () => window.removeEventListener("beforeunload", beforeUnload);
-  }, [isUploadingFilesOrImages]);
+  }, [isUploadingFilesOrImages || webAppUploading]);
 
   const saveButton = (
     <WithTooltip tip={saveButtonTooltip}>
@@ -236,16 +246,26 @@ export const Layout = ({
     </WithTooltip>
   );
 
-  const onTabClick = (e: React.MouseEvent<HTMLAnchorElement>, callback?: () => void) => {
-    const message = isUploadingFiles
-      ? "Some files are still uploading, please wait..."
+  const uploadingMessage = isUploadingFiles
+    ? "Some files are still uploading, please wait..."
+    : webAppUploading
+      ? "Your web app is still uploading, please wait..."
       : isUploadingFilesOrImages
         ? "Some images are still uploading, please wait..."
         : undefined;
 
-    if (message) {
+  // Back and Forward between tabs get the same guard as a tab click.
+  const blocker = useBlocker(({ historyAction }) => historyAction === NavigationType.Pop && !!uploadingMessage);
+  React.useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    if (uploadingMessage) showAlert(uploadingMessage, "warning");
+    blocker.reset();
+  }, [blocker, uploadingMessage]);
+
+  const onTabClick = (e: React.MouseEvent<HTMLAnchorElement>, callback?: () => void) => {
+    if (uploadingMessage) {
       e.preventDefault();
-      showAlert(message, "warning");
+      showAlert(uploadingMessage, "warning");
       return;
     }
 
@@ -257,6 +277,13 @@ export const Layout = ({
   return (
     <>
       <NotifyAboutProductUpdatesAlert />
+      <PublishScheduleCard
+        permalink={uniquePermalink}
+        schedule={product.publish_schedule ?? null}
+        onChange={(publish_schedule) => updateProduct({ publish_schedule })}
+        canCreate={product.can_create_publish_schedule ?? false}
+        isPublished={product.is_published}
+      />
       {!currentSeller?.isBuyer && currentSeller && !currentSeller.can_publish_products && !product.is_published ? (
         <div className="p-4 pb-0 md:p-8 md:pb-0">
           <Alert variant="warning">
@@ -300,6 +327,7 @@ export const Layout = ({
       {/* TODO: remove this legacy uploader stuff */}
       <form className="hidden" data-id={uniquePermalink} id="edit-link-basic-form" />
       <PageHeader
+        ref={headerRef}
         className="sticky top-0 z-10 bg-body"
         title={product.name || "Untitled"}
         actions={
@@ -330,7 +358,8 @@ export const Layout = ({
               {saveButton}
               <WithTooltip tip={saveButtonTooltip}>
                 <Button color="accent" disabled={isBusy} onClick={() => void setPublished(true)}>
-                  {isPublishing ? "Publishing..." : "Publish and continue"}
+                  {/* Share is the last tab and publishing from it stays there, so there is nothing to continue to. */}
+                  {isPublishing ? "Publishing..." : tab === "share" ? "Publish" : "Publish and continue"}
                 </Button>
               </WithTooltip>
             </>
@@ -362,20 +391,7 @@ export const Layout = ({
               </Link>
             </Tab>
             <Tab asChild isSelected={tab === "share"}>
-              <Link
-                to={`${rootPath}/share`}
-                onClick={(evt) => {
-                  onTabClick(evt, () => {
-                    if (!product.is_published) {
-                      evt.preventDefault();
-                      showAlert(
-                        "Not yet! You've got to publish your awesome product before you can share it with your audience and the world.",
-                        "warning",
-                      );
-                    }
-                  });
-                }}
-              >
+              <Link to={`${rootPath}/share`} onClick={onTabClick}>
                 Share
               </Link>
             </Tab>

@@ -14,6 +14,14 @@ class ProfileSectionsPresenter
   DEFAULT_PRODUCTS_SECTION_TYPE = "SellerProfileProductsSection"
   DEFAULT_PRODUCTS_TAB_NAME = "Products"
 
+  CACHE_EXPIRES_IN = 10.minutes
+  # A cold entry costs ~130 Elasticsearch searches for a large catalog. A visitor opening many of
+  # one seller's product links at once used to run that on every request and queue the search
+  # thread pool for ~20s, so only one request per key rebuilds while the rest wait for its write.
+  BUILD_LOCK_TTL = 30.seconds
+  BUILD_WAIT_TIMEOUT = 25.seconds
+  BUILD_WAIT_INTERVAL = 0.1.seconds
+
   def self.default_products_section_available?(seller:, sections:)
     sections.empty? && seller.products.alive.not_archived.exists?
   end
@@ -30,6 +38,13 @@ class ProfileSectionsPresenter
   # the omission.
   def props(request:, pundit_user:, seller_custom_domain_url:, editing: pundit_user.seller == seller, include_default_products_section: false, omit_product: nil)
     sections = query.to_a
+    # Load every card product for every section in one query up front. Loading them section by
+    # section ran ~20 queries per section, so a 65-section storefront catalog cost ~1,200 queries
+    # and ~2s on every product page view (gp#4526).
+    section_cache = cached_sections
+    if normalize_search_param_values!(request.query_parameters.slice(*VISITOR_SEARCH_PARAMS)).blank?
+      preload_card_products(section_cache.flat_map { _1.dig(:search_results, :products) || [] })
+    end
 
     props = {
       currency_code: pundit_user.user&.currency_type || Currency::USD,
@@ -39,7 +54,7 @@ class ProfileSectionsPresenter
       # took multiple seconds for large-catalog sellers.
       show_ratings_filter: seller.links.alive.display_product_reviews.exists?,
       creator_profile: ProfilePresenter.new(seller:, pundit_user:).creator_profile,
-      sections: cached_sections.map do |props|
+      sections: section_cache.map do |props|
         section_props(sections.find { _1.external_id == props[:id] }, cached_props: props, request:, pundit_user:, seller_custom_domain_url:, editing:, omit_product:)
       end
     }
@@ -65,7 +80,7 @@ class ProfileSectionsPresenter
   def cached_sections
     sections_cache_key = query.cache_key_with_version
     cache_key = "#{CACHE_KEY_PREFIX}_#{REVISION}-#{products_cache_key}-#{sections_cache_key}"
-    Rails.cache.fetch(cache_key, expires_in: 10.minutes) do
+    fetch_single_flight(cache_key) do
       query.map do |section|
         data = {
           id: section.external_id,
@@ -106,13 +121,57 @@ class ProfileSectionsPresenter
       @products_cache_key ||= seller.products.cache_key_with_version
     end
 
+    # Rails.cache.fetch lets every concurrent miss rebuild. The builder writes the value before it
+    # releases the lock, so a waiter that sees the lock gone finds the entry. If the holder dies or
+    # is slow, a waiter builds after BUILD_WAIT_TIMEOUT rather than failing the page. One plain
+    # read up front keeps the cache hit/miss metric at one event per request.
+    def fetch_single_flight(cache_key, &build)
+      cached = Rails.cache.read(cache_key)
+      return cached unless cached.nil?
+
+      lock_key = "#{cache_key}-build-lock"
+      if shared_cache { Rails.cache.write(lock_key, true, unless_exist: true, expires_in: BUILD_LOCK_TTL) }
+        begin
+          # Another request may have finished between our miss and taking the lock. `exist?` keeps the
+          # usual cold path to one read (the hit/miss metric counts reads), and the entry can still
+          # expire before the read, so an empty read falls through to building.
+          if shared_cache { Rails.cache.exist?(cache_key) }
+            cached = shared_cache { Rails.cache.read(cache_key) }
+            return cached unless cached.nil?
+          end
+
+          build_and_write(cache_key, &build)
+        ensure
+          shared_cache { Rails.cache.delete(lock_key) }
+        end
+      else
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + BUILD_WAIT_TIMEOUT
+        while shared_cache { Rails.cache.exist?(lock_key) } && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+          sleep BUILD_WAIT_INTERVAL
+        end
+        shared_cache { Rails.cache.read(cache_key) } || build_and_write(cache_key, &build)
+      end
+    end
+
+    def build_and_write(cache_key)
+      yield.tap { |value| Rails.cache.write(cache_key, value, expires_in: CACHE_EXPIRES_IN) }
+    end
+
+    # The memcached store keeps a per-request copy of everything it reads, misses included, so a
+    # poll would keep seeing the first answer. Reads and lock operations here must reach memcached.
+    def shared_cache(&block)
+      return yield unless Rails.cache.respond_to?(:bypass_local_cache, true)
+
+      Rails.cache.send(:bypass_local_cache, &block)
+    end
+
     # Builds the cacheable data for the virtual default products section after the shared
     # availability check above. Cached with the same 10-minute window as saved sections; the cache
     # key includes the products' cache version so publishing, archiving, or deleting a product
     # refreshes it.
     def cached_default_products_section
       cache_key = "#{CACHE_KEY_PREFIX}_default_#{REVISION}-#{products_cache_key}"
-      Rails.cache.fetch(cache_key, expires_in: 10.minutes) do
+      fetch_single_flight(cache_key) do
         {
           id: DEFAULT_PRODUCTS_SECTION_ID,
           header: nil,
@@ -131,6 +190,28 @@ class ProfileSectionsPresenter
     # including `search`, whose nested form is an arbitrary ES clause that can range-probe indexed
     # revenue fields, and `curated_product_ids`, which the controller decrypts before use.
     VISITOR_SEARCH_PARAMS = %i[query tags filetypes min_price max_price rating sort from size recommended_by].freeze
+
+    def card_products_scope
+      Link.includes(ProductPresenter::ASSOCIATIONS_FOR_CARD)
+          .includes(
+            { variant_categories_alive: :alive_variants },
+            { bundle_products: { product: [:tiers, { variant_categories_alive: :alive_variants }], variant: [] } }
+          )
+    end
+
+    # Cached section props store product ids as strings; key by integer id.
+    def preload_card_products(ids)
+      @card_products ||= {}
+      missing = ids.map(&:to_i).uniq - @card_products.keys
+      card_products_scope.where(id: missing).each { @card_products[_1.id] = _1 } if missing.any?
+    end
+
+    # Same contract as `find(ids)`: returns products in `ids` order and raises if one is missing.
+    def card_products(ids)
+      preload_card_products(ids)
+      return card_products_scope.find(ids) if ids.any? { !@card_products.key?(_1.to_i) }
+      ids.map { @card_products.fetch(_1.to_i) }
+    end
 
     def section_props(section, cached_props:, request:, pundit_user:, seller_custom_domain_url:, editing:, omit_product: nil)
       params = normalize_search_param_values!(request.query_parameters.slice(*VISITOR_SEARCH_PARAMS))
@@ -158,12 +239,7 @@ class ProfileSectionsPresenter
           )
         end
         cached_props[:search_results] = section_search_results(section, params:) if params.present?
-        products = Link.includes(ProductPresenter::ASSOCIATIONS_FOR_CARD)
-                       .includes(
-                         { variant_categories_alive: :alive_variants },
-                         { bundle_products: { product: [:tiers, { variant_categories_alive: :alive_variants }], variant: [] } }
-                       )
-                       .find(cached_props[:search_results][:products])
+        products = card_products(cached_props[:search_results][:products])
         if omit_product
           before = products.size
           products = products.reject { |product| product.id == omit_product.id }
@@ -187,7 +263,7 @@ class ProfileSectionsPresenter
         end
       when "SellerProfilePostsSection"
         if editing
-          cached_props.merge!({ shown_posts: visible_posts(section:).pluck(:id) })
+          cached_props.merge!({ shown_posts: visible_posts(section:).pluck(:id), add_new_posts: section.add_new_posts })
         else
           cached_props[:posts] = visible_posts(section:)
         end

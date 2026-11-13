@@ -861,6 +861,49 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(@user.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
         expect(@user.stripe_account.charge_processor_merchant_id).to be_present
       end
+
+      it "saves without a tax ID from a representative who has no US one" do
+        visit settings_payments_path
+
+        choose "Business"
+
+        fill_in("Legal business name", with: "US LLC with Algerian rep")
+        select("LLC (single member)", from: "Type")
+        find_field("Address", match: :first).set("address_full_match")
+        find_field("City", match: :first).set("NY")
+        find_field("State", match: :first).select("New York")
+        find_field("ZIP code", match: :first).set("10110")
+        fill_in("Business phone number", with: "5052426789")
+        fill_in("Business Tax ID (EIN, or SSN for sole proprietors)", with: "000000000")
+
+        fill_in("First name", with: "Algerian")
+        fill_in("Last name", with: "Creator")
+        all('select[id$="creator-country"]').last.select("Algeria")
+        all('input[id$="creator-street-address"]').last.set("address_full_match")
+        all('input[id$="creator-city"]').last.set("Algiers")
+        find_field("Postal code").set("16000")
+        fill_in("Phone number", with: "551234567")
+        expect(find_field("Personal tax ID").value).to eq("")
+
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+
+        fill_in("Pay to the order of", with: "US LLC Algerian Rep")
+        fill_in("Routing number", with: "110000000")
+        fill_in("Account number", with: "000123456789")
+        fill_in("Confirm account number", with: "000123456789")
+
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+
+        compliance_info = @user.alive_user_compliance_info
+        expect(compliance_info.business_country).to eq("United States")
+        expect(compliance_info.country).to eq("Algeria")
+        expect(compliance_info.individual_tax_id).to be_blank
+        expect(@user.reload.stripe_account.charge_processor_merchant_id).to be_present
+      end
     end
 
     describe "US business with EIN already saved, editing non-EIN fields" do
@@ -2971,6 +3014,124 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
       end
+
+      it "collects the state Stripe asks for, sends it to Stripe, and keeps it after a reload" do
+        state_request = create(:user_compliance_info_request, user: @user, field_needed: UserComplianceInfoFields::Individual::Address::STATE)
+
+        visit settings_payments_path
+
+        fill_in("First name", with: "barnabas")
+        fill_in("Last name", with: "barnabastein")
+        fill_in("Address", with: "address_full_match")
+        fill_in("City", with: "Bandung")
+        fill_in("State / region", with: "Jawa Barat")
+        fill_in("Phone number", with: "98761234")
+        fill_in("Postal code", with: "40111")
+
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+
+        fill_in("Pay to the order of", with: "barnabas ngagy")
+        fill_in("Bank code", with: "000")
+        fill_in("Account #", with: "000123456789")
+        fill_in("Confirm account #", with: "000123456789")
+
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        expect(@user.alive_user_compliance_info.state).to eq("Jawa Barat")
+        expect(state_request.reload).to be_provided
+        expect(Stripe::Account).to have_received(:create)
+          .with(hash_including(individual: hash_including(address: hash_including(state: "Jawa Barat", country: "ID"))), anything)
+
+        visit settings_payments_path
+
+        expect(page).to have_field("State / region", with: "Jawa Barat")
+
+        find_field("State / region").set("", clear: :backspace)
+        expect(page).to have_field("State / region", with: "")
+        fill_in("State / region", with: "Jawa Tengah")
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        expect(@user.alive_user_compliance_info.state).to eq("Jawa Tengah")
+
+        visit settings_payments_path
+
+        expect(page).to have_field("State / region", with: "Jawa Tengah")
+      end
+
+      it "collects the business and representative states Stripe asks an Indonesian company for" do
+        create(:user_compliance_info_request, user: @user, field_needed: UserComplianceInfoFields::LegalEntity::Address::STATE)
+        create(:user_compliance_info_request, user: @user, field_needed: UserComplianceInfoFields::Individual::Address::STATE)
+
+        visit settings_payments_path
+
+        choose "Business"
+
+        fill_in("Legal business name", with: "PT Example")
+        select("LLC", from: "Type")
+        find_field("Address", match: :first).set("address_full_match")
+        find_field("City", match: :first).set("Bandung")
+        find('input[id$="business-state"]').set("Jawa Barat")
+        find_field("Postal code", match: :first).set("40111")
+        fill_in("Business phone number", with: "98761234")
+        fill_in("Company tax ID", with: "000000000")
+
+        fill_in("First name", with: "barnabas")
+        fill_in("Last name", with: "barnabastein")
+        all('input[id$="creator-street-address"]').last.set("address_full_match")
+        all('input[id$="creator-city"]').last.set("Surabaya")
+        find('input[id$="creator-state"]').set("Jawa Timur")
+        all('input[id$="creator-zip-code"]').last.set("60111")
+        fill_in("Phone number", with: "98761234")
+
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+
+        fill_in("Pay to the order of", with: "PT Example")
+        fill_in("Bank code", with: "000")
+        fill_in("Account #", with: "000123456789")
+        fill_in("Confirm account #", with: "000123456789")
+
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        compliance_info = @user.alive_user_compliance_info
+        expect(compliance_info.is_business).to be true
+        expect(compliance_info.business_state).to eq("Jawa Barat")
+        expect(compliance_info.state).to eq("Jawa Timur")
+        expect(@user.user_compliance_info_requests.requested.count).to eq(0)
+        expect(Stripe::Account).to have_received(:create)
+          .with(hash_including(company: hash_including(address: hash_including(state: "Jawa Barat", country: "ID"))), anything)
+        expect(Stripe::Account).to have_received(:create_person)
+          .with(anything, hash_including(address: hash_including(state: "Jawa Timur"), relationship: hash_including(representative: true)))
+
+        visit settings_payments_path
+
+        expect(find('input[id$="business-state"]').value).to eq("Jawa Barat")
+        expect(find('input[id$="creator-state"]').value).to eq("Jawa Timur")
+
+        find('input[id$="business-state"]').set("", clear: :backspace)
+        find('input[id$="creator-state"]').set("", clear: :backspace)
+        expect(find('input[id$="business-state"]').value).to eq("")
+        expect(find('input[id$="creator-state"]').value).to eq("")
+        find('input[id$="business-state"]').set("Jawa Tengah")
+        find('input[id$="creator-state"]').set("Bali")
+        click_on("Update settings")
+
+        expect(page).to have_alert(text: "Thanks! You're all set.")
+        compliance_info = @user.alive_user_compliance_info
+        expect(compliance_info.business_state).to eq("Jawa Tengah")
+        expect(compliance_info.state).to eq("Bali")
+
+        visit settings_payments_path
+
+        expect(find('input[id$="business-state"]').value).to eq("Jawa Tengah")
+        expect(find('input[id$="creator-state"]').value).to eq("Bali")
+      end
     end
 
     describe "CR creator" do
@@ -3424,7 +3585,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "barnabas ngagy")
-        fill_in("SWIFT / BIC Code", with: "AAAAMAMAXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMAMAXXX")
         fill_in("IBAN", with: "MA64011519000001205000534921")
         fill_in("Confirm IBAN", with: "MA64011519000001205000534921")
 
@@ -3444,7 +3605,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+212537721072")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("MA64011519000001205000534921")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMAMAXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMAMAXXX")
       end
     end
 
@@ -3526,7 +3687,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "barnabas ngagy")
-        fill_in("SWIFT / BIC Code", with: "AAAAKZKZXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKKZKZXXX")
         fill_in("IBAN", with: "KZ221251234567890123")
         fill_in("Confirm IBAN", with: "KZ221251234567890123")
 
@@ -3548,7 +3709,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+77012345678")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("KZ221251234567890123")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAKZKZXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKKZKZXXX")
       end
 
       it "allows to enter PayPal details" do
@@ -3613,7 +3774,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "barnabas ngagy")
-        fill_in("SWIFT / BIC Code", with: "AAAAECE1XXX")
+        fill_in("SWIFT / BIC Code", with: "BANKECE1XXX")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -3633,7 +3794,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+593991234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAECE1XXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKECE1XXX")
       end
     end
 
@@ -3663,7 +3824,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Antigua and Barbuda Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAAGAGXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKAGAGXYZ")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -3683,7 +3844,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+12681234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAAGAGXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKAGAGXYZ")
       end
     end
 
@@ -3713,7 +3874,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Tanzanian Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAATZTXXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKTZTXXXX")
         fill_in("Account #", with: "0000123456789")
         fill_in("Confirm account #", with: "0000123456789")
 
@@ -3733,7 +3894,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+255201234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAATZTXXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKTZTXXXX")
       end
     end
 
@@ -3763,7 +3924,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Namibian Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAANANXXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKNANXXYZ")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -3783,7 +3944,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+26463123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAANANXXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKNANXXYZ")
       end
     end
 
@@ -3813,7 +3974,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Albanian Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAALTXXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKALTXXXX")
         fill_in("IBAN", with: "AL35202111090000000001234567")
         fill_in("Confirm IBAN", with: "AL35202111090000000001234567")
 
@@ -3833,7 +3994,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+35541234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.active_bank_account.send(:account_number_decrypted)).to eq("AL35202111090000000001234567")
-        expect(@user.active_bank_account.routing_number).to eq("AAAAALTXXXX")
+        expect(@user.active_bank_account.routing_number).to eq("BANKALTXXXX")
       end
     end
 
@@ -3863,7 +4024,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Bahraini Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAABHBMXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKBHBMXYZ")
         fill_in("IBAN", with: "BH29BMAG1299123456BH00")
         fill_in("Confirm IBAN", with: "BH29BMAG1299123456BH00")
 
@@ -3883,7 +4044,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+97366312345")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("BH29BMAG1299123456BH00")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAABHBMXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKBHBMXYZ")
       end
     end
 
@@ -3912,7 +4073,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Rwandan Creator")
-        fill_in("SWIFT / BIC", with: "AAAARWRWXXX")
+        fill_in("SWIFT / BIC", with: "BANKRWRWXXX")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -3932,7 +4093,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+250783123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAARWRWXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKRWRWXXX")
       end
     end
 
@@ -3963,7 +4124,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Jordanian Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAJOJOXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKJOJOXXX")
         fill_in("IBAN", with: "JO32ABCJ0010123456789012345678")
         fill_in("Confirm IBAN", with: "JO32ABCJ0010123456789012345678")
 
@@ -3983,7 +4144,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+962799999999")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("JO32ABCJ0010123456789012345678")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAJOJOXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKJOJOXXX")
       end
     end
 
@@ -4013,7 +4174,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Nigerian Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAANGLAXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKNGLAXXX")
         fill_in("Account #", with: "1111111112")
         fill_in("Confirm account #", with: "1111111112")
 
@@ -4033,7 +4194,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+2342011234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("1111111112")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAANGLAXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKNGLAXXX")
       end
     end
 
@@ -4063,8 +4224,8 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Azerbaijani Creator")
-        fill_in("Bank code", with: "123456")
-        fill_in("Branch code", with: "123456")
+        fill_in("Bank code", with: "200004")
+        fill_in("Branch code", with: "200004")
         fill_in("IBAN", with: "AZ77ADJE12345678901234567890")
         fill_in("Confirm IBAN", with: "AZ77ADJE12345678901234567890")
 
@@ -4084,7 +4245,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+994124980335")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("AZ77ADJE12345678901234567890")
-        expect(@user.reload.active_bank_account.routing_number).to eq("123456-123456")
+        expect(@user.reload.active_bank_account.routing_number).to eq("200004-200004")
       end
     end
 
@@ -4360,7 +4521,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "botswana creator")
-        fill_in("SWIFT / BIC Code", with: "AAAABWBWXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKBWBWXXX")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -4379,7 +4540,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+26771123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAABWBWXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKBWBWXXX")
       end
     end
 
@@ -4461,7 +4622,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "mauritian creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAMUMUXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKMUMUXYZ")
         fill_in("IBAN", with: "MU17BOMM0101101030300200000MUR")
         fill_in("Confirm IBAN", with: "MU17BOMM0101101030300200000MUR")
 
@@ -4480,7 +4641,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.zip_code).to eq("11324")
         expect(compliance_info.phone).to eq("+23051234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMUMUXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMUMUXYZ")
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("MU17BOMM0101101030300200000MUR")
       end
     end
@@ -4532,6 +4693,30 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.routing_number).to eq("022112")
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
+      end
+
+      it "refuses the bank code 123456 before saving" do
+        visit settings_payments_path
+
+        fill_in("First name", with: "ghanaian")
+        fill_in("Last name", with: "creator")
+        fill_in("Address", with: "address_full_match")
+        fill_in("City", with: "Accra")
+        fill_in("Phone number", with: "302213850")
+        fill_in("Postal code", with: "00233")
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+        fill_in("Pay to the order of", with: "ghanaian creator")
+        expect(find_field("Bank code")[:placeholder]).to be_blank
+        fill_in("Bank code", with: "123456")
+        fill_in("Account #", with: "000123456789")
+        fill_in("Confirm account #", with: "000123456789")
+
+        click_on("Update settings")
+
+        expect(page).to have_status(text: "Enter the 6-digit sort code of your own bank branch.")
+        expect(@user.reload.active_bank_account).to be_nil
       end
 
       it "allows saving unrelated changes when a legacy individual P.O. Box address is unchanged" do
@@ -4707,7 +4892,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "omani creator")
-        fill_in("SWIFT / BIC", with: "AAAAOMOMXXX")
+        fill_in("SWIFT / BIC", with: "BANKOMOMXXX")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -4727,7 +4912,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+96896896896")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAOMOMXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKOMOMXXX")
       end
     end
 
@@ -4869,7 +5054,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("Pakistan", from: "Nationality")
 
         fill_in("Pay to the order of", with: "Pakistan Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAPKKAXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKPKKAXXX")
         fill_in("IBAN", with: "PK36SCBL0000001123456702")
         fill_in("Confirm IBAN", with: "PK36SCBL0000001123456702")
         fill_in(cnic_label, with: "12345-1234567-1")
@@ -5038,7 +5223,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Gabonese Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAGAGAXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKGAGAXXX")
         fill_in("Account #", with: "00001234567890123456789")
         fill_in("Confirm account #", with: "00001234567890123456789")
 
@@ -5058,7 +5243,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+2416123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("00001234567890123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAGAGAXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKGAGAXXX")
       end
     end
 
@@ -5190,7 +5375,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1901", from: "Year")
 
         fill_in("Pay to the order of", with: "Moldova Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAMDMDXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMDMDXXX")
         fill_in("IBAN", with: "MD07AG123456789012345678")
         fill_in("Confirm IBAN", with: "MD07AG123456789012345678")
 
@@ -5210,7 +5395,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+37371234567")
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("MD07AG123456789012345678")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMDMDXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMDMDXXX")
       end
     end
 
@@ -5242,7 +5427,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Pay to the order of", with: "barnabas ngagy")
         fill_in("IBAN", with: "MK49250120000058907")
         fill_in("Confirm IBAN", with: "MK49250120000058907")
-        fill_in("SWIFT / BIC Code", with: "AAAAMK2XXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMK2XXXX")
 
         expect(page).to have_content("Must exactly match the name on your bank account")
         expect(page).to have_content("Payouts will be made in MKD.")
@@ -5260,7 +5445,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+38923456789")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("MK49250120000058907")
-        expect(@user.active_bank_account.routing_number).to eq("AAAAMK2XXXX")
+        expect(@user.active_bank_account.routing_number).to eq("BANKMK2XXXX")
       end
     end
 
@@ -5290,7 +5475,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1901", from: "Year")
 
         fill_in("Pay to the order of", with: "Ethiopia Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAETETXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKETETXXX")
         fill_in("Account #", with: "0000000012345")
         fill_in("Confirm account #", with: "0000000012345")
 
@@ -5310,7 +5495,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+251912345678")
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0000000012345")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAETETXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKETETXXX")
       end
     end
 
@@ -5340,7 +5525,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1901", from: "Year")
 
         fill_in("Pay to the order of", with: "Brunei Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAABNBBXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKBNBBXXX")
         fill_in("Account #", with: "0000123456789")
         fill_in("Confirm account #", with: "0000123456789")
 
@@ -5360,7 +5545,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+6732294567")
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAABNBBXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKBNBBXXX")
       end
     end
 
@@ -5441,7 +5626,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1901", from: "Year")
 
         fill_in("Pay to the order of", with: "Guatemala Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAGTGCXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKGTGCXYZ")
         fill_in("IBAN", with: "GT82TRAJ01020000001210029690")
         fill_in("Confirm IBAN", with: "GT82TRAJ01020000001210029690")
 
@@ -5463,7 +5648,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+50231234567")
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("GT82TRAJ01020000001210029690")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAGTGCXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKGTGCXYZ")
       end
     end
 
@@ -5495,7 +5680,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Pay to the order of", with: "Panamanian creator")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
-        fill_in("SWIFT / BIC Code", with: "AAAAPAPAXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKPAPAXXX")
 
         expect(page).to have_content("Must exactly match the name on your bank account")
         expect(page).to have_content("Payouts will be made in USD.")
@@ -5513,7 +5698,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+50761234567")
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAPAPAXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKPAPAXXX")
       end
 
       it "allows to enter the 8-character SWIFT / BIC code a Panamanian bank publishes" do
@@ -5624,7 +5809,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Bhutan Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAABTBTXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKBTBTXXX")
         fill_in("Account #", with: "0000123456789")
         fill_in("Confirm account #", with: "0000123456789")
 
@@ -5644,7 +5829,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+97512345678")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAABTBTXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKBTBTXXX")
       end
     end
 
@@ -5674,7 +5859,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Laos Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAALALAXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKLALAXXX")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -5695,7 +5880,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(compliance_info.country).to eq("Lao People's Democratic Republic")
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAALALAXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKLALAXXX")
       end
     end
 
@@ -5727,7 +5912,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Mozambique Taxpayer Single ID Number (NUIT)", with: "000000000")
 
         fill_in("Pay to the order of", with: "Mozambique Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAMZMXXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMZMXXXX")
         fill_in("Account #", with: "001234567890123456789")
         fill_in("Confirm account #", with: "001234567890123456789")
 
@@ -5748,7 +5933,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(compliance_info.individual_tax_id.decrypt("1234")).to eq("000000000")
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("001234567890123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMZMXXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMZMXXXX")
       end
 
       # The account-number inputs carry a per-country `pattern`, but this page saves through Inertia
@@ -5772,7 +5957,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Mozambique Taxpayer Single ID Number (NUIT)", with: "000000000")
 
         fill_in("Pay to the order of", with: "Mozambique Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAMZMXXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMZMXXXX")
         # The generic example the form used to show every non-IBAN country. MozambiqueBankAccount
         # requires exactly 21 characters, so this can never save.
         fill_in("Account #", with: "1234567890")
@@ -5813,7 +5998,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Pay to the order of", with: "El Salvadorian Creator")
         fill_in("Account number", with: "12345678901234")
         fill_in("Confirm account number", with: "12345678901234")
-        fill_in("SWIFT / BIC Code", with: "AAAASVS1XXX")
+        fill_in("SWIFT / BIC Code", with: "BANKSVS1XXX")
 
         expect(page).to have_content("Must exactly match the name on your bank account")
         expect(page).to have_content("Payouts will be made in USD.")
@@ -5831,7 +6016,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+50368765432")
         expect(compliance_info.birthday).to eq(Date.new(1901, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("12345678901234")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAASVS1XXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKSVS1XXX")
       end
     end
 
@@ -5912,7 +6097,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Armenian Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAAMNNXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKAMNNXXX")
         fill_in("Account #", with: "00001234567")
         fill_in("Confirm account #", with: "00001234567")
 
@@ -5932,7 +6117,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+37477123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("00001234567")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAAMNNXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKAMNNXXX")
       end
     end
 
@@ -5962,7 +6147,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "malagasy creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAMGMGXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMGMGXXX")
         fill_in("IBAN", with: "MG4800005000011234567890123")
         fill_in("Confirm IBAN", with: "MG4800005000011234567890123")
 
@@ -5982,7 +6167,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+261321234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("MG4800005000011234567890123")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMGMGXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMGMGXXX")
       end
     end
 
@@ -6063,7 +6248,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Kuwaiti Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAKWKWXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKKWKWXYZ")
         fill_in("IBAN", with: "KW81CBKU0000000000001234560101")
         fill_in("Confirm IBAN", with: "KW81CBKU0000000000001234560101")
 
@@ -6083,7 +6268,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+96550123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("KW81CBKU0000000000001234560101")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAKWKWXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKKWKWXYZ")
       end
     end
 
@@ -6235,7 +6420,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Bahamas Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAABSNSXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKBSNSXXX")
         fill_in("Account #", with: "0001234")
         fill_in("Confirm account #", with: "0001234")
 
@@ -6255,7 +6440,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+12421234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0001234")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAABSNSXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKBSNSXXX")
       end
     end
 
@@ -6285,7 +6470,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Saint Lucia Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAALCLCXYZ")
+        fill_in("SWIFT / BIC Code", with: "BANKLCLCXYZ")
         fill_in("Account #", with: "000123456789")
         fill_in("Confirm account #", with: "000123456789")
 
@@ -6305,7 +6490,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+17581234567")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("000123456789")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAALCLCXYZ")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKLCLCXYZ")
       end
     end
 
@@ -6383,7 +6568,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         select("1980", from: "Year")
 
         fill_in("Pay to the order of", with: "Angola Creator")
-        fill_in("SWIFT / BIC Code", with: "AAAAAOAOXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKAOAOXXX")
         fill_in("IBAN", with: "AO06004400006729503010102")
         fill_in("Confirm IBAN", with: "AO06004400006729503010102")
 
@@ -6403,7 +6588,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+244923123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("AO06004400006729503010102")
-        expect(@user.reload.active_bank_account.send(:routing_number)).to eq("AAAAAOAOXXX")
+        expect(@user.reload.active_bank_account.send(:routing_number)).to eq("BANKAOAOXXX")
       end
     end
 
@@ -6584,7 +6769,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Pay to the order of", with: "Mongolia Creator")
         fill_in("Account #", with: "0002222001")
         fill_in("Confirm account #", with: "0002222001")
-        fill_in("SWIFT / BIC Code", with: "AAAAMNUBXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMNUBXXX")
 
         expect(page).to have_content("Must exactly match the name on your bank account")
         expect(page).to have_content("Payouts will be made in MNT.")
@@ -6602,7 +6787,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+976124980335")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0002222001")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMNUBXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMNUBXXX")
       end
     end
 
@@ -6634,7 +6819,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Pay to the order of", with: "Algeria Creator")
         fill_in("Account #", with: "00001234567890123456")
         fill_in("Confirm account #", with: "00001234567890123456")
-        fill_in("SWIFT / BIC Code", with: "AAAADZDZXXX")
+        fill_in("SWIFT / BIC Code", with: "EPALDZAL")
 
         expect(page).to have_content("Must exactly match the name on your bank account")
         expect(page).to have_content("Payouts will be made in DZD.")
@@ -6652,7 +6837,32 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+213555123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("00001234567890123456")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAADZDZXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("EPALDZAL")
+      end
+
+      it "refuses the form's old example SWIFT / BIC code" do
+        visit settings_payments_path
+
+        fill_in("First name", with: "Algeria")
+        fill_in("Last name", with: "Creator")
+        fill_in("Address", with: "address_full_match")
+        fill_in("City", with: "Algiers")
+        fill_in("Phone number", with: "555123456")
+        fill_in("Postal code", with: "16000")
+
+        select("1", from: "Day")
+        select("January", from: "Month")
+        select("1980", from: "Year")
+
+        fill_in("Pay to the order of", with: "Algeria Creator")
+        fill_in("Account #", with: "00001234567890123456")
+        fill_in("Confirm account #", with: "00001234567890123456")
+        fill_in("SWIFT / BIC Code", with: "AAAADZDZXXX")
+
+        click_on("Update settings")
+
+        expect(page).to have_status(text: "That is the form's example, not a real code. Enter your own bank's SWIFT / BIC code.")
+        expect(@user.reload.active_bank_account).to be_nil
       end
     end
 
@@ -6684,7 +6894,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         fill_in("Pay to the order of", with: "Macao Creator")
         fill_in("Account #", with: "0000000001234567897")
         fill_in("Confirm account #", with: "0000000001234567897")
-        fill_in("SWIFT / BIC Code", with: "AAAAMOMXXXX")
+        fill_in("SWIFT / BIC Code", with: "BANKMOMXXXX")
 
         expect(page).to have_content("Must exactly match the name on your bank account")
         expect(page).to have_content("Payouts will be made in MOP.")
@@ -6702,7 +6912,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
         expect(compliance_info.phone).to eq("+85366123456")
         expect(compliance_info.birthday).to eq(Date.new(1980, 1, 1))
         expect(@user.reload.active_bank_account.send(:account_number_decrypted)).to eq("0000000001234567897")
-        expect(@user.reload.active_bank_account.routing_number).to eq("AAAAMOMXXXX")
+        expect(@user.reload.active_bank_account.routing_number).to eq("BANKMOMXXXX")
       end
     end
 
@@ -6815,7 +7025,7 @@ describe("Payments Settings Scenario", type: :system, js: true) do
           expect(find(:select, "Country")).not_to have_selector(:option, "Cuba")
           expect(find(:select, "Country")).not_to have_selector(:option, "Syrian Arab Republic")
           select "United States", from: "Country"
-          check "I have a valid, government-issued photo ID"
+          check "I can provide a valid, government-issued photo ID when my payouts are due"
           expect(page).to have_button "Save", disabled: true
           check "I can provide proof of residence in the country above, or my business is registered there"
           expect(page).to have_button "Save", disabled: false

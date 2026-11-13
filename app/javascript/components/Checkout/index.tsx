@@ -99,6 +99,7 @@ import {
   getUnshippableProducts,
   isProcessing,
   isTippingEnabled,
+  PayRecapContext,
   useState,
 } from "./payment";
 
@@ -255,17 +256,41 @@ const CurrencyRefusalNotice = ({ summaryCurrencyCode }: { summaryCurrencyCode: s
   );
 };
 
+const joinNames = (names: string[]) =>
+  names.length > 2 ? `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}` : names.join(" and ");
+
 export const Checkout = ({
   discoverUrl,
   cart,
   updateCart,
   recommendedProducts,
+  soldOutArrival,
+  ownedInCart = [],
 }: {
   discoverUrl: string;
   cart: CartState;
   updateCart: (updated: Partial<CartState>) => void;
   recommendedProducts?: CardProduct[] | null;
+  // Set when a legacy /checkout link named a tier that is closed or sold out, so nothing was added.
+  soldOutArrival?: { message: string; url: string } | null;
+  // Filtered against the live cart, so removing a line clears its warning.
+  ownedInCart?: { permalink: string; option_id: string | null; name: string }[];
 }) => {
+  const ownedLines = cart.items.flatMap((item) => {
+    const owned = ownedInCart.find(
+      ({ permalink, option_id }) =>
+        permalink === item.product.permalink && (option_id ?? null) === (item.option_id ?? null),
+    );
+    return owned ? [{ item, name: owned.name, charged: getDiscountedPrice(cart, item).price !== 0 }] : [];
+  });
+  const ownedNames = [...new Set(ownedLines.map(({ name }) => name))];
+  const chargedNames = [...new Set(ownedLines.filter(({ charged }) => charged).map(({ name }) => name))];
+  const secondChargeNotice =
+    chargedNames.length === 0
+      ? ""
+      : chargedNames.length === ownedNames.length
+        ? " Checking out charges you again."
+        : ` Checking out charges you again for ${joinNames(chargedNames)}.`;
   const [state] = useState();
   const [newDiscountCode, setNewDiscountCode] = React.useState("");
   const [loadingDiscount, setLoadingDiscount] = React.useState(false);
@@ -554,6 +579,73 @@ export const Checkout = ({
   // an all-whole cart keeps the compact US$10 look.
   const noCentsIfWhole = summaryAmountsAreAllWhole(summaryDisplayedCents, localCurrency?.subunitToUnit ?? 100);
 
+  // What the pay button restates. Only a plain one-charge cart gets it: commission deposits, installments
+  // and pre-order splits charge less than the total today, a test purchase charges nothing, and a cart
+  // without a current quote (requoting, a failed requote showing the old one, or a payment setup still
+  // refreshing) has no settled amount.
+  const hasSplitCharge =
+    commissionCompletionTotal > 0 ||
+    futureInstallmentsWithoutTipsTotal > 0 ||
+    state.products.some((item) => item.isPreorder || item.testPurchase);
+  const hasSettledQuote = state.surcharges.type === "loaded" && !state.checkoutPaymentStale;
+  const payRecapAmount =
+    total != null && total > 0 && hasSettledQuote && !awaitingBuyerAction && !isRequoting && !hasSplitCharge
+      ? localAmounts && localCurrency
+        ? formatPresentmentCents(localAmounts.totalCents, localCurrency, { noCentsIfWhole })
+        : formatCheckoutPrice(total, localCurrency, { noCentsIfWhole })
+      : null;
+  // What each line costs today, after discounts, in the displayed currency. Whether a line is free comes
+  // from the cart itself, so it is already current while a requote is in flight.
+  const linePrices = cart.items.map((item, index) => {
+    const trial = hasFreeTrial(item, isGift);
+    const discountedPrice = trial ? 0 : getDiscountedPrice(cart, item).price;
+    const allocatedCents = presentmentAmounts ? buyerCurrencyDisplay?.lineAllocations[index]?.price_cents : undefined;
+    const localCents = allocatedCents ?? (listedAmounts ? discountedPrice : undefined);
+    const canonicalCents = convertToUSD(item, discountedPrice);
+    return {
+      name: item.product.name,
+      isFree: discountedPrice === 0,
+      price:
+        localCents != null && localCurrency
+          ? formatPresentmentCents(localCents, localCurrency, { noCentsIfWhole })
+          : formatCheckoutPrice(canonicalCents, localCurrency, { noCentsIfWhole }),
+    };
+  });
+  // A mixed free and paid cart names what is paid for. The line stays put while the cart is requoted so the
+  // pay button doesn't jump, but its prices are only shown alongside a settled amount (null means pending),
+  // so it never shows a stale price. A failed quote has nothing coming, so the line goes rather than spin.
+  // Shipping is listed too, since a free physical item can carry it. The line names what is bought, not a
+  // breakdown of the total: tax and tip keep their own rows in the summary just above.
+  const showsPaidLines =
+    !hasSplitCharge &&
+    !awaitingBuyerAction &&
+    (state.surcharges.type === "loaded" || quoteInFlight) &&
+    linePrices.some((line) => line.isFree) &&
+    linePrices.some((line) => !line.isFree);
+  const shippingCents = summarySurcharges?.shipping_rate_cents ?? 0;
+  const paidLines = showsPaidLines
+    ? [
+        ...linePrices.filter((line) => !line.isFree).map(({ name, price }) => ({ name, price })),
+        ...(shippingCents > 0
+          ? [
+              {
+                name: "Shipping",
+                price:
+                  localAmounts && localCurrency
+                    ? formatPresentmentCents(localAmounts.shippingCents, localCurrency, { noCentsIfWhole })
+                    : formatCheckoutPrice(shippingCents, localCurrency, { noCentsIfWhole }),
+              },
+            ]
+          : []),
+      ].map((line) => ({ name: line.name, price: payRecapAmount == null ? null : line.price }))
+    : [];
+  const paidLinesKey = paidLines.map((line) => `${line.name}\u0000${line.price ?? ""}`).join("\u0001");
+  // Keyed on the content so the context value only changes when the recap does.
+  const payRecap = React.useMemo(
+    () => (payRecapAmount == null && paidLines.length === 0 ? null : { amount: payRecapAmount, paidLines }),
+    [payRecapAmount, paidLinesKey],
+  );
+
   // Recommendations arrive after the page renders. They sit after the payment form in the
   // single-column (phone) order, so their arrival cannot push the form down. On wide screens the
   // form spans both grid rows and they sit under the cart.
@@ -586,6 +678,26 @@ export const Checkout = ({
         }
         showTitleOnMobile
       />
+      {/* In flow, not a floating toast: on a narrow viewport a toast sits on top of the heading
+          above it, and the buyer loses the page title right when the message needs context. */}
+      {soldOutArrival ? (
+        <div className="px-4 pt-4 md:px-16 md:pt-8">
+          <Alert variant="danger">
+            {soldOutArrival.message}{" "}
+            <a href={soldOutArrival.url} className="underline">
+              View the product
+            </a>
+          </Alert>
+        </div>
+      ) : null}
+      {ownedNames.length > 0 ? (
+        <div className="px-4 pt-4 md:px-16 md:pt-8">
+          <Alert variant="warning">
+            You already own {joinNames(ownedNames)}.{secondChargeNotice} Remove {ownedNames.length > 1 ? "them" : "it"}{" "}
+            from your cart if you don't want to buy again.
+          </Alert>
+        </div>
+      ) : null}
       {isOpenTuple(cart.items, 1) ? (
         <div className="grid gap-8 p-4 md:p-8 md:px-16">
           <div
@@ -603,6 +715,7 @@ export const Checkout = ({
                     key={`${item.product.permalink}${item.option_id ? `_${item.option_id}` : ""}`}
                     item={item}
                     cart={cart}
+                    alreadyOwned={ownedLines.find((line) => line.item === item) ?? null}
                     isGift={isGift}
                     buyerCurrencyDisplay={localCurrency}
                     presentmentPriceCents={localAmounts?.linePriceCents[index] ?? null}
@@ -849,7 +962,9 @@ export const Checkout = ({
                 ) : null}
               </CartItemList>
             </div>
-            <PaymentForm className={classNames(recommendations && "@[64rem]:row-span-2")} />
+            <PayRecapContext.Provider value={payRecap}>
+              <PaymentForm className={classNames(recommendations && "@[64rem]:row-span-2")} />
+            </PayRecapContext.Provider>
             <NavigationButton className="@[64rem]:hidden" href={cart.returnUrl ?? discoverUrl}>
               Continue shopping
             </NavigationButton>
@@ -942,6 +1057,7 @@ const TipSelector = ({
           <Tabs
             variant="buttons"
             role="radiogroup"
+            aria-label="Tip percentage"
             className="col-span-full grid-cols-1! @3xs:grid-cols-2! @sm:grid-cols-4! @[52rem]:col-span-4!"
           >
             {tipPercentages.map((percentage) => (
@@ -1048,6 +1164,7 @@ const cartActionButtonClasses = "h-8 w-15 !p-0 !text-xs";
 const CartItemComponent = ({
   item,
   cart,
+  alreadyOwned = null,
   updateCart,
   isGift,
   buyerCurrencyDisplay,
@@ -1056,6 +1173,7 @@ const CartItemComponent = ({
 }: {
   item: CartItemProps;
   cart: CartState;
+  alreadyOwned?: { charged: boolean } | null;
   updateCart: (update: Partial<CartState>) => void;
   isGift: boolean;
   buyerCurrencyDisplay?: CheckoutLocalCurrencyFormat | null;
@@ -1170,8 +1288,15 @@ const CartItemComponent = ({
   return (
     <CartItem
       extra={
-        renewalNotice || bundleContents ? (
+        alreadyOwned || renewalNotice || bundleContents ? (
           <>
+            {alreadyOwned ? (
+              <span className="text-sm">
+                {alreadyOwned.charged
+                  ? "You already own this. Checking out charges you again."
+                  : "You already own this."}
+              </span>
+            ) : null}
             {renewalNotice ? <span className="text-sm">{renewalNotice}</span> : null}
             {bundleContents}
           </>

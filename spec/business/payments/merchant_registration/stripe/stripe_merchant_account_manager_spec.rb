@@ -559,6 +559,15 @@ describe StripeMerchantAccountManager, :vcr do
         end
       end
 
+      context "with a nine-character foreign ID that has letters" do
+        let(:tax_id) { "S1234567A" }
+
+        it "omits it, because it is not an SSN or ITIN" do
+          expect(person).not_to have_key(:id_number)
+          expect(person).not_to have_key(:ssn_last_4)
+        end
+      end
+
       context "with four digits" do
         let(:tax_id) { "0000" }
 
@@ -2409,7 +2418,8 @@ describe StripeMerchantAccountManager, :vcr do
             country: "TW",
             currency: "twd",
             account_number: "0001234567",
-            routing_number: "AAAATWTXXXX"
+            routing_number: "AAAATWTXXXX",
+            account_holder_name: bank_account.account_holder_full_name
           },
           settings: {
             payouts: {
@@ -7683,7 +7693,8 @@ describe StripeMerchantAccountManager, :vcr do
       let(:user_compliance_info) do create(:user_compliance_info, user:, city: "Azerbaijan",
                                                                   street_address: "address_full_match", state: nil, zip_code: "43200",
                                                                   country: "Azerbaijan", individual_tax_id: nil) end
-      let(:bank_account) { create(:azerbaijan_bank_account, user:) }
+      # Stripe's AZ test routing is 123456-123456; the model refuses that bank code on new rows.
+      let(:bank_account) { build(:azerbaijan_bank_account, user:, bank_code: "123456", branch_code: "123456").tap { _1.save!(validate: false) } }
       let(:tos_agreement) { create(:tos_agreement, user:) }
 
       before do
@@ -12861,6 +12872,44 @@ describe StripeMerchantAccountManager, :vcr do
             expect(user_compliance_info_request.due_at).to eq(Time.zone.at(1712086847))
             expect(user_compliance_info_request.stripe_event_id).to eq("stripe-event-id")
           end
+
+          context "when Stripe asks an Indonesian individual for the address state" do
+            before do
+              stripe_event["data"]["object"]["country"] = "ID"
+              stripe_event["data"]["object"]["future_requirements"]["currently_due"] = ["individual.address.state"]
+              stripe_event["data"]["object"]["future_requirements"]["eventually_due"] = ["individual.address.state"]
+            end
+
+            it "opens the state request the payments form answers, and keeps it open on the next event without emailing again" do
+              expect do
+                described_class.handle_stripe_event(stripe_event)
+              end.to have_enqueued_mail(ContactingCreatorMailer, :more_kyc_needed).with(user.id, [UserComplianceInfoFields::Individual::Address::STATE])
+              state_request = user.user_compliance_info_requests.requested.sole
+              expect(state_request.field_needed).to eq(UserComplianceInfoFields::Individual::Address::STATE)
+
+              expect do
+                described_class.handle_stripe_event(stripe_event.merge("id" => "stripe-event-id-2"))
+              end.not_to have_enqueued_mail(ContactingCreatorMailer, :more_kyc_needed)
+              expect(user.user_compliance_info_requests.requested.sole).to eq(state_request)
+            end
+          end
+
+          context "when Stripe asks an Indonesian company for its own and its representative's address state" do
+            before do
+              stripe_event["data"]["object"].merge!("country" => "ID", "business_type" => "company")
+              stripe_event["data"]["object"]["future_requirements"].merge!("currently_due" => ["company.address.state", "person_IRWHQ2ZRlwIh1j.address.state"])
+              allow(Stripe::Account).to receive(:list_persons).and_return([{ "id" => "person_IRWHQ2ZRlwIh1j", "object" => "person" }])
+            end
+
+            it "opens the business and representative state requests the payments form answers" do
+              described_class.handle_stripe_event(stripe_event)
+
+              expect(user.user_compliance_info_requests.requested.pluck(:field_needed)).to contain_exactly(
+                UserComplianceInfoFields::LegalEntity::Address::STATE,
+                UserComplianceInfoFields::Individual::Address::STATE
+              )
+            end
+          end
         end
 
         describe "alternative fields due" do
@@ -15757,6 +15806,32 @@ describe StripeMerchantAccountManager, :vcr do
         described_class.handle_stripe_event(stripe_event(eventually_due: ["individual.id_number"]))
       end.not_to have_enqueued_mail(ContactingCreatorMailer, :more_kyc_needed)
     end
+
+    it "creates no request and sends no email for a document that Stripe lists only under eventually_due with a near-term deadline" do
+      expect do
+        described_class.handle_stripe_event(stripe_event(eventually_due: ["individual.verification.document"], deadline: 7.days.from_now.to_i))
+      end.not_to have_enqueued_mail(ContactingCreatorMailer, :more_kyc_needed)
+      expect(user.user_compliance_info_requests.requested.count).to eq(0)
+    end
+
+    it "closes an open document request that Stripe now lists only under eventually_due" do
+      request = create(:user_compliance_info_request, user:, field_needed: UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID)
+
+      described_class.handle_stripe_event(stripe_event(eventually_due: ["individual.verification.document"], deadline: 7.days.from_now.to_i))
+
+      expect(request.reload.state).to eq("provided")
+    end
+
+    it "records the document request once the document is currently_due" do
+      described_class.handle_stripe_event(stripe_event(
+                                            currently_due: ["individual.verification.document"],
+                                            eventually_due: ["individual.verification.document"],
+                                            deadline: 7.days.from_now.to_i
+                                          ))
+
+      expect(user.user_compliance_info_requests.requested.count).to eq(1)
+      expect(user.user_compliance_info_requests.requested.first.field_needed).to eq(UserComplianceInfoFields::Individual::STRIPE_IDENTITY_DOCUMENT_ID)
+    end
   end
 
   # Stripe validates `company[structure]` against the ACCOUNT country, and create_account takes that
@@ -15825,6 +15900,75 @@ describe StripeMerchantAccountManager, :vcr do
 
       expect(company[:structure]).to eq("private_corporation")
       expect(company).not_to have_key(:vat_id)
+    end
+
+    {
+      UserComplianceInfo::BusinessTypes::CORPORATION => "private_corporation",
+      UserComplianceInfo::BusinessTypes::PARTNERSHIP => "private_partnership",
+      UserComplianceInfo::BusinessTypes::LLC => nil,
+      UserComplianceInfo::BusinessTypes::NON_PROFIT => nil,
+    }.each do |legacy_type, expected|
+      it "#{expected ? "maps" : "sends no structure for"} a Canadian legal entity holding legacy type #{legacy_type} on create" do
+        canadian = create(:user_compliance_info_uae_business,
+                          user:,
+                          business_country: "Canada",
+                          business_state: "Ontario",
+                          business_city: "Toronto",
+                          business_zip_code: "M4C 1T2",
+                          business_type: legacy_type)
+        company = described_class.send(:account_hash, user, nil, canadian, passphrase:)[:company]
+
+        if expected
+          expect(company[:structure]).to eq(expected)
+        else
+          expect(company).not_to have_key(:structure)
+        end
+      end
+    end
+
+    describe "update_account for a Canadian legal entity" do
+      let(:merchant_account) { create(:merchant_account, user:) }
+      let(:update_params) { [] }
+
+      def canadian_info(business_type)
+        create(:user_compliance_info_uae_business, user:, business_country: "Canada", business_state: "Ontario",
+                                                   business_city: "Toronto", business_zip_code: "M4C 1T2", business_type:)
+      end
+
+      before do
+        create(:tos_agreement, user:)
+        allow(Stripe::Account).to receive(:list_persons).and_return({ "data" => [] })
+        allow(Stripe::Account).to receive(:update_person)
+        allow(Stripe::Account).to receive(:create_person)
+        allow(StripeGuardianManager).to receive(:sync)
+        allow(Stripe::Account).to receive(:update) { |_id, params| update_params << params }
+      end
+
+      # Pre-mapping payloads, including the stale private_corporation re-send, which is base behavior rather than a goal.
+      {
+        %w[llc corporation] => nil,
+        %w[llc partnership] => nil,
+        %w[corporation llc] => nil,
+        %w[corporation corporation] => nil,
+        %w[private_corporation corporation] => "private_corporation",
+        %w[corporation private_partnership] => "private_partnership",
+      }.each do |(last_type, current_type), expected|
+        it "#{expected ? "sends structure #{expected}" : "sends no structure"} when the type changes from #{last_type} to #{current_type}" do
+          last_info = canadian_info(last_type)
+          last_info.mark_deleted!
+          canadian_info(current_type)
+          stripe_account = Stripe::Account.construct_from(
+            id: merchant_account.charge_processor_merchant_id, object: "account", business_type: "company", capabilities: {},
+            metadata: { user_compliance_info_id: last_info.external_id },
+            requirements: { currently_due: [], eventually_due: [], past_due: [] }
+          )
+          allow(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id).and_return(stripe_account)
+
+          described_class.update_account(user, passphrase:)
+
+          expect(update_params.sole.fetch(:company, {}).slice(:structure)).to eq(expected ? { structure: expected } : {})
+        end
+      end
     end
 
     describe "Japanese address blocks" do
@@ -15998,6 +16142,75 @@ describe StripeMerchantAccountManager, :vcr do
         described_class.update_account(user, passphrase:)
       end
 
+      context "when Stripe already holds an individual but our previous record is a US sole proprietorship" do
+        let(:previous) { create(:user_compliance_info_business, user:, business_type: UserComplianceInfo::BusinessTypes::SOLE_PROPRIETORSHIP) }
+
+        before do
+          previous.mark_deleted!
+          create(:user_compliance_info, user:)
+        end
+
+        it "skips the structure clear and still sends business_type individual" do
+          stub_stripe_account(previous, business_type: "individual")
+
+          expect(Stripe::Account).not_to receive(:update).with(anything, { company: { structure: "" } })
+          expect(Stripe::Account).to receive(:update).with(
+            merchant_account.charge_processor_merchant_id,
+            hash_including(business_type: "individual")
+          )
+
+          described_class.update_account(user, passphrase:)
+        end
+
+        it "retires a structure rejection note" do
+          note = user.add_payout_note(content: "rejected", seller_visible: false)
+          note.update!(author_id: GUMROAD_ADMIN_ID, json_data: { StripeMerchantAccountManager::PAYOUT_SETUP_REJECTION_NOTE_FLAG => true,
+                                                                 StripeMerchantAccountManager::PAYOUT_SETUP_REJECTED_FIELD_KEY => "structure" })
+          stub_stripe_account(previous, business_type: "individual")
+          allow(Stripe::Account).to receive(:update)
+
+          described_class.update_account(user, passphrase:)
+
+          expect(note.reload.deleted_at).to be_present
+        end
+
+        # The seller's next save carries the same details, so it never reaches Stripe on its own.
+        it "re-drives the pending structure sync from an unchanged save" do
+          note = user.add_payout_note(content: "rejected", seller_visible: false)
+          note.update!(author_id: GUMROAD_ADMIN_ID, json_data: { StripeMerchantAccountManager::PAYOUT_SETUP_REJECTION_NOTE_FLAG => true,
+                                                                 StripeMerchantAccountManager::PAYOUT_SETUP_REJECTED_FIELD_KEY => "structure" })
+          stub_stripe_account(previous, business_type: "individual")
+
+          expect(Stripe::Account).not_to receive(:update).with(anything, { company: { structure: "" } })
+          expect(Stripe::Account).to receive(:update).with(
+            merchant_account.charge_processor_merchant_id,
+            hash_including(business_type: "individual")
+          )
+
+          described_class.resync_pending_structure_rejection(user)
+
+          expect(note.reload.deleted_at).to be_present
+        end
+
+        it "makes no Stripe call when the individual has no structure rejection to finish" do
+          stub_stripe_account(previous, business_type: "individual")
+          expect(Stripe::Account).not_to receive(:update)
+
+          described_class.resync_pending_structure_rejection(user)
+        end
+
+        it "swallows a Stripe failure rather than failing the seller's save" do
+          note = user.add_payout_note(content: "rejected", seller_visible: false)
+          note.update!(author_id: GUMROAD_ADMIN_ID, json_data: { StripeMerchantAccountManager::PAYOUT_SETUP_REJECTION_NOTE_FLAG => true,
+                                                                 StripeMerchantAccountManager::PAYOUT_SETUP_REJECTED_FIELD_KEY => "structure" })
+          stub_stripe_account(previous, business_type: "individual")
+          allow(Stripe::Account).to receive(:update).and_raise(Stripe::InvalidRequestError.new("boom", nil))
+          expect(ErrorNotifier).to receive(:notify)
+
+          expect { described_class.resync_pending_structure_rejection(user) }.not_to raise_error
+        end
+      end
+
       context "when Stripe holds a company but our previous record is individual" do
         let(:previous) { create(:user_compliance_info, user:) }
         let(:current_factory) { :user_compliance_info }
@@ -16124,6 +16337,28 @@ describe StripeMerchantAccountManager, :vcr do
           described_class.update_account(user, passphrase:)
         end
       end
+    end
+  end
+
+  describe ".account_holder_name_synced_to_stripe?" do
+    let(:user) { create(:user) }
+
+    before { create(:user_compliance_info, user:, country: "Taiwan") }
+
+    it "is true for a Taiwan bank account with an ASCII holder name" do
+      bank_account = create(:taiwan_bank_account, user:, account_holder_full_name: "SHIE BING YUAN")
+
+      expect(described_class.account_holder_name_synced_to_stripe?(user, bank_account)).to be(true)
+    end
+
+    it "is false for a Taiwan bank account with a non-ASCII holder name" do
+      bank_account = create(:taiwan_bank_account, user:, account_holder_full_name: "謝秉原")
+
+      expect(described_class.account_holder_name_synced_to_stripe?(user, bank_account)).to be(false)
+    end
+
+    it "is false for a Taiwan seller with no bank account" do
+      expect(described_class.account_holder_name_synced_to_stripe?(user, nil)).to be(false)
     end
   end
 end

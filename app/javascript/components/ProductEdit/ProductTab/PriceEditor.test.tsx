@@ -31,6 +31,33 @@ const renderEditor = (
     />,
   );
 
+describe("PriceEditor Amount field", () => {
+  // The field is backed by `PriceInput`, which reads a comma before three digits as thousands
+  // grouping (the same reading `clean_price` applies on the new-product page), so 7,900 typed
+  // here is $7,900, not $7.90.
+  it("reads 7,900 as $7,900 and shows an example amount", () => {
+    const setPriceCents = vi.fn();
+    renderEditor({ isPWYW: false, setIsPWYW: noop, setPriceCents, priceCents: 0 });
+
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "7,900" } });
+
+    expect(setPriceCents).toHaveBeenCalledWith(790000);
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "7,90" } });
+    expect(setPriceCents).toHaveBeenLastCalledWith(790);
+    expect(screen.getByText("Enter an amount like 7900 or 9.99.")).toBeTruthy();
+  });
+
+  it("reads 7,900 as ¥7,900 and asks for a whole amount in a currency without minor units", () => {
+    const setPriceCents = vi.fn();
+    renderEditor({ isPWYW: false, setIsPWYW: noop, setPriceCents, priceCents: 0, currencyType: "jpy" });
+
+    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "7,900" } });
+
+    expect(setPriceCents).toHaveBeenCalledWith(7900);
+    expect(screen.getByText("Enter a whole amount like 7900.")).toBeTruthy();
+  });
+});
+
 describe("PriceEditor PWYW toggle", () => {
   it("leaves PWYW editable on a $0-base product with paid variants", () => {
     const setIsPWYW = vi.fn();
@@ -130,5 +157,24 @@ describe("PriceEditor installments toggle", () => {
     expect(screen.getByRole("switch", { name: /installments/iu })).toHaveProperty("disabled", false);
     expect(screen.queryByText("Installments aren't available with pay what you want.")).toBeNull();
     expect(screen.getByRole("switch", { name: /installments/iu }).getAttribute("aria-describedby")).toBeNull();
+  });
+});
+
+describe("PriceEditor amount hint", () => {
+  const amountDescription = () => {
+    const ids = screen.getByLabelText("Amount").getAttribute("aria-describedby")?.split(" ") ?? [];
+    return ids.map((id) => document.getElementById(id)?.textContent).join(" ");
+  };
+
+  it("shows an example amount with decimals", () => {
+    renderEditor({ isPWYW: false, setIsPWYW: noop, priceCents: 1500, currencyType: "usd" });
+
+    expect(amountDescription()).toBe("Enter an amount like 7900 or 9.99.");
+  });
+
+  it("asks for a whole amount in a currency without minor units", () => {
+    renderEditor({ isPWYW: false, setIsPWYW: noop, priceCents: 1500, currencyType: "jpy" });
+
+    expect(amountDescription()).toBe("Enter a whole amount like 7900.");
   });
 });

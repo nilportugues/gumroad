@@ -5,6 +5,8 @@ import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  PayRecapContext,
+  type PayRecap,
   reduceCheckoutState,
   StateContext,
   type CheckoutPaymentConfig,
@@ -572,6 +574,134 @@ describe("PaymentForm validation-failure feedback", () => {
       elements_options: {
         stripe_elements_mode: "payment",
         currency: "usd",
+        buyer_currency_presentment: false,
+        presentment_amount_cents: null,
+        listed_currency_display: null,
+        payment_method_types: ["card"],
+        payment_method_list_token: null,
+        stripe_link_enabled: false,
+        stripe_connect_account_id: null,
+      },
+    };
+    const checkoutState = state();
+    const [product] = checkoutState.products;
+    if (product === undefined) throw new Error("Expected a checkout product");
+    if (checkoutState.surcharges.type !== "loaded") throw new Error("Expected loaded surcharges");
+
+    renderPaymentForm({
+      ...checkoutState,
+      buyerCurrency: "cad",
+      products: [{ ...product, price: 2_013, requirePayment: true }],
+      surcharges: {
+        type: "loaded",
+        result: {
+          ...checkoutState.surcharges.result,
+          subtotal: 2_013,
+          buyer_currency_quote: {
+            token: "quote-token",
+            currency: "cad",
+            canonical_total_cents: 2_013,
+            presentment_total_cents: 2_813,
+            charge_presentment_total_cents: 2_813,
+            rate: 1.3974,
+            subunit_to_unit: 100,
+            expires_at: "2026-08-26T16:00:00Z",
+            line_allocations: [
+              {
+                permalink: "product-a",
+                price_cents: 2_813,
+                tip_cents: 0,
+                tax_cents: 0,
+                shipping_cents: 0,
+                total_cents: 2_813,
+              },
+            ],
+          },
+        },
+      },
+      checkoutPayment,
+    });
+
+    expect(paymentElementInputRender.walletsEnabled).toBe(false);
+  });
+
+  it("keeps element wallets on a server-chosen quote remount the server left wallets enabled on", () => {
+    type ClientConfirmPayment = Extract<CheckoutPaymentConfig, { integration: "payment_element_client_confirm" }>;
+    const checkoutPayment: ClientConfirmPayment = {
+      integration: "payment_element_client_confirm",
+      fallback_reason: null,
+      recurring_upi_registration: false,
+      disable_wallets: false,
+      request_apple_pay_merchant_tokens: false,
+      payment_element_wallets: true,
+      flat_payment_methods: true,
+      elements_options: {
+        stripe_elements_mode: "payment",
+        currency: "usd",
+        buyer_currency_presentment: true,
+        presentment_amount_cents: null,
+        listed_currency_display: null,
+        payment_method_types: ["card"],
+        payment_method_list_token: null,
+        stripe_link_enabled: false,
+        stripe_connect_account_id: null,
+      },
+    };
+    const checkoutState = state();
+    const [product] = checkoutState.products;
+    if (product === undefined) throw new Error("Expected a checkout product");
+    if (checkoutState.surcharges.type !== "loaded") throw new Error("Expected loaded surcharges");
+
+    renderPaymentForm({
+      ...checkoutState,
+      buyerCurrency: "cad",
+      products: [{ ...product, price: 2_013, requirePayment: true }],
+      surcharges: {
+        type: "loaded",
+        result: {
+          ...checkoutState.surcharges.result,
+          subtotal: 2_013,
+          buyer_currency_quote: {
+            token: "quote-token",
+            currency: "cad",
+            canonical_total_cents: 2_013,
+            presentment_total_cents: 2_813,
+            charge_presentment_total_cents: 2_813,
+            rate: 1.3974,
+            subunit_to_unit: 100,
+            expires_at: "2026-08-26T16:00:00Z",
+            line_allocations: [
+              {
+                permalink: "product-a",
+                price_cents: 2_813,
+                tip_cents: 0,
+                tax_cents: 0,
+                shipping_cents: 0,
+                total_cents: 2_813,
+              },
+            ],
+          },
+        },
+      },
+      checkoutPayment,
+    });
+
+    expect(paymentElementInputRender.walletsEnabled).toBe(true);
+  });
+
+  it("suppresses element wallets on a quote remount the server disabled wallets on", () => {
+    type ClientConfirmPayment = Extract<CheckoutPaymentConfig, { integration: "payment_element_client_confirm" }>;
+    const checkoutPayment: ClientConfirmPayment = {
+      integration: "payment_element_client_confirm",
+      fallback_reason: null,
+      recurring_upi_registration: false,
+      disable_wallets: true,
+      request_apple_pay_merchant_tokens: false,
+      payment_element_wallets: true,
+      flat_payment_methods: true,
+      elements_options: {
+        stripe_elements_mode: "payment",
+        currency: "usd",
         buyer_currency_presentment: true,
         presentment_amount_cents: null,
         listed_currency_display: null,
@@ -622,6 +752,51 @@ describe("PaymentForm validation-failure feedback", () => {
 
     expect(paymentElementInputRender.walletsEnabled).toBe(false);
   });
+
+  it.each([
+    [false, true],
+    [true, false],
+  ])(
+    "on a direct-listed EUR card Element with disable_wallets=%s, wallets enabled is %s",
+    (disableWallets, expected) => {
+      type ClientConfirmPayment = Extract<CheckoutPaymentConfig, { integration: "payment_element_client_confirm" }>;
+      const checkoutPayment: ClientConfirmPayment = {
+        integration: "payment_element_client_confirm",
+        fallback_reason: null,
+        recurring_upi_registration: false,
+        disable_wallets: disableWallets,
+        request_apple_pay_merchant_tokens: false,
+        payment_element_wallets: true,
+        flat_payment_methods: true,
+        elements_options: {
+          stripe_elements_mode: "payment",
+          currency: "eur",
+          buyer_currency_presentment: false,
+          presentment_amount_cents: 1_500,
+          listed_currency_display: { currency: "eur", subunit_to_unit: 100 },
+          payment_method_types: ["card"],
+          payment_method_list_token: null,
+          stripe_link_enabled: false,
+          stripe_connect_account_id: null,
+          direct_listed_card: true,
+        },
+      };
+      const checkoutState = state();
+      const [product] = checkoutState.products;
+      if (product === undefined) throw new Error("Expected a checkout product");
+      if (checkoutState.surcharges.type !== "loaded") throw new Error("Expected loaded surcharges");
+
+      renderPaymentForm({
+        ...checkoutState,
+        buyerCurrency: "eur",
+        products: [{ ...product, price: 1_800, requirePayment: true, listedPriceCents: 1_500 }],
+        surcharges: { type: "loaded", result: { ...checkoutState.surcharges.result, subtotal: 1_800 } },
+        checkoutPayment,
+      });
+
+      expect(paymentElementInputRender.walletsEnabled).toBe(expected);
+    },
+  );
 
   it("does not reuse a native PayPal agreement after PayPal changes the tax location", async () => {
     const surchargeResult = {
@@ -1349,5 +1524,79 @@ describe("PaymentForm saved PayPal account", () => {
     await waitFor(() => expect(paypalMock.render).toHaveBeenCalled());
     expect(screen.getByRole("radio", { name: "PayPal" })).toHaveProperty("checked", true);
     expect(screen.queryByRole("button", { name: "Update membership" })).toBeNull();
+  });
+});
+
+describe("pay recap", () => {
+  const renderWithRecap = (recap: PayRecap | null, overrides: Partial<State> = {}) => {
+    const base = state();
+    return render(
+      <LoggedInUserProvider value={null}>
+        <StateContext.Provider
+          value={
+            [
+              state({ products: base.products.map((item) => ({ ...item, requirePayment: true })), ...overrides }),
+              vi.fn(),
+            ] as const
+          }
+        >
+          <PayRecapContext.Provider value={recap}>
+            <PaymentForm />
+          </PayRecapContext.Provider>
+        </StateContext.Provider>
+      </LoggedInUserProvider>,
+    );
+  };
+
+  afterEach(cleanup);
+
+  it("puts the amount on the pay button and names each paid item of a mixed cart", () => {
+    renderWithRecap({ amount: "$49", paidLines: [{ name: "Lifetime Membership", price: "$49" }] });
+
+    expect(screen.getByRole("button", { name: "Pay $49" })).toBeTruthy();
+    expect(screen.getByText("You are paying for: Lifetime Membership ($49)")).toBeTruthy();
+  });
+
+  it("shows no item line when the cart has no free item", () => {
+    renderWithRecap({ amount: "$49", paidLines: [] });
+
+    expect(screen.getByRole("button", { name: "Pay $49" })).toBeTruthy();
+    expect(screen.queryByText(/You are paying for/u)).toBeNull();
+  });
+
+  it("keeps the line in place with pending prices while no amount is settled", () => {
+    renderWithRecap({
+      amount: null,
+      paidLines: [
+        { name: "Lifetime Membership", price: null },
+        { name: "Shipping", price: null },
+      ],
+    });
+
+    expect(screen.getByRole("button", { name: "Pay" })).toBeTruthy();
+    const line = screen.getByText(/You are paying for:/u);
+    expect(line.textContent).toBe("You are paying for: Lifetime Membership , Shipping ");
+    expect(line.getAttribute("aria-busy")).toBe("true");
+    expect(line.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(2);
+  });
+
+  it("names each paid item above the native PayPal button too", async () => {
+    paypalMock.render.mockReset();
+    paypalMock.loadScript.mockResolvedValue({ Buttons: () => ({ render: paypalMock.render }) });
+    renderWithRecap(
+      { amount: "$49", paidLines: [{ name: "Lifetime Membership", price: "$49" }] },
+      {
+        paymentMethod: "paypal",
+        paypalClientId: "paypal-client-id",
+        products: state().products.map((item) => ({
+          ...item,
+          requirePayment: true,
+          supportsPaypal: "native" as const,
+          paypalCardFundingDisabled: false,
+        })),
+      },
+    );
+
+    expect(await screen.findByText("You are paying for: Lifetime Membership ($49)")).toBeTruthy();
   });
 });

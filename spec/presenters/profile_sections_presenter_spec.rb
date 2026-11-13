@@ -70,6 +70,61 @@ describe ProfileSectionsPresenter do
     end
   end
 
+  describe "single-flight cache rebuild" do
+    before { Rails.cache.clear }
+
+    it "builds once when concurrent requests miss the same cold entry, with a request-local cache" do
+      store = ActiveSupport::Cache::MemoryStore.new
+      store.singleton_class.prepend(ActiveSupport::Cache::Strategy::LocalCache)
+      allow(Rails).to receive(:cache).and_return(store)
+      stub_const("#{described_class}::BUILD_WAIT_INTERVAL", 0.01)
+      builds = Concurrent::AtomicFixnum.new(0)
+      waiting = Queue.new
+      release = Queue.new
+
+      threads = Array.new(4) do
+        Thread.new do
+          store.send(:with_local_cache) do
+            subject.send(:fetch_single_flight, "sections-key") do
+              builds.increment
+              3.times { waiting.pop }
+              release.pop
+              :built
+            end
+          end
+        end
+      end
+      # Each waiter has read the cold entry (local-cache miss) before the builder finishes.
+      3.times { waiting.push(true) }
+      sleep 0.2
+      release.push(true)
+
+      expect(threads.map(&:value)).to all(eq(:built))
+      expect(builds.value).to eq(1)
+    end
+
+    it "builds itself when the lock holder never finishes" do
+      stub_const("#{described_class}::BUILD_WAIT_TIMEOUT", 0.2)
+      Rails.cache.write("sections-key-build-lock", true, expires_in: 30.seconds)
+
+      expect(subject.send(:fetch_single_flight, "sections-key") { :built }).to eq(:built)
+    end
+
+    it "builds when the entry exists but reads back empty after the lock is taken" do
+      Rails.cache.write("sections-key", :stale)
+      allow(Rails.cache).to receive(:read).and_return(nil)
+
+      expect(subject.send(:fetch_single_flight, "sections-key") { :built }).to eq(:built)
+    end
+
+    it "lets a second request reuse the value the first one wrote" do
+      builds = 0
+      2.times { subject.send(:fetch_single_flight, "sections-key") { builds += 1 } }
+
+      expect(builds).to eq(1)
+    end
+  end
+
   describe "#props" do
     def common_sections_props
       sections = cached_sections_props
@@ -91,7 +146,7 @@ describe ProfileSectionsPresenter do
     it "returns the correct props for the seller" do
       sections = common_sections_props
       sections[0].merge!({ hide_header: false, shown_products: products.map(&:external_id), add_new_products: true })
-      sections[1].merge!({ shown_posts: posts.map(&:external_id), hide_header: false })
+      sections[1].merge!({ shown_posts: posts.map(&:external_id), hide_header: false, add_new_posts: false })
       sections[2].merge!({ hide_header: false })
       sections[3].merge!({ hide_header: false })
       sections[4].merge!({ hide_header: true, header: subscribe_section.header })
@@ -148,6 +203,46 @@ describe ProfileSectionsPresenter do
 
       featured_section_props = result[:sections].find { _1[:type] == "SellerProfileFeaturedProductSection" }
       expect(featured_section_props[:props]).to be_nil
+    end
+  end
+
+  describe "card product loading" do
+    it "loads card products with a fixed number of queries no matter how many products sections there are" do
+      count_queries = lambda do |presenter|
+        queries = 0
+        callback = ->(*, payload) { queries += 1 if payload[:sql].include?("FROM `links`") }
+        ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+          presenter.props(request:, pundit_user:, seller_custom_domain_url: nil)
+        end
+        queries
+      end
+
+      one_section = described_class.new(seller:, query: seller.seller_profile_sections.where(id: products_section.id))
+      one_section.cached_sections
+      baseline = count_queries.call(one_section)
+
+      # Give each section its own products — a shared set is served from the memoized map after the
+      # first section loads it, so the count would stay flat even without the upfront batch load.
+      # `add_new_products: false` stops `Link#add_to_profile_sections` appending these to every section.
+      products_section.update!(add_new_products: false)
+      extra_products = {}
+      more = 4.times.map do
+        section_product = create(:product, user: seller)
+        section = create(:seller_profile_products_section, seller:, add_new_products: false, shown_products: [section_product.id])
+        extra_products[section.external_id] = [section_product.external_id]
+        section
+      end
+      Link.import(force: true, refresh: true)
+
+      many_sections = described_class.new(seller:, query: seller.seller_profile_sections.where(id: [products_section.id, *more.map(&:id)]))
+      many_sections.cached_sections
+      expect(count_queries.call(many_sections)).to eq(baseline)
+
+      props = many_sections.props(request:, pundit_user:, seller_custom_domain_url: nil)
+      expect(props[:sections].size).to eq(5)
+      props[:sections].each do |section|
+        expect(section[:search_results][:products].map { _1[:id] }).to eq(extra_products.fetch(section[:id], products.map(&:external_id)))
+      end
     end
   end
 

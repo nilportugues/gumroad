@@ -361,7 +361,7 @@ class StripeChargeProcessor
     end
   end
 
-  def setup_future_charges!(merchant_account, chargeable, mandate_options: nil)
+  def setup_future_charges!(merchant_account, chargeable, mandate_options: nil, seller: nil)
     params = {
       payment_method_types: ["card"],
       usage: "off_session"
@@ -372,6 +372,7 @@ class StripeChargeProcessor
     # Request 3DS manually when preparing future charges for all Indian cards. Ref: https://github.com/gumroad/web/issues/20783
     chargeable.prepare! # loads the payment method's info, including card country
     params.deep_merge!(REQUEST_MANUAL_3DS_PARAMS) if chargeable.country == Compliance::Countries::IND.alpha2
+    params.deep_merge!(Checkout::ThreeDSecure::REQUEST_PARAMS) if Checkout::ThreeDSecure.request?(three_d_secure_seller(merchant_account, seller))
 
     with_stripe_error_handler do
       if merchant_migrated? merchant_account
@@ -403,7 +404,8 @@ class StripeChargeProcessor
                                        transfer_group: nil, off_session: true, setup_future_charges: false, mandate_options: nil,
                                        mandate_expected: false,
                                        processor_amount_cents: nil, processor_currency: nil,
-                                       processor_gumroad_amount_cents: nil, stripe_fx_quote_id: nil, idempotency_key: nil)
+                                       processor_gumroad_amount_cents: nil, stripe_fx_quote_id: nil, idempotency_key: nil,
+                                       seller: nil)
     should_setup_future_usage = setup_future_charges && !off_session # attempting to set up future usage during an off-session charge will result in an invalid request
     charge_amount_cents = processor_amount_cents || amount_cents
     charge_currency = processor_currency || Currency::USD
@@ -485,6 +487,11 @@ class StripeChargeProcessor
 
     # Request 3DS manually when preparing future charges for all Indian cards. Ref: https://github.com/gumroad/web/issues/20783
     params.deep_merge!(REQUEST_MANUAL_3DS_PARAMS) if should_setup_future_usage && !upi_autopay && chargeable.country == Compliance::Countries::IND.alpha2
+
+    # An off-session charge has no buyer to challenge, so the flag only applies to
+    # customer-present intents; Stripe is left to decide on the rest. Card options are
+    # legal only on an intent that offers card, which is what card_scoped? checks.
+    params.deep_merge!(Checkout::ThreeDSecure::REQUEST_PARAMS) if !off_session && !upi_autopay && Checkout::ThreeDSecure.request?(three_d_secure_seller(merchant_account, seller)) && Checkout::ThreeDSecure.card_scoped?(params)
 
     if statement_description
       statement_description = statement_description.gsub(%r{[^A-Z0-9./\s]}i, "").to_s.strip[0...22]
@@ -584,6 +591,14 @@ class StripeChargeProcessor
 
       payment_intent.cancel
     end
+  end
+
+  # The 3DS flag is scoped per seller. `merchant_account.user` is that seller only when the seller
+  # has their own Stripe account: the shared Gumroad merchant account has no user, so reading the
+  # flag off the account alone silently skips the request on these paths. Callers pass the seller
+  # the charge belongs to; the account user stays the fallback for callers that do not.
+  private def three_d_secure_seller(merchant_account, seller)
+    seller || merchant_account.user
   end
 
   # The newest destination refund on the seller's charge belongs to this refund only when no other
@@ -1274,8 +1289,8 @@ class StripeChargeProcessor
         shipping_date: dispute_evidence.shipped_at&.to_fs(:formatted_date_full_month),
         shipping_tracking_number: dispute_evidence.shipping_tracking_number,
         uncategorized_text: [
-          "The merchant should win the dispute because:\n#{dispute_evidence.reason_for_winning}",
-          dispute_evidence.uncategorized_text
+          ("The merchant should win the dispute because:\n#{dispute_evidence.reason_for_winning}" if dispute_evidence.reason_for_winning.present?),
+          dispute_evidence.uncategorized_text.presence
         ].compact.join("\n\n"),
         access_activity_log: dispute_evidence.access_activity_log,
         cancellation_policy: create_dispute_evidence_stripe_file(dispute_evidence.cancellation_policy_image, request_options:),
@@ -1285,7 +1300,9 @@ class StripeChargeProcessor
         cancellation_rebuttal: dispute_evidence.cancellation_rebuttal,
         refund_refusal_explanation: dispute_evidence.refund_refusal_explanation,
         customer_communication:,
-      }
+      }.compact_blank
+      # An empty string CLEARS a field on Stripe (it does not leave it alone), so a seller field left
+      # blank would wipe what Stripe drafted, e.g. the refund line on a dispute filed after a refund.
 
       # Every attempt re-uploads the files and gets fresh Stripe file ids (Stripe does not dedupe
       # file uploads by idempotency key), so the key must cover them: a fixed key with new ids is

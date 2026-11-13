@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type Installment, type InstallmentFormContext } from "$app/data/installments";
+import { getRecipientCount, type Installment, type InstallmentFormContext } from "$app/data/installments";
 import { assertDefined } from "$app/utils/assert";
 
 import { CurrentSellerProvider, type CurrentSeller } from "$app/components/CurrentSeller";
@@ -37,11 +37,26 @@ const cdn = vi.hoisted(() => {
   });
   return state;
 });
+vi.mock("$app/data/installments", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("$app/data/installments")>();
+  return { ...actual, getRecipientCount: vi.fn(actual.getRecipientCount) };
+});
 vi.mock("$app/utils/prepareImageForUpload", () => ({
   isLikelyImageFile: () => true,
   prepareImageForUpload: async (file: File) => file,
   heicDecodingLikely: () => false,
 }));
+// happy-dom's DOMSerializer drops the text out of a ProseMirror fragment, so the real helper
+// returns an empty paragraph here; the send path needs the message the editor actually holds.
+vi.mock("$app/components/RichTextEditor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("$app/components/RichTextEditor")>();
+  return { ...actual, serializeEditorContentToHTML: (editor: { getHTML: () => string }) => editor.getHTML() };
+});
+// The upsell card's node view fetches its product; the guard only reads the card's serialized HTML.
+vi.mock("$app/components/TiptapExtensions/UpsellCard", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("$app/components/TiptapExtensions/UpsellCard")>();
+  return { UpsellCard: actual.UpsellCard.extend({ addNodeView: null }) };
+});
 type UploadCallback = (error: Error | null, blob: { key: string }) => void;
 const uploads = vi.hoisted((): { pending: UploadCallback[] } => ({ pending: [] }));
 vi.mock("@rails/activestorage", () => ({
@@ -51,15 +66,56 @@ vi.mock("@rails/activestorage", () => ({
     }
   },
 }));
-const post = vi.hoisted(() => vi.fn((_url: string, options?: { onFinish?: () => void }) => options?.onFinish?.()));
+type SaveOptions = {
+  onFinish?: () => void;
+  onBeforeUpdate?: (page: { props: Record<string, unknown> }) => void;
+  onSuccess?: (page: { props: Record<string, unknown> }) => void;
+};
+// The unsaved-changes guard reads the save's response, so the stubbed request hands its callbacks
+// back instead of only finishing the visit.
+const saves = vi.hoisted((): SaveOptions[] => []);
+const post = vi.hoisted(() =>
+  vi.fn((_url: string, options?: SaveOptions) => {
+    saves.push(options ?? {});
+    options?.onFinish?.();
+  }),
+);
 // The transform callback builds the payload Inertia would send; keeping it lets a test assert
 // what the form would submit.
-type SentPayload = { installment: { not_clicked_post_id: string | null } };
+type SentPayload = {
+  installment: {
+    not_clicked_post_id: string | null;
+    opened_post_id: string | null;
+    not_bought_products: string[] | null;
+    not_bought_variants: string[] | null;
+  };
+};
+const beforeListeners = vi.hoisted((): ((e: unknown) => void)[] => []);
 const sent = vi.hoisted((): { payload: SentPayload | null } => ({ payload: null }));
 vi.mock("@inertiajs/react", () => ({
-  Link: ({ href, children }: { href: string; children?: React.ReactNode }) => <a href={href}>{children}</a>,
+  Link: ({
+    href,
+    children,
+    onClick,
+  }: {
+    href: string;
+    children?: React.ReactNode;
+    onClick?: React.MouseEventHandler;
+  }) => (
+    <a href={href} onClick={onClick}>
+      {children}
+    </a>
+  ),
   usePage: () => ({ url: "/emails/new", props: {} }),
-  router: { visit: () => {}, on: () => () => {} },
+  router: {
+    visit: () => {},
+    on: (_event: string, handler: (e: unknown) => void) => {
+      beforeListeners.push(handler);
+      return () => {
+        beforeListeners.splice(beforeListeners.indexOf(handler), 1);
+      };
+    },
+  },
   useForm: (initial: { installment: { name: string; message: string } }) => {
     const [data, setDataState] = React.useState(initial);
     return {
@@ -72,7 +128,7 @@ vi.mock("@inertiajs/react", () => ({
         sent.payload = build();
       },
       post,
-      put: () => {},
+      put: post,
     };
   },
 }));
@@ -118,24 +174,28 @@ const context: InstallmentFormContext = {
   from_tab: null,
 };
 
-const renderForm = (installment: Installment | null = null, formContext: InstallmentFormContext = context) =>
-  render(
-    <DomainSettingsProvider
-      value={{
-        scheme: "https",
-        appDomain: "app.gumroad.com",
-        rootDomain: "gumroad.com",
-        shortDomain: "gum.co",
-        discoverDomain: "discover.gumroad.com",
-        thirdPartyAnalyticsDomain: "gumroad.com",
-        apiDomain: "api.gumroad.com",
-      }}
-    >
-      <CurrentSellerProvider value={seller}>
-        <EmailForm context={formContext} installment={installment} />
-      </CurrentSellerProvider>
-    </DomainSettingsProvider>,
-  );
+const formTree = (
+  installment: Installment | null = null,
+  formContext: InstallmentFormContext = context,
+  singleCustomerRecipient: { purchase_id: string; email: string } | null = null,
+) => (
+  <DomainSettingsProvider
+    value={{
+      scheme: "https",
+      appDomain: "app.gumroad.com",
+      rootDomain: "gumroad.com",
+      shortDomain: "gum.co",
+      discoverDomain: "discover.gumroad.com",
+      thirdPartyAnalyticsDomain: "gumroad.com",
+      apiDomain: "api.gumroad.com",
+    }}
+  >
+    <CurrentSellerProvider value={seller}>
+      <EmailForm context={formContext} installment={installment} singleCustomerRecipient={singleCustomerRecipient} />
+    </CurrentSellerProvider>
+  </DomainSettingsProvider>
+);
+const renderForm = (...args: Parameters<typeof formTree>) => render(formTree(...args));
 
 const pasteImage = (container: HTMLElement) =>
   fireEvent.paste(assertDefined(container.querySelector('[aria-label="Email message"]')), {
@@ -149,7 +209,9 @@ beforeEach(() => {
   cdn.hold = false;
   cdn.release.length = 0;
   post.mockClear();
+  saves.length = 0;
   sent.payload = null;
+  window.history.replaceState({}, "", "/");
 });
 
 afterEach(cleanup);
@@ -194,6 +256,229 @@ describe("EmailForm", () => {
       expect(container.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/image.png"),
     );
     expect(saveDisabled()).toBe(false);
+  });
+
+  it("starts a new post in the sections that take new posts by default", () => {
+    renderForm(null, {
+      ...context,
+      profile_sections: [
+        { id: "default-on", name: "Read Posts", add_new_posts: true },
+        { id: "default-off", name: "Archive", add_new_posts: false },
+      ],
+    });
+
+    expect(screen.getByRole("switch", { name: "Read Posts" })).toHaveProperty("checked", true);
+    expect(screen.getByRole("switch", { name: "Archive" })).toHaveProperty("checked", false);
+  });
+});
+
+describe("EmailForm unsaved-changes guard", () => {
+  const unload = () => {
+    const event = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  const visit = () => {
+    const event = { detail: { visit: { method: "get" } }, preventDefault: vi.fn() };
+    beforeListeners.forEach((listener) => listener(event));
+    return event.preventDefault.mock.calls.length > 0;
+  };
+  // The baseline is taken once the message editor mounts, so an edit fired before that is
+  // baselined as clean. Retype until the guard reports the edit, which cannot happen before the
+  // baseline exists: a fixed wait loses the race whenever the mount is slow.
+  const edit = async () => {
+    const title = await screen.findByPlaceholderText("Title");
+    for (let version = 1; version <= 50; version++) {
+      fireEvent.change(title, { target: { value: `Edited ${version}` } });
+      if (unload()) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("the unsaved-changes guard never warned about an edit");
+  };
+
+  afterEach(() => vi.stubGlobal("confirm", undefined));
+
+  it("does not warn before anything is edited", async () => {
+    renderForm();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(unload()).toBe(false);
+    expect(visit()).toBe(false);
+  });
+
+  it("warns on tab close and in-app navigation once edited, and honors the confirm answer", async () => {
+    renderForm();
+    await edit();
+    expect(unload()).toBe(true);
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    expect(visit()).toBe(true);
+    confirm.mockImplementation(() => true);
+    expect(visit()).toBe(false);
+  });
+
+  it("confirms on Cancel and stays when declined, and does not double prompt when accepted", async () => {
+    renderForm();
+    await edit();
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    expect(fireEvent.click(screen.getByRole("link", { name: "Cancel" }))).toBe(false);
+    confirm.mockImplementation(() => true);
+    expect(fireEvent.click(screen.getByRole("link", { name: "Cancel" }))).toBe(true);
+    confirm.mockClear();
+    expect(visit()).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  // `save` resolves on a microtask, so the request's callbacks only exist after a tick.
+  const save = async () => {
+    const sent = saves.length;
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(saves.length).toBe(sent + 1));
+    return assertDefined(saves.at(-1));
+  };
+  const saved = { props: { flash: { message: "Changes saved!", status: "success" } } };
+  const rejected = { props: { flash: { message: "Please provide a valid date and time.", status: "danger" } } };
+
+  // What the server sends back after a save, which can differ from what was sent.
+  const savedRecord: Installment = {
+    external_id: "email-1",
+    display_type: "draft",
+    name: "Edited",
+    message: "<p>Saved by the server</p>",
+    published_at: null,
+    updated_at: "2026-08-01T00:00:00Z",
+    stream_only: false,
+    streamable: false,
+    send_emails: true,
+    shown_on_profile: false,
+    installment_type: "audience",
+    paid_more_than_cents: null,
+    paid_less_than_cents: null,
+    allow_comments: true,
+    full_url: "https://seller.gumroad.com/p/edited",
+    has_been_blasted: false,
+    files: [],
+  };
+  // The order Inertia runs a preserveState response in: onBeforeUpdate, the props swap, onSuccess.
+  const respond = (
+    view: ReturnType<typeof renderForm>,
+    request: SaveOptions,
+    page: typeof saved,
+    record: Installment | null,
+  ) => {
+    request.onBeforeUpdate?.(page);
+    view.rerender(formTree(record));
+    request.onSuccess?.(page);
+  };
+
+  it("stops warning once the saved record arrives, even when the server changed it", async () => {
+    const view = renderForm();
+    await edit();
+    const request = await save();
+    expect(unload()).toBe(true);
+    respond(view, request, saved, savedRecord);
+    await waitFor(() => expect(screen.getByLabelText("Email message").textContent).toBe("Saved by the server"));
+    await waitFor(() => expect(unload()).toBe(false));
+  });
+
+  it("does not warn after saving a new publish date on a published email", async () => {
+    const published: Installment = { ...savedRecord, display_type: "published", published_at: "2026-08-01T12:00:00Z" };
+    const view = renderForm(published);
+    const date = await screen.findByPlaceholderText<HTMLInputElement>("Publish date");
+    // The baseline is taken in a timeout after the editor settles, so a change fired before that is
+    // baselined as clean — and the mount is slow enough on CI to lose any fixed wait. Retype until
+    // the guard reports the edit, which cannot happen before the baseline exists.
+    for (let day = 1; day <= 28; day++) {
+      fireEvent.change(date, { target: { value: `2026-07-${String(day).padStart(2, "0")}` } });
+      if (unload()) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    fireEvent.change(date, { target: { value: "2026-07-15" } });
+    expect(unload()).toBe(true);
+
+    respond(view, await save(), saved, { ...published, published_at: "2026-07-15T12:00:00Z" });
+    await waitFor(() => expect(screen.getByPlaceholderText<HTMLInputElement>("Publish date").value).toBe("2026-07-15"));
+    await waitFor(() => expect(unload()).toBe(false));
+  });
+
+  it("does not warn after saving a new upsell card that the server gave an id", async () => {
+    const card = '<upsell-card productid="product-1"></upsell-card>';
+    const draft = { ...savedRecord, message: `<p>Hi</p>${card}` };
+    const view = renderForm(draft);
+    await edit();
+
+    const withId = '<upsell-card productid="product-1" id="upsell-1"></upsell-card>';
+    respond(view, await save(), saved, { ...draft, message: `<p>Hi</p>${withId}` });
+    await waitFor(() => expect(document.querySelector("upsell-card#upsell-1")).not.toBeNull());
+    await waitFor(() => expect(unload()).toBe(false));
+  });
+
+  it("keeps warning after a rejected save, and for an edit the save did not carry", async () => {
+    const view = renderForm();
+    await edit();
+    respond(view, await save(), rejected, null);
+    expect(unload()).toBe(true);
+
+    const request = await save();
+    // Typed while the request is in flight, so it is not part of what that request saved.
+    fireEvent.change(screen.getByPlaceholderText("Title"), { target: { value: "Edited again" } });
+    respond(view, request, saved, savedRecord);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(unload()).toBe(true);
+  });
+
+  it("does not ask on a modified click of Cancel, which opens a new tab", async () => {
+    renderForm();
+    await edit();
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    fireEvent.click(screen.getByRole("link", { name: "Cancel" }), { metaKey: true });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(unload()).toBe(true);
+  });
+
+  it("treats a changed schedule date as an unsaved edit", async () => {
+    renderForm();
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    const scheduleDate = await screen.findByLabelText("Schedule date");
+    expect(unload()).toBe(false);
+    // Same baseline race as the publish date above: retype until the guard reports the edit.
+    for (let minute = 0; minute <= 27 && !unload(); minute++) {
+      fireEvent.change(scheduleDate, { target: { value: `2030-01-01T10:${String(minute).padStart(2, "0")}` } });
+      fireEvent.focusOut(scheduleDate);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(unload()).toBe(true);
+  });
+
+  it("does not warn after the email is sent to the single customer", async () => {
+    window.history.replaceState({}, "", "/new_email_path?template=single_customer&purchase_id=p1");
+    const draft: Installment = {
+      external_id: "email-1",
+      display_type: "draft",
+      name: "August update",
+      message: "Hello",
+      published_at: null,
+      updated_at: "2026-08-01T00:00:00Z",
+      stream_only: false,
+      streamable: false,
+      send_emails: true,
+      shown_on_profile: false,
+      installment_type: "audience",
+      paid_more_than_cents: null,
+      paid_less_than_cents: null,
+      allow_comments: true,
+      full_url: "https://seller.gumroad.com/p/august-update",
+      has_been_blasted: false,
+      files: [],
+    };
+    renderForm(draft, { ...context, audience_types: ["customers"] }, { purchase_id: "p1", email: "buyer@example.com" });
+
+    await edit();
+    expect(unload()).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Send now" }));
+    await waitFor(() => expect(unload()).toBe(false));
   });
 });
 
@@ -259,6 +544,21 @@ describe('EmailForm "Has not yet bought"', () => {
 
     expect(within(fieldset).getByRole("button", { name: "Design guide" })).not.toBeNull();
     expect(within(fieldset).getByRole("button", { name: "Course" })).not.toBeNull();
+  });
+
+  it("sends every selected product and version in the recipient count and the save payload", async () => {
+    renderForm(draft, audienceContext);
+
+    const fieldset = exclusions();
+    selectExclusion(fieldset, "Design guide");
+    selectExclusion(fieldset, "Course");
+    selectExclusion(fieldset, "Design guide - Studio edition");
+
+    const expected = { not_bought_products: ["product-1", "product-2"], not_bought_variants: ["variant-1"] };
+    await waitFor(() => expect(vi.mocked(getRecipientCount).mock.lastCall?.[0]).toMatchObject(expected));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(sent.payload?.installment).toMatchObject(expected));
   });
 });
 
@@ -338,5 +638,32 @@ describe('EmailForm "Has not clicked"', () => {
     renderForm(customersDraft, { ...emailedContext, emailed_posts: [] });
 
     expect(screen.queryByLabelText("Has not clicked")).toBeNull();
+  });
+
+  it("submits the chosen post as an opened filter, and labels it approximate", async () => {
+    renderForm({ ...customersDraft, opened_post_id: "post-1" }, emailedContext);
+    const opened = screen.getByLabelText<HTMLSelectElement>("Has opened (approximate)");
+    expect(opened.value).toBe("post-1");
+
+    fireEvent.change(opened, { target: { value: "post-2" } });
+    expect(screen.getByText("October update", { selector: "p" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(sent.payload?.installment.opened_post_id).toBe("post-2"));
+  });
+
+  it("says a withheld recipient count is hidden for privacy, which is true whichever side is small", async () => {
+    const actual = vi.mocked(getRecipientCount).getMockImplementation();
+    vi.mocked(getRecipientCount).mockImplementation(() => ({
+      response: Promise.resolve({ recipient_count: null, audience_count: 50 }),
+      cancel: () => undefined,
+    }));
+    try {
+      renderForm({ ...customersDraft, not_clicked_post_id: "post-1" }, emailedContext);
+
+      expect((await screen.findByLabelText("Recipient count")).textContent).toBe("Hidden for privacy / 50");
+    } finally {
+      if (actual) vi.mocked(getRecipientCount).mockImplementation(actual);
+    }
   });
 });

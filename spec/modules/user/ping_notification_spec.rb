@@ -3,11 +3,22 @@
 require "spec_helper"
 
 describe User::PingNotification do
+  describe "#ping_signing_secret" do
+    it "reads the secret in the writing role, so a ping sent right after rotation is signed with the new one" do
+      user = create(:user)
+      user.create_ping_signing_setting!(secret: "s3cret")
+
+      expect(ApplicationRecord).to receive(:connected_to).with(role: :writing).and_call_original
+
+      expect(user.ping_signing_secret).to eq("s3cret")
+    end
+  end
+
   describe "#send_test_ping" do
     before do
       @user = create(:user)
       @purchase = create(:purchase, seller: @user, link: create(:product, user: @user))
-      @ping_params = @purchase.payload_for_ping_notification.merge(test: true)
+      @ping_params = @purchase.payload_for_ping_notification(resource_name: ResourceSubscription::SALE_RESOURCE_NAME).merge(test: true)
     end
 
     context "when notification_content_type if application/json" do
@@ -22,6 +33,27 @@ describe User::PingNotification do
           @user.send_test_ping("https://example.com")
         end.to_not raise_error
       end
+    end
+
+    it "includes the last sale's url_params in the test ping" do
+      @user.update_attribute(:notification_content_type, Mime[:json])
+      @purchase.update!(url_parameters: { "utm_source" => "newsletter" })
+
+      expect(HTTParty).to receive(:post) do |_url, options|
+        expect(JSON.parse(options[:body])["url_params"]).to eq("utm_source" => "newsletter")
+      end
+
+      @user.send_test_ping("https://example.com")
+    end
+
+    it "carries the resource name every live sale ping sends" do
+      @user.update_attribute(:notification_content_type, Mime[:json])
+
+      expect(HTTParty).to receive(:post) do |_url, options|
+        expect(JSON.parse(options[:body])["resource_name"]).to eq(ResourceSubscription::SALE_RESOURCE_NAME)
+      end
+
+      @user.send_test_ping("https://example.com")
     end
 
     context "when notification_content_type is application/x-www-form-urlencoded" do
@@ -55,6 +87,29 @@ describe User::PingNotification do
           @user.send_test_ping("https://example.com")
         end.to_not raise_error
       end
+
+      context "when the seller has a signing secret" do
+        before do
+          @user.create_ping_signing_setting!(secret: "s3cret")
+        end
+
+        # The seller's own receiver is what they are testing, so the test ping has to be verifiable
+        # with the same recipe as a real one: the header's timestamp against the bytes HTTParty sends.
+        it "signs the test ping" do
+          expect(HTTParty).to receive(:post) do |_url, options|
+            header = options[:headers]["X-Gumroad-Signature"]
+            timestamp = header[/\At=(\d+),v1=\h+\z/, 1]
+            wire_body = HTTParty::Request::Body.new(options[:body]).call
+
+            expect(timestamp.to_i).to be_within(5).of(Time.current.to_i)
+            expect(header[/,v1=(\h+)\z/, 1]).to eq(OpenSSL::HMAC.hexdigest("SHA256", "s3cret", "#{timestamp}.#{wire_body}"))
+          end
+
+          expect do
+            @user.send_test_ping("https://example.com")
+          end.to_not raise_error
+        end
+      end
     end
   end
 
@@ -69,9 +124,9 @@ describe User::PingNotification do
       expect(post_urls).to match_array([[user.notification_endpoint, user.notification_content_type]])
     end
 
-    # Ai::StoreAgentService's system prompt tells creators Ping is sales-only and routes every other
-    # event type elsewhere. If notification_endpoint ever starts firing on another resource, that
-    # advice becomes wrong — redden here rather than in the prompt.
+    # Creator-facing docs and AI agents describe Ping as sales-only and route every other event type
+    # elsewhere. If notification_endpoint ever starts firing on another resource, that advice
+    # becomes wrong — redden here rather than in the docs.
     it "never sends notification_endpoint anything but 'sale'" do
       user = create(:user, notification_endpoint: "http://notification.com")
 
@@ -219,7 +274,7 @@ describe User::PingNotification do
     end
 
     it "reports a same-name unflagged Store Agent subscription as undeliverable" do
-      agent_app = create(:oauth_application, owner: user, name: Ai::StoreAgentApiClient::AGENT_APP_NAME)
+      agent_app = create(:oauth_application, owner: user, name: OauthApplication::FIRST_PARTY_AGENT_APP_NAME)
       subscription = create(:resource_subscription, oauth_application: agent_app, user:)
 
       targets = user.ping_notification_targets(ResourceSubscription::SALE_RESOURCE_NAME)
@@ -230,7 +285,7 @@ describe User::PingNotification do
     end
 
     it "does not report a flagged Store Agent subscription as undeliverable" do
-      agent_app = create(:oauth_application, owner: user, name: Ai::StoreAgentApiClient::AGENT_APP_NAME, is_first_party_agent_app: true)
+      agent_app = create(:oauth_application, owner: user, name: OauthApplication::FIRST_PARTY_AGENT_APP_NAME, is_first_party_agent_app: true)
       create(:resource_subscription, oauth_application: agent_app, user:)
 
       targets = user.ping_notification_targets(ResourceSubscription::SALE_RESOURCE_NAME)

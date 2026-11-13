@@ -79,6 +79,47 @@ describe GumroadBlog::PostsController, inertia: true do
         ]
       )
     end
+
+    context "served HTML" do
+      render_views
+
+      it "gives the served head its own title, description and canonical" do
+        get :index
+
+        html = Nokogiri::HTML.parse(response.body)
+        expect(html.at_css("title").text).to eq("Gumroad Blog")
+        expect(html.at_css("link[rel=canonical]")["href"]).to end_with("/blog")
+        expect(html.at_css("meta[name=description]")["content"]).to be_present
+        expect(html.at_css("meta[property='og:title']")["content"]).to eq("Gumroad Blog")
+        expect(html.at_css("meta[property='og:description']")["content"]).to eq(html.at_css("meta[name=description]")["content"])
+        expect(html.at_css("meta[property='og:url']")["content"]).to end_with("/blog")
+      end
+
+      it "serves the visible posts' titles and links inside noscript so a crawler without JavaScript can reach them" do
+        get :index
+
+        noscripts = Nokogiri::HTML.parse(response.body).css("noscript")
+        expect(noscripts.size).to eq(1)
+        fallback = noscripts.first
+
+        expect(fallback.at_css("h1").text).to eq("Gumroad Blog")
+        expect(fallback.css("a").map { |a| [a["href"], a.text] }).to eq(
+          [
+            ["/blog/p/#{published_post_2.slug}", "Second Blog Post"],
+            ["/blog/p/#{published_post_1.slug}", "First Blog Post"],
+          ]
+        )
+      end
+
+      it "cannot be made to close the noscript element from a post title" do
+        published_post_1.update!(name: %(Hi</NOSCRIPT><img src=x onerror="alert(1)">))
+
+        get :index
+
+        expect(response.body.scan(%r{</noscript}i).size).to eq(1)
+        expect(response.body).not_to include("<img src=x")
+      end
+    end
   end
 
   describe "GET show" do
@@ -89,7 +130,8 @@ describe GumroadBlog::PostsController, inertia: true do
         seller: blog_owner,
         shown_on_profile: true,
         slug: "test-post",
-        name: "Test Post"
+        name: "Test Post",
+        message: "<p>Hello from the blog</p>"
       )
     end
 
@@ -109,6 +151,42 @@ describe GumroadBlog::PostsController, inertia: true do
       expect(inertia.props[:published_at]).to eq(post_props[:published_at])
       expect(inertia.props[:message]).to eq(post_props[:message])
       expect(inertia.props[:call_to_action]).to eq(post_props[:call_to_action])
+    end
+
+    context "served HTML" do
+      render_views
+
+      it "serves the post body inside noscript so a crawler without JavaScript sees the text" do
+        get :show, params: { slug: post.slug }
+
+        noscript = Nokogiri::HTML.parse(response.body).at_css("noscript")
+        expect(noscript).to be_present
+        expect(noscript.at_css("h1").text.strip).to eq(post.name)
+        expect(noscript.text).to include("Hello from the blog")
+      end
+
+      it "cannot be made to close the noscript element from post content" do
+        # Browsers end the raw-text element on any casing, and a sanitizer can leave the
+        # sequence inside an attribute value, so try both shapes.
+        post.update!(message: %(<p>hello</p></NOSCRIPT><img src=x onerror="alert(1)"><a title="</NoScript><b>">x</a>))
+
+        get :show, params: { slug: post.slug }
+
+        expect(response.body.scan(%r{</noscript}i).size).to eq(1)
+        expect(response.body).not_to include(%(<img src=x onerror="alert(1)">))
+        expect(response.body).not_to include("<b>")
+      end
+    end
+
+    it "gives the served head the post's own title, canonical URL and description" do
+      get :show, params: { slug: post.slug }
+
+      meta_tags = controller.send(:meta_tags)
+      presenter = PostPresenter.new(pundit_user: controller.pundit_user, post: post, purchase_id_param: nil)
+
+      expect(controller.send(:page_title)).to eq("Test Post")
+      expect(meta_tags["canonical"][:href]).to end_with("/blog/p/test-post")
+      expect(meta_tags["meta-name-description"][:content]).to eq(presenter.snippet)
     end
 
     context "when post is not found" do

@@ -3,6 +3,7 @@
 class DiscoverController < ApplicationController
   RECOMMENDED_PRODUCTS_COUNT = 8
   INITIAL_PRODUCTS_COUNT = 36
+  ROOT_HEADING = "Discover digital products from independent creators"
 
   include ActionView::Helpers::NumberHelper, RecommendationType, CreateDiscoverSearch,
           DiscoverCuratedProducts, SearchProducts, AffiliateCookie
@@ -49,7 +50,9 @@ class DiscoverController < ApplicationController
     params[:size] = INITIAL_PRODUCTS_COUNT
 
     search_results = search_products(params)
-    search_results[:products] = search_results[:products].includes(ProductPresenter::ASSOCIATIONS_FOR_CARD).map do |product|
+    products = search_results[:products].includes(ProductPresenter::ASSOCIATIONS_FOR_CARD).to_a
+    prepare_search_seo(products:)
+    search_results[:products] = products.map do |product|
       ProductPresenter.card_for_web(
         product:,
         request:,
@@ -255,14 +258,27 @@ class DiscoverController < ApplicationController
       taxonomy.present? && request.query_parameters.except("from").blank?
     end
 
+    # Search pages are indexed, but their results exist only in the Inertia payload.
+    def prepare_search_seo(products:)
+      return if params[:query].blank?
+
+      @discover_seo_heading = "Search results for \"#{params[:query]}\""
+      @discover_result_links = products.map { |product| { label: product.name, href: product.long_url } }
+    end
+
     def prepare_category_seo(search_results:)
       if taxonomy.blank? && params.values_at(:query, :tags).all?(&:blank?)
         @discover_category_links = Discover::CategoryPagePresenter.root_category_links
+        # Must equal ROOT_HEADING in pages/Discover/Index.tsx, the <h1> the app renders.
+        @discover_seo_heading = ROOT_HEADING
         return
       end
-      return unless category_seo_page?
+      return if taxonomy.blank?
 
       presenter = Discover::CategoryPagePresenter.new(taxonomy_path: params[:taxonomy], taxonomy:, search_results:)
+      # The app renders the trail as the <h1> on filtered category pages too.
+      @discover_seo_heading = presenter.heading
+      return unless category_seo_page?
 
       set_meta_tag(title: presenter.title)
       set_meta_tag(property: "og:title", content: presenter.title)
@@ -275,6 +291,7 @@ class DiscoverController < ApplicationController
 
       @discover_category_links = presenter.subcategory_links
       @discover_pagination_links = pagination_links(search_results:)
+      @discover_seo_description = presenter.meta_description
     end
 
     # params[:from] (not the raw request query param) is the actual ES offset behind

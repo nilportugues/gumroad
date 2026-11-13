@@ -26,6 +26,41 @@ describe CustomerMailer do
       expect(mail[:reply_to].value).to eq("bob@gumroad.com")
     end
 
+    context "with a free purchase from a new seller (gp#4366)" do
+      let(:seller) { create(:user, email: "new-seller@example.com", name: "Alex") }
+      let(:product) { create(:product, user: seller, price_cents: 0, name: "Starter Pack") }
+
+      def receipt_for(email:, product_name: nil, seller_name: nil)
+        product.update!(name: product_name) if product_name
+        seller.update_columns(name: seller_name) if seller_name
+        purchase = create(:free_purchase, link: product, seller:, email:)
+        described_class.receipt(purchase.id)
+      end
+
+      it "skips the email to a gumroad.com address" do
+        expect(receipt_for(email: "staff@gumroad.com").message).to be_a(ActionMailer::Base::NullMail)
+      end
+
+      it "skips the email when the seller name poses as Gumroad staff" do
+        expect(receipt_for(email: "buyer@example.com", seller_name: "Gumroad Security Team").message).to be_a(ActionMailer::Base::NullMail)
+      end
+
+      it "sends a normal free receipt to an outside buyer" do
+        expect(receipt_for(email: "buyer@example.com").subject).to eq("You got Starter Pack!")
+      end
+
+      it "sends once the seller is established" do
+        seller.update_columns(created_at: 60.days.ago)
+        expect(receipt_for(email: "staff@gumroad.com").to).to eq(["staff@gumroad.com"])
+      end
+
+      it "always sends a paid receipt" do
+        product.update!(price_cents: 500)
+        purchase = create(:purchase, link: product, seller:, email: "staff@gumroad.com")
+        expect(described_class.receipt(purchase.id).to).to eq(["staff@gumroad.com"])
+      end
+    end
+
     context "when the purchase belongs to a two-purchase charge" do
       let(:seller) { create(:named_seller) }
       let(:purchase) { create(:purchase, link: create(:product, user: seller, name: "Paid edition"), seller:, email: "buyer@example.com") }
@@ -50,6 +85,20 @@ describe CustomerMailer do
 
         expect(purchase.split_charge_receipt_sent?).to be(false)
         expect(rendered.subject).to eq("You bought Paid edition and Free edition")
+      end
+
+      it "links each split receipt to the receipt page for the whole order" do
+        rendered = described_class.receipt(purchase.id, single_purchase: true)
+
+        expect(rendered.body).to have_link("View every item in this order", href: receipt_purchase_url(purchase.external_id, host: UrlService.domain_with_protocol))
+      end
+
+      it "omits the whole-order link when the items went to different buyer emails" do
+        purchase_two.update!(email: "another-buyer@example.com")
+
+        rendered = described_class.receipt(purchase.id, single_purchase: true)
+
+        expect(rendered.body).not_to have_link("View every item in this order")
       end
     end
 
@@ -557,6 +606,64 @@ describe CustomerMailer do
         end
       end
 
+      context "with free membership purchase" do
+        let(:product) { create(:membership_product, price_cents: 0) }
+        let(:purchase) { create(:membership_purchase, link: product, price_cents: 0, stripe_transaction_id: nil, stripe_fingerprint: nil) }
+
+        it "omits the payment details and keeps the subscription settings link" do
+          mail = CustomerMailer.receipt(purchase.id)
+
+          expect(mail.body.sanitized).to have_text("Your free membership renews once a month. If you would like to manage your membership you can visit subscription settings.")
+          expect(mail.body.encoded).to have_link("subscription settings")
+          expect(mail.body.sanitized).to have_text("Your free membership renews once a month. Manage membership")
+          expect(mail.body.sanitized).not_to have_text("Today's payment")
+          expect(mail.body.sanitized).not_to have_text("Upcoming payment")
+          expect(mail.body.sanitized).not_to have_text("All charges are processed in United States Dollars")
+          expect(mail.body.encoded).not_to have_link("Generate invoice")
+        end
+      end
+
+      context "with membership made free by a legacy uncached discount" do
+        let(:purchase) { create(:membership_purchase, link: product, price_cents: 0, offer_code: create(:offer_code, user: product.user, products: [product], amount_cents: 1_998)) }
+
+        before do
+          purchase.purchase_offer_code_discount&.destroy!
+          purchase.reload
+        end
+
+        it "treats the membership as free" do
+          expect(purchase.subscription.renewal_pre_discount_total_cents).to be_positive
+
+          mail = CustomerMailer.receipt(purchase.id)
+          expect(mail.body.sanitized).to have_text("Your free membership renews once a month. Manage membership")
+          expect(mail.body.sanitized).not_to have_text("Upcoming payment")
+          expect(mail.body.encoded).not_to have_link("Generate invoice")
+        end
+      end
+
+      context "with a renewal made free by an expiring auto-renewal discount" do
+        let(:buyer) { create(:user) }
+        let(:original_purchase) { create(:membership_purchase, link: product, purchaser: buyer, email: buyer.email, price_cents: 1_998) }
+        let(:purchase) { create(:membership_purchase, link: product, subscription: original_purchase.subscription, purchaser: buyer, email: buyer.email, price_cents: 0, is_original_subscription_purchase: false) }
+
+        before do
+          original_purchase.subscription.update!(user: buyer)
+          create(:offer_code, user: product.user, products: [product], amount_cents: nil, amount_percentage: 100, existing_customers_only: true, ownership_products: [product], valid_at: 1.day.ago, expires_at: 1.week.from_now)
+        end
+
+        it "keeps the charge note, upcoming payment and invoice" do
+          expect(purchase.subscription.reload.current_subscription_price_cents).to eq(0)
+
+          mail = CustomerMailer.receipt(purchase.id)
+          expect(mail.body.sanitized).to have_text("You will be charged once a month. If you would like to manage your membership you can visit subscription settings.")
+          expect(mail.body.sanitized).to have_text("You'll be charged once a month. Manage membership")
+          expect(mail.body.sanitized).to have_text("Upcoming payment")
+          expect(mail.body.encoded).to have_link("Generate invoice")
+
+          travel_to(2.weeks.from_now) { expect(purchase.subscription.reload.current_subscription_price_cents).to eq(1_998) }
+        end
+      end
+
       context "when the purchase has fixed length" do
         context "when there is at least one more remaining charge" do
           before do
@@ -904,6 +1011,31 @@ describe CustomerMailer do
           expect(mail.body.sanitized).to have_text("The Works of Edgar Gumstein $5 on Feb 1, 2023")
         end
       end
+
+      context "when the discount made the first charge free" do
+        let(:purchase) { create(:membership_purchase, price_cents: 0, created_at: DateTime.parse("January 1, 2023")) }
+
+        { 1 => "$6", 2 => "$0" }.each do |cycles, next_charge|
+          context "for #{cycles} billing #{"cycle".pluralize(cycles)}" do
+            before do
+              purchase.purchase_offer_code_discount.update!(offer_code_amount: 600, duration_in_billing_cycles: cycles)
+              purchase.purchase_offer_code_discount.offer_code.update_columns(amount_cents: 600, duration_in_months: cycles)
+            end
+
+            it "keeps the upcoming payment and the charge note" do
+              mail = CustomerMailer.receipt(purchase.id)
+              expect(mail.body.sanitized).to have_text("Upcoming payment The Works of Edgar Gumstein #{next_charge} on Feb 1, 2023")
+              expect(mail.body.sanitized).to have_text("You will be charged once a month.")
+              expect(mail.body.sanitized).to have_text("You'll be charged once a month. Manage membership")
+              expect(mail.body.encoded).to have_link("Generate invoice")
+              expect(mail.body.encoded).to have_link("subscription settings")
+
+              (cycles - 1).times { create(:membership_purchase, link: purchase.link, subscription: purchase.subscription, price_cents: 0, is_original_subscription_purchase: false) }
+              expect(purchase.subscription.reload.current_subscription_price_cents).to eq(600)
+            end
+          end
+        end
+      end
     end
 
     context "commission deposit purchase", :vcr do
@@ -1002,6 +1134,20 @@ describe CustomerMailer do
         it "generates questions note with email" do
           expect(mail.body.sanitized).to have_text("Questions about your product? Contact Seller at #{purchase.seller.email}.")
         end
+      end
+    end
+
+    context "when the guard holds the product's custom receipt text" do
+      let(:purchase) { create(:purchase, link: create(:product, custom_receipt_text: "Gumroad Security Alert: verify your account")) }
+
+      before { purchase.create_url_redirect! }
+
+      it "sends the receipt without that text even if the admin note fails to queue" do
+        allow(ContentModerationAdminCommentJob).to receive(:perform_async).and_raise(RedisClient::CannotConnectError)
+
+        mail = CustomerMailer.receipt(purchase.id)
+        expect(mail.body.sanitized).to have_text(purchase.link.name)
+        expect(mail.body.sanitized).not_to have_text("Security Alert")
       end
     end
 
@@ -1161,6 +1307,61 @@ describe CustomerMailer do
       it "uses seller's default email" do
         expect(mailer[:reply_to].value).to eq(charge.seller.support_or_form_email)
       end
+    end
+  end
+
+  describe "receipt with the graphics-light pilot" do
+    let(:seller) { create(:named_seller) }
+    let(:email) { "buyer@example.com" }
+    let(:purchase_one) { create(:purchase, link: create(:product, user: seller, name: "Book One"), seller:, email:) }
+    let(:purchase_two) { create(:purchase, link: create(:product, user: seller, name: "Upsell Two"), seller:, email:) }
+    let!(:charge) { create(:charge, purchases: [purchase_one, purchase_two], seller:) }
+
+    before do
+      purchase_one.create_url_redirect!
+      purchase_two.create_url_redirect!
+      # Receipt recommendations can list the other item's product; these examples check order lines only.
+      allow(RecommendedProducts::CheckoutService).to receive(:fetch_for_receipt).and_return([])
+    end
+
+    it "stays on the designed receipt while the flag is off for the seller" do
+      mail = CustomerMailer.receipt(nil, charge.id)
+
+      expect(mail.body.decoded).to include("class=\"button primary\"")
+    end
+
+    it "sends a plain receipt with text links, the same items and total, when the flag is on for the seller" do
+      Feature.activate_user(:graphics_light_receipt, seller)
+      mail = CustomerMailer.receipt(nil, charge.id)
+      body = mail.body.decoded
+
+      expect(body).to include("Book One", "Upsell Two", "Total:")
+      expect(body).to include(purchase_one.url_redirect.download_page_url, purchase_two.url_redirect.download_page_url)
+      expect(body).not_to include("<img")
+      expect(body).not_to include("class=\"button primary\"")
+    end
+
+    it "keeps presenter links clickable instead of escaping them" do
+      Feature.activate_user(:graphics_light_receipt, seller)
+      body = CustomerMailer.receipt(nil, charge.id).body.decoded
+
+      expect(body).not_to include("&lt;a ")
+      expect(Nokogiri::HTML(body).at_xpath("//a[normalize-space()='Generate invoice']")["href"]).to eq(charge.invoice_url)
+    end
+
+    it "links each split receipt to the receipt page for the whole order" do
+      Feature.activate_user(:graphics_light_receipt, seller)
+      body = CustomerMailer.receipt(purchase_one.id, nil, single_purchase: true).body.decoded
+
+      expect(body).to include("Book One")
+      expect(body).not_to include("Upsell Two")
+      expect(body).to have_link("View every item in this order", href: receipt_purchase_url(purchase_one.external_id, host: UrlService.domain_with_protocol))
+    end
+
+    it "does not apply to another seller's receipt" do
+      Feature.activate_user(:graphics_light_receipt, create(:user))
+
+      expect(CustomerMailer.receipt(nil, charge.id).body.decoded).to include("class=\"button primary\"")
     end
   end
 
@@ -1678,6 +1879,73 @@ describe CustomerMailer do
       mail = CustomerMailer.grouped_receipt(purchases.map(&:id))
       expect(mail.to).to eq([purchases.last.email])
       expect(mail.subject).to eq("Receipts for Purchases")
+    end
+
+    context "with a free purchase from a new seller (gp#4366)" do
+      let(:new_seller) { create(:user, email: "new-seller@example.com", name: "Alex") }
+      let(:free_product) { create(:product, user: new_seller, price_cents: 0, name: "Starter Pack") }
+
+      it "skips the group when the receipt would go to a gumroad.com address" do
+        purchase = create(:free_purchase, link: free_product, seller: new_seller, email: "staff@gumroad.com")
+
+        expect(CustomerMailer.grouped_receipt([purchase.id]).message).to be_a(ActionMailer::Base::NullMail)
+      end
+
+      it "skips the group when the seller name poses as Gumroad staff" do
+        new_seller.update_columns(name: "Gumroad Payout Verification")
+        purchase = create(:free_purchase, link: free_product, seller: new_seller, email: "buyer@example.com")
+
+        expect(CustomerMailer.grouped_receipt([purchase.id]).message).to be_a(ActionMailer::Base::NullMail)
+      end
+
+      it "sends a normal free grouped receipt to an outside buyer" do
+        purchase = create(:free_purchase, link: free_product, seller: new_seller, email: "buyer@example.com")
+
+        expect(CustomerMailer.grouped_receipt([purchase.id]).to).to eq(["buyer@example.com"])
+      end
+
+      it "always sends a paid receipt" do
+        paid_product = create(:product, user: new_seller, price_cents: 500, name: "Paid Pack")
+        purchase = create(:purchase, link: paid_product, seller: new_seller, email: "staff@gumroad.com")
+
+        expect(CustomerMailer.grouped_receipt([purchase.id]).to).to eq(["staff@gumroad.com"])
+      end
+
+      it "sends the buyer's older receipts when newer free ones are blocked" do
+        other_seller = create(:named_seller, name: "Priya")
+        kept_product = create(:product, user: other_seller, price_cents: 0, name: "Recipe Pack")
+        kept = create(:free_purchase, link: kept_product, seller: other_seller, email: "buyer@example.com")
+        new_seller.update_columns(name: "Gumroad Security Team")
+        blocked = create_list(:free_purchase, CustomerMailer::GROUPED_RECEIPT_MAX_CHARGEABLES,
+                              link: free_product, seller: new_seller, email: "buyer@example.com")
+
+        mail = CustomerMailer.grouped_receipt([kept.id] + blocked.map(&:id))
+        items = Nokogiri::HTML(mail.body.decoded).css(".item .product-checkout-cell h4").map { _1.text.strip }
+
+        expect(mail.to).to eq(["buyer@example.com"])
+        expect(items).to include("Recipe Pack")
+        expect(items).not_to include("Starter Pack")
+      end
+    end
+
+    it "does not read a purchase's rows again when it carries its own price" do
+      expect_any_instance_of(Purchase).not_to receive(:successful_purchases)
+
+      expect(described_class.new.send(:suppress_receipt_from_unproven_seller?, build(:purchase, price_cents: 500))).to be(false)
+    end
+
+    it "checks at most the twenty receipts it can send" do
+      checked = 0
+      allow_any_instance_of(CustomerMailer).to receive(:suppress_receipt_from_unproven_seller?).and_wrap_original do |original, chargeable|
+        checked += 1
+        original.call(chargeable)
+      end
+      many = create_list(:purchase, CustomerMailer::GROUPED_RECEIPT_MAX_CHARGEABLES + 5, link: product, seller:)
+
+      mail = CustomerMailer.grouped_receipt(many.map(&:id))
+
+      expect(mail.to).to eq([many.last.email])
+      expect(checked).to eq(CustomerMailer::GROUPED_RECEIPT_MAX_CHARGEABLES)
     end
 
     it "reads only bounded newest-first windows of a caller's match" do
