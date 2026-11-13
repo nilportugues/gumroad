@@ -15,7 +15,12 @@ vi.mock("./mutation.ts", () => ({
 }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({ encryptNumeric: (id: number) => id * 10 }));
 vi.mock("../models/concerns/ruby-numeric.ts", () => ({ rubyToI: (value: unknown) => Number(value) }));
-vi.mock("../models/sql.ts", () => ({ selectRows: mocks.selectRows, column: () => "", table: () => "" }));
+vi.mock("../models/sql.ts", () => ({
+  selectRows: mocks.selectRows,
+  column: () => "",
+  table: () => "",
+  quoteName: (name: string) => name,
+}));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../policies/affiliate-request.ts", () => ({ affiliateRequestPolicy: { update: () => mocks.allowed() } }));
 vi.mock("../page-props/audience/seller-guard.ts", () => ({

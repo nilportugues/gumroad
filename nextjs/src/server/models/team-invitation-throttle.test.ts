@@ -18,6 +18,7 @@ vi.mock("../infra/redis.ts", () => ({ getRedis: () => ({}) }));
 vi.mock("./sql.ts", () => ({
   selectRows,
   table: (name: string) => name,
+  quoteName: (name: string) => name,
   column: (_table: string, name: string) => name,
 }));
 

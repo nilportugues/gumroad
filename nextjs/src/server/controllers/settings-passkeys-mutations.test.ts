@@ -5,12 +5,13 @@ import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { HandBackToRails, RoutingError } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, count, findFirst, update, remove } = vi.hoisted(() => {
+const { specs, count, findMany, findFirst, update, remove } = vi.hoisted(() => {
   process.env.OBFUSCATE_IDS_CIPHER_KEY = "passkeys-test-key";
   process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY = "12345";
   return {
     specs: [] as MutationSpec[],
     count: vi.fn(),
+    findMany: vi.fn(),
     findFirst: vi.fn(),
     update: vi.fn(),
     remove: vi.fn(),
@@ -25,7 +26,7 @@ vi.mock("./json-seller.ts", async (original) => ({
   sellerJsonAction: (_input: unknown, _policy: unknown, run: (context: unknown) => unknown): unknown => run({}),
 }));
 vi.mock("../../lib/db.ts", () => ({
-  db: { webauthnCredential: { count, findFirst, update, delete: remove } },
+  db: { webauthnCredential: { count, findMany, findFirst, update, delete: remove } },
 }));
 
 await import("./settings-passkeys-mutations.ts");
@@ -35,7 +36,8 @@ const find = (method: string, pattern: string) =>
 const externalId = encrypt(5n);
 const inputWith = (params: Record<string, unknown> = {}) =>
   ({
-    context: { currentSeller: { id: 7n } },
+    context: { currentSeller: { id: 7n, email: "seller@example.com", external_id: "ext", username: null, name: null } },
+    chain: { session: { data: {} }, now: new Date() },
     routeParams: { id: externalId },
     params,
   }) as unknown as MutationInput;
@@ -56,7 +58,7 @@ describe("POST /settings/passkeys/registration_options", () => {
   const options = find("POST", "/settings/passkeys/registration_options");
 
   it("answers 422 once the seller has ten passkeys", async () => {
-    count.mockResolvedValue(10);
+    findMany.mockResolvedValue(Array.from({ length: 10 }, () => ({ webauthn_id: "id" })));
 
     expect(await answer(options, inputWith())).toEqual([
       422,
@@ -64,16 +66,29 @@ describe("POST /settings/passkeys/registration_options", () => {
     ]);
   });
 
-  it("hands back the options of a seller with room, which carry a random challenge", async () => {
-    count.mockResolvedValue(9);
+  it("answers the options of a seller with room, which carry a random challenge and exclude the existing passkeys", async () => {
+    findMany.mockResolvedValue(Array.from({ length: 9 }, () => ({ webauthn_id: "id" })));
 
-    await expect(options.run(inputWith())).rejects.toBeInstanceOf(HandBackToRails);
+    const input = inputWith();
+    const [status, body] = await answer(options, input);
+
+    expect(status).toBe(200);
+    const { success, options: creation } = body as {
+      success: boolean;
+      options: { challenge: string; excludeCredentials: unknown[] };
+    };
+    expect(success).toBe(true);
+    expect(creation.challenge).toMatch(/^[\w-]+$/u);
+    expect(creation.excludeCredentials).toHaveLength(9);
+    expect(Object.values(input.chain.session.data)).toEqual([creation.challenge]);
   });
 });
 
 describe("POST /settings/passkeys", () => {
-  it("hands back every registration", async () => {
-    await expect(find("POST", "/settings/passkeys").run(inputWith())).rejects.toBeInstanceOf(HandBackToRails);
+  it("answers 422 when no registration challenge is in the session", async () => {
+    expect(
+      await answer(specs.find((spec) => spec.method === "POST" && spec.pattern === "/settings/passkeys")!, inputWith()),
+    ).toEqual([422, { success: false, error_message: expect.any(String) as string }]);
   });
 });
 

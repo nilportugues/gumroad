@@ -18,6 +18,7 @@ vi.mock("../models/sql.ts", () => ({
   selectRows,
   column: (_table: string, name: string) => name,
   table: (name: string) => name,
+  quoteName: (name: string) => name,
 }));
 vi.mock("../../lib/db.ts", () => ({ db: { link: { findUnique: findLink }, user: { findFirst: findUser } } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({ decrypt: (id: string) => (id === "unknown" ? null : 7) }));
