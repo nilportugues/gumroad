@@ -16,8 +16,10 @@ import {
   viewerOf,
 } from "../presenters/product-page.ts";
 import { findLink, findUserById } from "../presenters/product-reads.ts";
+import { UserFlags } from "../models/user.ts";
 
 import { remoteIp } from "./audience/events.ts";
+import { domainConfig } from "./domain.ts";
 import { aliveCartProductCount } from "./checkout/checkout.ts";
 import { autocompleteResults, isAutocompleteOnlyRequest } from "./discover/discover.ts";
 import type { PageSpec } from "./pages.ts";
@@ -34,6 +36,12 @@ const productPage: PageSpec = {
   props: async (params, action) => {
     const row = (await findLink(BigInt(String(action.state.product_id))))!;
     const seller = (await findUserById(row.user_id!))!;
+    // prepare_product_page: `@user = @product.user`, so set_analytics_meta_tags follows the product's seller, not the visitor.
+    const env = domainConfig(process.env).railsEnv;
+    const analyticsEnabled =
+      (env === "production" || env === "staging") && !UserFlags.isSet(seller.flags, "disable_third_party_analytics");
+    for (const property of ["gr:google_analytics:enabled", "gr:fb_pixel:enabled", "gr:tiktok_pixel:enabled"])
+      action.meta.set({ property, content: String(analyticsEnabled) });
     const query = parseQuery(action.url.search.replace(/^\?/u, ""));
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;

@@ -33,6 +33,7 @@ import {
   waitlistProps,
   wishlistProps,
 } from "./product-props-extras.ts";
+import { fileSummaries } from "./product-file-summaries.ts";
 import { findLink, findUserById, type LinkRow, type PriceRow, reviewStat, type UserRow } from "./product-reads.ts";
 import {
   authorBylineProps,
@@ -901,6 +902,10 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     refund_policy: await refundPolicyProps(row, seller),
     bundle_products: await bundleProductsProps(row, viewer),
     public_files: [],
+    file_summaries: await fileSummaries(
+      row,
+      records.map((record) => BigInt(record.id)),
+    ),
   };
   const defaults = await defaultOfferCodes(row);
   const result = await bestOfferCodeResult(row, defaults, viewer.discountCode, viewer.quantity);
