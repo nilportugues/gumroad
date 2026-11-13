@@ -32,7 +32,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "no receipts and a cursor of zero",
@@ -65,7 +66,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "no receipts and no cursor",
@@ -101,7 +103,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a stored cursor that is not a number",
@@ -163,7 +166,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a stored cursor that is empty and no receipts",
@@ -205,7 +209,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a stored cursor of only spaces and no receipts",
@@ -247,7 +252,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a stored cursor with leading spaces",
@@ -309,7 +315,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a stored cursor with trailing text",
@@ -371,7 +378,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt sent a day ago",
@@ -433,7 +441,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt sent two days and a second ago",
@@ -495,7 +504,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt sent two days ago to the second",
@@ -557,7 +567,134 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
+    },
+    {
+      "name": "a receipt sent exactly two days before a clock on the second",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-02T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true,
+      "now": 1793795445.0
+    },
+    {
+      "name": "a receipt sent a second after two days before a clock on the second",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-02T12:30:46.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false,
+      "now": 1793795445.0
     },
     {
       "name": "a receipt sent two days less a second ago",
@@ -619,7 +756,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt sent a second from now",
@@ -681,7 +819,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt that was never sent",
@@ -714,7 +853,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a bounced receipt that was never stamped",
@@ -774,7 +914,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a bounced receipt sent three days ago",
@@ -836,7 +977,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt sent three days ago",
@@ -898,7 +1040,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a delivered receipt",
@@ -931,7 +1074,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "an opened receipt",
@@ -964,7 +1108,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt in a created state",
@@ -997,7 +1142,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt with no state",
@@ -1030,7 +1176,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt of another email name",
@@ -1063,7 +1210,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt with no email name",
@@ -1096,7 +1244,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "an email info of another type",
@@ -1129,7 +1278,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "an email info with no type",
@@ -1162,7 +1312,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt at the cursor",
@@ -1195,7 +1346,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt before the cursor",
@@ -1228,7 +1380,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt after the cursor",
@@ -1290,7 +1443,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a young receipt after settled ones at the cursor",
@@ -1352,7 +1506,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a young receipt first, an old one after",
@@ -1424,7 +1579,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "an old receipt first, a young one after",
@@ -1496,7 +1652,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "an unsent receipt first, an old one after",
@@ -1566,7 +1723,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "two young receipts",
@@ -1638,7 +1796,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a delivered receipt before a young one",
@@ -1700,7 +1859,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a receipt with no purchase",
@@ -1762,7 +1922,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a young receipt with no purchase",
@@ -1824,7 +1985,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "a retry set and no receipts",
@@ -1861,7 +2023,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a retry set and a young receipt",
@@ -1900,7 +2063,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a retry set and no cursor on an empty table",
@@ -1937,7 +2101,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "a retry set and a receipt a month old and no cursor",
@@ -1987,7 +2152,8 @@
       },
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and only receipts a month old",
@@ -2036,7 +2202,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and only receipts without a send time",
@@ -2085,7 +2252,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and a receipt a week old",
@@ -2123,7 +2291,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and a receipt inside the lookback",
@@ -2161,7 +2330,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and a receipt just past the skew bound",
@@ -2210,7 +2380,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and a receipt at the skew bound",
@@ -2259,7 +2430,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and a receipt of another email name inside the lookback",
@@ -2297,7 +2469,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and one recent receipt",
@@ -2335,7 +2508,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": true
+      "hands_back": true,
+      "now": 1793795445.1230001
     },
     {
       "name": "no cursor and a recent receipt that was never sent",
@@ -2384,7 +2558,8 @@
       "redis_before": {},
       "job": "AlertSellersOfUndeliveredReceiptsJob",
       "args": [],
-      "hands_back": false
+      "hands_back": false,
+      "now": 1793795445.1230001
     }
   ]
 }

@@ -5,7 +5,6 @@
 // Golden: __fixtures__/alert-on-stale-blocks-holding-established-buyers-job.golden.json
 // (scripts/golden/alert-on-stale-blocks-holding-established-buyers-job.rb).
 import { Prisma } from "@prisma/client";
-import type { Redis } from "ioredis";
 
 import { getRedis } from "../../server/infra/redis.ts";
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
@@ -13,6 +12,7 @@ import { rubyToI } from "../../server/mail/mailer-info.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
 
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
+import { redisOrHandBack } from "./support/redis-or-hand-back.ts";
 
 const PLATFORM_BLOCKS = "platform_blocks";
 const MAX_CANDIDATES_SCANNED = 5_000;
@@ -24,7 +24,10 @@ const BLOCK_TYPE = "email";
 const blocks = (name: string) => column(PLATFORM_BLOCKS, name);
 
 // The two Redis commands the cursor needs, on the main database (`$redis`).
-export type StaleBlockRedis = Pick<Redis, "get" | "set">;
+export type StaleBlockRedis = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: number): Promise<unknown>;
+};
 export type StaleBlockDeps = { redis: () => StaleBlockRedis };
 
 // PlatformBlock.active.where(object_type: email, blocked_by: nil).where.not(object_value: nil).where("platform_blocks.id > ?", after_id)
@@ -41,20 +44,15 @@ export const alertOnStaleBlocksHoldingEstablishedBuyersJobWith = (
 ) =>
   modelJob({ min: 0, max: 0 }, async (_args, deps) => {
     const redis = (stale.redis ?? (() => getRedis("main")))();
-    let afterId: number;
-    try {
-      afterId = rubyToI(await redis.get(CURSOR_KEY));
-    } catch {
-      // Rails reports the Redis error and starts from zero; that report is not Node's to make.
-      throw new HandBackToRuby("the sweep cursor could not be read");
-    }
+    const afterId = rubyToI(await redisOrHandBack("reading the sweep cursor", () => redis.get(CURSOR_KEY)));
 
     const now = deps.now();
     let candidates = await candidateBlocks(afterId, now);
     const startOver = candidates.length === 0 && afterId > 0;
     if (startOver) candidates = await candidateBlocks(0, now);
-    if (candidates.length > 0) throw new HandBackToRuby("a candidate block's buyer history is read and the block may be cleared");
-    if (startOver) await redis.set(CURSOR_KEY, 0);
+    if (candidates.length > 0)
+      throw new HandBackToRuby("a candidate block's buyer history is read and the block may be cleared");
+    if (startOver) await redisOrHandBack("saving the sweep cursor", () => redis.set(CURSOR_KEY, 0));
   })(overrides);
 
 export const alertOnStaleBlocksHoldingEstablishedBuyersJob = alertOnStaleBlocksHoldingEstablishedBuyersJobWith();

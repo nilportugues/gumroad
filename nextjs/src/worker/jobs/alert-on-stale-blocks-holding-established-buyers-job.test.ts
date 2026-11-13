@@ -22,6 +22,7 @@ const golden = loadGolden(
   new URL("./__fixtures__/alert-on-stale-blocks-holding-established-buyers-job.golden.json", import.meta.url),
 );
 const now = () => new Date(Math.round(Number(golden.now) * 1000));
+const failing = () => Promise.reject(new Error("connection lost"));
 
 describe("AlertOnStaleBlocksHoldingEstablishedBuyersJob", () => {
   for (const c of golden.cases as (Omit<(typeof golden.cases)[number], "redis"> & {
@@ -53,6 +54,34 @@ describe("AlertOnStaleBlocksHoldingEstablishedBuyersJob", () => {
       expect(sql.log).toEqual(sql.expected);
       if (!c.hands_back) expect(cursor.snapshot()).toEqual(c.redis);
       expect(sidekiq.snapshot()).toEqual({});
+    });
+  }
+
+  // Rails reports a Redis error and goes on without it, which a recording cannot show: Node hands the job back instead.
+  for (const [command, rejects] of [
+    ["get", { get: failing }],
+    ["set", { set: failing }],
+  ] as const) {
+    it(`hands back when Redis ${command} fails`, async () => {
+      // The reset is written after both scans came back empty.
+      const scans = golden.cases.find((c) => c.name === "no blocks and a cursor")!.statements;
+      sqlReplay(command === "set" ? scans : []);
+      const sidekiq = recordingSidekiqRedis();
+      const jobs = createJobsRuntime({
+        sidekiqRedis: sidekiq.redis,
+        bullmqRedis: sidekiq.redis,
+        registry: rubyRuntimeRegistry(),
+        now: () => golden.now,
+        newJid: sequentialJids(),
+      });
+      const redis = {
+        ...scratchRedis({ "stale_block_sweep:cursor": { type: "string", value: "5", expires: false } }).redis,
+        ...rejects,
+      };
+      const handler = alertOnStaleBlocksHoldingEstablishedBuyersJobWith({ now }, { redis: () => redis });
+      await expect(asSidekiqJob(() => handler([], contextFor(jobs)), golden.now)).rejects.toMatchObject({
+        name: "HandBackToRuby",
+      });
     });
   }
 

@@ -41,17 +41,17 @@ def info_row(id, **overrides)
   { id:, purchase_id: id, type: "CustomerEmailInfo", email_name: "receipt", state: "sent", sent_at: at(-3 * 86_400), delivered_at: nil, opened_at: nil }.merge(overrides)
 end
 
-def run(name, infos: [], cursor: nil, retry_ids: [])
+def run(name, infos: [], cursor: nil, retry_ids: [], now: NOW)
   hands_back = false
   setup = -> { redis.set(CURSOR, cursor) unless cursor.nil?; retry_ids.each { redis.sadd(PENDING, _1) } }
-  result = capture(name, now: NOW, tables: TABLES, seed: { email_infos: infos }, setup:, sidekiq: true, job: "AlertSellersOfUndeliveredReceiptsJob", args: []) do
+  result = capture(name, now:, tables: TABLES, seed: { email_infos: infos }, setup:, sidekiq: true, job: "AlertSellersOfUndeliveredReceiptsJob", args: []) do
     AlertSellersOfUndeliveredReceiptsJob.new.perform
   rescue HandBackMarker
     hands_back = true
   end
   result.delete("rows")
   result.delete("seed")
-  result.merge("hands_back" => hands_back)
+  result.merge("hands_back" => hands_back, "now" => now.to_f)
 end
 
 old = at(-3 * 86_400)
@@ -70,6 +70,9 @@ cases << run("a stored cursor with trailing text", cursor: "2x", infos: [info_ro
 cases << run("a receipt sent a day ago", cursor: "0", infos: [info_row(1, sent_at: young)])
 cases << run("a receipt sent two days and a second ago", cursor: "0", infos: [info_row(1, sent_at: at(-2 * 86_400 - 1))])
 cases << run("a receipt sent two days ago to the second", cursor: "0", infos: [info_row(1, sent_at: at(-2 * 86_400))])
+WHOLE_SECOND = Time.utc(2026, 11, 4, 12, 30, 45) # sent_at has no fraction, so only a clock without one can meet it
+cases << run("a receipt sent exactly two days before a clock on the second", cursor: "0", infos: [info_row(1, sent_at: at(-2 * 86_400))], now: WHOLE_SECOND)
+cases << run("a receipt sent a second after two days before a clock on the second", cursor: "0", infos: [info_row(1, sent_at: at(-2 * 86_400 + 1))], now: WHOLE_SECOND)
 cases << run("a receipt sent two days less a second ago", cursor: "0", infos: [info_row(1, sent_at: at(-2 * 86_400 + 1))])
 cases << run("a receipt sent a second from now", cursor: "0", infos: [info_row(1, sent_at: at(1))])
 cases << run("a receipt that was never sent", cursor: "0", infos: [info_row(1, sent_at: nil, state: "created")])

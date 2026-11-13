@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
+import { RubyFloat } from "../../server/jobs/sidekiq/ruby-json.ts";
 
 import {
   asSidekiqJob,
@@ -23,9 +24,13 @@ const golden = loadGolden(
   new URL("./__fixtures__/alert-sellers-of-undelivered-receipts-job.golden.json", import.meta.url),
 );
 const now = () => new Date(Math.round(Number(golden.now) * 1000));
+// A whole number of seconds is a Float in the golden, which parses to a RubyFloat.
+const seconds = (value: unknown) => (value instanceof RubyFloat ? value.value : Number(value));
+const failing = () => Promise.reject(new Error("connection lost"));
 
 describe("AlertSellersOfUndeliveredReceiptsJob", () => {
   for (const c of golden.cases as (Omit<(typeof golden.cases)[number], "redis"> & {
+    now: number;
     redis: Record<string, never>;
     redis_before?: Record<string, never>;
   })[]) {
@@ -40,7 +45,9 @@ describe("AlertSellersOfUndeliveredReceiptsJob", () => {
         now: () => golden.now,
         newJid: sequentialJids(),
       });
-      const handler = alertSellersOfUndeliveredReceiptsJobWith({ now }, { redis: () => cursor.redis });
+      // A case on a clock with no fraction of a second carries it; the others share the golden's.
+      const clock = () => new Date(Math.round(seconds(c.now ?? golden.now) * 1000));
+      const handler = alertSellersOfUndeliveredReceiptsJobWith({ now: clock }, { redis: () => cursor.redis });
       const error = await asSidekiqJob(() => handler([], contextFor(jobs)), golden.now).then(
         () => null,
         (e: unknown) => e as Error,
@@ -54,6 +61,35 @@ describe("AlertSellersOfUndeliveredReceiptsJob", () => {
       expect(sql.log).toEqual(sql.expected);
       if (!c.hands_back) expect(cursor.snapshot()).toEqual(c.redis);
       expect(sidekiq.snapshot()).toEqual({});
+    });
+  }
+
+  // Rails reports a Redis error and goes on without it, which a recording cannot show: Node hands the job back instead.
+  for (const [command, rejects] of [
+    ["get", { get: failing }],
+    ["srandmember", { srandmember: failing }],
+    ["set", { set: failing }],
+  ] as const) {
+    it(`hands back when Redis ${command} fails`, async () => {
+      // The write comes after the scan; the reads fail before any statement.
+      const scan = golden.cases.find((c) => c.name === "no receipts and a cursor")!.statements;
+      sqlReplay(command === "set" ? scan : []);
+      const sidekiq = recordingSidekiqRedis();
+      const jobs = createJobsRuntime({
+        sidekiqRedis: sidekiq.redis,
+        bullmqRedis: sidekiq.redis,
+        registry: rubyRuntimeRegistry(),
+        now: () => golden.now,
+        newJid: sequentialJids(),
+      });
+      const redis = {
+        ...scratchRedis({ "undelivered_receipt_sweep:cursor": { type: "string", value: "5", expires: false } }).redis,
+        ...rejects,
+      };
+      const handler = alertSellersOfUndeliveredReceiptsJobWith({ now }, { redis: () => redis });
+      await expect(asSidekiqJob(() => handler([], contextFor(jobs)), golden.now)).rejects.toMatchObject({
+        name: "HandBackToRuby",
+      });
     });
   }
 

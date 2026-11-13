@@ -6,7 +6,6 @@
 // Rails whole before any write.
 // Golden: __fixtures__/alert-sellers-of-undelivered-receipts-job.golden.json (scripts/golden/alert-sellers-of-undelivered-receipts-job.rb).
 import { Prisma } from "@prisma/client";
-import type { Redis } from "ioredis";
 
 import { getRedis } from "../../server/infra/redis.ts";
 import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
@@ -15,6 +14,7 @@ import { ago } from "../../server/models/concerns/ruby-time.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
 
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
+import { redisOrHandBack } from "./support/redis-or-hand-back.ts";
 
 const EMAIL_INFOS = "email_infos";
 const BATCH_SIZE = 5_000;
@@ -34,7 +34,11 @@ const RECEIPT_EMAIL_NAME = "receipt";
 const BLANK = /^\s*$/u;
 
 // The Redis commands the job sends before it hands back, on the main database (`$redis`).
-export type UndeliveredReceiptsRedis = Pick<Redis, "get" | "set" | "srandmember">;
+export type UndeliveredReceiptsRedis = {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: number): Promise<unknown>;
+  srandmember(key: string, count: number): Promise<string[]>;
+};
 export type UndeliveredReceiptsDeps = { redis: () => UndeliveredReceiptsRedis };
 
 const infos = (name: string) => column(EMAIL_INFOS, name);
@@ -61,15 +65,6 @@ async function initialCursor(now: Date): Promise<number> {
     throw new HandBackToRuby("a first run whose newest receipts are inside the lookback searches for its start");
   }
   return Number(newest.id);
-}
-
-// Rails reports a Redis error and goes on without it; that report is not Node's to make.
-async function redisOrHandBack<T>(what: string, command: () => Promise<T>): Promise<T> {
-  try {
-    return await command();
-  } catch {
-    throw new HandBackToRuby(`${what} failed`);
-  }
 }
 
 export const alertSellersOfUndeliveredReceiptsJobWith = (

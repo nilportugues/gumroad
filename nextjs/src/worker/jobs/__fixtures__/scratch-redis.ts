@@ -5,7 +5,9 @@ import type { RedisSnapshot } from "./golden.ts";
 type Stored = RedisSnapshot[string];
 
 export function scratchRedis(before: RedisSnapshot | undefined) {
-  const store = new Map<string, Stored>(Object.entries(before ?? {}).map(([key, entry]) => [key, structuredClone(entry)]));
+  const store = new Map<string, Stored>(
+    Object.entries(before ?? {}).map(([key, entry]) => [key, structuredClone(entry)]),
+  );
   const commands: string[] = [];
   const redis = {
     get: (key: string) => {
@@ -13,7 +15,7 @@ export function scratchRedis(before: RedisSnapshot | undefined) {
       return Promise.resolve((store.get(key)?.value as string | undefined) ?? null);
     },
     // `set key value` without expiry or conditions
-    set: (key: string, value: string | number) => {
+    set: (key: string, value: number) => {
       commands.push("set");
       store.set(key, { type: "string", value: String(value), expires: false });
       return Promise.resolve("OK" as const);
