@@ -21,19 +21,43 @@ const tokenField = (token: string) =>
 // The error_messages partial renders nothing for a resource without errors, leaving the two spaces of its line.
 const ERROR_MESSAGES_LINE = "  \n";
 
-// devise/confirmations/new.html.erb with devise/shared/_links.html.erb, for a `User.new` resource with no errors.
-function confirmationNewView(csrfToken: string): string {
+export type ConfirmationForm = {
+  // The one error on :email, from Devise's `find_or_initialize_with_error_by` or `add_error_on` ("Email not found").
+  error?: string;
+  // The resource's email: what the visitor typed for a new record, the stored one for a found account.
+  email?: string;
+  // form_for names a persisted resource's form `edit_user`.
+  persisted?: boolean;
+};
+
+// devise/shared/_error_messages.html.erb for a resource with one error, after the two spaces its template line starts with.
+const errorMessages = (error: string) =>
+  `  <div id="error_explanation" data-turbo-cache="false">
+    <h2>
+      1 error prohibited this user from being saved:
+    </h2>
+    <ul>
+        <li>${escapeHtml(error)}</li>
+    </ul>
+  </div>
+`;
+
+// devise/confirmations/new.html.erb with devise/shared/_links.html.erb.
+export function confirmationNewView(csrfToken: string, form: ConfirmationForm = {}): string {
+  const formName = form.persisted === true ? "edit_user" : "new_user";
+  const failed = form.error !== undefined;
+  const fieldWithErrors = (markup: string) => (failed ? `<div class="field_with_errors">${markup}</div>` : markup);
   const providers = OMNIAUTH_PROVIDERS.map((provider) => {
     const action = `/users/auth/${provider}`;
     return `    <form class="button_to" method="post" action="${action}"><button data-turbo="false" type="submit">Sign in with ${camelize(provider)}</button>${tokenField(perFormCsrfToken(csrfToken, action, "post"))}</form><br />\n`;
   }).join("");
   return `<h2>Resend confirmation instructions</h2>
 
-<form class="new_user" id="new_user" action="/users/confirmation" accept-charset="UTF-8" method="post">${tokenField(perFormCsrfToken(csrfToken, "/users/confirmation", "post"))}
-${ERROR_MESSAGES_LINE}
+<form class="${formName}" id="${formName}" action="/users/confirmation" accept-charset="UTF-8" method="post">${tokenField(perFormCsrfToken(csrfToken, "/users/confirmation", "post"))}
+${failed ? `  ${errorMessages(form.error!)}\n` : ERROR_MESSAGES_LINE}
   <div class="field">
-    <label for="user_email">Email</label><br />
-    <input autofocus="autofocus" autocomplete="email" value="" type="email" name="user[email]" id="user_email" />
+    ${fieldWithErrors('<label for="user_email">Email</label>')}<br />
+    ${fieldWithErrors(`<input autofocus="autofocus" autocomplete="email" value="${escapeHtml(form.email ?? "")}" type="email" name="user[email]" id="user_email" />`)}
   </div>
 
   <div class="actions">
@@ -58,4 +82,13 @@ export function confirmationNewPage(request: RailsRequest, action: ActionContext
   if (request.headers.has("x-inertia")) throw new HandBackToRails("an Inertia visit of a Devise view");
   if (requestFormat(request) !== "html") throw new HandBackToRails("a Devise view in another format");
   return renderApplicationPage(request, action, null, (_ctx, csrfToken) => confirmationNewView(csrfToken));
+}
+
+// ConfirmationsController#create ending in `respond_with resource`: the same view with the resource's error, a 200.
+export function confirmationFormPage(
+  request: RailsRequest,
+  action: ActionContext,
+  form: ConfirmationForm,
+): Promise<Rendered> {
+  return renderApplicationPage(request, action, null, (_ctx, csrfToken) => confirmationNewView(csrfToken, form));
 }

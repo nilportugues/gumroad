@@ -5,7 +5,7 @@ require "spec_helper"
 # GET /purchases/:id/product (Purchases::ProductController#show), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/purchase-pages-guards.replay.test.ts. Node answers the 404 of set_purchase; an example named "hands a ..." is
 # one it leaves to Rails whole, because Rails rebuilds the product from its PaperTrail version at the time of the purchase, or, for a
-# signed-in visitor, because the shared product and layout props have drifted from Node (`file_summaries`, the store agent policies).
+# buyer who signed in, because Purchase#purchase_info is built before the presenter overrides `purchase` with nil.
 describe "Purchase product page", type: :request do
   include Parity::AudienceSignedIn
 
@@ -36,7 +36,7 @@ describe "Purchase product page", type: :request do
     expect(response.headers["X-Robots-Tag"]).to include("noindex")
   end
 
-  it "hands a seller who signed in to Rails", parity: true do
+  it "renders the product to a seller who signed in", parity: true do
     log_in(seller)
 
     get "/purchases/#{purchase.external_id}/product"
@@ -45,7 +45,7 @@ describe "Purchase product page", type: :request do
     expect(response.body).to include("Purchases/Product/Show")
   end
 
-  it "hands a signed-in visitor who is nobody to the product to Rails", parity: true do
+  it "renders the product to a signed-in visitor who is nobody to the product", parity: true do
     log_in(create(:user, name: "Passing Visitor"))
 
     get "/purchases/#{purchase.external_id}/product"

@@ -15,7 +15,7 @@ import { getRedis } from "../infra/redis.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { rubyToI } from "../models/concerns/ruby-numeric.ts";
 import { urlClickCounts } from "../models/email-engagement-store.ts";
-import { audienceMembersFilterParams } from "../models/installment-audience.ts";
+import { audienceMembersFilterParams, behaviorAudience } from "../models/installment-audience.ts";
 import { InstallmentPost } from "../models/installment-post.ts";
 import { createBlast, RECIPIENT_FILTER_UNOPENED } from "../models/post-email-blast.ts";
 import { findAliveVideo, setApprovalStatusBang } from "../models/product-review-video.ts";
@@ -264,7 +264,10 @@ export const installmentAudienceCount = (request: Request, routeParams: Record<s
   jsonAction(request, routeParams, {}, (input) =>
     handingBack(() =>
       withSellerInstallment(input, installmentPolicy.updatedAudienceCount, async (_input, post) => {
-        // Installment#audience_members_count
+        // Installment#displayed_audience_members_count
+        const behavior = await behaviorAudience(post);
+        if (behavior.kind === "withheld") return json({ count: null });
+        if (behavior.kind === "engagement") throw new HandBackToRails("an audience filtered by opens or clicks");
         const count = await filterCount(post.row.seller_id, await audienceMembersFilterParams(post));
         return json({ count });
       }),
@@ -303,6 +306,7 @@ const RECIPIENT_COUNT_SCALARS = [
   "created_after",
   "created_before",
   "not_clicked_post_id",
+  "opened_post_id",
 ] as const;
 const RECIPIENT_COUNT_LISTS = [
   "bought_products",

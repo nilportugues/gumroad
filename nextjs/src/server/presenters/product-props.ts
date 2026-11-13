@@ -25,6 +25,7 @@ import { PurchaseSearchService } from "../search/purchase-search.ts";
 import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";
 import { htmlSafeDescription } from "./description.ts";
 import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayable } from "./human-size.ts";
+import { fileSummaries } from "./product-file-summaries.ts";
 import {
   assertNoAttachedPublicFiles,
   assertNoBoughtPurchase,
@@ -901,6 +902,10 @@ export async function productProps(row: LinkRow, seller: UserRow, viewer: Produc
     refund_policy: await refundPolicyProps(row, seller),
     bundle_products: await bundleProductsProps(row, viewer),
     public_files: [],
+    file_summaries: await fileSummaries(
+      row,
+      records.map((record) => BigInt(record.id)),
+    ),
   };
   const defaults = await defaultOfferCodes(row);
   const result = await bestOfferCodeResult(row, defaults, viewer.discountCode, viewer.quantity);
