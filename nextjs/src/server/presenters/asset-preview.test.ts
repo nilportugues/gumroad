@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { addressableEscape, coverAsJson } from "./asset-preview.ts";
+import { addressableEscape, coverAsJson, oembedUrl } from "./asset-preview.ts";
 
 const yaml = (html: string | null, info: string) =>
   `---\n${html === null ? "" : `html: ${JSON.stringify(html)}\n`}info:\n${info}`;
@@ -141,5 +141,15 @@ describe("addressableEscape", () => {
     "https://example.com/a|b",
   ])("hands back %s, which Addressable would re-encode", (url) => {
     expect(() => addressableEscape(url)).toThrow("is not ported");
+  });
+});
+
+describe("oembedUrl", () => {
+  it("adds the YouTube player api flag and answers null without an iframe", () => {
+    expect(oembedUrl('<iframe src="https://www.youtube.com/embed/abc?feature=oembed"></iframe>')).toBe(
+      "https://www.youtube.com/embed/abc?feature=oembed&enablejsapi=1",
+    );
+    expect(oembedUrl(null)).toBeNull();
+    expect(oembedUrl("<p>no player</p>")).toBeNull();
   });
 });

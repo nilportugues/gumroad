@@ -54,10 +54,9 @@ const ROUTE_FLAGS = [
   "nextjs_admin_api_piracy",
   "nextjs_admin_api_campaigns",
 ];
-// Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a state in a compliance
-// address, a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
+// Requests the port leaves to Rails: "hands a ..." in a request spec, and the controller examples named here (a new watch). The replay asserts they reach the stand-in Rails untouched and write nothing.
 const HANDS_BACK_CASE =
-  /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|get-compliance-info-returns-(?:business-kyc-fields|submitted-kyc-fields|the-latest-alive|the-trailing-characters)|post-resolve-records-the-outcome/u;
+  /hands-(?:a|an|the|warnings)-|post-watch-(?:creates-a-watched-user-record|user-id-lookup-looks-up|user-id-lookup-prefers)|post-resolve-records-the-outcome/u;
 // Controller examples that run the action a port only guards (the write itself, a Stripe-charged purchase, a social or radar case the read
 // does not reproduce): the port answers them with the hand-back, which the replay asserts the same way. Matched on the example's id.
 const HANDED_CONTROLLER_EXAMPLES = new Set([

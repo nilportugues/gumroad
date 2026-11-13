@@ -19,9 +19,11 @@ defineAdminRoute({
   run: async (admin) => {
     const key = admin.params.license_key;
     if (isBlank(key)) return failure("license_key is required", 400);
-    // An array is an IN list and a number compares as one in SQL; neither is the exact match below.
-    if (typeof key !== "string") throw new NotPortedError("a license_key that is not text", SOURCE);
-    const license = await db.license.findFirst({ where: { serial: key }, orderBy: { id: "asc" } });
+    // A list of one key is an IN of one, the same match; a longer list has no recorded order for the row find_by takes, and a number
+    // compares as one in SQL.
+    const serial = Array.isArray(key) && key.length === 1 ? key[0] : key;
+    if (typeof serial !== "string") throw new NotPortedError("a license_key that is not a single text", SOURCE);
+    const license = await db.license.findFirst({ where: { serial }, orderBy: { id: "asc" } });
     if (license === null) return failure("License not found", 404);
 
     const [purchase] =

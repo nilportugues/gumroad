@@ -109,7 +109,7 @@ function iframeSrc(source: string): string | null {
   return handBack();
 }
 
-function oembedUrl(html: string | null): string | null {
+export function oembedUrl(html: string | null): string | null {
   if (html === null || !/<iframe/iu.test(html)) return null;
   const src = iframeSrc(html);
   if (src === null) return null;

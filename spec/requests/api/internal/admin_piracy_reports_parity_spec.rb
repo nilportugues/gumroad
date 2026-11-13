@@ -52,7 +52,7 @@ describe "Internal admin API piracy reports", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a product description with an entity to Rails", parity: true do
+    it "reads a product description with an escaped ampersand", parity: true do
       product.update_columns(description: "<p>Fish &amp; chips</p>")
       report = create(:piracy_report, seller:, product:)
 

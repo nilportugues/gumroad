@@ -68,7 +68,7 @@ describe "Internal admin API users", type: :request do
       expect(response.parsed_body["info_requests"].sole["overdue"]).to be(true)
     end
 
-    it "hands a compliance info address with a state to Rails", parity: true do
+    it "reads a compliance info address with a state", parity: true do
       create(:user_compliance_info, user:, state: "California")
 
       get "/internal/admin/users/compliance_info", params: { user_id: user.external_id }, headers: headers
@@ -76,7 +76,7 @@ describe "Internal admin API users", type: :request do
       expect(response.parsed_body["compliance_info"]["address"]["state_code"]).to eq("CA")
     end
 
-    it "hands a business address with a state to Rails", parity: true do
+    it "reads a business address with a state", parity: true do
       create(:user_compliance_info_business, user:, state: nil, business_state: "California")
 
       get "/internal/admin/users/compliance_info", params: { user_id: user.external_id }, headers: headers
@@ -118,7 +118,7 @@ describe "Internal admin API users", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a threshold written with an exponent to Rails", parity: true do
+    it "reads a threshold written with an exponent", parity: true do
       create(:watched_user, user:)
 
       post "/internal/admin/users/update_watch", params: { user_id: user.external_id, revenue_threshold: "1e2" }, headers: headers
