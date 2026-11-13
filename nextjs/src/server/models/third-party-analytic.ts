@@ -97,7 +97,7 @@ export async function saveThirdPartyAnalytics(
     const productId = await productIdFromPermalink(params.product);
     let analytic: AnalyticRecord;
     if (present(params.id)) {
-      const id = decrypt(String(params.id));
+      const id = decrypt(nullable(params.id) ?? "");
       const [row] =
         id === null
           ? []

@@ -105,16 +105,22 @@ function assertUnchangedIdentity(seller: UserRecord, user: Record<string, unknow
 
 // A 4-byte integer column: ActiveModel raises a RangeError past it when the row is saved.
 const MAX_INTEGER_COLUMN = 2 ** 31 - 1;
+// What stands in for a limit that never reaches the column: the numericality validation reads the raw value and refuses anything past
+// 100 (or under 1) before the save, so any magnitude past a 4-byte column fails with the message of 101 (or 0), by sign.
+const PAST_THE_COLUMN = MAX_INTEGER_COLUMN + 1;
 
 // The Integer type's cast of what the form can send; a boolean or text with trailing garbage is Rails' call. A Float is truncated
-// (`Float#to_i`).
-function integerValue(value: unknown): number | null {
+// (`Float#to_i`). `refusedBeforeSave` is for a column whose validation fails on any value past the 4-byte range.
+function integerValue(value: unknown, refusedBeforeSave = false): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (value instanceof RubyFloat) {
     const truncated = Math.trunc(value.value) + 0;
-    if (Number.isFinite(value.value) && Math.abs(truncated) <= MAX_INTEGER_COLUMN) return truncated;
-    throw new HandBackToRails("a float an integer column would reject as out of range");
+    if (!Number.isFinite(value.value)) throw new HandBackToRails("a float that is not finite");
+    if (Math.abs(truncated) <= MAX_INTEGER_COLUMN) return truncated;
+    if (!refusedBeforeSave) throw new HandBackToRails("a float an integer column would reject as out of range");
+    return truncated < 0 ? -PAST_THE_COLUMN : PAST_THE_COLUMN;
   }
+  if (typeof value === "bigint" && refusedBeforeSave) return value < 0n ? -PAST_THE_COLUMN : PAST_THE_COLUMN;
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
   if (typeof value === "string" && /^\s*[+-]?\d+\s*$/u.test(value)) {
     const parsed = Number.parseInt(value, 10);
@@ -123,18 +129,12 @@ function integerValue(value: unknown): number | null {
   throw new HandBackToRails("a value an integer column would cast differently");
 }
 
-// An integer past 2**53 reaches the range validation before the column's limit raises, so the record keeps it as a bigint for the
-// validation to refuse. Only the parity limit is validated by range; a refund policy's days hand back.
-function parityLimitValue(value: unknown): number | null {
-  return typeof value === "bigint" ? (value as unknown as number) : integerValue(value);
-}
-
 // `current_seller.assign_attributes(user_params)`, in the order the params arrive.
 function assignAttributes(seller: UserRecord, user: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(user)) {
     if (!PERMITTED_USER_KEYS.has(key) || !isPermittedScalar(value)) continue;
     if ((FLAG_PARAMS as readonly string[]).includes(key)) setFlag(seller, key as UserFlag, trueValue(value));
-    else if (key === "purchasing_power_parity_limit") seller.set(key, parityLimitValue(value));
+    else if (key === "purchasing_power_parity_limit") seller.set(key, integerValue(value, true));
     else {
       if (value === null && NOT_NULL_PARAMS.includes(key)) throw new HandBackToRails(`a null ${key}`);
       seller.set(key as (typeof STRING_PARAMS)[number], stringValue(value));

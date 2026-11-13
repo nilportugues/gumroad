@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 964 | 978 | 98.6% |
-| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 964 | 978 | 98.6% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1815 | 1857 | 97.7% |
-| Same, registered in routes.json (upper bound) | 1815 | 1857 | 97.7% |
+| Routes served natively (counted, static check) | 966 | 978 | 98.8% |
+| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 966 | 978 | 98.8% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1821 | 1857 | 98.1% |
+| Same, registered in routes.json (upper bound) | 1821 | 1857 | 98.1% |
 | Rails Inertia pages with Node props (counted, string match) | 112 | 114 | 98.2% |
 | Sidekiq job classes running in Node (counted) | 245 | 296 | 82.8% |
 
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 182,815 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 182,838 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 332 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
@@ -36,7 +36,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | Workstream | Routes | Native | Hands back | Not registered | Native % | Weight | Native weight | Weighted % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
-| WS-10 Settings and account | 180 | 178 | 0 | 2 | 98.9% | 291 | 285 | 97.9% |
+| WS-10 Settings and account | 180 | 180 | 0 | 0 | 100.0% | 291 | 291 | 100.0% |
 | WS-11 Help, pages, blog, profiles | 71 | 69 | 0 | 2 | 97.2% | 80 | 78 | 97.5% |
 | WS-12 Products and bundles | 141 | 141 | 0 | 0 | 100.0% | 207 | 207 | 100.0% |
 | WS-13 Audience, emails, workflows | 53 | 53 | 0 | 0 | 100.0% | 106 | 106 | 100.0% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 61 | 0 | 10 | 85.9% | 222 | 188 | 84.7% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 964 | 0 | 14 | 98.6% | 1857 | 1815 | 97.7% |
+| **All** | 978 | 966 | 0 | 12 | 98.8% | 1857 | 1821 | 98.1% |
 
 ## Sensitivity to the weights
 
@@ -57,10 +57,10 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 964 | 978 | 98.6% |
-| Verb only: GET 1, other verbs 2 | 1406 | 1427 | 98.5% |
-| Rubric weights 1 to 4 (the headline) | 1815 | 1857 | 97.7% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2128 | 2194 | 97.0% |
+| Every route counts 1 (the plain route share) | 966 | 978 | 98.8% |
+| Verb only: GET 1, other verbs 2 | 1408 | 1427 | 98.7% |
+| Rubric weights 1 to 4 (the headline) | 1821 | 1857 | 98.1% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2136 | 2194 | 97.4% |
 
 ## By weight
 
@@ -68,7 +68,7 @@ The weights are the soft part of this inventory, so here is the headline under o
 | ---: | ---: | ---: | ---: |
 | 1 | 386 | 384 | 99.5% |
 | 2 | 330 | 330 | 100.0% |
-| 3 | 237 | 229 | 96.6% |
+| 3 | 237 | 231 | 97.5% |
 | 4 | 25 | 21 | 84.0% |
 
 ## By controller
@@ -81,8 +81,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 2 | 0 | 2 | 3 (12) | 6 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
-| `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 3 (9) | 3 |
-| `Integrations::ZoomController` | WS-10 Settings and account | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `ApplicationController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
@@ -241,6 +239,8 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `InstantPayoutsController` | WS-23 Balances and payouts | 1 | 1 | 0 | 0 | 4 (4) | 0 |
 | `Integrations::CircleController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 3 (9) | 0 |
 | `Integrations::DiscordController` | WS-10 Settings and account | 4 | 4 | 0 | 0 | 3 (12) | 0 |
+| `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 3 (9) | 0 |
+| `Integrations::ZoomController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `LibraryController` | WS-16 Library and content delivery | 6 | 6 | 0 | 0 | 1/2 (9) | 0 |
 | `LicensesController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `LinksController` | WS-12 Products and bundles | 27 | 27 | 0 | 0 | 1/2 (39) | 0 |

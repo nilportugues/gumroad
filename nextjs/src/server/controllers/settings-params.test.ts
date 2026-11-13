@@ -86,11 +86,10 @@ describe("snippetValue", () => {
     expect(() => snippetValue(1.5)).toThrow(HandBackToRails);
   });
 
-  it("keeps a float and an integer past 2**53 as sent, except for the id, which Rails decodes", () => {
-    expect(snippetValue(new RubyFloat(1.5), "name")).toEqual(new RubyFloat(1.5));
-    expect(snippetValue(12345678901234567890n, "code")).toBe(12345678901234567890n);
-    expect(() => snippetValue(new RubyFloat(1.5), "id")).toThrow(HandBackToRails);
-    expect(() => snippetValue(12345678901234567890n, "id")).toThrow(HandBackToRails);
+  it("keeps a float and an integer past 2**53 as sent, id included", () => {
+    expect(snippetValue(new RubyFloat(1.5))).toEqual(new RubyFloat(1.5));
+    expect(snippetValue(12345678901234567890n)).toBe(12345678901234567890n);
+    expect(() => snippetValue(new RubyFloat(Number.POSITIVE_INFINITY))).toThrow(HandBackToRails);
   });
 });
 
