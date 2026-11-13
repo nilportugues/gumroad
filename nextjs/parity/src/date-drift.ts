@@ -176,23 +176,3 @@ export function withDriftedDates(
   });
   return { ...fixture, exchanges };
 }
-
-const HOUR_MS = 3_600_000;
-const INSTANT = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2})/gu;
-
-// A request that names an instant literally (2099-01-01T10:00:00Z) is recorded against a response that masks it as hours
-// from the recording (`<now+632328h>`), and the replay masks the port's output against its own clock. Moving each literal by
-// the whole hours since the recording keeps the distance from "now" the recording had, so the tokens line up at any hour.
-// `recordedAt` is the middle of what the hour-rounded tokens allow; the shift rounds so the remainder stays inside half an hour.
-export function shiftLiteralInstants(body: string, recordedAt: Date, now: Date): string {
-  const hours = Math.ceil((now.getTime() - recordedAt.getTime()) / HOUR_MS - 0.5);
-  return body.replace(INSTANT, (_match, local: string, zone: string) => {
-    const offsetMs =
-      zone === "Z"
-        ? 0
-        : (zone.startsWith("-") ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4))) * 60_000;
-    const shifted = new Date(Date.parse(`${local}${zone}`) + hours * HOUR_MS + offsetMs);
-    const fraction = /\.\d+$/u.exec(local)?.[0] ?? "";
-    return `${shifted.toISOString().slice(0, 19)}${fraction}${zone}`;
-  });
-}
