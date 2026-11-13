@@ -275,8 +275,8 @@ const casesIn = (root: string, dirs: string[], fromRequestSpec: boolean) =>
 // Admin::BaseController's web entry points: recorded after a real login, on the Gumroad host.
 const WEB_ROOT = "parity/fixtures/requests";
 const WEB_DIRS = ["admin_impersonate_parity_spec"].filter((dir) => existsSync(path.join(WEB_ROOT, dir)));
-const WEB_SERVED = /^\/admin\/(impersonate|unimpersonate|redirect_to_stripe_dashboard)$/u;
-const webCases = WEB_DIRS.flatMap((dir) =>
+const WEB_SERVED = /^\/admin\/(impersonate|unimpersonate|redirect_to_stripe_dashboard|(features|sidekiq)(\/.*)?)$/u;
+const allWebCases = WEB_DIRS.flatMap((dir) =>
   readdirSync(path.join(WEB_ROOT, dir))
     .filter((file) => file.endsWith(".json"))
     .map((file) => {
@@ -289,6 +289,9 @@ const webCases = WEB_DIRS.flatMap((dir) =>
     })
     .filter(([, fixturePath, index]) => WEB_SERVED.test(loadFixture(fixturePath).exchanges[index]!.request.path)),
 );
+// A team member reaching the Sidekiq web or Flipper UI mount is the vendor Rack app's request: the replay checks it reached Rails.
+const webCases = allWebCases.filter(([name]) => !/-hands-a-/u.test(name));
+const webHandedCases = allWebCases.filter(([name]) => /-hands-a-/u.test(name));
 const cases = [...casesIn(CONTROLLER_ROOT, CONTROLLER_DIRS, false), ...casesIn(REQUEST_ROOT, REQUEST_DIRS, true)];
 const SERVER_SECRET = loadFixture(cases[0]![1]).secretKeyBase;
 
@@ -327,7 +330,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
-      NEXTJS_ROUTE_FLAGS: [...ROUTE_FLAGS, "nextjs_admin_impersonate"].join(","),
+      NEXTJS_ROUTE_FLAGS: [...ROUTE_FLAGS, "nextjs_admin_impersonate", "nextjs_admin_vendor_mounts"].join(","),
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       // Cursors are signed with the recording app's secret_key_base, which every fixture of one checkout carries.
       SECRET_KEY_BASE: SERVER_SECRET ?? "",
@@ -463,6 +466,25 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+
+  it.each(webHandedCases)(
+    "%s",
+    async (_name, fixturePath, index) => {
+      handedBack.length = 0;
+      await replayFixtureExchange(fixturePath, index, {
+        sql,
+        redis: redisSeeder(redis),
+        transport: httpTransport(server.baseUrl),
+        interceptHttp: false,
+        rewriteRequest: (request, fixture, now) => reencryptCookies(request, fixture, SERVER_SECRET!, now),
+      });
+      const request = loadFixture(fixturePath).exchanges[index]!.request;
+      expect(handedBack).toHaveLength(1);
+      expect(handedBack[0]).toMatchObject({ method: request.method });
+      expect(handedBack[0]!.url.split("?")[0]).toBe(request.path.split("?")[0]);
     },
     FIRST_COMPILE_TIMEOUT_MS,
   );
