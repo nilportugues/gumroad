@@ -4,7 +4,7 @@
 // raise the same error.
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { notifyError } = vi.hoisted(() => ({ notifyError: vi.fn() }));
+const { notifyError } = vi.hoisted(() => ({ notifyError: vi.fn<(error: unknown, context?: Record<string, unknown>) => void>() }));
 vi.mock("../infra/error-reporting.ts", () => ({ notifyError }));
 
 import {
@@ -68,7 +68,7 @@ const action = (c: UsersCase) => async () => {
 
 // ErrorNotifier.notify(error, **context): the message without the Ruby class, which Node's errors do not all carry.
 const reported = () =>
-  notifyError.mock.calls.map(([error, context]: [unknown, Record<string, unknown> | undefined]) => ({
+  notifyError.mock.calls.map(([error, context]) => ({
     error: error instanceof Error ? error.message : String(error),
     context: context ?? {},
   }));
