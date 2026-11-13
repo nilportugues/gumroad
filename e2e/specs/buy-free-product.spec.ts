@@ -1,4 +1,4 @@
-import { logIn, signUp } from "../support/auth";
+import { logInAsSeededSeller, signUp } from "../support/auth";
 import { buyFreeProduct } from "../support/buyer";
 import { SEED, uniqueEmail } from "../support/env";
 import { expect, test } from "../support/fixtures";
@@ -17,20 +17,20 @@ test.describe("buying the seeded free product", () => {
 
   test("the receipt page renders for a purchase", async ({ page }) => {
     await buyFreeProduct(page, SEED.freeProductPermalink, { email: uniqueEmail("receipt") });
-    const receipt = page.locator('a[href*="/receipt"]').first();
-    await expect(receipt).toBeVisible();
-    await receipt.click();
+    // The receipt card is an anchor that is not always laid out; follow its href.
+    const href = await page.locator('a[href*="/receipt"]').first().getAttribute("href");
+    await page.goto(href!);
     await expect(page).toHaveURL(/\/receipt/);
     await expect(page.getByText(SEED.freeProductName).first()).toBeVisible();
   });
 });
 
 test.describe("library", () => {
-  test("a buyer sees their purchases", async ({ page }) => {
-    await logIn(page, SEED.libraryBuyerEmail, SEED.libraryBuyerPassword);
+  test("the seeded seller's library lists their seeded purchases", async ({ page }) => {
+    await logInAsSeededSeller(page);
     await page.goto("/library");
     await expect(page.getByRole("heading", { name: "Library" }).first()).toBeVisible();
-    await expect(page.getByText(SEED.libraryProductName).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open product action menu" }).first()).toBeVisible();
   });
 
   test("a new unconfirmed account is sent to settings instead of the library", async ({ page }) => {

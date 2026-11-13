@@ -6,10 +6,6 @@ export const SEED = {
   freeProductPermalink: "demo",
   freeProductName: "Beautiful widget",
   membershipPermalink: "membershipdemo",
-  // Seeded buyer (db/seeds/030_development/mobile_app_test_data.rb) with one purchase in the library.
-  libraryBuyerEmail: "mobile_buyer_do_not_edit@gumroad.com",
-  libraryBuyerPassword: "password",
-  libraryProductName: "Mobile Test Product 1",
   // Development accepts this token on the two-factor page (User::DEFAULT_AUTH_TOKEN); the page prefills it.
   twoFactorToken: "000000",
 };

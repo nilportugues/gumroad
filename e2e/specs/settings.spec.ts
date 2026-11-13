@@ -4,7 +4,8 @@ import { expect, test } from "../support/fixtures";
 
 const SETTINGS_PAGES = [
   { path: "/settings", heading: "Settings" },
-  { path: "/settings/payments", heading: "Settings" },
+  // A "Where are you located?" dialog covers the page heading until the payout country is confirmed.
+  { path: "/settings/payments", heading: /Settings|Where are you located/ },
   { path: "/settings/password", heading: "Settings" },
   { path: "/settings/profile", heading: /Profile|Settings/ },
   { path: "/settings/advanced", heading: "Settings" },

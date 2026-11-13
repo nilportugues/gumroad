@@ -15,7 +15,7 @@ test.describe("discount codes and affiliates", () => {
     await page.getByRole("button", { name: "New discount" }).first().click();
     await page.getByLabel("Name").fill(`E2E ${code}`);
     await page.getByLabel("Discount code").fill(code);
-    await page.getByLabel("Products").click();
+    await page.getByRole("combobox", { name: "Products" }).click();
     await page.getByRole("option", { name: "Beautiful widget", exact: true }).click();
     await page.getByRole("textbox", { name: "Percentage", exact: true }).fill("10");
     await page.getByRole("button", { name: "Add discount" }).click();
