@@ -1,5 +1,5 @@
 // Oauth::AuthorizationsController (app/controllers/oauth/authorizations_controller.rb over Doorkeeper 5.7.1's), on /oauth/authorize and the
-// /muse, /claude, /chatgpt and /ifttt `v1/oauth2/authorize` aliases of #new, the `/:alias/v1/oauth2/authorize/:code` aliases of #show and
+// /muse, /claude, /chatgpt, /cursor, /antigravity and /ifttt `v1/oauth2/authorize` aliases of #new, the `/:alias/v1/oauth2/authorize/:code` aliases of #show and
 // Notion's `/notion/oauth2/authorize` (Oauth::Notion::AuthorizationsController: #new, with a Notion call after the sign-in check).
 //
 // Ported: a signed-out visit (redirect to /oauth/login), #create of a request Doorkeeper's PreAuthorization rejects (a redirect back to
@@ -293,7 +293,7 @@ async function destroyAuthorization(input: MutationInput): Promise<ActionResult>
   );
 }
 
-const ALIASES = ["muse", "claude", "chatgpt", "ifttt"];
+const ALIASES = ["muse", "claude", "chatgpt", "cursor", "antigravity", "ifttt"];
 const NEW_PATTERNS = [
   "/oauth/authorize",
   "/notion/oauth2/authorize",

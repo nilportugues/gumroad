@@ -151,7 +151,7 @@ describe("the routes", () => {
   });
 
   it("registers the connector aliases of GET", () => {
-    for (const client of ["muse", "claude", "chatgpt", "ifttt"])
+    for (const client of ["muse", "claude", "chatgpt", "cursor", "antigravity", "ifttt"])
       expect(find("GET", `/${client}/v1/oauth2/authorize`)).toBeDefined();
   });
 

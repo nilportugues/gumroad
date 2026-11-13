@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 964 | 1008 | 95.6% |
-| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 964 | 1008 | 95.6% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1815 | 1915 | 94.8% |
-| Same, registered in routes.json (upper bound) | 1815 | 1915 | 94.8% |
+| Routes served natively (counted, static check) | 978 | 1008 | 97.0% |
+| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 978 | 1008 | 97.0% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1847 | 1915 | 96.4% |
+| Same, registered in routes.json (upper bound) | 1847 | 1915 | 96.4% |
 | Rails Inertia pages with Node props (counted, string match) | 114 | 115 | 99.1% |
 | Sidekiq job classes running in Node (counted) | 0 | 0 | n/a |
 
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 185,457 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 185,464 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 332 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
@@ -37,7 +37,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Redirect-only routes (no controller) | 43 | 42 | 0 | 1 | 97.7% | 43 | 42 | 97.7% |
 | Unassigned (no rule matched) | 7 | 0 | 0 | 7 | 0.0% | 12 | 0 | 0.0% |
-| WS-10 Settings and account | 188 | 180 | 0 | 8 | 95.7% | 303 | 291 | 96.0% |
+| WS-10 Settings and account | 188 | 186 | 0 | 2 | 98.9% | 303 | 299 | 98.7% |
 | WS-11 Help, pages, blog, profiles | 74 | 72 | 0 | 2 | 97.3% | 83 | 81 | 97.6% |
 | WS-12 Products and bundles | 148 | 146 | 0 | 2 | 98.6% | 218 | 214 | 98.2% |
 | WS-13 Audience, emails, workflows | 53 | 53 | 0 | 0 | 100.0% | 106 | 106 | 100.0% |
@@ -46,11 +46,11 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-16 Library and content delivery | 39 | 39 | 0 | 0 | 100.0% | 51 | 51 | 100.0% |
 | WS-17 Public and mobile API | 194 | 189 | 0 | 5 | 97.4% | 351 | 343 | 97.7% |
 | WS-18 Admin | 86 | 86 | 0 | 0 | 100.0% | 254 | 254 | 100.0% |
-| WS-19 AI, MCP and moderation | 43 | 35 | 0 | 8 | 81.4% | 129 | 105 | 81.4% |
+| WS-19 AI, MCP and moderation | 43 | 43 | 0 | 0 | 100.0% | 129 | 129 | 100.0% |
 | WS-20 Checkout and orders | 73 | 62 | 0 | 11 | 84.9% | 228 | 191 | 83.8% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 1008 | 964 | 0 | 44 | 95.6% | 1915 | 1815 | 94.8% |
+| **All** | 1008 | 978 | 0 | 30 | 97.0% | 1915 | 1847 | 96.4% |
 
 ## Sensitivity to the weights
 
@@ -58,18 +58,18 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 964 | 1008 | 95.6% |
-| Verb only: GET 1, other verbs 2 | 1402 | 1472 | 95.2% |
-| Rubric weights 1 to 4 (the headline) | 1815 | 1915 | 94.8% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2130 | 2261 | 94.2% |
+| Every route counts 1 (the plain route share) | 978 | 1008 | 97.0% |
+| Verb only: GET 1, other verbs 2 | 1422 | 1472 | 96.6% |
+| Rubric weights 1 to 4 (the headline) | 1847 | 1915 | 96.4% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2170 | 2261 | 96.0% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 397 | 386 | 97.2% |
-| 2 | 340 | 326 | 95.9% |
-| 3 | 246 | 231 | 93.9% |
+| 1 | 397 | 390 | 98.2% |
+| 2 | 340 | 328 | 96.5% |
+| 3 | 246 | 239 | 97.2% |
 | 4 | 25 | 21 | 84.0% |
 
 ## By controller
@@ -78,15 +78,12 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 | Controller | Workstream | Routes | Native | Hands back | Not registered | Weight | Remaining weight |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `Api::V2::McpController` | WS-19 AI, MCP and moderation | 25 | 17 | 0 | 8 | 3 (75) | 24 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 1 | 0 | 4 | 4 (20) | 16 |
 | `PartnerMigrationsController` | Unassigned (no rule matched) | 7 | 0 | 0 | 7 | 1/2 (12) | 12 |
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
 | `PaypalController` | WS-20 Checkout and orders | 4 | 2 | 0 | 2 | 3 (12) | 6 |
 | `Purchases::RefundRequestsController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
 | `Api::V2::ProductBuildsController` | WS-17 Public and mobile API | 6 | 4 | 0 | 2 | 1/2 (10) | 4 |
-| `Oauth::AuthorizationsController` | WS-10 Settings and account | 15 | 11 | 0 | 4 | 1/2 (17) | 4 |
-| `Oauth::TokensController` | WS-10 Settings and account | 10 | 8 | 0 | 2 | 2 (20) | 4 |
 | `Settings::AdvancedController` | WS-10 Settings and account | 4 | 2 | 0 | 2 | 1/2 (7) | 4 |
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Api::V2::Partner::MigrationsController` | WS-17 Public and mobile API | 2 | 1 | 0 | 1 | 1/2 (3) | 2 |
@@ -169,6 +166,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Api::V2::LicensesController` | WS-17 Public and mobile API | 5 | 5 | 0 | 0 | 2 (10) | 0 |
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 12 | 0 | 0 | 1/2 (20) | 0 |
 | `Api::V2::MarketingActionsController` | WS-19 AI, MCP and moderation | 6 | 6 | 0 | 0 | 3 (18) | 0 |
+| `Api::V2::McpController` | WS-19 AI, MCP and moderation | 25 | 25 | 0 | 0 | 3 (75) | 0 |
 | `Api::V2::MediaController` | WS-17 Public and mobile API | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `Api::V2::NotionUnfurlUrlsController` | WS-17 Public and mobile API | 2 | 2 | 0 | 0 | 2 (4) | 0 |
 | `Api::V2::OfferCodesController` | WS-17 Public and mobile API | 8 | 8 | 0 | 0 | 1/2 (12) | 0 |
@@ -260,11 +258,13 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `OauthCompletionsController` | WS-23 Balances and payouts | 1 | 1 | 0 | 0 | 3 (3) | 0 |
 | `Oauth::AccessTokensController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Oauth::ApplicationsController` | WS-10 Settings and account | 7 | 7 | 0 | 0 | 1/2 (10) | 0 |
+| `Oauth::AuthorizationsController` | WS-10 Settings and account | 15 | 15 | 0 | 0 | 1/2 (17) | 0 |
 | `Oauth::AuthorizedApplicationsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Oauth::DeviceAuthorizationsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Oauth::DeviceCodesController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
 | `Oauth::MobilePreAuthorizationsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1 (2) | 0 |
 | `Oauth::Notion::AuthorizationsController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Oauth::TokensController` | WS-10 Settings and account | 10 | 10 | 0 | 0 | 2 (20) | 0 |
 | `OfferCodesController` | WS-20 Checkout and orders | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `PagesController` | WS-11 Help, pages, blog, profiles | 8 | 8 | 0 | 0 | 1/2 (11) | 0 |
 | `Payouts::ExportablesController` | WS-23 Balances and payouts | 1 | 1 | 0 | 0 | 3 (3) | 0 |
@@ -391,7 +391,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 - WS-15 customers page: a commission completion in progress that holds a processor reference, and review videos with an unprocessed thumbnail variant, hand back.
 - WS-16 content delivery: `stream`, `read`, `play` and `captions.vtt` past the access gate hand back; download pages that list files, rich content, posts, integrations, licenses or polls hand back; signed-URL bytes: the S3 presign of the test environment's minio and the CloudFront signature are reproduced byte for byte from Rails' fixtures (`signed-urls-fixtures.test.ts`), the Cloudflare `verify` token and the production bucket, key and distribution choice are not.
 - WS-17 mobile and v2: mobile purchases index/search (with rows) and show/archive/unarchive/delete of a purchase with a preorder, subscription, refund, review, post, variants, rich content, stamped PDF or media location, sales show and the mobile writes except `POST /mobile/subscriptions/:id/cancel` and the archive, unarchive and delete of a plain purchase hand back; v2 `GET /v2/payouts/upcoming`, `include_transactions` and card or European bank destinations hand back; v2 licenses are not served in Node.
-- WS-10 settings writes: a float or huge integer in a snippet `id` hands back; password, team invitations (the Gumroad account's team and mailboxes only Mail can parse), passkey registration, login/signup POSTs and OAuth callbacks are only partly ported (see the not registered rows). The authenticator app endpoints run whole in Node. Sign in with Apple creates and links accounts in Node except for guest purchases to attach and adopting an unconfirmed account; the Google and Twitter callbacks run in Node (Google from the code exchange to the sign-in, with its own guest-purchase attach and picture), the YouTube, Instagram and TikTok connect callbacks run in Node whatever code, redirect URI or XHR header they carry, a new passkey registers in Node when its attestation is the `none` format with an ES256 key, and the Stripe Connect callback that creates or links accounts still hands back.
+- WS-10 settings writes: a float or huge integer in a snippet `id` hands back; password, team invitations (the Gumroad account's team and mailboxes only Mail can parse), passkey registration, login/signup POSTs and OAuth callbacks are only partly ported (see the not registered rows). The authenticator app endpoints run whole in Node. Sign in with Apple creates and links accounts in Node except for guest purchases to attach and adopting an unconfirmed account; the Google and Twitter callbacks run in Node (Google from the code exchange to the sign-in, with its own guest-purchase attach and picture), the YouTube, Instagram and TikTok connect callbacks run in Node whatever code, redirect URI or XHR header they carry, a new passkey registers in Node when its attestation is the `none` format with an ES256 key, and the Stripe Connect callback that creates or links accounts still hands back. The cursor and antigravity connector aliases of the OAuth authorize and token routes run in Node like muse, claude and chatgpt. `POST /settings/advanced/rotate_ping_signing_secret` and `DELETE /settings/advanced/disable_ping_signing` stay in Rails whole: Node has no ping signing model, advanced-page prop or signed ping delivery yet, so a secret written from Node would never sign a ping.
 - WS-19 MCP: the tool bodies other than `get_account`, `list_payouts`, `get_customers`, `get_sales_totals`, `list_sales`, `list_products`, `get_product`, `list_files`, `get_analytics`, `get_subscriptions`, `publish_product`/`unpublish_product`, `create_draft_product` (digital drafts), `update_product` (name, description, price, permalink), `create_discount_code` and `update_discount_code` and `expire_discount_code` (plain codes) hand back, so do `add_cover`, `add_file`, the bundle tools, memberships in `create_draft_product` and `ProductFileIngest`; the moderation logic exists but is wired to no route.
 - WS-13 receipt mailer: the first receipt of a membership and of its free trial (a dollar product that renews at the same price) is served; renewal receipts, fixed-length, installment-plan and gifted memberships, a renewal that costs more or less than the first charge, and a gift receiver with a price, a hidden recipient or a physical product hand back; posts and workflow emails with files that have thumbnails throw `NotPortedError`.
 - WS-15 purchases export (`nextjs_purchases_export`, `GET|POST /purchases/export`): signed-out POSTs, the mobile `access_token` form, an `in_seller_time_zone` that is not a plain word or a seller zone ActiveSupport does not map, dates that are not `YYYY-MM-DD` (with an optional time of day) and any result holding a sale Rails reads in an unspecified order or raises on hand back whole: several variants, gifts, tips, licenses or UTM links on one sale, a product with several custom fields, a sale in several orders, a tier with two live buy prices for one recurrence, a subscription with two live original purchases, a licensed product's variant, a gift receiver in the export or on another subscription than the sender's, a custom field Ruby escapes in its inspect, and the sales Rails raises a NoMethodError on (a missing subscription row or payment option, a SKU of a tiered membership). Everything else runs in Node: variants, SKUs, tax, affiliates, tips, reviews, licenses, UTM links, upsells, gifts, pre-orders, carts, PayPal, Connect and buyer-currency sales, GeoIP states and countries, subscription charges and installment plans.
