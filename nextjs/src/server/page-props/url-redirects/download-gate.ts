@@ -46,7 +46,15 @@ export function decideAccess(input: GateInput): GateDecision {
   // page drops a non-Inertia response (a 404) from the URL it polled.
   if (purchase?.withdrawn) return input.isPoll ? redirect(`/r/${token}/expired`) : { kind: "notFound" };
 
-  if (purchase && viewer && purchase.purchaserId !== null && viewer.id !== purchase.purchaserId && !input.viewerOwnsSubscription && !viewer.isTeamMember && !purchase.isTestPurchase) {
+  if (
+    purchase &&
+    viewer &&
+    purchase.purchaserId !== null &&
+    viewer.id !== purchase.purchaserId &&
+    !input.viewerOwnsSubscription &&
+    !viewer.isTeamMember &&
+    !purchase.isTestPurchase
+  ) {
     return redirect(`/r/${token}/check_purchaser?next=${cgiEscape(input.path)}`);
   }
   if (purchase?.rentalExpired) return redirect(`/r/${token}/rental_expired`);
@@ -63,11 +71,17 @@ export function decideAccess(input: GateInput): GateDecision {
   const holdsLink =
     input.confirmedCookie ||
     input.viewerOwnsSubscription ||
-    (purchase !== null && ((purchase.purchaserId !== null && viewer?.id === purchase.purchaserId) || (purchase.ipAddress !== null && purchase.ipAddress === input.remoteIp)));
+    (purchase !== null &&
+      ((purchase.purchaserId !== null && viewer?.id === purchase.purchaserId) ||
+        (purchase.ipAddress !== null && purchase.ipAddress === input.remoteIp)));
   if (holdsLink) return { kind: "pass" };
   if (!input.hasBeenSeen || purchase === null) return { kind: "pass" };
 
   // to_query sorts the keys.
-  const query = [`destination=${cgiEscape(input.destination ?? "download_page")}`, ...(input.display ? [`display=${cgiEscape(input.display)}`] : []), `id=${cgiEscape(token)}`].join("&");
+  const query = [
+    `destination=${cgiEscape(input.destination ?? "download_page")}`,
+    ...(input.display ? [`display=${cgiEscape(input.display)}`] : []),
+    `id=${cgiEscape(token)}`,
+  ].join("&");
   return redirect(`/confirm?${query}`);
 }

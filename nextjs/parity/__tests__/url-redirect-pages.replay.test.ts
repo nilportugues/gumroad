@@ -23,6 +23,7 @@ const SPEC_DIRS = [
   "url_redirect_unavailable_pages_spec",
   "url_redirect_download_page_spec",
   "url_redirect_delivery_gate_spec",
+  "url_redirect_download_content_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES_ROOT, dir)));
 // Every flag in routes.json that a dashboard page sits behind.
 const ROUTE_FLAGS = [
@@ -68,6 +69,9 @@ const COMPARE = {
     // Rails specs run with PaperTrail off; Next writes the version row production writes.
     "db.versions",
     "db.users.updated.*.changes.updated_at",
+    // The page rows are seeded before the request; the gap between the two is the speed of the run.
+    "response.inertia.props.content.rich_content_pages.*.updated_at",
+    "response.json.props.content.rich_content_pages.*.updated_at",
     "response.headers.link",
     "response.headers.vary",
     "response.inertia.props.csp_nonce",
@@ -92,7 +96,8 @@ const COMPARE = {
 
 const cases = SPEC_DIRS.flatMap((dir) =>
   readdirSync(path.join(FIXTURES_ROOT, dir))
-    .filter((file) => file.endsWith(".json"))
+    // A hand-back is Rails' answer and this harness points RAILS_ORIGIN nowhere; the unit tests cover those.
+    .filter((file) => file.endsWith(".json") && !file.includes("-hands-"))
     .map((file) => {
       const fixturePath = path.join(FIXTURES_ROOT, dir, file);
       return [
@@ -161,7 +166,7 @@ describe.skipIf(!url)("Url redirect unavailable pages parity", () => {
         const logs = server
           .output()
           .split("\n")
-          .filter((line) => /error|Error|at /u.test(line))
+          .filter((line) => /error|Error|at /u.test(line) && !line.startsWith("Next.js includes"))
           .slice(-25)
           .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);

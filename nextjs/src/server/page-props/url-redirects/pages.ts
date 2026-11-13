@@ -5,7 +5,7 @@ import { HandBackToRails, type ActionOptions } from "../../controllers/applicati
 import { queryParam, type RailsRequest } from "../../controllers/rails-request.ts";
 import type { ActionContext } from "../load-page.ts";
 import type { PageSpec } from "../pages.ts";
-import { downloadPageFilters, downloadPageProps, setDownloadPageMeta } from "./download-page.ts";
+import { downloadPageFilters, downloadPageProps, POLL_STATE_KEY, setDownloadPageMeta } from "./download-page.ts";
 import { PLAY_STATE_KEY, playFilters } from "./play-page.ts";
 import { READ_STATE_KEY, readFilters, readPage } from "./read-page.ts";
 import { STREAM_STATE_KEY, streamFilters, streamPageProps } from "./player-pages.ts";
@@ -46,6 +46,9 @@ const downloadPage: PageSpec = {
   component: "UrlRedirects/DownloadPage",
   options: { filters: downloadPageFilters },
   props: async (params, action) => {
+    // A poll set no meta tags in Rails and answers only the props it asked for.
+    const poll = action.state[POLL_STATE_KEY] as Record<string, unknown> | undefined;
+    if (poll !== undefined) return poll;
     const token = safeDecode(params.id!);
     await setDownloadPageMeta(action.meta, token, action.config);
     return downloadPageProps(token, {

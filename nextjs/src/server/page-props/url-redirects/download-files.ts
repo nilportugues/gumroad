@@ -1,6 +1,5 @@
 // UrlRedirectPresenter#download_attributes and #map_file: the `content_items` of the download page for a redirect whose files are the
-// product's own. What the port does not prove goes to Rails before any write: a file with a thumbnail, a promoted web build, an EPUB's
-// reading location, a stamped PDF (aliveProductFiles), a purchased variant, rich content, a commission's files.
+// product's own. What the port does not prove goes to Rails before any write: a file with a thumbnail, a promoted web build, a stamped PDF (aliveProductFiles), a purchased variant, rich content, a commission's files.
 import type { ProductFile, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -8,12 +7,12 @@ import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import {
   aliveProductFiles,
-  fieldsOf,
   isFileDownloadable,
   signedUrl,
   StorageObjectMissing,
   type DeliveryFile,
 } from "../../controllers/url-redirects/files.ts";
+import { imagePath } from "../../erb/home-layout.ts";
 import { cgiEscape } from "../../infra/signed-urls.ts";
 import {
   browserReadable,
@@ -26,11 +25,10 @@ import {
   ProductFileFlags,
   s3Fields,
 } from "../../models/product-file.ts";
-import { imagePath } from "../../erb/home-layout.ts";
-import { domainConfig } from "../domain.ts";
 import { displayExtension, nameDisplayable, s3DisplayName } from "../audience/product-file-json.ts";
+import { domainConfig } from "../domain.ts";
 
-import { latestMediaLocations } from "./media-locations.ts";
+import { latestMediaLocations, type MediaLocationJson } from "./media-locations.ts";
 import type { Loaded } from "./unavailable.ts";
 
 // ProductFile::BROWSER_RENDERABLE_IMAGE_FILETYPES
@@ -86,10 +84,38 @@ async function subtitleItems(
   );
 }
 
-export async function contentItems(loaded: Loaded, loggedInUser: User | null): Promise<unknown[]> {
+// ProductFile#media_location_for_download_page. An EPUB's page number only proves the reader entered a spine section, so it
+// is reported as a percentage that never reaches 100.
+const EPUB_MAX_PAGE_NUMBER_PERCENTAGE = 99;
+export function mediaLocationForDownloadPage(
+  file: ProductFile,
+  media: MediaLocationJson | null,
+): MediaLocationJson | null {
+  if (media === null) return null;
+  if (isEpub(file)) {
+    if (media.unit === "percentage") return media;
+    if (media.unit !== "page_number" || !file.pagelength || file.pagelength < 1) return null;
+    const percentage = Math.floor((media.location / file.pagelength) * 100);
+    return {
+      ...media,
+      location: Math.min(Math.max(percentage, 0), EPUB_MAX_PAGE_NUMBER_PERCENTAGE),
+      unit: "percentage",
+    };
+  }
+  const compatible =
+    isListenable(file) || isStreamable(file)
+      ? media.unit === "seconds"
+      : browserReadable(file)
+        ? media.unit === "page_number"
+        : false;
+  return compatible ? media : null;
+}
+
+// `embedded`: the file ids the rich content pages embed, in order (see aliveProductFiles).
+export async function contentItems(loaded: Loaded, loggedInUser: User | null, embedded?: bigint[]): Promise<unknown[]> {
   const { redirect, purchase, product } = loaded;
   if (product === null) return [];
-  const token = redirect.token ?? "";
+  const token = redirect.token;
   if (
     purchase &&
     (await db.commission.count({
@@ -97,13 +123,13 @@ export async function contentItems(loaded: Loaded, loggedInUser: User | null): P
     })) > 0
   )
     throw new HandBackToRails("a commission");
-  const files = await aliveProductFiles(loaded);
+  const files = await aliveProductFiles(loaded, embedded, { versions: true });
   await assertNothingUnproven(files);
   if (files.length === 0) return [];
 
   const config = domainConfig(process.env);
   const ids = files.map(({ file }) => file.id);
-  const locations = purchase ? await latestMediaLocations(purchase.id) : new Map();
+  const locations = purchase ? await latestMediaLocations(purchase.id) : new Map<bigint, MediaLocationJson>();
   const subtitleRows = await db.subtitleFile.findMany({
     where: { product_file_id: { in: ids }, deleted_at: null },
     orderBy: { id: "asc" },
@@ -116,15 +142,7 @@ export async function contentItems(loaded: Loaded, loggedInUser: User | null): P
     const downloadable = await isFileDownloadable(loaded, delivery);
     const downloadUrl = downloadable ? `/r/${token}/product_files?product_file_ids%5B%5D=${cgiEscape(id)}` : null;
     const hideButtons = ProductFileFlags.isSet(file.flags, "hide_kindle_and_read_buttons");
-    const media = locations.get(file.id) ?? null;
-    if (media !== null && isEpub(file)) throw new HandBackToRails("the reading location of an EPUB");
-    const compatible =
-      media !== null &&
-      (isListenable(file) || isStreamable(file)
-        ? media.unit === "seconds"
-        : browserReadable(file)
-          ? media.unit === "page_number"
-          : false);
+    const media = mediaLocationForDownloadPage(file, locations.get(file.id) ?? null);
     const subtitles = subtitleRows.filter((row) => row.product_file_id === file.id);
 
     return {
@@ -145,7 +163,7 @@ export async function contentItems(loaded: Loaded, loggedInUser: User | null): P
         canSendToKindle(file) && !hideButtons
           ? { email: loggedInUser?.kindle_email ?? null, icon_url: imagePath(config, KINDLE_ICON) }
           : null,
-      latest_media_location: compatible ? media : null,
+      latest_media_location: media,
       content_length: isListenable(file) || isStreamable(file) ? file.duration : isEpub(file) ? 100 : file.pagelength,
       isbn: file.isbn,
       read_url: browserReadable(file) && (!hideButtons || isStreamOnly(file)) ? `/read/${token}/${id}` : null,

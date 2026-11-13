@@ -1,12 +1,13 @@
 // Port of UrlRedirectsController#download_page (GET /d/:id): the before_actions that gate it, the
 // props UrlRedirectPresenter#download_page_with_content_props builds, and the after_actions that record
-// the visit. Only a content page that lists the product's own files (download-files.ts) is rendered here: files on a purchased
-// variant, rich content, licenses, posts, integrations, communities and third-party analytics hand back to Rails, as do
-// the polls, the mobile app token sign-in and bundle redirects. A saved
-// content page is echoed as last_content_page_id; a coffee product redirects to the seller's coffee page.
-import { Prisma, type Link, type User } from "@prisma/client";
+// the visit. A content page is rendered here for a product without versions or for the one version a purchase bought: the
+// provider's own files (download-files.ts), its rich content pages and the files they embed, the license key, the posts
+// (download-posts.ts) and the background polls. SKUs, several or shared versions, integrations, communities and third-party analytics hand back to Rails, as do the mobile app token sign-in and
+// bundle redirects. A saved content page is echoed as last_content_page_id; a coffee product redirects to the seller's coffee page.
+import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
+import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { readEncryptedCookie, writeEncryptedCookie } from "../../auth/rails-cookies.ts";
 import { railsCookieSecrets } from "../../auth/rails-session-config.ts";
 import { railsLoggedInUser } from "../../auth/resolve.ts";
@@ -20,10 +21,12 @@ import { requireHtml } from "../../controllers/buyer-pages.ts";
 import { setCookieHeader } from "../../controllers/rack-cookies.ts";
 import { assertFlatQuery, cgiEscape } from "../../controllers/rails-params.ts";
 import { queryParam } from "../../controllers/rails-request.ts";
+import { aliveProductFiles, contentProvider, type ContentProvider } from "../../controllers/url-redirects/files.ts";
 import { getConfig } from "../../infra/config.ts";
 import { truncateToSeconds } from "../../models/concerns/ruby-time.ts";
 import { createEventBang } from "../../models/consumption-event.ts";
 import { LinkFlags } from "../../models/link.ts";
+import { isListenable } from "../../models/product-file.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { UserFlags } from "../../models/user.ts";
@@ -35,13 +38,23 @@ import { domainConfig, type DomainConfig } from "../domain.ts";
 import type { MetaTagBuilder } from "../meta-tags.ts";
 import { setFaviconMetaTags } from "../storefront/post.ts";
 
-import { contentItems } from "./download-files.ts";
+import { contentItems, mediaLocationForDownloadPage } from "./download-files.ts";
 import { decideAccess, type GateInput } from "./download-gate.ts";
-import { claimBySeller, hasRichContent, layoutProps, load, present, type Loaded } from "./unavailable.ts";
+import { downloadPosts } from "./download-posts.ts";
+import {
+  embeddedFileIds,
+  hasPostsNode,
+  productRichPages,
+  richContentPagesJson,
+  variantRichPages,
+} from "./download-rich-content.ts";
+import { latestMediaLocations } from "./media-locations.ts";
+import { claimBySeller, layoutProps, load, present, type Loaded } from "./unavailable.ts";
 
 const DOWNLOAD_PATH = /^\/d\/([^/.]+)$/u;
 const COOKIE_NAME = "confirmed_redirect";
 const COMPONENT = "UrlRedirects/DownloadPage";
+export const POLL_STATE_KEY = "download_page_poll_props";
 const POLLED_PROPS = ["audio_durations", "latest_media_locations"];
 const DEFAULT_IOS_APP_ID = "916819108";
 const DEFAULT_ANDROID_BUNDLE_ID = "com.gumroad.app";
@@ -67,13 +80,12 @@ type Download = { loaded: Loaded; product: Link; seller: User };
 // Everything the page would list that Node does not render; checked before any write so a hand-back never
 // follows a recorded visit.
 async function assertRenderable(loaded: Loaded): Promise<Download> {
-  const { product, purchase } = loaded;
+  const { product } = loaded;
   if (!product) throw new HandBackToRails("a redirect without a product");
   const seller = await db.user.findUnique({ where: { id: product.user_id! } });
   if (!seller) throw new HandBackToRails("a product without a seller");
 
-  if (LinkFlags.isSet(product.flags, "is_licensed") || LinkFlags.isSet(product.flags, "community_chat_enabled"))
-    throw new HandBackToRails("a license key or community chat");
+  if (LinkFlags.isSet(product.flags, "community_chat_enabled")) throw new HandBackToRails("community chat");
   if (
     present(seller.google_analytics_id) ||
     present(seller.facebook_pixel_id) ||
@@ -81,9 +93,6 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
   )
     throw new HandBackToRails("seller analytics");
 
-  if (purchase && (await purchasedVariantHasFiles(purchase.id, product.id)))
-    throw new HandBackToRails("a purchased variant with files");
-  if (await hasRichContent(loaded)) throw new HandBackToRails("rich content");
   if ((await db.productIntegration.count({ where: { product_id: product.id, deleted_at: null } })) > 0)
     throw new HandBackToRails("integrations");
   if (
@@ -92,19 +101,24 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
     })) > 0
   )
     throw new HandBackToRails("third-party analytics");
-  // The posts list, which Purchase.product_installments filters per buyer.
-  if (
-    purchase &&
-    (await db.installment.count({
-      where: {
-        deleted_at: null,
-        published_at: { not: null },
-        OR: [{ seller_id: Number(seller.id) }, { link_id: Number(product.id) }],
-      },
-    })) > 0
-  )
-    throw new HandBackToRails("posts");
   return { loaded, product, seller };
+}
+
+// UrlRedirectPresenter#license for a product without versions, where Purchase#uses_license_key? is is_licensed alone; a
+// version's key also depends on whether its pages print one.
+async function licenseProps(purchase: Purchase | null, product: Link, provider: ContentProvider) {
+  if (!purchase || !LinkFlags.isSet(product.flags, "is_licensed")) return null;
+  if (provider.kind === "variant") throw new HandBackToRails("the license key of a version");
+  const licenses = await db.license.findMany({ where: { purchase_id: Number(purchase.id) }, orderBy: { id: "asc" } });
+  // has_one :license takes an unspecified row when there are several.
+  if (licenses.length > 1) throw new HandBackToRails("a purchase with several licenses");
+  const serial = licenses[0]?.serial;
+  if (serial === undefined || serial === null) return null;
+  return {
+    license_key: serial,
+    is_multiseat_license: PurchaseFlags.isSet(purchase.flags, "is_multiseat_license"),
+    seats: purchase.quantity,
+  };
 }
 
 // Purchase#last_content_page_id: json_data_for_attr, nil unless the stored value is present?.
@@ -113,40 +127,6 @@ export function lastContentPageId(jsonData: string | null): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value !== "string") throw new HandBackToRails("a saved content page that is not a string");
   return value.trim() === "" ? null : value;
-}
-
-// UrlRedirect#has_purchased_variants_from_categories_with_files? and the variant branch of alive_product_files:
-// a purchased Variant lists its own files and those of its alive category siblings. Variants without files
-// render like the product (rich content on them is refused by hasRichContent); a deleted purchased variant
-// picks its content provider differently, so it hands back.
-async function purchasedVariantHasFiles(purchaseId: bigint, productId: bigint): Promise<boolean> {
-  const links = await db.baseVariantsPurchase.findMany({
-    where: { purchase_id: Number(purchaseId) },
-    select: { base_variant_id: true },
-  });
-  if (links.length === 0) return false;
-  const purchased = await db.baseVariant.findMany({
-    where: { id: { in: links.flatMap((link) => link.base_variant_id ?? []) }, type: "Variant" },
-  });
-  if (purchased.length === 0) return false;
-  if (purchased.some((variant) => variant.deleted_at !== null)) return true;
-  const categories = await db.variantCategory.findMany({ where: { link_id: Number(productId) }, select: { id: true } });
-  const siblings = await db.baseVariant.findMany({
-    where: { variant_category_id: { in: categories.map((category) => category.id) }, deleted_at: null },
-    select: { id: true },
-  });
-  const joins = await db.baseVariantsProductFile.findMany({
-    where: {
-      base_variant_id: { in: [...siblings.map((variant) => variant.id), ...purchased.map((variant) => variant.id)] },
-    },
-    select: { product_file_id: true },
-  });
-  if (joins.length === 0) return false;
-  return (
-    (await db.productFile.count({
-      where: { id: { in: joins.flatMap((join) => join.product_file_id ?? []) }, deleted_at: null },
-    })) > 0
-  );
 }
 
 // !Subscription#grant_access_to_product?
@@ -184,6 +164,9 @@ export async function viewerOwnsSubscription(
   return original ? (await db.gift.count({ where: { gifter_purchase_id: original.id } })) === 0 : true;
 }
 
+const richPagesOf = (provider: ContentProvider, product: Link) =>
+  provider.kind === "variant" ? variantRichPages(provider.variant.id) : productRichPages(product.id);
+
 const downloadUrl = (config: DomainConfig, token: string) => `${config.protocol}://${config.domain}/d/${token}`;
 
 // UrlRedirectsController#download_page's props, in the order Rails merges them. The optional
@@ -194,20 +177,32 @@ export async function downloadPageProps(
 ) {
   const loaded = await load(token);
   const { purchase } = loaded;
-  await assertRenderable(loaded);
+  const { product, seller } = await assertRenderable(loaded);
 
   let addToLibraryOption = "none";
   if (purchase && !loaded.purchaser && !claimBySeller(loaded, loggedInUser))
     addToLibraryOption = loggedInUser ? "add_to_library_button" : "signup_form";
 
+  const provider = await contentProvider(loaded);
+  const pages = await richPagesOf(provider, product);
+  // The seller's own view of a page with video asks whether it was transcoded.
+  if (pages.length > 0 && loggedInUser?.id === product.user_id) {
+    if (provider.kind === "variant") throw new HandBackToRails("the seller's view of the pages of a version");
+    if ((await db.productFile.count({ where: { link_id: product.id, deleted_at: null, filegroup: "video" } })) > 0)
+      throw new HandBackToRails("the transcoding notice of a page with video");
+  }
+
   return {
     content: {
-      license: null,
-      content_items: await contentItems(loaded, loggedInUser),
+      license: await licenseProps(purchase, product, provider),
+      content_items: await contentItems(loaded, loggedInUser, embeddedFileIds(pages)),
       bundle_products: [],
-      rich_content_pages: null,
+      rich_content_pages:
+        pages.length > 0
+          ? richContentPagesJson(pages, provider.kind === "variant" ? encrypt(provider.variant.id) : null)
+          : null,
       last_content_page_id: purchase ? lastContentPageId(purchase.json_data) : null,
-      posts: [],
+      posts: pages.length > 0 && !hasPostsNode(pages) ? [] : await downloadPosts(purchase, product, seller),
       video_transcoding_info: null,
       custom_receipt: null,
       discord: null,
@@ -226,12 +221,46 @@ export async function downloadPageProps(
   };
 }
 
+// #requested_download_page_polling_props: audio_durations and latest_media_locations over alive_product_files.
+async function pollProps(loaded: Loaded, requested: string[]): Promise<Record<string, unknown>> {
+  const { product, purchase } = loaded;
+  const files = product
+    ? await aliveProductFiles(loaded, embeddedFileIds(await richPagesOf(await contentProvider(loaded), product)), {
+        versions: true,
+      })
+    : await aliveProductFiles(loaded);
+  const props: Record<string, unknown> = {};
+  if (requested.includes("audio_durations"))
+    props.audio_durations = Object.fromEntries(
+      files.filter(({ file }) => isListenable(file)).map(({ file }) => [encrypt(file.id), file.duration]),
+    );
+  if (requested.includes("latest_media_locations")) {
+    const locations = purchase ? await latestMediaLocations(purchase.id) : null;
+    props.latest_media_locations =
+      locations === null
+        ? {}
+        : Object.fromEntries(
+            files.map(({ file }) => [
+              encrypt(file.id),
+              mediaLocationForDownloadPage(file, locations.get(file.id) ?? null),
+            ]),
+          );
+  }
+  return props;
+}
+
 // #set_download_page_meta_tags
 export async function setDownloadPageMeta(meta: MetaTagBuilder, token: string, config: DomainConfig) {
-  const { product } = await load(token);
+  const loaded = await load(token);
+  const { product } = loaded;
   const seller = await db.user.findUnique({ where: { id: product!.user_id! } });
   await setFaviconMetaTags(meta, seller!);
-  meta.set({ title: product!.name });
+  // with_product_files.name: the purchased version's, which falls back to the product's while it is still "Untitled".
+  const provider = await contentProvider(loaded);
+  if (provider.kind === "variant" && provider.variant.name === null)
+    throw new HandBackToRails("a version without a name");
+  const versionName = provider.kind === "variant" ? provider.variant.name : null;
+  meta.set({ title: versionName === null || versionName === "Untitled" ? product!.name : versionName });
   meta.set({
     name: "apple-itunes-app",
     content: `app-id=${getConfig("IOS_APP_ID", DEFAULT_IOS_APP_ID)}, app-argument=${downloadUrl(config, token)}`,
@@ -356,9 +385,17 @@ export async function downloadPageFilters(chain: Chain): Promise<FilterOutcome> 
   if (decision.kind === "notFound") throw new RoutingError("Not Found");
   if (decision.kind === "redirect") return { halt: { status: 302, location: decision.location, rescued: true } };
 
-  // The polls' props and everything the page lists beyond an empty content page are Rails'.
-  if (isPoll) throw new HandBackToRails("a content page poll");
   chain.headers.set("x-robots-tag", "noindex");
+  // A poll writes nothing: no view event, use count or cookie.
+  if (isPoll)
+    return {
+      state: {
+        [POLL_STATE_KEY]: await pollProps(
+          loaded,
+          (chain.request.headers.get("x-inertia-partial-data") ?? "").split(","),
+        ),
+      },
+    };
   // Build the props once before writing, so a hand-back from them never follows a recorded visit.
   await downloadPageProps(redirect.token, { loggedInUser: viewer, display: gate.display, now: chain.now });
   await recordVisit(loaded, chain);
