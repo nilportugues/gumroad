@@ -34,9 +34,10 @@ const SPECS = [
   "settings_team_invitations_signed_in_spec",
   "settings_totp_signed_in_spec",
   "settings_passkeys_signed_in_spec",
+  "settings_ping_signing_signed_in_spec",
 ];
 const ROUTE_FLAGS =
-  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_team_members_reads,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes,nextjs_settings_totp_writes,nextjs_settings_passkeys_writes";
+  "nextjs_settings_third_party_analytics_writes,nextjs_settings_advanced_writes,nextjs_settings_billing_writes,nextjs_settings_dismiss_ai_promo_writes,nextjs_settings_team_members_writes,nextjs_settings_team_members_reads,nextjs_settings_payments_backtax_writes,nextjs_settings_team_invitations_writes,nextjs_settings_totp_writes,nextjs_settings_passkeys_writes,nextjs_settings_ping_signing_writes";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-settings";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 // DNS as the spec's Resolv::DNS stub answers it (keep the two in sync): Gumroad's own targets resolve, and two names carry a CNAME to Gumroad.
@@ -160,6 +161,12 @@ const COMPARE = {
     "response.json.options.challenge",
     "response.json.qr_svg",
     "db.totp_credentials.inserted.*.otp_secret",
+    // The signing secret is random: assertPingSigning reads it back.
+    "db.ping_signing_settings.inserted.*.secret",
+    "db.ping_signing_settings.updated.*.changes.secret",
+    "db.ping_signing_settings.inserted.*.created_at",
+    "db.ping_signing_settings.inserted.*.updated_at",
+    "db.ping_signing_settings.updated.*.changes.updated_at",
     "db.totp_credentials.updated.*.changes.recovery_codes",
     // The join's cookie is encrypted with a random IV: assertJoin reads it back.
     "response.cookies.current_seller_id.value",
@@ -406,6 +413,16 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
     }
   }
 
+  // A rotation's secret is 32 random bytes in hex, and the one stored for the seller.
+  async function assertPingSigning(name: string, actual: CapturedExchange) {
+    if (!name.startsWith("settings_ping_signing_signed_in_spec")) return;
+    const secret = (actual.response.json as { secret?: string } | undefined)?.secret;
+    if (secret === undefined) return;
+    expect(secret).toMatch(/^[0-9a-f]{64}$/u);
+    const rows = await client.$queryRaw<{ secret: string }[]>`SELECT secret FROM ping_signing_settings WHERE secret = ${secret}`;
+    expect(rows).toHaveLength(1);
+  }
+
   // A setup's secret is 160 random bits in base32 and is the one in the row; WRITE_NODE_TOTP_SETUP hands the secret and what Node drew
   // from it to spec/requests/node_output_parity_spec.rb, where Rails draws the same URI and QR code.
   async function assertSetup(name: string, actual: CapturedExchange) {
@@ -537,6 +554,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         await assertJoin(name, result.exchanges[0]!.actual);
         await assertTotp(name, result.exchanges[0]!.actual);
         await assertSetup(name, result.exchanges[0]!.actual);
+        await assertPingSigning(name, result.exchanges[0]!.actual);
         await assertRegistrationOptions(name, fixture, result.exchanges[0]!.actual, result.exchanges[0]!.expected);
       } catch (error) {
         const logs = server
