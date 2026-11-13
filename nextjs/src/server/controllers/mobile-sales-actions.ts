@@ -6,16 +6,19 @@
 // published, `blob_url`'s 404, `update`'s two gift 422s, `variant`'s 404s, `send_post`'s 401/404/422 and `update_review_response`'s 404.
 // Handed back: refund (moves money), mark_as_shipped (mail), resend_ping (webhook), a change_can_contact that Node
 // cannot prove (models/purchase-contact-writes.ts) and update's saves (Purchase callbacks that mirror the opt-out into the newsletter cutover and the audience), a variant swap, a post
-// email, a review reply, and blob_url's success (a CDN URL for the blob's storage service).
+// email, a review reply on a subscription or gift sale, and blob_url's success (a CDN URL for the blob's storage service).
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { performAsync } from "../models/concerns/job-runtime.ts";
+import { findResponseOfReview, ProductReviewResponses } from "../models/product-review-response.ts";
 import { changeCanContact } from "../models/purchase-contact-writes.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { eligibleToSendEmails } from "../models/user-email-eligibility.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 import { present } from "../search/ruby-params.ts";
 
+import { toSentence } from "./api-v2/base.ts";
 import { HandBackToRails } from "./application-controller.ts";
 import {
   fetchError,
@@ -32,6 +35,7 @@ import { resendReceipt } from "./purchase-resend-receipt.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 const SKUS_ENABLED_FLAG = 1n << 9n;
+const SALE_PING_DELAY_SECONDS = 10;
 
 type Sale = {
   id: bigint;
@@ -192,16 +196,46 @@ const sendPost = memberAction(async (sale, input, auth) => {
 });
 
 // SalesController#update_review_response. `Purchase#original_product_review` reads another purchase's review for a subscription's
-// recurrence or a gift's sender, and a reply writes a row (and mails the reviewer the first time).
-const updateReviewResponse = memberAction(async (sale) => {
+// recurrence or a gift's sender. The reply is `review.response || review.build_response`, saved with the acting user; only its
+// creation mails the reviewer (ProductReviewResponse's after_create_commit).
+const updateReviewResponse = memberAction(async (sale, input, auth) => {
   if (sale.subscription_id !== null || PurchaseFlags.isSet(sale.flags, "is_gift_sender_purchase"))
     throw new HandBackToRails("the review of a subscription or gift sale");
-  const reviewed = await rowExists(
-    Prisma.sql`SELECT 1 FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${sale.id} LIMIT 1`,
+  const [review] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("product_reviews", "id")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${sale.id} LIMIT 1`,
   );
-  if (!reviewed) return renderJson({ success: false, message: "Could not find review" }, NOT_FOUND);
-  throw new HandBackToRails("a review reply");
+  if (review === undefined) return renderJson({ success: false, message: "Could not find review" }, NOT_FOUND);
+  const { message } = input.params;
+  if (message !== undefined && message !== null && !isString(message))
+    throw new HandBackToRails("a message that is not a string");
+
+  // acting_user: impersonated_user || account_holder
+  const attributes = { user_id: (auth.impersonated ?? auth.accountHolder).id, message: message ?? null };
+  const existing = await findResponseOfReview(review.id);
+  const reply = existing ?? (await ProductReviewResponses.create({ product_review_id: review.id, ...attributes }));
+  const saved = existing === null ? reply.persisted : await ProductReviewResponses.update(existing, attributes);
+  if (saved) return renderJson({ success: true });
+  return renderJson({ success: false, message: toSentence(reply.errors.fullMessages()) }, UNPROCESSABLE_ENTITY);
 });
+
+// Purchase#send_notification_webhook_from_ui: a gift's sender pings for the giftee's purchase (none yet: nothing), any other sale
+// for itself. The `url_parameters` of a sale that has some reach the job as `url_params`; no recording holds one, so it hands back.
+const resendPing = memberAction(async (sale) => {
+  let target = sale.id;
+  if (PurchaseFlags.isSet(sale.flags, "is_gift_sender_purchase")) {
+    const gift = await giftOf(sale);
+    if (gift === null) throw new HandBackToRails("a gift sender without a gift");
+    if (gift.giftee_purchase_id === null) return renderJson({ success: true });
+    target = BigInt(gift.giftee_purchase_id);
+  }
+  if (await rowExists(urlParametersOf(target))) throw new HandBackToRails("a sale with URL parameters");
+  // `PostToPingEndpointsWorker.perform_in(10.seconds, id, url_parameters)`
+  await performAsync("PostToPingEndpointsWorker", [Number(target), null], { delaySeconds: SALE_PING_DELAY_SECONDS });
+  return renderJson({ success: true });
+});
+
+const urlParametersOf = (purchaseId: bigint) =>
+  Prisma.sql`SELECT 1 FROM ${table("purchase_url_parameters")} WHERE ${column("purchase_url_parameters", "purchase_id")} = ${purchaseId} LIMIT 1`;
 
 // SalesController#blob_url, whose 404 is the seller_owns_blob? check: a blob attached to a commission or a custom field of the
 // seller's sales. The found case builds a CDN URL from the blob's storage service.
@@ -254,7 +288,7 @@ registerMobile(
     method: "POST",
     pattern: "/mobile/sales/:id/resend_ping",
     scopes: MOBILE_API_SCOPES,
-    run: handBack("a ping webhook"),
+    run: resendPing,
   },
   { method: "GET", pattern: "/mobile/sales/:id/missed_posts", scopes: MOBILE_API_SCOPES, run: missedPosts },
   { method: "GET", pattern: "/mobile/sales/:id/product_purchases", scopes: MOBILE_API_SCOPES, run: productPurchases },

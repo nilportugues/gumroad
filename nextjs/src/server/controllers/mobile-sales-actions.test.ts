@@ -5,7 +5,22 @@ import { PurchaseFlags } from "../search/flags.ts";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, eligibleToSendEmails, resendReceipt, setPurchase, changeCanContact } = vi.hoisted(() => ({
+const {
+  actions,
+  selectRows,
+  eligibleToSendEmails,
+  resendReceipt,
+  setPurchase,
+  changeCanContact,
+  performAsync,
+  findResponseOfReview,
+  createResponse,
+  updateResponse,
+} = vi.hoisted(() => ({
+  performAsync: vi.fn(),
+  findResponseOfReview: vi.fn(),
+  createResponse: vi.fn(),
+  updateResponse: vi.fn(),
   changeCanContact: vi.fn(),
   resendReceipt: vi.fn(),
   setPurchase: vi.fn(),
@@ -23,6 +38,11 @@ vi.mock("../models/sql.ts", async (original) => ({
   selectRows,
 }));
 vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
+vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync }));
+vi.mock("../models/product-review-response.ts", () => ({
+  findResponseOfReview,
+  ProductReviewResponses: { create: createResponse, update: updateResponse },
+}));
 vi.mock("../models/purchase-contact-writes.ts", () => ({ changeCanContact }));
 vi.mock("./purchase-access-writes.ts", () => ({ setPurchase }));
 vi.mock("../models/user-email-eligibility.ts", () => ({ eligibleToSendEmails }));
@@ -35,7 +55,7 @@ await import("./mobile-sales-actions.ts");
 const find = (method: string, pattern: string) =>
   actions.find((registered) => registered.method === method && registered.pattern === pattern)!;
 const owner = { id: 7n };
-const auth = { owner } as unknown as MobileAuth;
+const auth = { owner, accountHolder: { id: 8n }, impersonated: null } as unknown as MobileAuth;
 const input = (params: Record<string, unknown>) => ({ params }) as unknown as MobileInput;
 const body = (result: unknown) => JSON.parse((result as { body: string }).body) as Record<string, unknown>;
 const status = (result: unknown) => (result as { status: number }).status;
@@ -81,9 +101,44 @@ describe("member actions", () => {
     expect(body(result)).toEqual({ success: false, message: "Could not find purchase" });
   });
 
-  it.each(["mark_as_shipped", "resend_ping"])("hands %s of a sale that exists to Rails", async (name) => {
+  it("hands mark_as_shipped of a sale that exists to Rails", async () => {
     selectRows.mockResolvedValueOnce([sale()]);
-    await handedBack(run("POST", `/mobile/sales/:id/${name}`, {}));
+    await handedBack(run("POST", "/mobile/sales/:id/mark_as_shipped", {}));
+  });
+});
+
+describe("POST /mobile/sales/:id/resend_ping", () => {
+  const action = "/mobile/sales/:id/resend_ping";
+
+  beforeEach(() => performAsync.mockReset());
+
+  it("enqueues the ping of a sale without URL parameters ten seconds out", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([]);
+    expect(body(await run("POST", action, {}))).toEqual({ success: true });
+    expect(performAsync).toHaveBeenCalledExactlyOnceWith("PostToPingEndpointsWorker", [5, null], { delaySeconds: 10 });
+  });
+
+  it("pings for the giftee's purchase when the sale is a gift's sender", async () => {
+    selectRows
+      .mockResolvedValueOnce([sale({ flags: PurchaseFlags.set(0n, "is_gift_sender_purchase", true) })])
+      .mockResolvedValueOnce([{ giftee_purchase_id: 6n }])
+      .mockResolvedValueOnce([]);
+    await run("POST", action, {});
+    expect(performAsync).toHaveBeenCalledExactlyOnceWith("PostToPingEndpointsWorker", [6, null], { delaySeconds: 10 });
+  });
+
+  it("enqueues nothing for a gift whose giftee has not purchased", async () => {
+    selectRows
+      .mockResolvedValueOnce([sale({ flags: PurchaseFlags.set(0n, "is_gift_sender_purchase", true) })])
+      .mockResolvedValueOnce([{ giftee_purchase_id: null }]);
+    expect(body(await run("POST", action, {}))).toEqual({ success: true });
+    expect(performAsync).not.toHaveBeenCalled();
+  });
+
+  it("hands a sale with URL parameters to Rails before enqueuing", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ one: 1 }]);
+    await handedBack(run("POST", action, {}));
+    expect(performAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -312,9 +367,48 @@ describe("PUT /mobile/sales/:id/review_response", () => {
     expect(body(result).message).toBe("Could not find review");
   });
 
-  it("hands a reply to a review to Rails", async () => {
-    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ one: 1 }]);
-    await handedBack(run("PUT", action, { message: "Thanks" }));
+  describe("with a review", () => {
+    beforeEach(() => {
+      findResponseOfReview.mockReset();
+      createResponse.mockReset();
+      updateResponse.mockReset();
+      selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ id: 11n }]);
+    });
+
+    it("creates the first reply for the account holder", async () => {
+      findResponseOfReview.mockResolvedValue(null);
+      createResponse.mockResolvedValue({ persisted: true });
+      expect(body(await run("PUT", action, { message: "Thanks" }))).toEqual({ success: true });
+      expect(createResponse).toHaveBeenCalledExactlyOnceWith({
+        product_review_id: 11n,
+        user_id: 8n,
+        message: "Thanks",
+      });
+    });
+
+    it("updates an earlier reply", async () => {
+      const existing = { errors: { isEmpty: () => true } };
+      findResponseOfReview.mockResolvedValue(existing);
+      updateResponse.mockResolvedValue(true);
+      expect(body(await run("PUT", action, { message: "Again" }))).toEqual({ success: true });
+      expect(updateResponse).toHaveBeenCalledExactlyOnceWith(existing, { user_id: 8n, message: "Again" });
+      expect(createResponse).not.toHaveBeenCalled();
+    });
+
+    it("answers 422 with the error when the reply has no message", async () => {
+      findResponseOfReview.mockResolvedValue(null);
+      createResponse.mockResolvedValue({
+        persisted: false,
+        errors: { fullMessages: () => ["Message can't be blank"] },
+      });
+      const result = await run("PUT", action, {});
+      expect(status(result)).toBe(422);
+      expect(body(result)).toEqual({ success: false, message: "Message can't be blank" });
+    });
+
+    it("hands a message that is not a string to Rails", async () => {
+      await handedBack(run("PUT", action, { message: ["a"] }));
+    });
   });
 
   it("hands a subscription sale to Rails", async () => {

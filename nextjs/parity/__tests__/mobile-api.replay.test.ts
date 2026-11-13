@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { unwrapActiveJob } from "../src/active-job";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
@@ -68,6 +69,9 @@ const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").e
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
+// A fixture recorded with `parity_mail_jobs: true` holds its mail job in `jobs`; the others never queued one, so Node's is ignored.
+let compareMailJobs = false;
+
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
 function redisJobs(redis: Redis): JobsChannel {
   return {
@@ -85,7 +89,13 @@ function redisJobs(redis: Redis): JobsChannel {
           args: unknown[];
           queue: string;
           at?: number;
+          wrapped?: string;
         };
+        if (item.wrapped === "MailDeliveryJob") {
+          if (compareMailJobs)
+            jobs.push(unwrapActiveJob({ class: item.class, args: item.args, queue: item.queue } as RawJob));
+          continue;
+        }
         jobs.push({
           class: item.class,
           args: item.args,
@@ -106,7 +116,11 @@ function redisJobs(redis: Redis): JobsChannel {
           at?: number;
           wrapped?: string;
         };
-        if (item.wrapped === "MailDeliveryJob") continue;
+        if (item.wrapped === "MailDeliveryJob") {
+          if (compareMailJobs)
+            jobs.push(unwrapActiveJob({ class: item.class, args: item.args, queue: item.queue } as RawJob));
+          continue;
+        }
         jobs.push({
           class: item.class,
           args: item.args,
@@ -268,6 +282,7 @@ describe.skipIf(!url)("Mobile API parity", () => {
       try {
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
+        compareMailJobs = (expected.jobs ?? []).some((job) => job.activeJob === true);
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         if (/hands-an?-/u.test(name)) {
           handedBack.length = 0;
