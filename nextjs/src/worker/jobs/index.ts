@@ -123,12 +123,11 @@ import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
 import { mcpDeleteExpiredEventSubscriptionsJob } from "./mcp-delete-expired-event-subscriptions-job.ts";
+import { mcpDeliverEventJob } from "./mcp-deliver-event-job.ts";
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import { partnerMigrationNotificationJob } from "./partner-migration-notification-job.ts";
-import { purchaseRefundRequestsEscalateOverdueJob } from "./purchase-refund-requests-escalate-overdue-job.ts";
-import { recordUtmLinkVisitJob } from "./record-utm-link-visit-job.ts";
 import {
   executeScheduledPayoutsJob,
   failAbandonedPurchaseWorker,
@@ -173,6 +172,7 @@ import {
   syncStuckPurchasesJob,
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
+import { purchaseRefundRequestsEscalateOverdueJob } from "./purchase-refund-requests-escalate-overdue-job.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
 import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
@@ -182,6 +182,7 @@ import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-ref
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
 import { recordSocialScoreShadowEvaluationsJob } from "./record-social-score-shadow-evaluations-job.ts";
+import { recordUtmLinkVisitJob } from "./record-utm-link-visit-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { recoverStrandedBuyersJobWith } from "./recover-stranded-buyers-job.ts";
 import {
@@ -594,6 +595,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
   "PurchaseRefundRequests::EscalateOverdueJob": purchaseRefundRequestsEscalateOverdueJob,
   RecordUtmLinkVisitJob: recordUtmLinkVisitJob,
+  "Mcp::DeliverEventJob": mcpDeliverEventJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
