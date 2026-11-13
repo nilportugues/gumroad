@@ -10,11 +10,13 @@ const mocks = vi.hoisted(() => ({
   selectRows: vi.fn(),
   execute: vi.fn(),
   touch: vi.fn(),
+  slice: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
 }));
+vi.mock("./custom-html-products-slice.ts", () => ({ customHtmlProductsSlice: mocks.slice }));
 vi.mock("./users-controller.ts", () => ({ requireHtml: () => undefined }));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../page-props/audience/seller-guard.ts", () => ({
@@ -239,7 +241,15 @@ describe("GET /pages/:slug/products", () => {
     expect(await run(input({}, "about-me"))).toMatchObject({ status: 404, body: "" });
   });
 
-  it("hands the profile to Rails", async () => {
-    await expect(run(input({}, "profile"))).rejects.toBeInstanceOf(HandBackToRails);
+  // The slice itself is replayed against Rails in pages_controller_guards_parity_spec.
+  it("answers the catalogue slice of the profile's custom HTML", async () => {
+    database({ root: { custom_html: "<main></main>" } });
+    const answer = { status: 200, body: "{}" };
+    mocks.slice.mockResolvedValue(answer);
+    const now = new Date(0);
+    const params = { offset: "0", limit: "3" };
+    const request = { ...input(params, "profile"), chain: { now } } as unknown as MutationInput;
+    expect(await run(request)).toBe(answer);
+    expect(mocks.slice).toHaveBeenCalledWith(expect.objectContaining({ id: 3n }), "<main></main>", params, now);
   });
 });
