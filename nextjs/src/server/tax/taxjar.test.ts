@@ -145,6 +145,27 @@ describe("calculateTaxForOrder", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it.each(["ECONNRESET", "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH", "UND_ERR_SOCKET"])(
+    "falls back to the lookup table on %s, which Ruby rescues as an INTERNET_EXCEPTION",
+    async (code) => {
+      const redis = fakeRedis();
+      const refused = vi.fn(() => Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: { code } })));
+      expect(await calculateTaxForOrder(order, { fetch: refused, redis: () => redis.client })).toEqual({
+        kind: "fallback",
+      });
+      expect(redis.set).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", undefined])(
+    "leaves a failure that may be a timeout (%s) to Rails, which waits without a limit",
+    async (code) => {
+      const redis = fakeRedis();
+      const slow = vi.fn(() => Promise.reject(Object.assign(new TypeError("fetch failed"), { cause: { code } })));
+      expect((await calculateTaxForOrder(order, { fetch: slow, redis: () => redis.client })).kind).toBe("unsupported");
+    },
+  );
+
   it.each([400, 404, 500, 503])("falls back to the lookup table on a %s and caches nothing", async (status) => {
     const redis = fakeRedis();
     expect(await calculateTaxForOrder(order, { fetch: respond(status), redis: () => redis.client })).toEqual({

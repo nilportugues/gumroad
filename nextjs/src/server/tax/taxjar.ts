@@ -26,6 +26,15 @@ const SAAS_NATIVE_CODE = "31000";
 const API_VERSION = "2022-01-24";
 const CACHE_TTL_SECONDS = 600;
 const REQUEST_TIMEOUT_MS = 10_000;
+const CONNECTION_FAILURE_CODES = [
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "UND_ERR_SOCKET",
+];
 
 // Link#taxjar_product_tax_code; the taxonomy subtree is resolved by the caller (Taxonomy.software_and_plugins_subtree_ids).
 export function taxjarProductTaxCode(nativeType: unknown, inSoftwareSubtree: boolean): string | null {
@@ -46,11 +55,11 @@ export type TaxjarOrder = {
   shippingDollars: number;
 };
 
-// Float#to_s for the range where it matches JS (Ruby switches to "1.0e-05" below 1e-4 and "1.0e+16" from 1e16).
+// Float#to_s for the range where it matches JS (Ruby switches to "1.0e-05" below 1e-4 and "1.0e+15" from 1e15).
 function rubyFloat(value: number): string | null {
   if (!Number.isFinite(value)) return null;
   const magnitude = Math.abs(value);
-  if (magnitude !== 0 && (magnitude < 1e-4 || magnitude >= 1e16)) return null;
+  if (magnitude !== 0 && (magnitude < 1e-4 || magnitude >= 1e15)) return null;
   if (Object.is(value, -0)) return "-0.0";
   const text = String(value);
   return text.includes(".") ? text : `${text}.0`;
@@ -119,7 +128,8 @@ function amountToCollect(tax: unknown): number | null {
 
 // TAXJAR_ENDPOINT (config/initializers/taxjar.rb) is the live host in production only; the override lets a replay stand in for TaxJar.
 export const taxjarBaseUrl = (): string =>
-  process.env.TAXJAR_ENDPOINT?.trim() || (railsEnv() === "production" ? "https://api.taxjar.com" : "https://api.sandbox.taxjar.com");
+  process.env.TAXJAR_ENDPOINT?.trim() ||
+  (railsEnv() === "production" ? "https://api.taxjar.com" : "https://api.sandbox.taxjar.com");
 
 export const taxjarEndpoint = (): string => `${taxjarBaseUrl()}/v2/taxes`;
 
@@ -156,20 +166,32 @@ export async function calculateTaxForOrder(order: TaxjarOrder, deps: TaxjarDeps)
       body: wire.body,
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
-  } catch {
-    return { kind: "unsupported", reason: "a TaxJar request that failed before an answer" };
+  } catch (error) {
+    // INTERNET_EXCEPTIONS are in TaxjarErrors::SERVER, so Rails falls back to the lookup table. Only a refused or reset
+    // connection or a failed lookup is certain to fail in Ruby too: a timeout here would be Ruby still waiting.
+    const code = (error as { cause?: { code?: unknown } }).cause?.code;
+    return typeof code === "string" && CONNECTION_FAILURE_CODES.includes(code)
+      ? { kind: "fallback" }
+      : { kind: "unsupported", reason: "a TaxJar request that failed before an answer" };
   }
 
   // BadRequest and NotFound are re-raised without a report, InternalServerError and ServiceUnavailable are in TaxjarErrors::SERVER.
-  if ([400, 404, 500, 503].includes(response.status)) return { kind: "fallback" };
-  if (response.status !== 200) return { kind: "unsupported", reason: `a TaxJar answer with status ${response.status}` };
+  const isFallbackStatus = [400, 404, 500, 503].includes(response.status);
+  if (!isFallbackStatus && response.status !== 200)
+    return { kind: "unsupported", reason: `a TaxJar answer with status ${response.status}` };
 
-  let tax: unknown;
+  // The gem parses the body as JSON whatever the status and raises Taxjar::Error::ServerError, which Rails does not rescue,
+  // for one that is not a JSON object.
+  let body: unknown;
   try {
-    tax = (JSON.parse(await response.text()) as { tax?: unknown } | null)?.tax;
+    body = JSON.parse(await response.text());
   } catch {
     return { kind: "unsupported", reason: "a TaxJar answer that is not JSON" };
   }
+  if (typeof body !== "object" || body === null || Array.isArray(body))
+    return { kind: "unsupported", reason: "a TaxJar answer that is not a JSON object" };
+  if (isFallbackStatus) return { kind: "fallback" };
+  const tax = (body as { tax?: unknown }).tax;
   const amount = amountToCollect(tax);
   if (amount === null) return { kind: "unsupported", reason: "a TaxJar answer without a tax breakdown" };
   await redis.set(key, JSON.stringify(tax), "EX", CACHE_TTL_SECONDS);

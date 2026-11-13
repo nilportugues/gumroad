@@ -17,7 +17,8 @@ import { assertParity, httpTransport, replayFixtureExchange } from "../src/repla
 import { redisSeeder } from "../src/session";
 
 // Replays spec/requests/customer_surcharge_parity_spec.rb: POST /customer_surcharge, which the port answers for every cart without
-// a buyer-currency quote. TaxJar is a local stand-in that serves the recorded answers in order and keeps what the port sent.
+// a buyer-currency quote. TaxJar, IRAS, Revenu Quebec and taxid.pro are one local stand-in that serves the recorded answers in
+// order (a dropped connection is a destroyed socket) and keeps what the port sent; the vendors sit under a path prefix of their own.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const DIR = "parity/fixtures/requests/customer_surcharge_parity_spec";
@@ -25,6 +26,25 @@ const FIRST_COMPILE_TIMEOUT_MS = 240_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const GEOIP_FIXTURE = path.join(process.cwd(), "src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb");
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+
+const VENDOR_HOSTS: Record<string, string> = {
+  "taxjar.com": "",
+  "apisandbox.iras.gov.sg": "/iras",
+  "svcnab2b.revenuquebec.ca": "/qst",
+  "v3.api.taxid.pro": "/taxid",
+  "ec.europa.eu": "/vies",
+  "api.vatstack.com": "/vatstack",
+};
+// The endpoints the port takes whole (the others are bases).
+const WHOLE_URL_PREFIXES = ["/iras", "/vies", "/vatstack"];
+const vendorOf = (call: CapturedHttp) =>
+  Object.keys(VENDOR_HOSTS).find((host) => new URL(call.url).hostname.endsWith(host));
+// Where the port should send what Rails sent to the vendor: IRAS_ENDPOINT, VIES_ENDPOINT and VATSTACK_ENDPOINT are the whole URL, the others are bases.
+const expectedPath = (call: CapturedHttp) => {
+  const url = new URL(call.url);
+  const prefix = VENDOR_HOSTS[vendorOf(call) ?? ""] ?? "";
+  return decodeURIComponent(WHOLE_URL_PREFIXES.includes(prefix) ? prefix : `${prefix}${url.pathname}${url.search}`);
+};
 
 const COMPARE = {
   ignore: [
@@ -74,7 +94,8 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
           body: Buffer.concat(chunks).toString("utf8"),
         });
         const answer = taxjarRecorded.shift()?.response;
-        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded TaxJar answer");
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded vendor answer");
+        if (answer.dropped) return void request.socket.destroy();
         response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
         response.end(answer.body ?? "");
       });
@@ -91,6 +112,15 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: "nextjs_checkout_surcharge",
       TAXJAR_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}`,
+      IRAS_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/iras`,
+      REVENU_QUEBEC_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/qst`,
+      TAX_ID_PRO_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/taxid`,
+      VIES_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/vies`,
+      VATSTACK_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/vatstack`,
+      VATSTACK_API_KEY: "vatstack-key",
+      IRAS_API_ID: "iras-id",
+      IRAS_API_SECRET: "iras-secret",
+      TAX_ID_PRO_API_KEY: "taxid-key",
       GEOIP_DATABASE_PATH: GEOIP_FIXTURE,
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
@@ -115,9 +145,9 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
 
   it.each(cases)(
     "%s",
-    async (name, fixturePath, index) => {
+    async (_name, fixturePath, index) => {
       const fixture = loadFixture(fixturePath);
-      const recorded = fixture.exchanges[index]!.http.filter((call) => call.url.includes("taxjar.com"));
+      const recorded = fixture.exchanges[index]!.http.filter((call) => vendorOf(call) !== undefined);
       taxjarRecorded.splice(0, taxjarRecorded.length, ...recorded);
       taxjarReceived.length = 0;
       const result = await replayFixtureExchange(fixture, index, {
@@ -128,22 +158,24 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
         compare: COMPARE,
       });
       try {
-        if (name.startsWith("taxjar-buyers-and-tax-ids-hands-a-")) {
-          // A vendor-checked tax id is Rails' to answer: the stand-in Rails replies 218 and TaxJar is never asked.
-          expect(result.exchanges[0]!.actual.response.status).toBe(218);
-          expect(taxjarReceived).toEqual([]);
-          return;
-        }
         assertParity(result);
-        // The port asked TaxJar exactly what Rails asked, in the same order.
+        // The port asked the vendors exactly what Rails asked, in the same order.
         expect(
-          taxjarReceived.map(({ method, url, contentType, body }) => ({ method, path: url, contentType, body })),
+          taxjarReceived.map(({ method, url, contentType, body }) => ({
+            method,
+            path: decodeURIComponent(url),
+            contentType,
+            body,
+          })),
         ).toEqual(
           recorded.map((call) => ({
             method: call.method,
-            path: new URL(call.url).pathname,
-            contentType: call.contentType,
-            body: call.body,
+            path: expectedPath(call),
+            // Net::HTTP adds the form type the recording of a Vatstack call does not carry.
+            contentType:
+              call.contentType ??
+              (vendorOf(call) === "api.vatstack.com" ? "application/x-www-form-urlencoded" : undefined),
+            body: call.body ?? "",
           })),
         );
       } catch (error) {
