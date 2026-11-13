@@ -5,6 +5,7 @@ import { DISCOVER_OPTIONS } from "../../controllers/discover-page.ts";
 import { remoteIp } from "../audience/events.ts";
 import type { PageSpec } from "../pages.ts";
 
+import type { BlackFridayStats } from "./black-friday-stats.ts";
 import {
   autocompleteResults,
   createDiscoverSearch,
@@ -74,7 +75,7 @@ const discoverPage: PageSpec = {
       );
     }
     setMetaTags(meta, prepared, results, visitor !== null, queryString);
-    return discoverProps(prepared, results, visitor, request);
+    return discoverProps(prepared, results, visitor, request, state.blackFridayStats as BlackFridayStats | null);
   },
 };
 

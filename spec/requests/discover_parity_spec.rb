@@ -158,6 +158,53 @@ describe "Discover", type: :request do
         expect(response).to be_successful
       end
 
+      context "with the Black Friday feature on" do
+        before { Feature.activate(:offer_codes_search) }
+
+        def make_black_friday_code(product, **attributes)
+          create(:offer_code, user: product.user, products: [product], code: SearchProducts::BLACK_FRIDAY_CODE, **attributes)
+        end
+
+        def make_black_friday_deals
+          products = Link.where(name: ["Rig kit 1", "Rig kit 2", "Rig kit 3", "Rig kit 4", "Rig kit 5"]).order(:name).to_a
+          percentage = make_black_friday_code(products[0], amount_cents: nil, amount_percentage: 25)
+          make_black_friday_code(products[1], amount_cents: nil, amount_percentage: 0, ownership_duration_tiers: [{ "months" => 0, "amount_percentage" => 10 }, { "months" => 12, "amount_percentage" => 60 }])
+          make_black_friday_code(products[2], amount_cents: 100)
+          expired = make_black_friday_code(products[3], amount_cents: nil, amount_percentage: 80)
+          expired.update_columns(expires_at: 2.days.ago)
+          make_black_friday_code(products[4], amount_cents: nil, amount_percentage: 90).update_columns(deleted_at: 1.day.ago)
+          [percentage, expired].each_with_index do |offer_code, index|
+            build(:purchase, link: offer_code.products.first, offer_code:, price_cents: 400 + (index * 150), purchase_state: "successful").save!(validate: false)
+          end
+          build(:purchase, link: percentage.products.first, offer_code: percentage, price_cents: 999, purchase_state: "failed").save!(validate: false)
+          # A product document reads its sales from the purchases index, which the replay rebuilds from the rows.
+          Purchase.import(refresh: true, force: true)
+          Link.import(refresh: true, force: true)
+        end
+
+        it "renders the root page with the hero and empty stats", parity: true do
+          get "/discover"
+
+          expect(response).to be_successful
+        end
+
+        it "renders the Black Friday page with the stats of its deals", parity: true do
+          make_black_friday_deals
+
+          get "/discover", params: { offer_code: SearchProducts::BLACK_FRIDAY_CODE }
+
+          expect(response).to be_successful
+        end
+
+        it "renders the Black Friday page on an Inertia visit", parity: true do
+          make_black_friday_deals
+
+          get "/discover", params: { offer_code: SearchProducts::BLACK_FRIDAY_CODE }, headers: inertia_headers
+
+          expect(response).to be_successful
+        end
+      end
+
       it "renders the root page and sets the cookie of an affiliate in the query", parity: true do
         affiliate = create(:direct_affiliate, seller: Link.first.user, products: [Link.first])
 

@@ -1,7 +1,7 @@
 // DiscoverController#index (Discover/Index): the search params, the taxonomy lookup, the product search and its
 // cards, the DiscoverSearch write and the SEO meta tags. Whatever the port cannot prove is handed to Rails whole
 // by the controller's filter (controllers/discover-page.ts), before anything renders: the deferred props the port
-// cannot answer, an autocomplete request it cannot answer, curated products and Black Friday.
+// cannot answer, an autocomplete request it cannot answer and curated products.
 import { timingSafeEqual } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
@@ -35,6 +35,7 @@ import { defer } from "../lazy-props.ts";
 import { MetaTagBuilder } from "../meta-tags.ts";
 import { NotPortedError } from "../not-ported.ts";
 
+import type { BlackFridayStats } from "./black-friday-stats.ts";
 import { recommendedWishlistsProps } from "./recommended-wishlists.ts";
 import { taxonomiesForNav, taxonomyByPath, type TaxonomyRow } from "./taxonomies.ts";
 
@@ -530,6 +531,7 @@ export async function discoverProps(
   results: SearchResults,
   visitor: DiscoverVisitor,
   request: DiscoverRequest,
+  blackFridayStats: BlackFridayStats | null,
 ): Promise<Record<string, unknown>> {
   const { params } = prepared;
   return {
@@ -538,10 +540,10 @@ export async function discoverProps(
     taxonomies_for_nav: await taxonomiesForNav(),
     curated_product_ids: [],
     search_offset: params.from ?? 0,
-    show_black_friday_hero: false,
+    show_black_friday_hero: blackFridayStats !== null,
     is_black_friday_page: params.offer_code === BLACK_FRIDAY_CODE,
     black_friday_offer_code: BLACK_FRIDAY_CODE,
-    black_friday_stats: null,
+    black_friday_stats: blackFridayStats,
     ...deferredProps(prepared, request, visitor),
   };
 }
