@@ -16,7 +16,12 @@ Playwright (chromium only) drives a **locally running** Gumroad app. It has two 
 bin/e2e-up        # idempotent; first run takes several minutes (npm ci, Vite build, seeds, reindex)
 bin/e2e-run       # npm run e2e inside the container; extra args go to `playwright test`, e.g. bin/e2e-run e2e/specs/discover.spec.ts
 bin/e2e-down      # idempotent; removes only what e2e-up created
+bin/e2e-up --reseed   # wipes lane 3's database, Redis dbs, indices and table, then seeds again (keeps container, gems and build)
 ```
+
+Seeds run once per database, so a second `bin/e2e-run` sees the records the first one created. Use `--reseed` for a clean
+start; it has not been run yet (plan 5.5). `.github/workflows/e2e.yml` runs this same flow on pull requests from the
+repository itself (advisory, no secrets beyond the existing Sidekiq gem token, `@stripe` spec skipped); not yet run on GitHub (plan 5.3).
 
 What `bin/e2e-up` does, in order:
 
@@ -163,21 +168,57 @@ One JSON object per request/response pair (`RecordedExchange` in `e2e/support/re
 (`content-type`, `location`, `x-inertia`, `cache-control`, ...), the names of cookies set, and SHA-256 plus byte
 length of the request and response bodies. `.out/` is git-ignored.
 
-## Next step: replaying against a second server (not built yet)
+## Flaky tests and quarantine
 
-The JSONL is the input for differential testing. A replay tool should:
+- **Retries**: `retries` is 1 locally and 2 when `CI` is set; `E2E_RETRIES=0` turns them off (use that when debugging a
+  failure, so the first failure is the only one you see). The bot project never retries because it records traffic.
+- **Trace**: `trace: "on-first-retry"`, so a spec that fails once leaves `e2e/.out/test-results/<spec>-retry1/trace.zip`
+  (open with `npx playwright show-trace <file>`), alongside the screenshot. A spec that fails and then passes is reported
+  as `flaky` in the list and the HTML report (`e2e/.out/report`); it does not fail the run, so read the summary line.
+- **Policy**: a spec reported flaky twice in a week is quarantined the same day, with an issue linked in its `reason`, and
+  fixed or deleted within two weeks. Do not raise retries or timeouts to hide it.
+- **Quarantine list**: `e2e/quarantine.json`, an array of `{ "file": "e2e/specs/x.spec.ts", "reason": "...", "since": "YYYY-MM-DD" }`.
+  Every field is required and `file` must be a spec under `e2e/specs/`; `e2e/support/quarantine.ts` throws on anything
+  else. `playwright.config.ts` removes the listed specs from the blocking `chromium` project (so `npm run e2e` and CI skip
+  them) and adds a `quarantine` project that runs only them, without retries and keeping traces:
+  `npx playwright test --project=quarantine`. To release a spec, delete its entry.
 
-1. Read exchanges in order, grouped by `session` and `actor` (each actor is one cookie jar).
-2. For each, send `method` + `path` to the target (`REPLAY_BASE_URL`: Rails, then the Node port), keeping a cookie
-   jar per actor, and mapping the `host` subdomain (`seller.localhost`, ...) onto the target's host.
-3. Compare `status`, `location` (after normalizing ids), `content-type`, `x-inertia`, and `responseBodyHash`.
-   Bodies will rarely hash equal as-is: they embed CSRF tokens, timestamps and generated ids. Compare normalized
-   bodies (or the Inertia `props` JSON) and treat the hash as a fast path.
-4. Request bodies are hashed, not stored, because they carry per-session CSRF tokens and passwords. To replay
-   writes, extend the recorder to store sanitized bodies (or capture a HAR with `BOT_HAR=1`, which keeps them in
-   the git-ignored `.out/har/`), then substitute the target's own tokens.
-5. Ids and permalinks created during the run (products, posts, workflows, purchases) differ per server; map them
-   by creation order within a session.
+## Replaying a recording against a server
 
-Replay each target from a database restored to the same seed snapshot, otherwise counters, ids and
-"already purchased" states diverge.
+Built and unit-tested against a local stub server; not yet run against real Rails or the Node port (plan 4.4 to 4.6).
+
+```shell
+node e2e/replay/replay-cli.ts e2e/.out/bot-1-<time>.jsonl http://localhost:3003 e2e/.out/replay-rails.jsonl
+node e2e/replay/replay-cli.ts e2e/.out/bot-1-<time>.jsonl http://localhost:3100 e2e/.out/replay-node.jsonl
+node e2e/replay/diff-cli.ts e2e/.out/replay-rails.jsonl e2e/.out/replay-node.jsonl      # exit 1 when they differ; --json for a report
+```
+
+Replay and restore both servers from the same seed snapshot first, or counters, ids and "already purchased" states
+diverge. Unit tests: `npx vitest run e2e` (`e2e/replay/replay.test.ts`).
+
+**Replay** (`e2e/replay/replay.ts`) re-sends each exchange in recorded order with one cookie jar per `(session, actor)`,
+does not follow redirects (each hop is its own exchange), and writes the same JSONL as the recorder plus
+`normalizedBodyHash` (the body hash after the mask below). The base URL goes through the same guard as the suite
+(`localhost`, `127.0.0.1`, `*.localhost`, `example.*`) and so does every recorded host, which is remapped onto the target:
+the subdomain is kept (`seller.localhost:3003` becomes `seller.localhost:<target port>`), the `Host` header is set
+explicitly. Anything else is refused. Exchanges that had a request body are written with `status: 0` and
+`replay.skipped`, because the recorder keeps only a hash of request bodies (CSRF tokens, passwords); extend the recorder
+to store sanitized bodies to replay writes.
+
+**Diff** (`e2e/replay/diff.ts`) pairs exchanges by position (`session/actor/step/method#n`) and compares, per pair:
+`status`, masked `path`, masked `location`, `content-type`, `x-inertia`, `cache-control`, `vary`,
+`content-disposition`, the set of cookie names, and the masked body hash. Pairs skipped on either side are counted,
+not compared.
+
+**Mask of known-volatile fields** (`e2e/replay/mask.ts`, the only place to extend):
+
+| Field | Rule |
+| --- | --- |
+| CSRF tokens | `<meta name="csrf-token">`, `authenticity_token` form fields, JSON keys ending in `token` and `nonce` (raw or HTML-escaped in Inertia `data-page`) |
+| Timestamps | any ISO 8601 date-time |
+| Ids | JSON keys `id` and `*_id`; numeric and long opaque path segments (`/purchases/123`, signed tokens) become `:id`; short permalinks such as `/l/demo` stay |
+| Query values | `_`, `t`, `ts`, `timestamp`, `token`, `authenticity_token`, `nonce` |
+| Location | compared as masked path only, so the other server's port and host do not matter |
+| Set-cookie values | never recorded, only names; names are compared as a set |
+
+Other differences (a changed price, a missing section) are reported on purpose.
