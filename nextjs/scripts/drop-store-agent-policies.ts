@@ -11,25 +11,9 @@ import path from "node:path";
 const ROOT = path.resolve(import.meta.dirname, "../parity/fixtures");
 const DROPPED_KEYS = ["view_store_agent", "use_store_agent"];
 
-function strip(node: unknown): boolean {
-  let changed = false;
-  if (Array.isArray(node)) {
-    for (const item of node) changed = strip(item) || changed;
-  } else if (node !== null && typeof node === "object") {
-    const record = node as Record<string, unknown>;
-    const user = (record.policies as Record<string, unknown> | undefined)?.user;
-    if (user !== null && typeof user === "object") {
-      for (const key of DROPPED_KEYS) {
-        if (key in (user as object)) {
-          delete (user as Record<string, unknown>)[key];
-          changed = true;
-        }
-      }
-    }
-    for (const value of Object.values(record)) changed = strip(value) || changed;
-  }
-  return changed;
-}
+// Edit the text, not the parsed value: re-serialising would turn Ruby's `0.0` into `0` all over the corpus. `policies.user`
+// held exactly these two keys, so the block becomes `{}`, as Rails now renders it.
+const USER_POLICIES = /"user": \{\s*"(view_store_agent|use_store_agent)": (?:true|false),\s*"(?:view_store_agent|use_store_agent)": (?:true|false)\s*\}/gu;
 
 function* fixtureFiles(dir: string): Generator<string> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -41,16 +25,16 @@ function* fixtureFiles(dir: string): Generator<string> {
 
 const check = process.argv.includes("--check");
 const stale: string[] = [];
+const unhandled: string[] = [];
 for (const file of fixtureFiles(ROOT)) {
   const text = readFileSync(file, "utf8");
   if (!DROPPED_KEYS.some((key) => text.includes(key))) continue;
-  const fixture: unknown = JSON.parse(text);
-  if (!strip(fixture)) continue;
-  stale.push(path.relative(ROOT, file));
-  if (!check) writeFileSync(file, `${JSON.stringify(fixture, null, 2)}\n`);
+  const rewritten = text.replace(USER_POLICIES, '"user": {}');
+  const name = path.relative(ROOT, file);
+  if (DROPPED_KEYS.some((key) => rewritten.includes(key))) unhandled.push(name);
+  stale.push(name);
+  if (!check) writeFileSync(file, rewritten);
 }
 console.log(`${check ? "still carry" : "rewrote"} ${stale.length} fixtures`);
-if (check && stale.length > 0) {
-  console.log(stale.join("\n"));
-  process.exit(1);
-}
+if (unhandled.length > 0) console.log(`keys left in a shape this script does not know:\n${unhandled.join("\n")}`);
+if ((check && stale.length > 0) || unhandled.length > 0) process.exit(1);
