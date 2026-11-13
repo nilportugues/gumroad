@@ -183,6 +183,8 @@ import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
 import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
+import { reconcileStripePayoutsPauseForSellerJob } from "./reconcile-stripe-payouts-pause-for-seller-job.ts";
+import { reconcileStripePayoutsPausesJob } from "./reconcile-stripe-payouts-pauses-job.ts";
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
 import { recordSocialScoreShadowEvaluationsJob } from "./record-social-score-shadow-evaluations-job.ts";
@@ -263,6 +265,7 @@ import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-em
 import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-update-emails-job.ts";
 import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
 import { sendPaypalTopupNotificationJob } from "./send-paypal-topup-notification-job.ts";
+import { sendPostBlastEmailsSliceJob } from "./send-post-blast-emails-slice-job.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendProductPublishScheduleNoticeJob } from "./send-product-publish-schedule-notice-job.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
@@ -606,6 +609,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   GenerateAvatarVariantJob: generateAvatarVariantJob,
   AlertOnStaleBlocksHoldingEstablishedBuyersJob: alertOnStaleBlocksHoldingEstablishedBuyersJob,
   AlertSellersOfUndeliveredReceiptsJob: alertSellersOfUndeliveredReceiptsJob,
+  ReconcileStripePayoutsPausesJob: reconcileStripePayoutsPausesJob,
+  ReconcileStripePayoutsPauseForSellerJob: reconcileStripePayoutsPauseForSellerJob,
+  SendPostBlastEmailsSliceJob: sendPostBlastEmailsSliceJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

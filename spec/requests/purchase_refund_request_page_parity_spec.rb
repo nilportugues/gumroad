@@ -96,7 +96,8 @@ describe "Purchase refund request page", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "takes the refund window from the original purchase of a subscription", parity: true do
+  # The price of a subscription charge carries a recurrence label Node does not format, so the page goes to Rails whole.
+  it "hands a renewal of a subscription to Rails, which takes its refund window from the original purchase", parity: true do
     subscription_product = create(:membership_product, user: seller, name: "Monthly refundable")
     subscription = create(:subscription, link: subscription_product, user: nil)
     original = build(:purchase, link: subscription_product, seller:, subscription:, is_original_subscription_purchase: true, price_cents: 1_500, purchase_state: "successful", email: "member@example.com").tap { _1.save!(validate: false) }

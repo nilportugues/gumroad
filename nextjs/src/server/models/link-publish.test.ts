@@ -31,9 +31,13 @@ const { resetLinkCollaborators, setLinkCollaborators } = await import("./link.ts
 const { setSqlClient } = await import("./sql.ts");
 const { setTransactionRunner } = await import("./runtime/transaction.ts");
 const { fakeDatabase } = await import("./runtime/testing.ts");
-const { assertPlainPublish, publishBang, EMAIL_CONFIRMATION_MESSAGE, UNPUBLISHED_BY_ADMIN_MESSAGE } = await import(
-  "./link-publish.ts"
-);
+const {
+  assertPlainPublish,
+  publishBang,
+  EMAIL_CONFIRMATION_MESSAGE,
+  PAYMENT_METHOD_MESSAGE,
+  UNPUBLISHED_BY_ADMIN_MESSAGE,
+} = await import("./link-publish.ts");
 
 const FIXTURES = new URL("../../../parity/fixtures/requests/api/v2/product_enable_parity_spec/", import.meta.url);
 type TimelineEvent = { type: string; op?: string; table?: string; index?: number };
@@ -171,6 +175,13 @@ describe("publishBang", () => {
     expect(database.writes).toEqual([]);
   });
 
+  it("refuses a seller without a payment address, after the email check, without writing", async () => {
+    const bare = { ...seller, payment_address: " " };
+    expect(await publishBang(link(), bare)).toBe(PAYMENT_METHOD_MESSAGE);
+    expect(await publishBang(link(), { ...bare, confirmed_at: null })).toBe(EMAIL_CONFIRMATION_MESSAGE);
+    expect(database.writes).toEqual([]);
+  });
+
   it("refuses a product unpublished by Gumroad, and one on a sales hold, without writing", async () => {
     expect(await publishBang(link({ flags: 65_536n | (1n << 28n) }), seller)).toBe(UNPUBLISHED_BY_ADMIN_MESSAGE);
     answers = (sql) => (sql.includes("product_sales_holds") ? [{ found: 1 }] : []);
@@ -194,6 +205,23 @@ describe("assertPlainPublish", () => {
     setSqlClient(() => ({ $queryRaw: async () => [{ found: 0 }], $executeRaw: async () => 0 }) as never);
   });
 
+  it("lets a seller without a payment address through when no merchant account, team flag or rejection note exists", async () => {
+    await expect(assertPlainPublish(link(), { ...seller, payment_address: " " })).resolves.toBeUndefined();
+  });
+
+  it("hands back a seller without a payment address who may publish another way", async () => {
+    const bare = { ...seller, payment_address: null };
+    await expect(assertPlainPublish(link(), { ...bare, flags: 1n << 28n })).rejects.toThrow();
+    setSqlClient(
+      () =>
+        ({
+          $queryRaw: async (query: { sql: string }) => [{ found: query.sql.includes("merchant_accounts") ? 1 : 0 }],
+          $executeRaw: async () => 0,
+        }) as never,
+    );
+    await expect(assertPlainPublish(link(), bare)).rejects.toThrow();
+  });
+
   it("lets a plain product through", async () => {
     await expect(assertPlainPublish(link(), seller)).resolves.toBeUndefined();
   });
@@ -201,7 +229,6 @@ describe("assertPlainPublish", () => {
   it.each([
     ["a deleted product", link({ deleted_at: new Date(0) }), seller],
     ["a physical product", link({ flags: (1n << 7n) | 65_536n }), seller],
-    ["a seller without a payment address", link(), { ...seller, payment_address: " " }],
     ["a seller whose videos are transcoded", link(), { ...seller, tier_state: 100_000 }],
   ])("hands back %s", async (_name, product, owner) => {
     await expect(assertPlainPublish(product, owner as User)).rejects.toThrow();

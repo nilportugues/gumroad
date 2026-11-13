@@ -509,10 +509,10 @@ describe "API v2 throttled routes", type: :request do
           expect(draft.reload.name).to eq("Pencil")
         end
 
-        it "hands a price given with cents back to Rails", parity: true do
+        it "reads a price given with cents as the cents before the point and refuses it under the minimum", parity: true do
           call(:put, draft_path, params: { price: "3.50" })
 
-          expect(response.parsed_body).to include("success")
+          expect(message).to eq("Sorry, a product must be at least $0.99.")
         end
 
         it "hands a blank price back to Rails", parity: true do

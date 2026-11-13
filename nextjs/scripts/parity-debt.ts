@@ -73,6 +73,13 @@ function parseSpec(path: string, spec: string): Example[] {
   readFileSync(path, "utf8")
     .split("\n")
     .forEach((text, index) => {
+      // An `end` closes the group opened at its own indent; without this a sibling `describe` followed by a
+      // non-group line (a `{ ... }.each do` loop) stays on the stack and leaks into the next group's name.
+      const close = /^(\s*)end\b/u.exec(text);
+      if (close) {
+        while (stack.length > 0 && (stack.at(-1)?.indent ?? 0) >= (close[1]?.length ?? 0)) stack.pop();
+        return;
+      }
       const match = GROUP.exec(text);
       if (!match) return;
       const [, ws = "", kind = "", rest = ""] = match;

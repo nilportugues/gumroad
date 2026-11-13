@@ -145,8 +145,27 @@ describe("PUT /settings/passkeys/:id", () => {
     expect(update).toHaveBeenCalledTimes(1);
   });
 
-  it("hands back a name that is not text", async () => {
-    await expect(rename.run(inputWith({ nickname: 42 }))).rejects.toBeInstanceOf(HandBackToRails);
+  it("saves an integer name as its digits, the way the string column casts it", async () => {
+    expect(await answer(rename, inputWith({ nickname: 42 }))).toEqual([
+      200,
+      {
+        success: true,
+        passkey: { id: externalId, nickname: "42", created_at: "2025-02-01T00:00:00Z", last_used_at: null },
+      },
+    ]);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 5n },
+      data: { nickname: "42", updated_at: expect.any(Date) as Date },
+    });
+  });
+
+  it.each([
+    ["a float", 1.5],
+    ["a boolean", true],
+    ["a list", ["x"]],
+    ["an integer past 2^53", 2 ** 60],
+  ])("hands back a name that is %s", async (_label, nickname) => {
+    await expect(rename.run(inputWith({ nickname }))).rejects.toBeInstanceOf(HandBackToRails);
     expect(update).not.toHaveBeenCalled();
   });
 
