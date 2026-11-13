@@ -10,11 +10,14 @@ describe("validatePortedJobs", () => {
   });
 
   it("refuses a job whose sidekiq_retries_exhausted hook has no Node counterpart", () => {
-    // Still Ruby-owned, so the runtime check fires too; the hook check is the one under test.
+    // Still Ruby-owned, so the runtime check fires too; the hook check is the one under test. The job's
+    // hook is ported by now, so an empty table stands in for a port that forgot it.
     expect(() =>
-      validatePortedJobs(["ReverseDeferredInternalTransferJob"], {
-        ReverseDeferredInternalTransferJob: async () => {},
-      }),
+      validatePortedJobs(
+        ["ReverseDeferredInternalTransferJob"],
+        { ReverseDeferredInternalTransferJob: async () => {} },
+        { retryIn: {}, retriesExhausted: {} },
+      ),
     ).toThrow(
       /ReverseDeferredInternalTransferJob defines sidekiq_retries_exhausted; port it into JOB_RETRIES_EXHAUSTED/u,
     );
