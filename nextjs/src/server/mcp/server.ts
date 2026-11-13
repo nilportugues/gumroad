@@ -28,7 +28,7 @@ const TOOLS_LIST_CACHE = { ttlMs: 0, cacheScope: "private" };
 // Nothing in it is caller-specific, but its versions follow the flag, so it is never fresh.
 const DISCOVER_CACHE = { ttlMs: 0, cacheScope: "public" };
 export const INSTRUCTIONS =
-  "Use these tools for a connected creator's own store: products, sales, and payouts. Confirm with the person before publishing or unpublishing. Buyers still check out on the product URL. This server does not take payment.";
+  "Use these tools for a connected creator's own store: products, sales, and payouts. search_products also searches the rest of Gumroad's catalogue. Confirm with the person before publishing or unpublishing. Buyers still check out on the product URL. This server does not take payment.";
 const SERVER_INFO = { name: "gumroad", title: "Gumroad", version: "1.0.0" };
 
 type Hash = Record<string, unknown>;

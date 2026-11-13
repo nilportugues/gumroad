@@ -50,6 +50,7 @@ import { churnData } from "../page-props/analytics/churn.ts";
 import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
 import { subscriptionStatus } from "../page-props/customers/customers.ts";
 import { domainConfig } from "../page-props/domain.ts";
+import { taxonomyLabelOrNull } from "../presenters/discover/seo.ts";
 import type { LinkRow, UserRow } from "../presenters/product-reads.ts";
 import { longUrl } from "../presenters/product.ts";
 import { TimeZoneNotPortedError } from "../search/civil-time.ts";
@@ -225,8 +226,22 @@ export type ProductsReader = {
   covers: (productId: bigint) => Promise<CoverRow[]>;
 };
 
+// What Mcp::Server adds to a product's payload beyond product_payload (category_payload, custom_summary, additional_details_payload,
+// product.tags, the two receipt texts), and the members of a bundle (bundle_products_payload).
+export type ProductExtras = {
+  category: { path: string; label: string } | null;
+  summary: unknown;
+  additional_details: { name: unknown; value: unknown }[];
+  tags: (string | null)[];
+  custom_receipt_text: unknown;
+  custom_view_content_button_text: unknown;
+};
+export type BundleMemberPayload = { id: string; name: string | null; variant_id: string | null; quantity: number };
+
 export type ToolContext = {
   user: User;
+  productExtras?: (productId: bigint) => Promise<ProductExtras>;
+  bundleProducts?: (bundleId: bigint) => Promise<BundleMemberPayload[]>;
   token: OauthAccessToken;
   payouts?: PayoutReader;
   customers?: CustomerReader;
@@ -876,6 +891,120 @@ function coversPayload(covers: CoverRow[]): Hash[] {
   });
 }
 
+// Object#present? for the values json_data holds.
+const isPresent_ = (value: unknown) =>
+  typeof value === "string" ? !isBlankText(value) : value !== null && value !== undefined && value !== false;
+
+// json_data is a serialized hash; a value that is not one reads as empty, as `json_data.to_h` would for nil.
+function jsonDataOf(raw: unknown): Hash {
+  if (typeof raw !== "string" || raw === "") return {};
+  const parsed: unknown = JSON.parse(raw);
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Hash) : {};
+}
+
+// Mcp::Server#taxonomy_paths: every taxonomy's slug path walked from parent_id, keyed by the lowercased path (a later row with the same
+// path replaces an earlier one), with the label the editor shows for the slug.
+type TaxonomyEntry = { id: bigint; path: string; label: string };
+async function taxonomyEntries(): Promise<TaxonomyEntry[]> {
+  const rows = await db.taxonomy.findMany({
+    select: { id: true, parent_id: true, slug: true },
+    orderBy: { id: "asc" },
+  });
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const pathOf = (id: bigint, seen: bigint[]): string => {
+    if (seen.includes(id)) throw new HandBackToRails("a taxonomy that is its own ancestor");
+    const row = byId.get(id)!;
+    const parent = row.parent_id === null ? undefined : byId.get(row.parent_id);
+    return parent === undefined ? row.slug : `${pathOf(parent.id, [...seen, id])}/${row.slug}`;
+  };
+  return rows.map((row) => {
+    const label = taxonomyLabelOrNull(row.slug);
+    return {
+      id: row.id,
+      path: pathOf(row.id, []).toLowerCase(),
+      label: label !== null && label !== "" ? label : row.slug,
+    };
+  });
+}
+
+// Mcp::Server#category_payload
+async function categoryOf(taxonomyId: bigint | null): Promise<ProductExtras["category"]> {
+  if (taxonomyId === null) return null;
+  const entries = await taxonomyEntries();
+  const target = entries.find((entry) => entry.id === taxonomyId);
+  return target === undefined ? null : { path: target.path, label: target.label };
+}
+
+// Ruby's String#<=> compares bytes.
+const byteCompare = (a: string, b: string) => Buffer.compare(Buffer.from(a), Buffer.from(b));
+
+// tool_list_categories
+async function listCategories(): Promise<Hash> {
+  const byPath = new Map<string, TaxonomyEntry>();
+  for (const entry of await taxonomyEntries()) byPath.set(entry.path, entry);
+  const categories = [...byPath.values()]
+    .sort((a, b) => byteCompare(a.path, b.path))
+    .map((entry) => ({ path: entry.path, label: entry.label }));
+  return { categories };
+}
+
+export const readProductExtras: NonNullable<ToolContext["productExtras"]> = async (productId) => {
+  const row = await db.link.findUniqueOrThrow({
+    where: { id: productId },
+    select: { taxonomy_id: true, json_data: true },
+  });
+  const jsonData = jsonDataOf(row.json_data);
+  const rawDetails = jsonData.custom_attributes;
+  const details: unknown[] = Array.isArray(rawDetails) ? rawDetails : [];
+  const additional_details = details.flatMap((entry) => {
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry))
+      throw new HandBackToRails("an additional detail that is not a name and value pair");
+    const { name, value } = entry as Hash;
+    return isPresent_(name) || isPresent_(value) ? [{ name: name ?? null, value: value ?? null }] : [];
+  });
+  // `product.tags` has no ORDER BY, so more than one tag comes back in an order the port cannot see.
+  const tags = await db.productTagging.findMany({ where: { product_id: Number(productId) } });
+  if (tags.length > 1) throw new HandBackToRails("a product with several tags");
+  const names =
+    tags.length === 0
+      ? []
+      : (await db.tag.findMany({ where: { id: { in: tags.map((tag) => tag.tag_id!) } } })).map((tag) => tag.name);
+  return {
+    category: await categoryOf(row.taxonomy_id),
+    summary: jsonData.custom_summary ?? null,
+    additional_details,
+    tags: names,
+    custom_receipt_text: jsonData.custom_receipt_text ?? null,
+    custom_view_content_button_text: jsonData.custom_view_content_button_text ?? null,
+  };
+};
+
+// Mcp::Server#bundle_products_payload: `bundle_products.alive.in_order`, which leaves rows that share a position (or have none) in no
+// defined order.
+export const readBundleProducts: NonNullable<ToolContext["bundleProducts"]> = async (bundleId) => {
+  const rows = await db.bundleProduct.findMany({
+    where: { bundle_id: bundleId, deleted_at: null },
+    orderBy: [{ position: "asc" }, { id: "asc" }],
+  });
+  const positions = rows.map((row) => row.position);
+  if (positions.some((position) => position === null) || new Set(positions).size !== positions.length)
+    throw new HandBackToRails("bundle products that share a position");
+  const products = await db.link.findMany({
+    where: { id: { in: rows.map((row) => row.product_id) } },
+    select: { id: true, name: true },
+  });
+  const names = new Map(products.map((product) => [product.id, product.name]));
+  return rows.map((row) => {
+    if (!names.has(row.product_id)) throw new HandBackToRails("a bundle product whose product is missing");
+    return {
+      id: encrypt(row.product_id),
+      name: names.get(row.product_id) ?? null,
+      variant_id: row.variant_id === null ? null : encrypt(row.variant_id),
+      quantity: row.quantity,
+    };
+  });
+};
+
 // A Ruby Float in a payload. JSON.generate prints `1500.0` where JSON.stringify prints `1500`, and the text of a tool result
 // is that output verbatim.
 export class FloatValue {
@@ -911,12 +1040,20 @@ export const productStats: NonNullable<ToolContext["productStats"]> = async (pro
 async function getProduct(args: Hash, context: ToolContext): Promise<Hash> {
   const product = await findProduct(args, context);
   const payload = productPayload(product, context.user, "get_product");
-  // A bundle also lists the members it has now (BundleProduct#in_order).
-  if (flagOn(product.flags, IS_BUNDLE_BIT)) throw new HandBackToRails("get_product for a bundle");
+  const extras = await (context.productExtras ?? readProductExtras)(product.id);
   const details: Hash = {
+    category: extras.category,
     description: product.description,
+    summary: extras.summary,
+    additional_details: extras.additional_details,
+    tags: extras.tags,
+    custom_receipt_text: extras.custom_receipt_text,
+    custom_view_content_button_text: extras.custom_view_content_button_text,
     covers: coversPayload(await (context.products ?? readProducts).covers(product.id)),
   };
+  // A bundle also lists the members it has now (BundleProduct#in_order).
+  if (flagOn(product.flags, IS_BUNDLE_BIT))
+    details.bundle_products = await (context.bundleProducts ?? readBundleProducts)(product.id);
   const held = (context.token.scopes ?? "").split(/\s+/u);
   // The same rule as the public API: sales figures need a sales scope.
   if (held.includes("view_sales") || held.includes("account"))
@@ -1157,10 +1294,24 @@ function validatedTiers(tiers: unknown): void {
     refuse("every tier must use the same recurrence");
 }
 
+// A tier that sets pay_what_you_want or suggested_price_cents.
+const tiersPrice = (tiers: unknown): boolean =>
+  Array.isArray(tiers) &&
+  tiers.some(
+    (tier) =>
+      tier !== null &&
+      typeof tier === "object" &&
+      ("pay_what_you_want" in (tier as Hash) || "suggested_price_cents" in (tier as Hash)),
+  );
+
 // tool_create_draft_product for a digital product. Argument errors come before the scope check, so they are answered here and the scope
 // is checked after them. A membership, a free product (set_customizable_price runs after its save), a seller pricing in another currency,
 // and a description with markup (Rails stores it as sent, but only plain text is proven) go to Rails whole, before the first write.
 async function createDraftProduct(args: Hash, context: ToolContext): Promise<Hash> {
+  // Currency, pay what you want and a suggested price (on the product or on a tier) are checked and written by Rails, which answers their
+  // argument errors ahead of the scope check.
+  if (["currency", "pay_what_you_want", "suggested_price_cents"].some((key) => key in args) || tiersPrice(args.tiers))
+    throw new HandBackToRails("a draft product with a currency or a pay-what-you-want price");
   if (args.product_type === "membership") {
     if ("price_cents" in args)
       throw new ToolRpcError(
@@ -1243,11 +1394,30 @@ const isBlankText = (value: string) => /^[\s\u0085\u180e\u200b-\u200d\u2060\ufef
 // the seller holds, or that a licensed product claims while a product-id cutover is set, a description Node cannot sanitize like
 // SaveContentUpsellsService, a rename of a published product (content moderation), a product beside discount codes (the warning lists the
 // ones the new price breaks) and a product whose price is not one buy price go to Rails whole, before the first write.
+const UNPORTED_UPDATE_KEYS = [
+  "summary",
+  "additional_details",
+  "category",
+  "tags",
+  "currency",
+  "pay_what_you_want",
+  "suggested_price_cents",
+  "custom_receipt_text",
+  "custom_view_content_button_text",
+];
+
 async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
+  // The fields Node does not write: category and currency are resolved against Rails' tables, tags and the json_data fields have their
+  // own normalisation, and the pay-what-you-want pair changes what the price box offers.
+  if (UNPORTED_UPDATE_KEYS.some((key) => key in args))
+    throw new HandBackToRails("an update_product field Node does not write");
   const found = await findProduct(args, context);
   const changes = ["name", "description", "price_cents", "permalink"].filter((key) => key in args);
   if (changes.length === 0)
-    throw new ToolRpcError("Pass at least one of name, description, price_cents, or permalink", INVALID_PARAMS);
+    throw new ToolRpcError(
+      "Pass at least one of name, description, summary, additional_details, category, tags, price_cents, currency, pay_what_you_want, suggested_price_cents, custom_receipt_text, custom_view_content_button_text, or permalink",
+      INVALID_PARAMS,
+    );
   // An empty permalink is how the editor clears a custom URL; a blank one is neither that nor a value.
   let permalink: string | null | undefined;
   if (changes.includes("permalink")) {
@@ -1315,7 +1485,19 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   }
   const saved = await (context.products ?? readProducts).find(BigInt(context.user.id), encrypt(found.id));
   if (saved === null) throw new HandBackToRails("a product that was not found after its save");
-  return { product: { ...productPayload(saved, context.user, "update_product"), description: saved.description } };
+  const extras = await (context.productExtras ?? readProductExtras)(saved.id);
+  return {
+    product: {
+      ...productPayload(saved, context.user, "update_product"),
+      category: extras.category,
+      description: saved.description,
+      summary: extras.summary,
+      additional_details: extras.additional_details,
+      tags: extras.tags,
+      custom_receipt_text: extras.custom_receipt_text,
+      custom_view_content_button_text: extras.custom_view_content_button_text,
+    },
+  };
 }
 
 // DISCOUNT_PERCENT_RANGE, DISCOUNT_YEAR_RANGE
@@ -1962,6 +2144,9 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "get_product":
       requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);
+    case "list_categories":
+      requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
+      return listCategories();
     case "create_draft_product":
       return createDraftProduct(args, context);
     case "update_product":
