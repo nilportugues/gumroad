@@ -229,4 +229,7 @@ export const PORTED_JOBS: readonly string[] = [
   "CustomDomainVerificationWorker",
   "Exports::AffiliateExportWorker",
   "Exports::AudienceExportWorker",
+  "StripeCreateMerchantAccountsWorker",
+  "BackfillPdfStampsJob",
+  "RetryFailedPaypalPayoutsWorker",
 ];

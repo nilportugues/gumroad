@@ -149,7 +149,10 @@ import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeba
 import { reindexUserElasticsearchDataWorker } from "./reindex-user-elasticsearch-data-worker.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
+import { backfillPdfStampsJob } from "./backfill-pdf-stamps-job.ts";
+import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
+import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
@@ -315,6 +318,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
   ProcessPaymentWorker: processPaymentWorker,
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
+  StripeCreateMerchantAccountsWorker: stripeCreateMerchantAccountsWorker,
+  BackfillPdfStampsJob: backfillPdfStampsJob,
+  RetryFailedPaypalPayoutsWorker: retryFailedPaypalPayoutsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,

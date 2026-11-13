@@ -272,7 +272,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "BackfillPriceCheckerIndexFieldsJob": {
     "file": "app/sidekiq/backfill_price_checker_index_fields_job.rb",
@@ -2630,7 +2630,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 7200,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RetryPendingMandateChargeJob": {
     "file": "app/sidekiq/retry_pending_mandate_charge_job.rb",
@@ -3257,7 +3257,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "StripePayoutsPausedEmailJob": {
     "file": "app/sidekiq/stripe_payouts_paused_email_job.rb",
