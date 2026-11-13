@@ -1,0 +1,164 @@
+// UrlRedirectPresenter#posts for a purchase of a product without versions: Purchase.product_installments over the one purchase
+// the buyer's email maps to, and the view link of each post. Anything that would widen that set (another purchase of the
+// address, a product that shows every past post, a seller domain, equal sort keys) is Rails'.
+import type { Installment, Link, Purchase, User } from "@prisma/client";
+
+import { db } from "../../../lib/db.ts";
+import { encrypt } from "../../../lib/obfuscate-ids.ts";
+import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { cgiEscape } from "../../controllers/rails-params.ts";
+import { InstallmentFlags, InstallmentPost } from "../../models/installment-post.ts";
+import { LinkFlags } from "../../models/link.ts";
+import { PurchaseRecord } from "../../models/purchase-pricing.ts";
+import { purchasePassesFilters } from "../../models/with-filtering.ts";
+import { jsonTime } from "../../presenters/mobile-serializers.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
+import { displayedName } from "../audience/installments.ts";
+import { userSubdomainWithProtocol, userUsername } from "../audience/support.ts";
+
+const ALL_SUCCESS_STATES = [
+  "preorder_authorization_successful",
+  "successful",
+  "not_charged",
+  "gift_receiver_purchase_successful",
+];
+const EMAIL_INFO_TYPE = "CreatorContactingCustomersEmailInfo";
+const EPOCH = new Date("1970-01-01T00:00:00Z");
+
+const notRefundedOrChargedBack = (purchase: Purchase) =>
+  !purchase.stripe_refunded &&
+  (purchase.chargeback_date === null || PurchaseFlags.isSet(purchase.flags, "chargeback_reversed"));
+
+// Purchase.for_displaying_installments (including test purchases) over the product's sales with this email.
+function displaysInstallments(purchase: Purchase): boolean {
+  if (!(purchase.purchase_state && [...ALL_SUCCESS_STATES, "test_successful"].includes(purchase.purchase_state)))
+    return false;
+  return notRefundedOrChargedBack(purchase) && !PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase");
+}
+
+type Listed = { post: Installment; sortKey: Date };
+
+async function emailInfos(purchaseIds: bigint[], installmentIds: bigint[]) {
+  if (purchaseIds.length === 0 || installmentIds.length === 0) return [];
+  return db.emailInfo.findMany({
+    where: { purchase_id: { in: purchaseIds }, installment_id: { in: installmentIds } },
+    orderBy: { id: "asc" },
+  });
+}
+
+const aliveAndPublished = (post: Installment) => post.deleted_at === null && post.published_at !== null;
+const profileOnly = (post: Installment) =>
+  !InstallmentFlags.isSet(post.flags, "send_emails") && InstallmentFlags.isSet(post.flags, "shown_on_profile");
+
+export async function downloadPosts(purchase: Purchase | null, product: Link | null, seller: User): Promise<unknown[]> {
+  if (purchase === null) return [];
+  if (product === null) throw new HandBackToRails("posts of a purchase without a product");
+  if (LinkFlags.isSet(product.flags, "should_show_all_posts"))
+    throw new HandBackToRails("a product that shows every past post");
+  if (purchase.email === null || purchase.email === "")
+    throw new HandBackToRails("posts of a purchase without an email");
+  if (purchase.subscription_id !== null) throw new HandBackToRails("posts of a membership purchase");
+
+  const sales = await db.purchase.findMany({ where: { link_id: product.id, email: purchase.email } });
+  if (sales.some((sale) => sale.subscription_id !== null && displaysInstallments(sale)))
+    throw new HandBackToRails("posts of an address with a membership purchase");
+  const displayed = sales.filter(displaysInstallments);
+  if (!displayed.some((sale) => sale.id === purchase.id)) return [];
+  if (displayed.length > 1) throw new HandBackToRails("posts of an address that bought the product twice");
+
+  const username = userUsername(seller);
+  const host = userSubdomainWithProtocol(seller);
+  if (username === null || host === null) throw new HandBackToRails("posts of a seller without a subdomain");
+  if ((await db.customDomain.count({ where: { user_id: Number(seller.id) } })) > 0)
+    throw new HandBackToRails("posts of a seller with a custom domain");
+
+  // Purchases of the seller with the same address, whose emails also reach a seller post.
+  const sameAddress = (await db.purchase.findMany({ where: { email: purchase.email, seller_id: purchase.seller_id } }))
+    .filter((sale) => sale.purchase_state !== null && ALL_SUCCESS_STATES.includes(sale.purchase_state))
+    .filter(notRefundedOrChargedBack)
+    .map((sale) => sale.id);
+
+  const listed: Listed[] = [];
+
+  // installments_with_sent_emails: product or variant posts emailed to the purchase.
+  const ownInfos = await db.emailInfo.findMany({ where: { purchase_id: purchase.id }, orderBy: { id: "asc" } });
+  const emailed = await db.installment.findMany({
+    where: {
+      id: { in: ownInfos.flatMap((info) => (info.installment_id === null ? [] : [Number(info.installment_id)])) },
+      installment_type: { in: ["product", "variant"] },
+    },
+  });
+  for (const post of emailed.filter(aliveAndPublished)) {
+    if (!InstallmentFlags.isSet(post.flags, "send_emails")) continue;
+    const infos = ownInfos.filter((info) => Number(info.installment_id) === Number(post.id));
+    if (infos.length > 1) throw new HandBackToRails("a post with several email infos");
+    const info = infos[0]!;
+    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH });
+  }
+
+  // profile_only_for_products
+  const profilePosts = await db.installment.findMany({
+    where: { link_id: Number(product.id), base_variant_id: null, installment_type: "product" },
+  });
+  for (const post of profilePosts.filter(aliveAndPublished).filter(profileOnly))
+    listed.push({ post, sortKey: post.published_at! });
+
+  // seller_with_sent_emails_for_purchases and profile_only_for_sellers, narrowed by the buyer filters.
+  const record = new PurchaseRecord(purchase, null);
+  const sellerInfos = await db.emailInfo.findMany({
+    where: { purchase_id: { in: [purchase.id, ...sameAddress] } },
+    orderBy: { id: "asc" },
+  });
+  const sellerEmailed = await db.installment.findMany({
+    where: {
+      id: { in: sellerInfos.flatMap((info) => (info.installment_id === null ? [] : [Number(info.installment_id)])) },
+      installment_type: "seller",
+    },
+  });
+  for (const post of sellerEmailed.filter(aliveAndPublished)) {
+    if (!InstallmentFlags.isSet(post.flags, "send_emails")) continue;
+    const infos = sellerInfos.filter((info) => Number(info.installment_id) === Number(post.id));
+    if (infos.length > 1) throw new HandBackToRails("a seller post with several email infos");
+    if (!(await purchasePassesFilters(new InstallmentPost(post), record))) continue;
+    const info = infos[0]!;
+    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH });
+  }
+  const sellerProfile = await db.installment.findMany({
+    where: { seller_id: Number(purchase.seller_id), installment_type: "seller" },
+  });
+  for (const post of sellerProfile.filter(aliveAndPublished).filter(profileOnly)) {
+    if (await purchasePassesFilters(new InstallmentPost(post), record))
+      listed.push({ post, sortKey: post.published_at! });
+  }
+
+  // sort_by is not stable, so two posts with one key are in an order only Ruby knows.
+  const keys = listed.map((entry) => entry.sortKey.getTime());
+  if (new Set(keys).size !== keys.length) throw new HandBackToRails("posts that share a sort time");
+  listed.sort((a, b) => b.sortKey.getTime() - a.sortKey.getTime());
+
+  const externalPurchaseId = encrypt(purchase.id);
+  const result: unknown[] = [];
+  for (const { post } of listed) {
+    if (post.slug === null || post.slug === "") throw new HandBackToRails("a post without a slug");
+    const owner = post.seller_id ?? product.user_id;
+    if (owner === null || Number(owner) !== Number(seller.id)) throw new HandBackToRails("a post of another seller");
+    result.push({
+      id: encrypt(post.id),
+      name: displayedName(post),
+      action_at: await actionAt(post, purchase.id),
+      view_url: `${host}/p/${post.slug}?purchase_id=${cgiEscape(externalPurchaseId)}&username=${cgiEscape(username)}`,
+    });
+  }
+  return result;
+}
+
+// Installment#action_at_for_purchases: the last email info of the purchase, else the publish time.
+async function actionAt(post: Installment, purchaseId: bigint): Promise<string | null> {
+  const [info] = (await emailInfos([purchaseId], [BigInt(post.id)]))
+    .filter((row) => row.type === EMAIL_INFO_TYPE)
+    .sort((a, b) => Number(b.id - a.id));
+  if (info === undefined) return jsonTime(post.published_at);
+  const at = info.sent_at ?? info.delivered_at ?? info.opened_at;
+  if (at === null) throw new HandBackToRails("an email info without a time");
+  return jsonTime(at);
+}

@@ -29,8 +29,10 @@ const ownerExternalId = (loaded: Loaded) => (loaded.product?.user_id == null ? n
 
 export const fieldsOf = (file: ProductFile, loaded: Loaded) => s3Fields(file.url, ownerExternalId(loaded));
 
-// UrlRedirect#alive_product_files for the shapes that do not depend on rich content or variants: the product's own files in order.
-export async function aliveProductFiles(loaded: Loaded): Promise<DeliveryFile[]> {
+// UrlRedirect#alive_product_files for the shapes that do not depend on variants: the product's own files in order. With
+// `embedded` (the file ids its rich content pages embed, in order) only those are listed, as Rails does once a page embeds one;
+// without it a product with rich content hands back.
+export async function aliveProductFiles(loaded: Loaded, embedded?: bigint[]): Promise<DeliveryFile[]> {
   const { redirect, purchase, product } = loaded;
   if (redirect.preorder_id !== null) throw new HandBackToRails("a url redirect of a preorder");
   if (product === null) return [];
@@ -40,12 +42,18 @@ export async function aliveProductFiles(loaded: Loaded): Promise<DeliveryFile[]>
   }
   if ((await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0)
     throw new HandBackToRails("a product with variants");
-  if ((await db.richContent.count({ where: { entity_type: "Link", entity_id: product.id, deleted_at: null } })) > 0)
+  if (
+    embedded === undefined &&
+    (await db.richContent.count({ where: { entity_type: "Link", entity_id: product.id, deleted_at: null } })) > 0
+  )
     throw new HandBackToRails("a product with rich content");
-  const files = await db.productFile.findMany({
-    where: { link_id: product.id, deleted_at: null },
+  const listed = embedded ?? [];
+  const found = await db.productFile.findMany({
+    where: { link_id: product.id, deleted_at: null, ...(listed.length > 0 ? { id: { in: listed } } : {}) },
     orderBy: [{ position: "asc" }, { id: "asc" }],
   });
+  // FIELD(product_files.id, ids)
+  const files = listed.length > 0 ? [...found].sort((a, b) => listed.indexOf(a.id) - listed.indexOf(b.id)) : found;
   if (files.some(mustBePdfStamped)) throw new HandBackToRails("a stamped PDF");
   return files.map((file) => ({ file, s3: fieldsOf(file, loaded) }));
 }
