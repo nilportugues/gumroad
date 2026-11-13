@@ -4,9 +4,10 @@
 // Ported: the RequireAccountEmail and `set_page` redirects, the policy refusals, the validation errors of #create and #update for a
 // page whose title and content are both blank (moderation returns before it calls the service), #update of the profile entry
 // when it has nothing to write, #destroy (the row and the touch of the seller; the profile entry has nothing to delete), and the
-// 404 of #preview and #products for a profile with no custom HTML or a page that is not the profile.
+// 404 of #preview and #products for a profile with no custom HTML or a page that is not the profile, and the catalogue slices
+// of the profile preview for a page that references no price.
 // Handed to Rails whole, before any write: a save that passes validation (HTML sanitizing, content moderation, the slug), any
-// change to the profile entry, and the rendered preview and catalogue slices.
+// change to the profile entry, and the rendered preview.
 import { Prisma } from "@prisma/client";
 
 import { isBlank } from "../models/compliance-countries.ts";
@@ -21,6 +22,7 @@ import type { SellerContext } from "../policies/seller-context.ts";
 import { squish } from "../search/plaintext.ts";
 
 import { HandBackToRails, type ActionResult, type Redirected } from "./application-controller.ts";
+import { customHtmlProductsSlice } from "./custom-html-products-slice.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requireHtml } from "./users-controller.ts";
 
@@ -201,8 +203,16 @@ async function products(input: MutationInput): Promise<ActionResult> {
   requireHtml(input);
   const result = await guarded(input, pagePolicy.products, input.routeParams.slug ?? "");
   if ("redirect" in result) return result.redirect;
-  if (!result.found.profile) return headNotFound;
-  throw new HandBackToRails("the catalogue slices of the profile preview");
+  const { profile, sellerContext } = result.found;
+  if (!profile) return headNotFound;
+  const seller = sellerContext.seller!;
+  const customHtml = await profileCustomHtml(seller.id);
+  return customHtmlProductsSlice(
+    { id: seller.id, username: seller.username, external_id: seller.external_id },
+    customHtml,
+    input.params,
+    input.chain.now,
+  );
 }
 
 registerMutations(

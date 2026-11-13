@@ -18,7 +18,7 @@ import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { column, selectRows, table } from "../models/sql.ts";
-import { isAccountActive, Users } from "../models/user.ts";
+import { isAccountActive, nameOrUsername, Users } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
@@ -29,6 +29,10 @@ import { loadSellerContext, NotAuthorizedError } from "../policies/seller-contex
 import { settingsProfilePolicy } from "../policies/settings/profile.ts";
 import { userPolicy } from "../policies/user.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+import { customHtmlStoreHostnames, enqueueRoutabilityRefresh } from "../services/custom-domain-hosts.ts";
+import { interpolateProfile } from "../services/pages-interpolator.ts";
+import { referencedInPrices } from "../services/pages-product-prices.ts";
+import { loadProfileDataFacts, profileDataJson } from "../services/pages-profile-data.ts";
 
 import {
   HandBackToRails,
@@ -37,10 +41,20 @@ import {
   type Chain,
   type Rendered,
 } from "./application-controller.ts";
+import {
+  customHtmlCsp,
+  customHtmlNavigationBridgeScript,
+  FOLLOW_BRIDGE_SCRIPT,
+  pagesTailwindHead,
+  PRODUCTS_BRIDGE_SCRIPT,
+  profileCustomHtmlDocument,
+} from "./custom-html-document.ts";
+import { customHtmlProductsSlice } from "./custom-html-products-slice.ts";
 import { json } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { isPresent } from "./rails-request.ts";
+import { isSellerHost, userPageEmbed, userPageVersion } from "./user-pages.ts";
 
 const FOUND = 302;
 const NOT_FOUND = 404;
@@ -89,14 +103,20 @@ export async function profileUser(input: MutationInput): Promise<User> {
 }
 
 // custom_landing_page_visible?: the root page has custom HTML and the seller has the feature.
-async function customLandingPageVisible(seller: User): Promise<{ visible: boolean; updatedAt: Date | null }> {
+async function customLandingPageVisible(
+  seller: User,
+): Promise<{ visible: boolean; updatedAt: Date | null; customHtml: string | null }> {
   const page = await db.page.findFirst({
     where: { pageable_type: "User", pageable_id: seller.id, slug: null },
     orderBy: { id: "asc" },
   });
   const present = page?.custom_html != null && page.custom_html.trim() !== "";
   const visible = present && (await isFeatureEnabled(CUSTOM_HTML_FEATURE, userActor(seller.id)));
-  return { visible, updatedAt: visible ? (page?.updated_at ?? null) : null };
+  return {
+    visible,
+    updatedAt: visible ? (page.updated_at ?? null) : null,
+    customHtml: visible ? page.custom_html : null,
+  };
 }
 
 // Headers the filters wrote that a redirect has to carry.
@@ -132,6 +152,8 @@ async function edit(input: MutationInput): Promise<ActionResult> {
 
 // GET /:username/landing/version and /landing/version
 async function landingVersion(input: MutationInput): Promise<ActionResult> {
+  // On a seller's host the same path is /:slug/landing/version of a slugged page.
+  if (input.routeParams.username !== undefined && isSellerHost(input)) return userPageVersion(input);
   if (requestFormat(input.request) === "other")
     throw new HandBackToRails("a format whose content type is not modelled");
   const user = await profileUser(input).catch((error: unknown) => {
@@ -148,15 +170,87 @@ async function landingVersion(input: MutationInput): Promise<ActionResult> {
   });
 }
 
-// GET /:username/landing/embed and /:username/landing/products (and the host-relative twins): the 404 for a seller without live custom HTML.
-function landingGate(noindex: boolean) {
-  return async (input: MutationInput): Promise<ActionResult> => {
-    requireHtml(input);
-    const user = await profileUser(input);
-    if (noindex) await setNoindexForUnprovenStorefront(input.chain, user);
-    if ((await customLandingPageVisible(user)).visible) throw new HandBackToRails("a seller whose custom HTML is live");
-    return { ...headNotFound(input), headers: noindexHeaders(input.chain) };
+// The 404 of a seller whose custom HTML is not live, shared by the embed and the products slice.
+function landingNotFound(input: MutationInput): ActionResult {
+  return { ...headNotFound(input), headers: noindexHeaders(input.chain) };
+}
+
+// GET /:username/landing/embed and /landing/embed
+async function landingEmbed(input: MutationInput): Promise<ActionResult> {
+  if (input.routeParams.username !== undefined && isSellerHost(input)) return userPageEmbed(input);
+  requireHtml(input);
+  const user = await profileUser(input);
+  await setNoindexForUnprovenStorefront(input.chain, user);
+  const { visible, customHtml } = await customLandingPageVisible(user);
+  if (!visible) return landingNotFound(input);
+
+  // `params[:preview].present?`: only text is modelled.
+  const preview = input.params.preview;
+  if (preview !== undefined && typeof preview !== "string")
+    throw new HandBackToRails("a preview parameter that is not text");
+  const owner = input.context.currentSeller !== null && input.context.currentSeller.id === user.id;
+
+  // Pages::ProductPrices.build is Rails' (visitor GeoIP and currency)
+  if (referencedInPrices(customHtml)) throw new HandBackToRails("a page that references product prices");
+  const interpolated = interpolateProfile(customHtml!, {
+    profile: { name_or_username: nameOrUsername(Users.load(user)), bio: user.bio },
+    prices: {},
+  });
+  const now = input.chain.now;
+  const facts = await loadProfileDataFacts(
+    { id: user.id, username: user.username, external_id: user.external_id },
+    now,
+  );
+  const dataJson = profileDataJson(facts);
+
+  const config = domainConfig(process.env);
+  // profile_store_hostnames: the request host only when it is one of the seller's own
+  const storeHostnames = await customHtmlStoreHostnames(user, now);
+  const hostnames = [
+    ...new Set([
+      ...(config.validRequestHosts.includes(input.request.host) ? [] : [input.request.host]),
+      ...storeHostnames,
+    ]),
+  ];
+  const document = profileCustomHtmlDocument(interpolated, {
+    dataJson,
+    pricesJson: null,
+    liveFields: isPresent(preview) && owner,
+    navigationBridge: customHtmlNavigationBridgeScript(hostnames, config.validRequestHosts),
+    followBridge: FOLLOW_BRIDGE_SCRIPT,
+    productsBridge: PRODUCTS_BRIDGE_SCRIPT,
+    tailwindHead: pagesTailwindHead(`${config.protocol}://${config.assetDomain}`),
+  });
+  await enqueueRoutabilityRefresh(facts.routabilityRefresh);
+  return {
+    status: 200,
+    body: document,
+    contentType: "text/html; charset=utf-8",
+    paramsRead: true,
+    optOutOfCsp: true,
+    headers: {
+      "Content-Security-Policy": customHtmlCsp(),
+      "X-Frame-Options": "SAMEORIGIN",
+      "Referrer-Policy": "no-referrer",
+      "Cache-Control": "private, no-store",
+    },
   };
+}
+
+// GET /:username/landing/products and /landing/products: the 404 for a seller without live custom HTML, else a catalogue slice.
+async function landingProducts(input: MutationInput): Promise<ActionResult> {
+  if (input.routeParams.username !== undefined && isSellerHost(input))
+    throw new HandBackToRails("a one-segment path under a seller's host that is not a page route");
+  requireHtml(input);
+  const user = await profileUser(input);
+  const { visible, customHtml } = await customLandingPageVisible(user);
+  if (!visible) return landingNotFound(input);
+  return customHtmlProductsSlice(
+    { id: user.id, username: user.username, external_id: user.external_id },
+    customHtml,
+    input.params,
+    input.chain.now,
+  );
 }
 
 // POST /users/deactivate
@@ -235,10 +329,10 @@ registerMutations(
   { method: "GET", pattern: "/edit", skipForgeryProtection: true, run: edit },
   { method: "GET", pattern: "/:username/landing/version", skipForgeryProtection: true, run: landingVersion },
   { method: "GET", pattern: "/landing/version", skipForgeryProtection: true, run: landingVersion },
-  { method: "GET", pattern: "/:username/landing/embed", skipForgeryProtection: true, run: landingGate(true) },
-  { method: "GET", pattern: "/landing/embed", skipForgeryProtection: true, run: landingGate(true) },
-  { method: "GET", pattern: "/:username/landing/products", skipForgeryProtection: true, run: landingGate(false) },
-  { method: "GET", pattern: "/landing/products", skipForgeryProtection: true, run: landingGate(false) },
+  { method: "GET", pattern: "/:username/landing/embed", skipForgeryProtection: true, run: landingEmbed },
+  { method: "GET", pattern: "/landing/embed", skipForgeryProtection: true, run: landingEmbed },
+  { method: "GET", pattern: "/:username/landing/products", skipForgeryProtection: true, run: landingProducts },
+  { method: "GET", pattern: "/landing/products", skipForgeryProtection: true, run: landingProducts },
   { method: "POST", pattern: "/users/deactivate", formats: ["json"], run: deactivate },
   { method: "POST", pattern: "/add_purchase_to_library", formats: ["any"], run: addPurchaseToLibrary },
 );

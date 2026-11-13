@@ -68,6 +68,8 @@ export type Rendered = {
   paramsRead?: boolean;
   // The `csp_nonce` the body embeds (SecureHeaders.content_security_policy_script_nonce): the Content-Security-Policy header must carry it too.
   cspNonce?: string;
+  // `SecureHeaders.opt_out_of_header(request, :csp)` made by the action itself, so a route's other answers keep the default policy.
+  optOutOfCsp?: boolean;
 };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
@@ -313,7 +315,13 @@ export function redirectLocation(request: RailsRequest, location: string): strin
   return url.replace(/[\0\r\n]/gu, "");
 }
 
-type ControllerResponse = { status: number; headers: Headers; body: string | Uint8Array; cspNonce?: string };
+type ControllerResponse = {
+  status: number;
+  headers: Headers;
+  body: string | Uint8Array;
+  cspNonce?: string;
+  optOutOfCsp?: boolean;
+};
 
 export type Chain = {
   request: RailsRequest;
@@ -646,6 +654,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
     headers,
     body: "location" in result ? "" : result.body,
     ...("cspNonce" in result && result.cspNonce !== undefined ? { cspNonce: result.cspNonce } : {}),
+    ...("optOutOfCsp" in result && result.optOutOfCsp ? { optOutOfCsp: true } : {}),
   };
 }
 
@@ -878,7 +887,12 @@ export async function processAction(
     const page = publicException(request, status);
     response = { status, headers: page.headers, body: page.body };
   }
-  applySecureHeaders(request, response.headers, options, response.cspNonce);
+  applySecureHeaders(
+    request,
+    response.headers,
+    response.optOutOfCsp ? { ...options, optOutOfCsp: true } : options,
+    response.cspNonce,
+  );
   applyCorsVary(response.headers);
   // Rack::Head
   const body = request.method === "HEAD" || response.body === "" ? null : response.body;

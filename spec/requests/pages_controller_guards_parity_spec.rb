@@ -298,12 +298,49 @@ describe "PagesController guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the catalogue of the profile to Rails", parity: true do
+    it "answers a bad request to the profile's catalogue without a window", parity: true do
       log_in(seller)
 
       get "/pages/profile/products"
 
       expect(response).to have_http_status(:bad_request)
+    end
+
+    it "answers a slice of the profile's catalogue", parity: true do
+      create(:product, user: seller, name: "Guide")
+      profile_takeover
+      log_in(seller)
+
+      get "/pages/profile/products", params: { offset: 0, limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["products"].map { |product| product["name"] }).to eq(["Guide"])
+    end
+
+    it "answers a slice of the profile's catalogue before the takeover is saved", parity: true do
+      log_in(seller)
+
+      get "/pages/profile/products", params: { offset: 0, limit: 10 }
+
+      expect(response.parsed_body).to include("success" => true, "products_total" => 0)
+    end
+
+    it "answers a slice to a team member who may see pages", parity: true do
+      create(:product, user: seller, name: "Guide")
+      as_team_member(:admin)
+
+      get "/pages/profile/products", params: { offset: 0, limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands the slice of a profile that references prices to Rails", parity: true do
+      create(:user_page, pageable: seller, slug: nil, title: nil, content: nil, custom_html: "<span data-gumroad-product=\"abc\" data-gumroad-field=\"price\">$1</span>")
+      log_in(seller)
+
+      get "/pages/profile/products", params: { offset: 0, limit: 10 }
+
+      expect(response).to have_http_status(:ok)
     end
   end
 end

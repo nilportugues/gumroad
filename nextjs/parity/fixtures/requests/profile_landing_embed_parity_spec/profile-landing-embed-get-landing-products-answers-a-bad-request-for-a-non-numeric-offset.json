@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/users_controller_parity_spec.rb",
-  "example": "UsersController GET landing/embed and landing/products hands the products slice of live custom HTML to Rails",
+  "spec": "spec/requests/profile_landing_embed_parity_spec.rb",
+  "example": "Profile landing embed GET landing/products answers a bad request for a non-numeric offset",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-13",
   "exchanges": [
     {
       "seed": {
@@ -62,9 +62,9 @@
                 "id": 1,
                 "pageable_type": "User",
                 "pageable_id": 1,
-                "custom_html": "<section><h1>Landing</h1></section>",
+                "custom_html": "<section><h1 data-gumroad-field=\"name\">x</h1>\n<p data-gumroad-field=\"bio\">y</p></section>",
                 "created_at": "<now>",
-                "updated_at": "<now-14807h>",
+                "updated_at": "<now>",
                 "slug": null,
                 "title": null,
                 "content": null,
@@ -176,19 +176,19 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$COnQlP1NBZrMa1w2p3EsW.iSmfXykiH64.p7UbhF/dhfMR6cd1zUG",
+                "encrypted_password": "$2a$04$wHYq14Mp03241xluE8QSV.vmiyr8qWvmOO4WnRyTgjvWnQW.mrGBK",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "233.131.119.175",
-                "last_sign_in_ip": "91.153.189.9",
+                "current_sign_in_ip": "182.36.210.46",
+                "last_sign_in_ip": "204.9.2.37",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Parity Seller",
-                "payment_address": "edgar_20@gumroad.com",
+                "name": "Embed Seller",
+                "payment_address": "edgar_9@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -199,7 +199,7 @@
                 "deleted_at": null,
                 "payment_notification": 1,
                 "currency_type": "usd",
-                "bio": null,
+                "bio": "I make <b>things</b> & more",
                 "username": "seller",
                 "credit_card_id": null,
                 "profile_picture_url": null,
@@ -213,8 +213,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "4262476834496",
-                "account_created_ip": "125.232.232.223",
+                "external_id": "5613717331411",
+                "account_created_ip": "225.17.196.245",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -232,7 +232,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "WA4KRV7YLKENE5VRPNIT56ONC3PXN3GO",
+                "otp_secret_key": "HNTRCV5OU5JVYC2RYS6JODFSBAZVE5WP",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -296,18 +296,18 @@
       "request": {
         "source": "request",
         "method": "GET",
-        "path": "/seller/landing/products",
-        "query": "offset=0&limit=10",
+        "path": "/landing/products",
+        "query": "offset=abc&limit=10",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
-          "host": "app.test.gumroad.com:31337"
+          "host": "seller.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1"
       },
       "response": {
-        "status": 200,
+        "status": 400,
         "headers": {
-          "cache-control": "private, no-store",
+          "cache-control": "no-cache",
           "content-type": "application/json; charset=utf-8",
           "vary": "Origin",
           "x-content-type-options": "nosniff",
@@ -320,13 +320,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "JWtjubYp4mei6_vQBc_TDQ1ds_SBv9n0SQnTNI3ldXyNeTUhaXUSNsP-jzrZPDUURDz0c7Izg_mRVCBNUU_OTQ",
+            "value": "clGYuaPm7hX3ah-f-FRl5uUyynwaV_ijb3FfK3tKliQVWmisNqG5W2kiR0unmnc7D8zqFe916TYO7sxbD5H7fQ",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "wfasMX9lTxWrhdh5O1+W+9oXuSO9WPwgQl+C7T+gnKHh9gJ6uDKzcqR6DhvJR6+kJP0CNgsax/TdHLs587hrdWsOYhHwuh9VdGvmI6wcoA5BcBx9cwEKushYv8Xua4VnSptsxMqI7r+kZTng+4E6zG9tBv9NboQcK7llYKp0PKQ89Hc3nGeSFEh5nfHDQJVvZAX2bPnEw70DmSCxh6DI+0hMPwVu3M13ZIAtOsp7RFiYogvT3+1GUECQmYLtVm8mHzTuIBvuBA68hz75XotDLStTyaV2Zjcv66uYU3auI56/AIeuk5zI6DVg7XqZYweJb7Yq1C7hM52jGawtzzT8xbk55g20D8bifC3X0JFVoEAEa+TeUznUB/gYSm24JI2fciRU--6WxNPz7CXkIa3cbN--EjI76x0Qqw4XVGFRRGyZNw==",
+            "value": "qE1sG2gp/1QUwNu8ITF/BD76YNkslQDVIzGVvgZoL603jG+xC3MqV2D9+MwwKC9b+YGxQQGQyNCifX4rEMsMGQLuVedVTdR888a+ydwTLqAFt200K7EUgdS4HPrlrsQ850Lw4UHIdV6+XRpePMWUkE+LfO6c6z6EN291TjqgXdZeBYGSb1O1oKR4bPWs3Yvm6tN7dizctczoKh/nTddAPoCIxz7EP2LM3Dv96C2b6/gcx1Th2FNz0rsn6Rn/ojDP5SbRVc7sMWUOYBL2NyR5ZBssgSWogssZRCExC9xs/Zlbbu9RLoLgL7kyvXW4YiZSfqZgTH4L9Jyv9WImCy6FLagN67388hp8th4Fb9kKsbsv//2q/4qkDqjVf7VoiN3jz6t8--C7iwb4Oc5gwkXv9K--AuRUDhnOC9EOzI8qkUCm/w==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -343,12 +343,7 @@
           }
         },
         "json": {
-          "success": true,
-          "offset": 0,
-          "limit": 10,
-          "products": [],
-          "products_total": 0,
-          "prices": {}
+          "success": false
         }
       },
       "db": {},

@@ -11,7 +11,9 @@ import { profileDataJson, type ProfileDataFacts } from "./pages-profile-data.ts"
 type Case = {
   name: string;
   tabs: string[] | null;
-  products: number;
+  descriptions: (string | null)[];
+  listed: { name: string; url: string; price: string; native_type: string; description: string | null }[] | null;
+  products_total: number | null;
   deleted_products: number;
   draft_products: number;
   archived_products: number;
@@ -21,13 +23,18 @@ type Case = {
   hands_back: boolean;
   json: string | null;
 };
+const HANDED_BACK_PRODUCT = { url: "http://goldenseller.test/l/x", price: "$1", native_type: "digital" };
 const golden = JSON.parse(
   readFileSync(path.join(import.meta.dirname, "__fixtures__/pages-profile-data.golden.json"), "utf8"),
 ) as { cases: Case[] };
 
-// What loadProfileDataFacts reads for the seller the case set up: every product the seller has not deleted, every published post.
+// What loadProfileDataFacts reads for the seller the case set up: the products Ruby lists, every published post.
 const factsOf = (c: Case): ProfileDataFacts => ({
-  undeletedProducts: c.products + c.draft_products + c.archived_products,
+  storeHost: null,
+  routabilityRefresh: null,
+  products:
+    c.listed ?? c.descriptions.map((description, i) => ({ ...HANDED_BACK_PRODUCT, name: `Product ${i}`, description })),
+  productsTotal: c.products_total ?? c.descriptions.length,
   publishedPosts: c.posts,
   reputationSummaryEnabled: c.reputation_summary_enabled,
   sellerProfileJsonData: c.tabs === null ? null : { tabs: c.tabs.map((name) => ({ name, sections: [] })) },
@@ -43,13 +50,16 @@ describe("Pages::ProfileData against Ruby (nextjs/scripts/golden/pages-profile-d
   });
 
   it("covers every case the generator records", () => {
-    expect(golden.cases.length).toBe(14);
+    expect(golden.cases.length).toBe(32);
   });
 });
 
 describe("what profileDataJson reads from the profile", () => {
   const facts = (sellerProfileJsonData: unknown): ProfileDataFacts => ({
-    undeletedProducts: 0,
+    storeHost: null,
+    routabilityRefresh: null,
+    products: [],
+    productsTotal: 0,
     publishedPosts: 0,
     reputationSummaryEnabled: false,
     sellerProfileJsonData,
@@ -71,6 +81,37 @@ describe("what profileDataJson reads from the profile", () => {
     expect(profileDataJson(facts({ tabs: [{ sections: [] }, { name: "Kept" }] }))).toContain(
       '"pages":[{"name":"Kept"}]',
     );
+  });
+});
+
+describe("the products the payload lists", () => {
+  const facts = (description: string | null): ProfileDataFacts => ({
+    storeHost: null,
+    routabilityRefresh: null,
+    products: [{ name: "P", url: "http://s.example.com/l/p", price: "$5", native_type: "digital", description }],
+    productsTotal: 1,
+    publishedPosts: 0,
+    reputationSummaryEnabled: false,
+    sellerProfileJsonData: null,
+  });
+
+  it("lists the stored fields with no thumbnail or cover", () => {
+    expect(JSON.parse(profileDataJson(facts("d"))).products).toEqual([
+      {
+        name: "P",
+        url: "http://s.example.com/l/p",
+        price: "$5",
+        native_type: "digital",
+        thumbnail_url: null,
+        cover_url: null,
+        description: "d",
+      },
+    ]);
+  });
+
+  it("escapes markup in a product name like the rest of the payload", () => {
+    const json = profileDataJson({ ...facts("d"), products: [{ ...facts("d").products[0]!, name: "</script>&" }] });
+    expect(json).toContain("\\u003c/script\\u003e\\u0026");
   });
 });
 
