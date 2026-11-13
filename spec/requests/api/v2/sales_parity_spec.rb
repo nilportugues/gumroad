@@ -169,6 +169,187 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
     end
   end
 
+  describe "GET /sales/:id" do
+    let(:priced) { create(:product, user: seller, name: "Priced", price_cents: 1000) }
+    let(:physical) { create(:physical_product, user: seller, skus_enabled: true) }
+
+    def show(purchase, scopes: "view_sales")
+      api_call(:get, "/sales/#{purchase.external_id}", token: api_token(seller, scopes:))
+    end
+
+    def sold(link, **attributes) = purchase_row(link:, seller:, email: "buyer@example.com", purchase_state: "successful", **attributes)
+
+    it "prints the offer code of a percentage discount", parity: true do
+      code = create(:percentage_offer_code, user: seller, products: [priced], code: "quarter", amount_percentage: 25)
+
+      show(sold(priced, offer_code: code))
+
+      expect(response.parsed_body["sale"]["offer_code"]).to eq("code" => "quarter", "displayed_amount_off" => "25%", "name" => "quarter")
+    end
+
+    it "prints the offer code of a discount in dollars and cents", parity: true do
+      code = create(:offer_code, user: seller, products: [priced], code: "fiver", amount_cents: 550)
+
+      show(sold(priced, offer_code: code))
+
+      expect(response.parsed_body["sale"]["offer_code"]["displayed_amount_off"]).to eq("$5.50")
+    end
+
+    it "prints the offer code of a discount in whole dollars", parity: true do
+      code = create(:offer_code, user: seller, products: [priced], code: "two", amount_cents: 200)
+
+      show(sold(priced, offer_code: code))
+
+      expect(response.parsed_body["sale"]["offer_code"]["displayed_amount_off"]).to eq("$2")
+    end
+
+    it "prints the affiliate and the credit it earned", parity: true do
+      affiliate = create(:direct_affiliate, seller:, affiliate_user: create(:user, email: "affiliate@example.com"), products: [product])
+
+      referred = sold(product, affiliate:)
+      referred.update_column(:affiliate_credit_cents, 150)
+
+      show(referred)
+
+      expect(response.parsed_body["sale"]["affiliate"]).to eq("email" => "affiliate@example.com", "amount" => "$1.50")
+    end
+
+    it "prints the affiliate's unconfirmed email and a credit in whole dollars", parity: true do
+      affiliate_user = create(:user, email: "affiliate@example.com")
+      affiliate_user.update_column(:unconfirmed_email, "new-affiliate@example.com")
+      affiliate = create(:direct_affiliate, seller:, affiliate_user:, products: [product])
+
+      referred = sold(product, affiliate:)
+      referred.update_column(:affiliate_credit_cents, 200)
+
+      show(referred)
+
+      expect(response.parsed_body["sale"]["affiliate"]).to eq("email" => "new-affiliate@example.com", "amount" => "$2")
+    end
+
+    it "hands back a sale with a collaborator and a direct affiliate to Rails", parity: true do
+      collaborator = create(:collaborator, seller:, affiliate_user: create(:user), products: [product])
+      direct = create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [product])
+
+      referred = sold(product, affiliate: collaborator)
+      referred.update_columns(affiliate_credit_cents: 100, json_data: { "direct_affiliate_id" => direct.id })
+
+      show(referred)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "prints a sale of a SKU", parity: true do
+      sku = create(:sku, link: physical, name: "Large", price_difference_cents: 250)
+      purchase = sold(physical)
+      purchase.variant_attributes << sku
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]).to include("variants" => { "Version" => "Large" }, "sku_external_id" => sku.external_id, "variants_price_cents" => 250)
+    end
+
+    it "prints the custom id of a SKU", parity: true do
+      sku = create(:sku, link: physical, name: "Medium", custom_sku: "M-100")
+      purchase = sold(physical)
+      purchase.variant_attributes << sku
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]["sku_id"]).to eq("M-100")
+    end
+
+    it "prints a SKU under the title of the product's only category", parity: true do
+      create(:variant_category, link: physical, title: "Size")
+      sku = create(:sku, link: physical, name: "Small")
+      purchase = sold(physical)
+      purchase.variant_attributes << sku
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]["variants"]).to eq("Size" => "Small")
+    end
+
+    it "prints a sale with a variant from each of two categories", parity: true do
+      size = create(:variant, variant_category: create(:variant_category, link: product, title: "Size"), name: "Large", price_difference_cents: 100)
+      color = create(:variant, variant_category: create(:variant_category, link: product, title: "Color"), name: "Red", price_difference_cents: 50)
+      purchase = sold(product, quantity: 2)
+      purchase.variant_attributes << color
+      purchase.variant_attributes << size
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]).to include("variants" => { "Color" => "Red", "Size" => "Large" }, "variants_and_quantity" => "(Red, Large, Qty: 2)", "variants_price_cents" => 150)
+    end
+
+    it "hands back a sale with two variants of one category", parity: true do
+      category = create(:variant_category, link: product, title: "Size")
+      purchase = sold(product)
+      purchase.variant_attributes << create(:variant, variant_category: category, name: "Small")
+      purchase.variant_attributes << create(:variant, variant_category: category, name: "Large")
+
+      show(purchase)
+    end
+
+    describe "tracking URL" do
+      let(:shipped) { sold(create(:physical_product, user: seller), country: "United States") }
+
+      def ship(**attributes) = Shipment.new(purchase: shipped, **attributes).save!(validate: false)
+
+      it "prints the stored link", parity: true do
+        ship(tracking_url: "https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=9400111899223197428490")
+
+        show(shipped)
+
+        expect(response.parsed_body["sale"]["tracking_url"]).to eq("https://tools.usps.com/go/TrackConfirmAction?qtc_tLabels1=9400111899223197428490")
+      end
+
+      it "prints a link the seller typed with spaces around it", parity: true do
+        ship(tracking_url: "  https://example.com/track/abc-123?ref=a%20b#top \n")
+
+        show(shipped)
+
+        expect(response.parsed_body["sale"]["tracking_url"]).to eq("https://example.com/track/abc-123?ref=a%20b#top")
+      end
+
+      it "builds the link from a carrier and a tracking number", parity: true do
+        ship(carrier: "UPS", tracking_number: "1Z999AA10123456784")
+
+        show(shipped)
+
+        expect(response.parsed_body["sale"]["tracking_url"]).to start_with("http://wwwapps.ups.com/")
+      end
+
+      it "prints no link for a shipment without one", parity: true do
+        ship(tracking_url: "")
+
+        show(shipped)
+
+        expect(response.parsed_body["sale"]).to include("shipped" => false, "tracking_url" => nil)
+      end
+
+      it "prints no link for a carrier the form does not know", parity: true do
+        ship(carrier: "Pigeon Post", tracking_number: "42")
+
+        show(shipped)
+
+        expect(response.parsed_body["sale"]["tracking_url"]).to be_nil
+      end
+
+      it "hands back a link that is not http or https", parity: true do
+        ship(tracking_url: "ftp://example.com/track")
+
+        show(shipped)
+      end
+
+      it "hands back a link with a space inside", parity: true do
+        ship(tracking_url: "https://example.com/track me")
+
+        show(shipped)
+      end
+    end
+  end
+
   describe "GET /sales/summary" do
     before { Purchase.__elasticsearch__.create_index!(force: true) }
 

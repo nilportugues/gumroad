@@ -358,4 +358,38 @@ describe("Purchase#json_data_for_mobile", () => {
     const keys = Object.keys(json);
     expect(keys.indexOf("purchase_email")).toBe(keys.indexOf("subscription_data") + 1);
   });
+
+  it("prints the SKU, shipment, offer code and affiliate of a sale after the variants and before the price", () => {
+    const json = mobile({
+      saleDetails: {
+        variants: { Size: { is_sku: true } },
+        sku: { id: "LRG-1", externalId: "enc5" },
+        shipment: { shipped: true, tracking_url: null, shipping_address: { city: "Town" } },
+        offerCode: { code: "half", displayed_amount_off: "50%" },
+        affiliate: { email: "a@example.com", amount: "$1.50" },
+      },
+    });
+    const keys = Object.keys(json);
+    expect(keys.slice(keys.indexOf("variants"))).toEqual([
+      "variants",
+      "sku_id",
+      "sku_external_id",
+      "shipped",
+      "tracking_url",
+      "shipping_address",
+      "offer_code",
+      "affiliate",
+      "formatted_total_price",
+      "purchase_daystamp",
+    ]);
+    expect(json).toMatchObject({ sku_id: "LRG-1", sku_external_id: "enc5", shipped: true, tracking_url: null });
+  });
+
+  it("leaves out the keys of a SKU, shipment and affiliate the sale does not have", () => {
+    const json = mobile({
+      saleDetails: { variants: null, sku: null, shipment: null, offerCode: null, affiliate: null },
+    });
+    for (const key of ["variants", "sku_id", "shipped", "tracking_url", "shipping_address", "offer_code", "affiliate"])
+      expect(json).not.toHaveProperty(key);
+  });
 });
