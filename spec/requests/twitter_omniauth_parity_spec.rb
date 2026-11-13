@@ -180,6 +180,90 @@ describe "Twitter OAuth", type: :request do
     end
   end
 
+  # Devise routes the callback to the same action for a form POST, under `protect_from_forgery`: a valid authenticity token runs the same
+  # action; without one Rails runs it with a null session.
+  describe "POST /users/auth/twitter/callback" do
+    before { attach_avatar(user) }
+
+    def post_callback(token: csrf_token, **params)
+      post "/users/auth/twitter/callback", params: { authenticity_token: token, oauth_token: "request-token-1", oauth_verifier: "verifier-1" }.merge(params)
+    end
+
+    it "links the account of a signed-in seller", parity: true do
+      log_in(user)
+      begin_flow("state=link_twitter_account")
+      stub_access_token
+      stub_credentials
+      user.update_columns(updated_at: 1.hour.ago)
+
+      # The replay holds its clock at the instant the other examples of this file were recorded at (PARITY_NOW), which the profile dates are measured from.
+      travel_to(Time.utc(2026, 5, 1, 8, 30) + 4677.hours)
+      post_callback
+
+      expect(response).to redirect_to("/settings/social_connections")
+      expect(user.reload).to have_attributes(twitter_user_id: "4242424242", twitter_oauth_token: "access-token-1")
+      expect(events("connected")).to eq([["omniauth", nil]])
+    end
+
+    it "sends a login callback to the sign-in page when Twitter refuses the request token", parity: true do
+      begin_flow
+      stub_access_token(status: 401, body: "Invalid / expired Token")
+
+      post_callback
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from Twitter because \"Invalid credentials\".")
+    end
+
+    it "sends a visitor whose session has no request token to the login page", parity: true do
+      post_callback
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from Twitter because \"Session expired\".")
+    end
+
+    it "hands a callback without an authenticity token to Rails", parity: true do
+      log_in(user)
+      begin_flow("state=link_twitter_account")
+      stub_access_token
+      stub_credentials
+
+      post "/users/auth/twitter/callback", params: { oauth_token: "request-token-1", oauth_verifier: "verifier-1" }
+
+      expect(response).to have_http_status(:found)
+    end
+
+    describe "a login or signup" do
+      def login_post_callback
+        # The seed row is written a moment before the request: a save in the same second would not show as a change.
+        User.where(twitter_user_id: "4242424242").update_all(updated_at: 1.hour.ago)
+        begin_flow
+        stub_access_token
+        stub_credentials
+        # The replay holds its clock at PARITY_NOW, which the profile dates are measured from.
+        travel_to(Time.utc(2026, 5, 1, 8, 30) + 4677.hours)
+        post_callback
+      end
+
+      it "signs a new Twitter visitor up and asks for an email address", parity: true do
+        login_post_callback
+
+        expect(response).to redirect_to("/settings")
+        expect(flash[:warning]).to eq("Please enter an email address!")
+        expect(User.find_by!(twitter_user_id: "4242424242")).to have_attributes(provider: "twitter", twitter_handle: "twitterconnector", email: nil)
+      end
+
+      it "signs in a returning Twitter user who has an email address", parity: true do
+        returning = create(:user, name: "Returning Twitter", email: "returning.twitter@example.com", twitter_user_id: "4242424242", provider: "twitter")
+
+        login_post_callback
+
+        expect(response).to redirect_to("/two-factor?next=/dashboard")
+        expect(returning.reload).to have_attributes(twitter_oauth_token: "access-token-1", twitter_handle: "twitterconnector")
+      end
+    end
+  end
+
   describe "GET /users/auth/twitter/callback" do
     before { attach_avatar(user) }
 
@@ -257,6 +341,9 @@ describe "Twitter OAuth", type: :request do
     end
 
     it "sends a seller back to the page the flow started from", parity: true do
+      # The replay holds its clock at PARITY_NOW; the whole flow runs at that instant so the return token it mints is still fresh at the callback.
+      travel_to(Time.utc(2026, 5, 1, 8, 30) + 4677.hours)
+      user.update_columns(updated_at: 1.hour.ago)
       log_in(user)
       return_token = visit_connections(social_connect_origin: "onboarding")
       begin_flow("state=link_twitter_account&social_connect_return=#{return_token}")

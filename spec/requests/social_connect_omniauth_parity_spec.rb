@@ -113,6 +113,62 @@ describe "Social connect OmniAuth phases", type: :request do
         end
       end
 
+      # Devise routes the callback to the same action for a form POST. Only a POST with a valid authenticity token is Node's; without one
+      # Rails runs the action with a null session.
+      describe "POST /users/auth/#{provider}/callback" do
+        it "ends a callback whose state is not the one that was sent in the failure action", parity: true do
+          Feature.activate_user(:"#{provider}_connect", user)
+          log_in(user)
+          begin_flow(provider)
+
+          post "/users/auth/#{provider}/callback", params: { authenticity_token: csrf_token, code: "code-1", state: "forged" }
+
+          expect(response).to redirect_to("http://#{DOMAIN}/settings/social_connections")
+          expect(flash[:alert]).to eq("Couldn't connect #{name}. Please try again.")
+          expect(Event.where(user_id: user.id, event_name: "social_connect_failed", parent_referrer: provider).pluck(:referrer)).to eq(["csrf_detected"])
+        end
+
+        it "tells a seller who denied access that the connection failed", parity: true do
+          Feature.activate_user(:"#{provider}_connect", user)
+          log_in(user)
+          state = begin_flow(provider)
+
+          post "/users/auth/#{provider}/callback", params: { authenticity_token: csrf_token, error: "access_denied", state: }
+
+          expect(response).to redirect_to("http://#{DOMAIN}/settings/social_connections")
+          expect(Event.where(user_id: user.id, event_name: "social_connect_failed", parent_referrer: provider).pluck(:referrer)).to eq(["access_denied"])
+        end
+
+        it "sends a visitor who is not signed in to the login page", parity: true do
+          begin_flow(provider)
+
+          post "/users/auth/#{provider}/callback", params: { authenticity_token: csrf_token, error: "access_denied" }
+
+          expect(response).to redirect_to("http://#{DOMAIN}/login")
+        end
+
+        it "hands a callback without an authenticity token to Rails", parity: true do
+          Feature.activate_user(:"#{provider}_connect", user)
+          log_in(user)
+          state = begin_flow(provider)
+
+          post "/users/auth/#{provider}/callback", params: { error: "access_denied", state: }
+
+          expect(response).to have_http_status(:found)
+        end
+
+        it "hands a callback sent as JSON to Rails", parity: true do
+          Feature.activate_user(:"#{provider}_connect", user)
+          log_in(user)
+          state = begin_flow(provider)
+
+          post "/users/auth/#{provider}/callback", params: { authenticity_token: csrf_token, error: "access_denied", state: }.to_json,
+                                                   headers: { "Content-Type" => "application/json" }
+
+          expect(response).to have_http_status(:found)
+        end
+      end
+
       describe "GET /users/auth/#{provider}/callback" do
         it "ends a callback whose state is not the one that was sent in the failure action", parity: true do
           Feature.activate_user(:"#{provider}_connect", user)

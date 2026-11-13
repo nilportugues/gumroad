@@ -450,6 +450,37 @@ export async function exchangeGoogleLogin(code: string, callbackUrl: string, now
   }
 }
 
+// --- Stripe Connect ---------------------------------------------------------------------------------------------------------------
+
+export type StripeConnectLogin = { ok: true; uid: unknown } | { ok: false; type: string };
+
+// omniauth-stripe-connect up to its auth hash: the token exchange (the platform secret as a Bearer header instead of client credentials,
+// the callback URL as `redirect_uri`), then `extra_info`, a call to /v1/account with the new token, which `info` reads. Only the account id
+// (`uid`) is used by the callback; a refused call on either leg ends in `fail!(:invalid_credentials)`.
+export async function exchangeStripeConnect(code: string, callbackUrl: string, now: Date): Promise<StripeConnectLogin> {
+  try {
+    const answer = await oauthRequest("https://connect.stripe.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": FORM, Authorization: `Bearer ${getConfig("STRIPE_API_KEY") ?? ""}` },
+      body: faradayQuery({ code, grant_type: "authorization_code", redirect_uri: callbackUrl }),
+    });
+    const parsed = oauthParsed(answer.contentType, answer.text);
+    if (!isHash(parsed) || Object.keys(parsed).length === 0) throw new OAuth2Error("no token answer");
+    const token = accessTokenFrom(parsed, now);
+    const account = await oauthRequest("https://api.stripe.com/v1/account", {
+      method: "GET",
+      headers: bearer(token.token),
+    });
+    if (!isHash(oauthParsed(account.contentType, account.text)))
+      throw new NotPorted("an account answer that is not a JSON object");
+    return { ok: true, uid: token.params.stripe_user_id ?? null };
+  } catch (error) {
+    if (error instanceof OAuth2Error) return { ok: false, type: "invalid_credentials" };
+    if (error instanceof StrategyFailure) return { ok: false, type: error.type };
+    return { ok: false, type: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 // --- The fetchers (HTTParty) -------------------------------------------------------------------------------------------------------
 
 // HTTParty.get(...).parsed_response when the answer is a success, nil (undefined here) otherwise. A network failure or a JSON body that

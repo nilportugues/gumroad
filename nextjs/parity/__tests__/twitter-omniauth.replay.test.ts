@@ -47,7 +47,9 @@ let clockOffset = 0;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item. The product reindexes a user save triggers ask Elasticsearch for documents the
 // replay does not hold, and Node then queues the fallback job Rails never needed.
-const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
+// GenerateSubscribePreviewJob (until_executed): Rails' factories took its lock before the request, so the recording holds no job where Node, seeded
+// without that lock, enqueues one as production does when a seller's bio is filled.
+const IGNORED_JOBS = new Set(["SendToElasticsearchWorker", "GenerateSubscribePreviewJob"]);
 // Active Storage's analysis of an attached picture: the recording runs ActiveJob on the test adapter, which the fixture does not hold, so the
 // replay checks the job on its own (the spec asserts the same payload on the Rails side).
 const ANALYZE_JOB = "ActiveStorage::AnalyzeJob";
