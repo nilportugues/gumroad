@@ -4,16 +4,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HandBackToRails } from "./application-controller.ts";
 
-const { selectRows, isFeatureEnabled, geoIpLookup, getRate, hasBrazilianStripeConnectAccount, findUserById, taxjar } =
-  vi.hoisted(() => ({
-    taxjar: vi.fn(),
-    selectRows: vi.fn(),
-    isFeatureEnabled: vi.fn(),
-    geoIpLookup: vi.fn(),
-    getRate: vi.fn(),
-    hasBrazilianStripeConnectAccount: vi.fn(),
-    findUserById: vi.fn(),
-  }));
+const {
+  selectRows,
+  isFeatureEnabled,
+  geoIpLookup,
+  getRate,
+  hasBrazilianStripeConnectAccount,
+  findUserById,
+  taxjar,
+  validateVendorTaxId,
+  validateViesVatId,
+} = vi.hoisted(() => ({
+  taxjar: vi.fn(),
+  validateVendorTaxId: vi.fn(),
+  validateViesVatId: vi.fn(),
+  selectRows: vi.fn(),
+  isFeatureEnabled: vi.fn(),
+  geoIpLookup: vi.fn(),
+  getRate: vi.fn(),
+  hasBrazilianStripeConnectAccount: vi.fn(),
+  findUserById: vi.fn(),
+}));
 
 vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
@@ -31,6 +42,8 @@ vi.mock("../tax/taxjar.ts", async (original) => ({
   ...(await original<typeof import("../tax/taxjar.ts")>()),
   calculateTaxForOrder: taxjar,
 }));
+vi.mock("../tax/vendor-tax-id.ts", () => ({ validateVendorTaxId }));
+vi.mock("../tax/vies-vat-id.ts", () => ({ validateViesVatId }));
 vi.mock("../page-props/dashboard/payout-info.ts", () => ({ hasBrazilianStripeConnectAccount }));
 vi.mock("../presenters/product-reads.ts", () => ({ findUserById }));
 vi.mock("../models/user.ts", () => ({
@@ -332,12 +345,29 @@ describe("hand-backs", () => {
     await expectHandBack({ products: [] });
   });
 
-  it("hands back a VAT id a vendor checks, a Payment Element request and a list token", async () => {
+  it("hands back a VAT id a vendor or VIES answers in a way Ruby raises on", async () => {
+    const unsupported = { kind: "unsupported", reason: "a key that is not configured" };
+    validateViesVatId.mockResolvedValue(unsupported);
+    validateVendorTaxId.mockResolvedValue(unsupported);
     await expectHandBack(cart({ vat_id: "IE6388047V" }));
     await expectHandBack(cart({ vat_id: "IE6388047V", country: "DE" }));
     await expectHandBack(cart({ vat_id: "123456789", country: "SG" }));
     await expectHandBack(cart({ vat_id: "NO123456789MVA", country: "NO" }));
     await expectHandBack(cart({ vat_id: "1234", country: "CA", state: "QC" }));
+  });
+
+  // The validators answer the recorded exchanges of customer_surcharge_parity_spec ("tax ids checked by ...").
+  it("serves a VAT id VIES and the vendors answer", async () => {
+    validateViesVatId.mockResolvedValue({ kind: "valid", valid: true });
+    validateVendorTaxId.mockResolvedValue({ kind: "valid", valid: true });
+    for (const params of [{ vat_id: "IE6388047V", country: "DE" }, { vat_id: "123456789", country: "SG" }]) {
+      expect((await call(cart(params))).body).toMatchObject({ vat_id_valid: true });
+    }
+    expect(validateViesVatId).toHaveBeenCalledWith("IE6388047V");
+    expect(validateVendorTaxId).toHaveBeenCalledWith("GstValidationService", "123456789", "SG");
+  });
+
+  it("hands back a non-text VAT id, a Payment Element request and a list token", async () => {
     await expectHandBack(cart({ vat_id: 12 }));
     await expectHandBack(cart({ payment_details_source: "payment_element" }));
     await expectHandBack(cart({ payment_element_direct_listed_currency: "eur" }));
