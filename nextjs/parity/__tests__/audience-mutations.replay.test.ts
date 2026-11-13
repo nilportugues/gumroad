@@ -61,12 +61,14 @@ const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
+// A lane sets PARITY_ES_INDEX_SUFFIX so its replay does not recreate the index another lane is reading.
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "";
 // The sending limit counts the seller's audience in Elasticsearch: an empty audience_members index (no seller in these fixtures has one).
 async function resetAudienceIndex() {
   const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
-  await es.indices.delete({ index: "audience_members" }, { ignore: [404] });
+  await es.indices.delete({ index: `audience_members${ES_INDEX_SUFFIX}` }, { ignore: [404] });
   await es.indices.create({
-    index: "audience_members",
+    index: `audience_members${ES_INDEX_SUFFIX}`,
     body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0 } } },
   });
   await es.close();
@@ -217,6 +219,7 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     const railsPort = (rails.address() as { port: number }).port;
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
     server = await startNextServer({
+      ...(ES_INDEX_SUFFIX ? { ES_INDEX_SUFFIX } : {}),
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",

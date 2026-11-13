@@ -115,8 +115,9 @@ export function renderApplicationPage(
   action: ActionContext,
   page: PageMeta | null,
   view: ErbView,
+  { footer, analyticsFirst = true }: { footer?: string; analyticsFirst?: boolean } = {},
 ): Promise<Rendered> {
-  return renderErbPage(request, action, "application", page, view, {});
+  return renderErbPage(request, action, "application", page, view, {}, footer, analyticsFirst);
 }
 
 async function renderErbPage(
@@ -126,6 +127,8 @@ async function renderErbPage(
   page: PageMeta | ((origin: string) => PageMeta) | null,
   view: ErbView,
   response: { paramsRead?: boolean; headers?: Record<string, string> },
+  footer?: string,
+  analyticsFirst = layout === "application",
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
   // `signed_in?` is the Warden session, which an impersonating admin has as themselves.
@@ -139,7 +142,7 @@ async function renderErbPage(
     config,
     csrfToken: formAuthenticityToken(state.csrfToken),
     ports: PORTS,
-    analyticsFirst: layout === "application",
+    analyticsFirst,
   });
   if (page !== null) pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
   const nonce = generateCspNonce();
@@ -163,7 +166,7 @@ async function renderErbPage(
     const content = view(ctx, state.csrfToken);
     if (layout === "home") renderedBody = renderHomeLayout(ctx, content, origin);
     else {
-      renderedBody = renderApplicationLayout(ctx, content, origin);
+      renderedBody = renderApplicationLayout(ctx, content, origin, footer);
       link = `${link},${viteTypescriptTag("base").linkHeader}`;
     }
   } catch (error) {

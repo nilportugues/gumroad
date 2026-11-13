@@ -2,7 +2,8 @@
 // host: the post's seller (and an admin or marketing team member) and the author of a comment.
 //
 // Left to Rails, before anything is written: a signed-out visitor, a purchase_id param or a visitor who bought the post's product
-// (purchase-based access) and a reader who follows the seller, bought from them or is their affiliate (User#visible_posts_for).
+// (purchase-based access), a reader who bought from the seller, an unconfirmed or removed follower, an affiliate that is not a live
+// direct affiliate, and a post with audience filters that a follower or affiliate would be weighed by (User#visible_posts_for).
 import { Prisma, type Comment, type Installment, type User } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
@@ -202,7 +203,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
     permitted = allowed(() => commentContextPolicy.create(sellerContext, record));
   } catch (error) {
     if (!(error instanceof NotPortedError)) throw error;
-    const postVisible = await visibleToVisitor(sellerContext, post);
+    const postVisible = await visibleToVisitor(sellerContext, post, { relations: true });
     permitted = allowed(() => commentContextPolicy.create(sellerContext, { ...record, postVisible }));
   }
   if (!permitted) return refused(sellerContext);

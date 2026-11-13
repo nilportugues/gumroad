@@ -641,11 +641,29 @@ export function renderHomeLayout(ctx: LayoutContext, view: string, requestOrigin
 `;
 }
 
+// `<% if content_for? :footer %>` block of layouts/application.html.erb around the captured content.
+const applicationFooter = (content: string) => `          <footer>
+            <div style="text-align: center; padding: 1rem 0;">
+              ${content}
+            </div>
+          </footer>
+`;
+
+// ApplicationHelper#default_footer_content
+export const DEFAULT_FOOTER_CONTENT =
+  'Powered by <span class="inline-block aspect-115/22 h-[1lh] shrink-0 bg-current mask-(--logo) mask-contain mask-center mask-no-repeat">Gumroad</span>';
+
 // `<%= yield :script %>` with nothing to yield: its indentation and the newline.
 const YIELD_SCRIPT_LINE = "    \n";
 
 // layouts/application.html.erb around a page that keeps the base entrypoint (`@hide_layouts` unset). `view` is the template's output.
-export function renderApplicationLayout(ctx: LayoutContext, view: string, requestOrigin: string): string {
+// `footer` is the `content_for :footer` block, if the view set one.
+export function renderApplicationLayout(
+  ctx: LayoutContext,
+  view: string,
+  requestOrigin: string,
+  footer?: string,
+): string {
   if (ctx.hideLayouts) throw new NotPortedError("a page that hides the base entrypoint");
   const bodyClass = [
     "group/body",
@@ -663,7 +681,7 @@ export function renderApplicationLayout(ctx: LayoutContext, view: string, reques
         <div class="flex-1 flex flex-col">
           ${view}
         </div>
-      </main>
+${footer === undefined ? "" : applicationFooter(footer)}      </main>
     </div>
       ${viteTypescriptTag("base").tags}
 ${YIELD_SCRIPT_LINE}  </body>

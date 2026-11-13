@@ -1,16 +1,26 @@
-// ImportedCustomersController#index, #destroy and the 404 of #unsubscribe (app/controllers/imported_customers_controller.rb).
-// `unsubscribe` toggles the customer and renders an ERB view, so a customer that exists goes to Rails whole, before the write.
+// ImportedCustomersController#index, #destroy and #unsubscribe (app/controllers/imported_customers_controller.rb).
+// `unsubscribe` toggles the customer and renders an ERB view in the application layout. A signed-in visitor goes to Rails whole,
+// before the write: the layout then reads the visitor's analytics settings, which no recording pins.
 import { Prisma, type ImportedCustomer } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { DEFAULT_FOOTER_CONTENT } from "../erb/home-layout.ts";
 import { findImportedCustomerOf, importedCustomerJson, ImportedCustomers } from "../models/imported-customer.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
 import { authorize } from "../policies/authorize.ts";
 import { importedCustomerPolicy } from "../policies/imported-customer.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
-import { type ActionContext, type ActionResult, HandBackToRails, processAction, RoutingError } from "./application-controller.ts";
+
+import {
+  type ActionContext,
+  type ActionResult,
+  HandBackToRails,
+  processAction,
+  RoutingError,
+} from "./application-controller.ts";
+import { renderApplicationPage } from "./erb-pages.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { assertFlatQuery, requestFormat } from "./rails-params.ts";
 import { queryParam } from "./rails-request.ts";
@@ -74,6 +84,16 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   return json({ success: true, message: "Deleted!", imported_customer: await importedCustomerJson(customer.attributes, null) });
 }
 
+// app/views/imported_customers/unsubscribe.html.erb: the markup, and its `content_for :footer` block.
+const UNSUBSCRIBE_VIEW = `<main class="grid divide-y divide-border bg-background border border-border rounded mx-auto my-4 h-min max-w-md w-[calc(100%-2rem)]">
+  <header class="flex flex-col gap-4 p-4 text-center">
+    <h2>You will no longer receive emails.</h2>
+    <p>You can undo this action at any time by visiting this URL again.</p>
+  </header>
+</main>
+`;
+const UNSUBSCRIBE_FOOTER = `  ${DEFAULT_FOOTER_CONTENT}\n`;
+
 async function unsubscribe(input: MutationInput): Promise<ActionResult> {
   requireHtml(input);
   const id = decrypt(input.routeParams.id!);
@@ -81,10 +101,22 @@ async function unsubscribe(input: MutationInput): Promise<ActionResult> {
     id === null
       ? []
       : await selectRows(
-          Prisma.sql`SELECT ${column("imported_customers", "id")} FROM ${table("imported_customers")} WHERE ${column("imported_customers", "id")} = ${id} LIMIT 1`,
+          Prisma.sql`SELECT ${Prisma.raw("`imported_customers`.*")} FROM ${table("imported_customers")} WHERE ${column("imported_customers", "id")} = ${id} LIMIT 1`,
         );
   if (row === undefined) throw new RoutingError("Not Found");
-  throw new HandBackToRails("an imported customer to unsubscribe, which renders an ERB view");
+  if (railsLoggedInUser(input.context) !== null)
+    throw new HandBackToRails("a signed-in visitor of the unsubscribe page");
+  // The page needs nothing from the customer, so it is built before the write: a view the port cannot render hands back untouched.
+  const page = await renderApplicationPage(input.request, input, null, () => UNSUBSCRIBE_VIEW, {
+    footer: UNSUBSCRIBE_FOOTER,
+    // ApplicationController's own before_actions, in their declared order: the analytics tags come last.
+    analyticsFirst: false,
+  });
+  // `deleted_at = deleted_at ? nil : Time.current; save!`
+  const customer = ImportedCustomers.load(castRow<ImportedCustomer>("ImportedCustomer", row));
+  customer.set("deleted_at", customer.get("deleted_at") === null ? new Date() : null);
+  await ImportedCustomers.saveBang(customer);
+  return page;
 }
 
 registerMutations(
