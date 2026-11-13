@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Starts the Node port (next dev, port 3101) in front of the lane's Rails app for the replay in e2e/README.md.
+# Needs bin/e2e-up first. Reads SECRET_KEY_BASE from the lane container at run time; nothing secret is stored.
+#   E2E_LANE=1 bin/e2e-node
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-common.sh"
+
+e2e_container_running || e2e_die "$E2E_CONTAINER is not running; run bin/e2e-up first"
+ip() { docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$1"; }
+e2e_write_env
+secret="$(e2e_exec 'bundle exec rails runner "print Rails.application.secret_key_base" 2>/dev/null | tail -n1')"
+redis="$(ip "$E2E_REDIS_CONTAINER"):6379"
+flags="$(cd "$E2E_ROOT/nextjs" && node -e 'const r=require("./routes.json");console.log([...new Set(Object.values(r).map(v=>v.flag).filter(Boolean))].join(","))')"
+
+cd "$E2E_ROOT/nextjs"
+export SECRET_KEY_BASE="$secret" NEXTJS_ROUTE_FLAGS="$flags" NEXTJS_ASSUME_SIGNED_OUT=1 RAILS_ENV=development
+export DATABASE_URL="mysql://root:password@$(ip "$E2E_DB_CONTAINER"):3306/gumroad_development_lane$E2E_LANE"
+export REDIS_HOST="$redis/$E2E_REDIS_BASE" RPUSH_REDIS_HOST="$redis/$E2E_REDIS_BASE"
+export SIDEKIQ_REDIS_HOST="$redis/$E2E_REDIS_SIDEKIQ" RACK_ATTACK_REDIS_HOST="$redis/$E2E_REDIS_SIDEKIQ"
+export RAILS_ORIGIN="http://$(ip "$E2E_CONTAINER"):$E2E_PORT" DEV_LANE_PORT="$E2E_PORT"
+export ELASTICSEARCH_HOST="http://$(ip "$E2E_ES_CONTAINER"):9200" ES_INDEX_SUFFIX="_lane$E2E_LANE"
+export DYNAMODB_ENDPOINT="http://$(ip "$E2E_DYNAMO_CONTAINER"):8000" DYNAMODB_TABLE_PREFIX="lane${E2E_LANE}_"
+export AWS_ACCESS_KEY_ID=x AWS_SECRET_ACCESS_KEY=x OBFUSCATE_IDS_CIPHER_KEY=test OBFUSCATE_IDS_NUMERIC_CIPHER_KEY=1234
+export TURBOPACK_ROOT="$(cd .. && pwd)"
+exec node_modules/.bin/next dev --port 3101
