@@ -88,7 +88,7 @@ describe "Purchase invoice form", type: :request do
     expect(response).to be_successful
   end
 
-  it "hands the form of a purchase with tax to Rails", parity: true do
+  it "renders the invoice form of a purchase with tax cents but no taxable flag without a tax line", parity: true do
     purchase.update_columns(tax_cents: 50)
 
     get "/purchases/#{purchase.external_id}/invoice/new", params: { email: }
@@ -96,7 +96,7 @@ describe "Purchase invoice form", type: :request do
     expect(response).to be_successful
   end
 
-  it "hands the form of a refunded purchase to Rails", parity: true do
+  it "renders the invoice form of a refunded purchase with its refund status", parity: true do
     purchase.update_columns(stripe_refunded: true)
 
     get "/purchases/#{purchase.external_id}/invoice/new", params: { email: }
@@ -104,7 +104,7 @@ describe "Purchase invoice form", type: :request do
     expect(response).to be_successful
   end
 
-  it "hands the form of a buyer in the EU to Rails", parity: true do
+  it "renders the invoice form of a buyer in the EU with Gumroad's VAT registration number", parity: true do
     purchase.update_columns(country: "Germany")
 
     get "/purchases/#{purchase.external_id}/invoice/new", params: { email: }
