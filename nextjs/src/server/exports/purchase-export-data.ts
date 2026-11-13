@@ -323,7 +323,8 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         throw new HandBackToRails("a gift whose receiver's purchase is not a sale of the same product");
       if (
         giftee.subscription_id !== null &&
-        (giftee.subscription_id !== purchase.subscription_id || !PurchaseFlags.isSet(giftee.flags, "is_gift_receiver_purchase"))
+        (giftee.subscription_id !== purchase.subscription_id ||
+          !PurchaseFlags.isSet(giftee.flags, "is_gift_receiver_purchase"))
       )
         throw new HandBackToRails("a gift whose receiver is on a subscription other than the sender's");
       gifteeSubscription.set(String(purchase.id), giftee.subscription_id);
@@ -538,7 +539,10 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     if (!LinkFlags.isSet(link.flags, "is_licensed")) continue;
     // A gift's key is read from the receiver's purchase, so its variants count with the sale's own.
     const gifteeId = gifteeOf.get(String(purchase.id));
-    if (variantByPurchase.has(String(purchase.id)) || (gifteeId !== undefined && gifteeVariantHolders.has(String(gifteeId))))
+    if (
+      variantByPurchase.has(String(purchase.id)) ||
+      (gifteeId !== undefined && gifteeVariantHolders.has(String(gifteeId)))
+    )
       throw new HandBackToRails("a licensed product's sale with a variant");
   }
 
