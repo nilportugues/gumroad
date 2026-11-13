@@ -34,7 +34,10 @@ async function destroyReviewResponse(input: MobileInput, auth: MobileAuth | null
       Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} = ${purchase.subscription_id} AND ${PurchaseFlags.condition("is_original_subscription_purchase", true)} ORDER BY ${column("purchases", "id")} ASC LIMIT 1`,
     );
     if (original === undefined || BigInt(original.id) !== BigInt(purchase.id))
-      throw new NotPortedError("Purchase#original_product_review", "a subscription sale that is not its original purchase");
+      throw new NotPortedError(
+        "Purchase#original_product_review",
+        "a subscription sale that is not its original purchase",
+      );
   }
 
   const [review] = await selectRows<{ id: bigint }>(

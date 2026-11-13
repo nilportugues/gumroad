@@ -121,7 +121,10 @@ const withRecurrence = (formatted: string, label: string | undefined) =>
 export function formattedTotalPrice(purchase: Purchase, recurrenceLabel?: string): string {
   assertSimpleMoneyShape(purchase, recurrenceLabel);
   return withRecurrence(
-    formatJustPriceInCents(usdCentsToPurchaseCurrency(purchase, purchase.price_cents!), purchaseCurrency(purchase).code),
+    formatJustPriceInCents(
+      usdCentsToPurchaseCurrency(purchase, purchase.price_cents!),
+      purchaseCurrency(purchase).code,
+    ),
     recurrenceLabel,
   );
 }

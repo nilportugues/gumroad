@@ -165,9 +165,7 @@ describe("affiliateDetails", () => {
 
   it("hands back a direct affiliate's credit on a collaborator sale and an affiliate without a user", async () => {
     await expect(
-      affiliateDetails(
-        referred({ json_data: '{"direct_affiliate_id":7,"direct_affiliate_credit_cents":40}' }),
-      ),
+      affiliateDetails(referred({ json_data: '{"direct_affiliate_id":7,"direct_affiliate_credit_cents":40}' })),
     ).rejects.toThrow("direct affiliate");
     db.affiliate.findUnique.mockResolvedValue({ affiliate_user_id: 4 });
     db.user.findUnique.mockResolvedValue(null);

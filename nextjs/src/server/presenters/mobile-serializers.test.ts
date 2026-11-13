@@ -143,7 +143,9 @@ describe("formatted prices of a subscription purchase", () => {
   });
 
   it("still refuses a purchase with a price record of its own", () => {
-    expect(() => formattedTotalPrice(purchase({ price_id: 5n, subscription_id: 5n }), "a month")).toThrow(/not ported/u);
+    expect(() => formattedTotalPrice(purchase({ price_id: 5n, subscription_id: 5n }), "a month")).toThrow(
+      /not ported/u,
+    );
   });
 });
 
