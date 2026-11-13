@@ -296,24 +296,37 @@ async function runCompat(sequence: (typeof sequences)[string]): Promise<Snapshot
   return out;
 }
 
+// The cold import of @inertiajs/core takes seconds under load; inside the first test it ate the default
+// 5s timeout, and the aborted sequence's late requests then leaked into the next test's recording.
+const SETUP_TIMEOUT_MS = 60_000;
+const TEST_TIMEOUT_MS = 30_000;
+
 describe.skipIf(!corePath)("partial reloads against the real @inertiajs/core router", () => {
+  let core: typeof import("@inertiajs/core");
+  beforeAll(async () => {
+    core = (await import(/* @vite-ignore */ corePath!)) as typeof import("@inertiajs/core");
+  }, SETUP_TIMEOUT_MS);
+
   for (const [name, sequence] of Object.entries(sequences)) {
-    it(`sends the same requests and ends with the same props: ${name}`, async () => {
-      // jsdom's AbortSignal is not undici's; the signal is only for cancellation.
-      const nodeFetch = globalThis.fetch;
-      vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
-        nodeFetch(input, { ...init, signal: undefined }),
-      );
-      const core = (await import(/* @vite-ignore */ corePath!)) as typeof import("@inertiajs/core");
-      const real = await runReal(core, sequence);
-      const mine = await runCompat(sequence);
-      expect(mine).toEqual(real);
-      // Guards against both clients silently doing nothing.
-      expect(real.every((snapshot) => snapshot.request?.headers["x-inertia"] === "true")).toBe(true);
-      if (sequence.path === "/items") expect((real[1]!.props as { items: unknown[] }).items).toHaveLength(6);
-      if (sequence.path === "/scroll")
-        expect((real[1]!.props as { messages: unknown[] }).messages.length).toBeGreaterThan(4);
-      vi.unstubAllGlobals();
-    });
+    it(
+      `sends the same requests and ends with the same props: ${name}`,
+      async () => {
+        // jsdom's AbortSignal is not undici's; the signal is only for cancellation.
+        const nodeFetch = globalThis.fetch;
+        vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+          nodeFetch(input, { ...init, signal: undefined }),
+        );
+        const real = await runReal(core, sequence);
+        const mine = await runCompat(sequence);
+        expect(mine).toEqual(real);
+        // Guards against both clients silently doing nothing.
+        expect(real.every((snapshot) => snapshot.request?.headers["x-inertia"] === "true")).toBe(true);
+        if (sequence.path === "/items") expect((real[1]!.props as { items: unknown[] }).items).toHaveLength(6);
+        if (sequence.path === "/scroll")
+          expect((real[1]!.props as { messages: unknown[] }).messages.length).toBeGreaterThan(4);
+        vi.unstubAllGlobals();
+      },
+      TEST_TIMEOUT_MS,
+    );
   }
 });
