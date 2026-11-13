@@ -9,13 +9,12 @@
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { isBlank } from "../html/text-helper.ts";
-import { subdomainFromUsername } from "../models/user.ts";
-import { domainConfig } from "../page-props/domain.ts";
-import { PurchaseFlags } from "../search/flags.ts";
 import { getConfig } from "../infra/config.ts";
 import { DISCORD_INTEGRATION, discordUserIdFor, findEnabledIntegration } from "../models/purchase-integrations.ts";
 import { PurchaseRecord } from "../models/purchase-pricing.ts";
-import { NoMethodError, NotPortedError } from "../models/user.ts";
+import { subdomainFromUsername, NoMethodError, NotPortedError } from "../models/user.ts";
+import { domainConfig } from "../page-props/domain.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 import { isHash, isPresent, parseHttpParty, postForm } from "../services/http-party.ts";
 
 import { HandBackToRails, RoutingError, type ActionContext, type ActionResult } from "./application-controller.ts";
@@ -115,7 +114,10 @@ async function joinServer(request: RailsRequest, action: ActionContext): Promise
     const discordUserId = user.id;
     const serverId = integrationDetail(integration, "server_id");
     if (typeof discordUserId !== "string" || serverId === null)
-      throw new NotPortedError("a Discord user id or server id that is not a string", "Integrations::DiscordController#join_server");
+      throw new NotPortedError(
+        "a Discord user id or server id that is not a string",
+        "Integrations::DiscordController#join_server",
+      );
 
     const added = await addMember(serverId, discordUserId, String(accessToken));
     if (added.status !== 201 && added.status !== 204) return failure();
@@ -130,8 +132,9 @@ async function joinServer(request: RailsRequest, action: ActionContext): Promise
     ).map((row) => row.integration_id);
     if (liveIds.includes(integration.id)) return failure();
     if (
-      (await db.integration.count({ where: { id: { in: liveIds }, type: integration.type, NOT: { id: integration.id } } })) >
-      0
+      (await db.integration.count({
+        where: { id: { in: liveIds }, type: integration.type, NOT: { id: integration.id } },
+      })) > 0
     )
       return failure();
 
@@ -164,7 +167,11 @@ async function leaveServer(request: RailsRequest, action: ActionContext): Promis
   if (integration === null || discordUserId === null || isBlank(discordUserId)) return failure();
 
   const serverId = integrationDetail(integration, "server_id");
-  if (serverId === null) throw new NotPortedError("a Discord integration without a server id", "Integrations::DiscordController#leave_server");
+  if (serverId === null)
+    throw new NotPortedError(
+      "a Discord integration without a server id",
+      "Integrations::DiscordController#leave_server",
+    );
   try {
     if ((await removeMember(serverId, discordUserId)).status !== 204) return failure();
   } catch (error) {
