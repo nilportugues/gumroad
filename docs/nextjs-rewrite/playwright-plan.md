@@ -66,4 +66,5 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 
 ## Last measured result
 
-`bin/e2e-run` on lane 3: 53 passed (19 guard, 34 chromium), 1 skipped (the Stripe spec), 0 failed.
+`bin/e2e-run` on lane 3: 73 passed (19 guard, 49 chromium, 4 mobile plus preflight runs per project), 1 skipped (the Stripe spec), 0 failed.
+`npm run e2e:determinism` (bot project, not part of `bin/e2e-run`): 3 passed in each of 3 consecutive runs; with the RNG seed perturbed by `Math.random` the same-seed test fails.
