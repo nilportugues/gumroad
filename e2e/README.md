@@ -133,6 +133,8 @@ then are `*.stripe.com` requests let through. The suite never reads or writes cr
 | `settings.spec.ts` | settings pages render, a setting persists |
 | `posts-and-workflows.spec.ts` | create a post (draft), create a workflow |
 | `discount-and-affiliate.spec.ts` | create a discount code, add an affiliate |
+| `membership.spec.ts` | free membership: create, publish, subscribe, library Subscriptions tab, cancel |
+| `bundle.spec.ts` | create a free bundle, add the seeded product, publish, buy |
 | `paid-checkout.stripe.spec.ts` | `@stripe` card checkout (skipped without test keys) |
 
 Page helpers are in `e2e/support/` (`auth.ts`, `seller.ts`, `buyer.ts`).

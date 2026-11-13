@@ -3,8 +3,12 @@ import { expect, type Page } from "@playwright/test";
 import { present } from "./assert";
 
 /** Creates a digital product through the "new product" form and returns its permalink (read from the edit URL). */
-export const createProduct = async (page: Page, { name, priceDollars }: { name: string; priceDollars: number }) => {
+export const createProduct = async (
+  page: Page,
+  { name, priceDollars, type }: { name: string; priceDollars: number; type?: "Membership" },
+) => {
   await page.goto("/products/new");
+  if (type) await page.getByRole("radio", { name: new RegExp(type, "u") }).click();
   const textInputs = page.locator("input[type=text]");
   await textInputs.first().fill(name);
   // The price field is the second text input on the form.
