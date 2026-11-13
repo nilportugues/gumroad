@@ -25,13 +25,17 @@ const SHORT_QUERY_PARAM = "a";
 
 export type AffiliatedParams = { query: string | null; page: string | null; sort: { key: string | null; direction: string | null } | null };
 
-// Rack parses `sort[key]` and `sort[direction]` into a hash; any other bracketed parameter is left to Rails.
+// Rack parses `sort[key]` and `sort[direction]` into a hash. A hash under another name is not permitted, so it is dropped, unless the
+// same name also appears as a plain value (Rack raises) and any other bracket shape is left to Rails.
+const IGNORED_HASH = /^([^[\]]+)\[[^[\]]+\]$/u;
 export function affiliatedParams(queryString: string): AffiliatedParams {
   let query: string | null = null;
   let page: string | null = null;
   let key: string | null = null;
   let direction: string | null = null;
   let sorted = false;
+  const plain = new Set<string>();
+  const hashes = new Set<string>();
   for (const pair of queryString.split("&")) {
     if (pair === "") continue;
     const index = pair.indexOf("=");
@@ -45,8 +49,14 @@ export function affiliatedParams(queryString: string): AffiliatedParams {
     } else if (name === "sort[direction]") {
       direction = value;
       sorted = true;
-    } else if (name.includes("[") || name === "sort") throw new HandBackToRails();
+    } else if (name === "sort") throw new HandBackToRails();
+    else if (name.includes("[")) {
+      const root = IGNORED_HASH.exec(name)?.[1];
+      if (root === undefined || root === "query" || root === "page" || root === "sort") throw new HandBackToRails();
+      hashes.add(root);
+    } else plain.add(name);
   }
+  if ([...hashes].some((root) => plain.has(root))) throw new HandBackToRails();
   return { query, page, sort: sorted ? { key, direction } : null };
 }
 
