@@ -545,16 +545,24 @@ const MAX_CUSTOM_RECEIPT_LENGTH = 10_000;
 
 // An integer attribute from a parameter, as ActiveModel::Type::Integer casts it: nil for null and for blank text, `to_i` for other text
 // (leading digits, "_" between digits, 0 when there are none) and for a float (truncated). What the cast reads differently from here
-// (true and false, non-ASCII text, a value outside the column's range, which raises RangeError) goes to Rails.
-function integerParam(key: string, value: unknown): number | null {
+// (true and false unless `booleans`, non-ASCII text, a value outside the column's range, which raises RangeError) goes to Rails.
+function integerParam(
+  key: string,
+  value: unknown,
+  { booleans = false, largePositive = false }: { booleans?: boolean; largePositive?: boolean } = {},
+): number | null {
   if (value === null) return null;
   let cast: number;
-  if (typeof value === "number" && Number.isFinite(value)) cast = Math.trunc(value) + 0;
+  // ActiveModel casts true and false to 1 and 0.
+  if (booleans && typeof value === "boolean") cast = value ? 1 : 0;
+  else if (typeof value === "number" && Number.isFinite(value)) cast = Math.trunc(value) + 0;
   else if (typeof value === "string" && /^\p{ASCII}*$/u.test(value)) {
     if (/^[ \t\n\v\f\r]*$/u.test(value)) return null;
     const match = /^[ \t\n\v\f\r]*([-+]?\d+(?:_\d+)*)/u.exec(value);
     cast = match ? Number(match[1]!.replaceAll("_", "")) : 0;
   } else cast = Number.NaN;
+  // A JSON number past the column is assigned as it is and refused by the model's range validation, before the write raises.
+  if (largePositive && typeof value === "number" && cast > INT_RANGE && Number.isSafeInteger(cast)) return cast;
   if (!Number.isSafeInteger(cast) || Math.abs(cast) > INT_RANGE)
     throw new HandBackToRails(`a ${key} that is not a number or text, or is outside the integer range`);
   return cast;
@@ -613,9 +621,11 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
     columns.customizable_price = booleanParam("customizable_price", params.customizable_price);
   }
   if (has(params, "suggested_price_cents"))
-    columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents);
+    columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents, {
+      largePositive: true,
+    });
   if (has(params, "max_purchase_count"))
-    columns.max_purchase_count = integerParam("max_purchase_count", params.max_purchase_count);
+    columns.max_purchase_count = integerParam("max_purchase_count", params.max_purchase_count, { booleans: true });
   if (has(params, "taxonomy_id")) {
     const value = params.taxonomy_id;
     // validate_taxonomy_id_param let a blank value through: it clears the taxonomy.

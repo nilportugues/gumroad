@@ -831,10 +831,11 @@ describe "API v2 throttled routes", type: :request do
           expect(draft.reload.suggested_price_cents).to be_nil
         end
 
-        it "hands a suggested price past the integer range back to Rails", parity: true do
+        it "refuses a suggested price past the integer range and saves nothing", parity: true do
           call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: 3_000_000_000 })
 
-          expect(response).to have_http_status(:ok)
+          expect(response.parsed_body["message"]).to eq("Sorry, the suggested price entered is too large.")
+          expect(draft.reload.customizable_price).to be_nil
         end
       end
 
@@ -921,10 +922,18 @@ describe "API v2 throttled routes", type: :request do
           expect(draft.reload.max_purchase_count).to eq(0)
         end
 
-        it "hands a limit given as a boolean back to Rails", parity: true do
+        it "reads a limit given as true as one", parity: true do
           call(:put, draft_path, params: { max_purchase_count: true })
 
-          expect(response).to have_http_status(:ok)
+          expect(draft.reload.max_purchase_count).to eq(1)
+        end
+
+        it "reads a limit given as false as zero", parity: true do
+          draft.update!(max_purchase_count: 5)
+
+          call(:put, draft_path, params: { max_purchase_count: false })
+
+          expect(draft.reload.max_purchase_count).to eq(0)
         end
       end
 
