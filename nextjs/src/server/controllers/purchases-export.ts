@@ -2,9 +2,9 @@
 // Exports::PurchaseExportService.export: up to SYNCHRONOUS_EXPORT_THRESHOLD matching sales are returned as a CSV, more (or `force_async`)
 // create a SalesExport and enqueue Exports::Sales::CreateAndEnqueueChunksWorker.
 //
-// Handed to Rails whole, before any write: a signed-out request, the mobile `access_token` form, an `in_seller_time_zone` that is not a
-// plain word or a seller whose time zone name ActiveSupport::TimeZone::MAPPING does not hold, `variant_ids`, a date that is not
-// YYYY-MM-DD, and a result that holds a sale purchase-export-data.ts does not cover.
+// Handed to Rails whole, before any write: the mobile `access_token` form, an `in_seller_time_zone` that is not a plain word or a seller
+// whose time zone name ActiveSupport::TimeZone::MAPPING does not hold, a date that is not an ISO day (optionally followed by a time of day),
+// and a result that holds a sale purchase-export-data.ts does not cover.
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
@@ -29,6 +29,7 @@ import { HandBackToRails, type ActionResult } from "./application-controller.ts"
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { json } from "./seller-json.ts";
+import { signedOutRefusal } from "./wishlists-mutations.ts";
 
 const SEE_OTHER = 303;
 const SYNCHRONOUS_EXPORT_THRESHOLD = 2_000;
@@ -36,16 +37,21 @@ const CUSTOMERS_PATH = "/customers";
 const EMAIL_NOTICE = "You will receive an email in your inbox with the data you've requested shortly.";
 const PLAIN_WORD = /^[\w-]+$/u;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/u;
+// A day followed by a time of day, which `Date.parse` reads and drops: `T` or a space, hh:mm[:ss[.fraction]], then an optional ±hh:mm offset (a `Z` is left to Rails).
+const DAY_WITH_TIME =
+  /^(\d{4}-\d{2}-\d{2})[T ](?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:[+-](?:[01]\d|2[0-3]):[0-5]\d)?$/u;
 
-// `Date.parse` for the one form the dashboard sends. Anything else (a time, a month name, an impossible day) is Rails' to judge.
+// `Date.parse` for an ISO day, with or without a time of day (the time and offset do not move the day). Anything else (a month name, an
+// impossible day) is Rails' to judge.
 function utcDay(value: unknown, name: string): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string") throw new HandBackToRails(`${name} that is not text`);
-  const match = DAY.exec(value);
-  if (match === null) throw new HandBackToRails(`${name} that is not a YYYY-MM-DD day`);
+  const day = DAY_WITH_TIME.exec(value)?.[1] ?? value;
+  const match = DAY.exec(day);
+  if (match === null) throw new HandBackToRails(`${name} that is not an ISO day`);
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  if (date.toISOString().slice(0, 10) !== value) throw new HandBackToRails(`${name} that is not a real day`);
-  return value;
+  if (date.toISOString().slice(0, 10) !== day) throw new HandBackToRails(`${name} that is not a real day`);
+  return day;
 }
 
 // `params[:in_seller_time_zone].present?`. Only a plain word is judged here; whitespace, Unicode and structures are Rails' to read.
@@ -56,32 +62,41 @@ function presentFlag(value: unknown): boolean {
   return true;
 }
 
-// `Link.by_external_ids(filters[:product_ids]).ids`: the products that exist, by id.
-async function productIds(value: unknown): Promise<number[] | undefined> {
+// `Link.by_external_ids(ids).ids` / `BaseVariant.by_external_ids(ids).ids`: the rows that exist, by id (deleted ones included, as no
+// scope is applied).
+async function existingIds(
+  value: unknown,
+  find: (ids: number[]) => Promise<{ id: bigint | number }[]>,
+): Promise<number[] | undefined> {
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0))
     return undefined;
   const wanted = Array.isArray(value) ? value : [value];
   if (!wanted.every((entry): entry is string => typeof entry === "string"))
-    throw new HandBackToRails("product ids that are not text");
+    throw new HandBackToRails("ids that are not text");
   const ids = wanted.map((externalId) => decrypt(externalId)).filter((id): id is number => id !== null);
-  const rows =
-    ids.length === 0
-      ? []
-      : await db.link.findMany({
-          where: { id: { in: ids.map(BigInt) } },
-          select: { id: true },
-          orderBy: { id: "asc" },
-        });
+  const rows = ids.length === 0 ? [] : await find(ids);
   return rows.map((row) => Number(row.id));
 }
 
+const productIds = (value: unknown) =>
+  existingIds(value, (ids) =>
+    db.link.findMany({ where: { id: { in: ids.map(BigInt) } }, select: { id: true }, orderBy: { id: "asc" } }),
+  );
+const variantIds = (value: unknown) =>
+  existingIds(value, (ids) =>
+    db.baseVariant.findMany({ where: { id: { in: ids } }, select: { id: true }, orderBy: { id: "asc" } }),
+  );
+
 async function exportPurchases(input: MutationInput): Promise<ActionResult> {
-  const loggedIn = railsLoggedInUser(input.context);
-  const seller = input.context.currentSeller;
-  if (loggedIn === null || seller === null) throw new HandBackToRails("a signed-out request");
   const { params } = input;
+  // authenticate_mobile_export! runs first and signs in a request that carries a valid token.
   if (params.access_token !== undefined && params.access_token !== null)
     throw new HandBackToRails("the mobile export, which signs in with an access token");
+  const signedOut = signedOutRefusal(input);
+  if (signedOut !== null) return signedOut;
+  const loggedIn = railsLoggedInUser(input.context);
+  const seller = input.context.currentSeller;
+  if (loggedIn === null || seller === null) throw new HandBackToRails("a signed-in request without a seller");
   const wantsJson = requestFormat(input.request) === "json";
 
   const redirect = await sellerGuard(
@@ -100,13 +115,6 @@ async function exportPurchases(input: MutationInput): Promise<ActionResult> {
   }
 
   const inSellerTimeZone = presentFlag(params.in_seller_time_zone);
-  if (
-    params.variant_ids !== undefined &&
-    params.variant_ids !== null &&
-    params.variant_ids !== "" &&
-    !(Array.isArray(params.variant_ids) && params.variant_ids.length === 0)
-  )
-    throw new HandBackToRails("an export filtered by variants");
   const filters: SalesExportFilters = {};
   if (inSellerTimeZone) {
     // `ActiveSupport::TimeZone[seller.timezone]` is nil for a name it does not know, which Rails reads as UTC; not proven here.
@@ -121,6 +129,8 @@ async function exportPurchases(input: MutationInput): Promise<ActionResult> {
   if (endDate !== undefined) filters.endDate = endDate;
   const products = await productIds(params.product_ids);
   if (products !== undefined) filters.productIds = products;
+  const variants = await variantIds(params.variant_ids);
+  if (variants !== undefined) filters.variantIds = variants;
   const forceAsync = params.force_async !== undefined && params.force_async !== null && params.force_async !== "";
 
   const options = salesExportSearchOptions(Number(seller.id), filters);

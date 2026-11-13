@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/purchases_export_parity_spec.rb",
-  "example": "Purchases export hands a signed-out request to Rails",
+  "example": "Purchases export answers a signed-out JSON request with a 404",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-12",
+  "recordedOn": "2026-11-13",
   "exchanges": [
     {
       "seed": {
@@ -51,18 +51,17 @@
         "method": "GET",
         "path": "/purchases/export",
         "headers": {
-          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "accept": "application/json",
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1"
       },
       "response": {
-        "status": 302,
-        "location": "http://app.test.gumroad.com:31337/login?next=%2Fpurchases%2Fexport",
+        "status": 404,
         "headers": {
           "cache-control": "no-cache",
-          "content-type": "text/html; charset=utf-8",
-          "vary": "Origin",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Accept, Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
           "x-gr": "DEV",
@@ -73,7 +72,7 @@
         },
         "cookies": {
           "_gumroad_app_session_test": {
-            "value": "KmSSSOJC7xOY0i1j2Cty0VeKPo8JWAU0qNeiEAlRrMRI0lbfa0VwcJQqQZaDFMd4kKZHXuaR8QJwPGaTh/Gd9R5aWvT6xcvtYd51aty1OoteEGZAgjIX1jMAhVPPuwV4Lp63sKg83Ceo0vU0v7Vm8YM0oZPwo5tKFX31mdGF19pVGoc7qimeVnIs94p/3klTfqeAPcGenwzFO9adj2L6KGjr5v1XMHjKIKTiqtHCLcroksw/Gd1kUNUFx2bejEMPfkTrBQRnsM9xRMymT8C9acbAsC/zKy5pBLQ5tRYZP/9jYp4UJTN/8Sreh/WC5VlY+dRO+wLiZ6w3KCsgsffYowD/cawcGfwaJxavkouq7hT6AHavJ1ZMVnx56B5fHg0qKK6y--PJvMYy2rKqekvcf0--qL0GSvaBfXngVoqxdJJreA==",
+            "value": "f+1teU6m4/oZThnvo8xsoP4JZO0zav7fdYCjwarLVjqv8cN4AeIzB4Lj8Z52QH8ikKCnWmAKWx5o2tUElB+/P9OaDeW1i25iUJ/flwOTjcYF9y1UaPo7KFrj+ICdnCqARtFoOQXxy/IyRK9NmuLoJHRvVr2lL9nMEro5+td6f1mgZrVaqsCeR42JEiFqMELgzCLUSbY1Ke0coDUz1G01MWJdEs0kLRaC4l02d8KbTNQrrruu2zISfIEHx/ewJeX3VLip1CgiFi24aocbRSBfn0aBHHON5yeTMA6RYyrXwuL7CeDdNAv1pkrwxVjPqgZo59gFoDa0qfCfL1ZSrQDzfRsKYaJxDUADYc+n5C+4/NI6CykWTdf38cLYel+MZqMqEm0y--jhs1vzwAZXidXEzP--f0KsXNuaW3UG5nFQ7XSVaA==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -88,6 +87,10 @@
             "httponly": true,
             "samesite": "lax"
           }
+        },
+        "json": {
+          "success": false,
+          "error": "Not found"
         }
       },
       "db": {},
