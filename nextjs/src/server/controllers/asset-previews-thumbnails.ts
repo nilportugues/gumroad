@@ -3,11 +3,13 @@
 //
 // Ported: the 404s of `fetch_product_and_enforce_access`, the policy, the parameter refusals of #create and the answer for a
 // preview or thumbnail the product does not have.
-// Handed to Rails before any write: attaching an upload (Active Storage, an HTTP fetch of the url, image analysis) and deleting a
-// preview or thumbnail that exists (its answer lists the product's previews with storage urls).
-import { Prisma } from "@prisma/client";
+// Also ported: deleting a thumbnail that has an `unsplash_url`.
+// Handed to Rails before any write: attaching an upload (Active Storage, an HTTP fetch of the url, image analysis), deleting a
+// preview (its answer lists the product's previews with storage urls) and deleting a thumbnail backed by an uploaded file.
+import { Prisma, type Thumbnail } from "@prisma/client";
 
-import { column, selectRows, table } from "../models/sql.ts";
+import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { softDeletion, Thumbnails } from "../models/thumbnail.ts";
 import { authorize } from "../policies/authorize.ts";
 import { linkPolicy } from "../policies/link.ts";
 
@@ -19,6 +21,9 @@ import { authorizeJson, json } from "./seller-json.ts";
 const BAD_REQUEST = 400;
 const PREVIEW_FAILED = "Could not process your preview, please try again.";
 const THUMBNAIL_PARAMETER = "Invalid thumbnail parameter. Expected signed_blob_id.";
+
+// `unsplash_url.blank?`
+const present = (value: string | null): value is string => value !== null && /[^\s]/u.test(value);
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -69,13 +74,16 @@ async function destroyThumbnail(input: MutationInput): Promise<ActionResult> {
   const found = await find(input, "access", (context) => authorize(writer, context));
   if (found.halt) return found.halt;
   const guid = input.routeParams.id;
-  const [thumbnail] = guid
-    ? await selectRows(
-        Prisma.sql`SELECT ${column("thumbnails", "id")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${found.product.get("id")} AND ${column("thumbnails", "guid")} = ${guid} LIMIT 1`,
-      )
-    : [];
-  if (thumbnail === undefined) return json({ success: false });
-  throw new HandBackToRails("deleting a thumbnail, whose answer carries its storage urls");
+  // `@product.thumbnail`: a has_one, so the first row, which the guid then has to match.
+  const [row] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`thumbnails`.*")} FROM ${table("thumbnails")} WHERE ${column("thumbnails", "product_id")} = ${found.product.get("id")} LIMIT 1`,
+  );
+  const thumbnail = row === undefined ? null : castRow<Thumbnail>("Thumbnail", row);
+  if (thumbnail === null || thumbnail.guid !== guid) return json({ success: false });
+  if (!present(thumbnail.unsplash_url))
+    throw new HandBackToRails("a thumbnail backed by a file, whose answer carries its storage url");
+  await softDeletion.markDeletedBang(Thumbnails.load(thumbnail));
+  return json({ success: true, thumbnail: { url: thumbnail.unsplash_url, guid: thumbnail.guid } });
 }
 
 registerMutations(

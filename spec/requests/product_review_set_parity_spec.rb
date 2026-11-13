@@ -2,9 +2,9 @@
 
 require "spec_helper"
 
-# PUT /product_reviews/set (ProductReviewsController#set): the refusals Node answers before the review is touched, recorded for the
+# PUT /product_reviews/set (ProductReviewsController#set): the refusals and the saving of a review without video, recorded for the
 # Next.js port (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws12n.replay.test.ts, which sends the last request of each
-# example. An example named "hands a ..." records what Node passes to Rails whole: the review is saved.
+# example. An example named "hands a ..." records what Node passes to Rails whole.
 describe "ProductReviewsController#set", type: :request do
   include Parity::AudienceSignedIn
 
@@ -79,20 +79,170 @@ describe "ProductReviewsController#set", type: :request do
     expect(response.parsed_body).to eq("success" => false, "message" => "Sorry, something went wrong.")
   end
 
-  it "hands a review from an eligible purchase to Rails", parity: true do
-    set_review(sold)
+  describe "saving a review", :parity_mail_jobs do
+    # Aged, so that a change in the request moves `updated_at` instead of landing in the second the row was created.
+    def review_of(purchase, rating: 3, message: "Fine", **attributes)
+      review = ProductReview.create!(purchase:, link: product, rating:, message:, **attributes)
+      aged = 10.minutes.ago
+      review.update_columns(created_at: aged, updated_at: aged)
+      ProductReviewStat.update_all(created_at: aged, updated_at: aged)
+      review
+    end
+
+    it "saves the review of an eligible purchase, creates the product's review stat and tells the seller", parity: true do
+      set_review(sold)
+
+      expect(response.parsed_body).to include("success" => true, "review" => include("rating" => 5, "message" => "Worth it"))
+    end
+
+    it "waits before telling the seller about a review without a message", parity: true do
+      set_review(sold, message: nil)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "keeps quiet when the seller turned review emails off", parity: true do
+      seller.update!(disable_reviews_email: true)
+
+      set_review(sold)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "adds the rating to the stat the product already has", parity: true do
+      review_of(sold(purchaser: nil, email: "first@example.com"), rating: 4)
+
+      set_review(sold)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "keeps the product's average rating to one decimal", parity: true do
+      review_of(sold(purchaser: nil, email: "first@example.com"), rating: 4)
+      review_of(sold(purchaser: nil, email: "second@example.com"), rating: 4)
+
+      set_review(sold)
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "stays silent when the message arrives after the seller was already told", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 5, message: nil, seller_notified_at: 1.hour.ago)
+
+      set_review(purchase, rating: 5, message: "Late thoughts")
+
+      expect(response.parsed_body["review"]).to include("message" => "Late thoughts")
+    end
+
+    it "saves the review of a guest purchase", parity: true do
+      set_review(sold(purchaser: nil))
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "saves the review of a purchase older than a year when the seller left reviews open", parity: true do
+      set_review(sold(created_at: 2.years.ago))
+
+      expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "accepts the rating as text and the identity choice as text", parity: true do
+      set_review(sold, rating: "4", anonymous: "true")
+
+      expect(response.parsed_body["review"]).to include("rating" => 4, "anonymous" => true)
+    end
+
+    it "moves the rating of an existing review in the stat and keeps the message", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 2)
+
+      set_review(purchase, rating: 5, message: "Fine")
+
+      expect(response.parsed_body["review"]).to include("rating" => 5)
+    end
+
+    it "tells the seller when the message arrives after the rating", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 5, message: nil)
+
+      set_review(purchase, rating: 5, message: "Here is why")
+
+      expect(response.parsed_body["review"]).to include("message" => "Here is why")
+    end
+
+    it "stays silent when the message of an existing review is edited", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 5, message: "Before")
+
+      set_review(purchase, rating: 5, message: "After")
+
+      expect(response.parsed_body["review"]).to include("message" => "After")
+    end
+
+    it "keeps an existing identity choice when the request leaves it out", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 5, message: "Worth it", anonymous: true)
+
+      set_review(purchase)
+
+      expect(response.parsed_body["review"]).to include("anonymous" => true)
+    end
+
+    it "lets the buyer of a refunded purchase show the review as Anonymous", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 5, message: "Worth it")
+      purchase.update_columns(stripe_refunded: true)
+
+      set_review(purchase, anonymous: true)
+
+      expect(response.parsed_body).to include("success" => true)
+    end
+
+    it "refuses to change a review once its purchase was refunded", parity: true do
+      purchase = sold
+      review_of(purchase, rating: 5, message: "Worth it")
+      purchase.update_columns(stripe_refunded: true)
+
+      set_review(purchase, rating: 1)
+
+      expect(response.parsed_body["message"]).to eq("You can no longer change this review, but you can still show it as Anonymous.")
+    end
+
+    it "refuses a first review on a refunded purchase", parity: true do
+      purchase = sold
+      purchase.update_columns(stripe_refunded: true)
+
+      set_review(purchase)
+
+      expect(response.parsed_body["message"]).to eq("This purchase is no longer eligible for a review.")
+    end
+
+    it "answers the validation message for a rating outside one to five", parity: true do
+      set_review(sold, rating: 9)
+
+      expect(response.parsed_body["success"]).to eq(false)
+    end
+
+    it "refuses a message with adult keywords", parity: true do
+      set_review(sold, message: "so NSFW stuff")
+
+      expect(response.parsed_body["success"]).to eq(false)
+    end
+  end
+
+  it "hands a review with video options to Rails", parity: true do
+    set_review(sold, video_options: { destroy: { id: "unknown" } })
 
     expect(response.parsed_body["success"]).to eq(true)
   end
 
-  it "hands a review of a purchase older than a year to Rails when the seller left reviews open", parity: true do
-    set_review(sold(created_at: 2.years.ago))
+  it "hands a review that already carries a video to Rails", parity: true do
+    purchase = sold
+    review = ProductReview.create!(purchase:, link: product, rating: 4, message: "Fine")
+    create(:product_review_video, :approved, product_review: review)
 
-    expect(response.parsed_body["success"]).to eq(true)
-  end
-
-  it "hands a review of a guest purchase to Rails", parity: true do
-    set_review(sold(purchaser: nil))
+    set_review(purchase)
 
     expect(response.parsed_body["success"]).to eq(true)
   end

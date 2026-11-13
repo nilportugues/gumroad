@@ -4,7 +4,7 @@ require "spec_helper"
 
 # AssetPreviewsController and ThumbnailsController: the product editor's cover and thumbnail uploads, recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws12n.replay.test.ts, which sends the last request of each example. An
-# example named "hands a ..." records what Node passes to Rails whole: the upload is attached or the existing media is deleted.
+# example named "hands a ..." records what Node passes to Rails whole: the upload is attached or an existing cover or file-backed thumbnail is deleted.
 describe "Editor media guards", type: :request do
   include Parity::AudienceSignedIn
 
@@ -207,13 +207,17 @@ describe "Editor media guards", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
 
-    it "hands a deletion of the product's thumbnail to Rails", parity: true do
+    it "soft-deletes the product's thumbnail and touches the product", parity: true do
       thumbnail = Thumbnail.create!(product:, unsplash_url: "https://images.unsplash.com/photo-parity")
+      # Aged, so that the touch moves `updated_at` instead of landing in the second the rows were created.
+      aged = 10.minutes.ago
+      thumbnail.update_columns(created_at: aged, updated_at: aged)
+      product.update_columns(updated_at: aged)
       log_in(seller)
 
       send_json(:delete, "/links/#{product.unique_permalink}/thumbnails/#{thumbnail.guid}")
 
-      expect(response.parsed_body["success"]).to eq(true)
+      expect(response.parsed_body).to eq("success" => true, "thumbnail" => { "url" => "https://images.unsplash.com/photo-parity", "guid" => thumbnail.guid })
     end
   end
 end

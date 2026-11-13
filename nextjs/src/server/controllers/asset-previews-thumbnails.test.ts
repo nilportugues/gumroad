@@ -8,13 +8,26 @@ const mocks = vi.hoisted(() => ({
   selectRows: vi.fn(),
   find: vi.fn(),
   denied: vi.fn(),
+  castRow: vi.fn((_model: string, row: unknown) => row),
+  load: vi.fn((row: unknown) => row),
+  markDeleted: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void mocks.specs.push(...registered),
 }));
 vi.mock("./products-mutations.ts", () => ({ find: mocks.find }));
-vi.mock("../models/sql.ts", () => ({ selectRows: mocks.selectRows, column: () => "", table: () => "" }));
+vi.mock("../models/sql.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../models/sql.ts")>()),
+  selectRows: mocks.selectRows,
+  castRow: mocks.castRow,
+  column: () => "",
+  table: () => "",
+}));
+vi.mock("../models/thumbnail.ts", () => ({
+  Thumbnails: { load: mocks.load },
+  softDeletion: { markDeletedBang: mocks.markDeleted },
+}));
 vi.mock("../policies/authorize.ts", () => ({ authorize: () => undefined }));
 vi.mock("../policies/link.ts", () => ({ linkPolicy: { create: () => true } }));
 vi.mock("./seller-json.ts", () => ({
@@ -113,8 +126,35 @@ describe("ThumbnailsController#destroy", () => {
     expect(await call(destroy)).toEqual({ status: 200, body: { success: false } });
   });
 
-  it("hands the deletion of the product's thumbnail back to Rails", async () => {
-    mocks.selectRows.mockResolvedValue([{ id: 1n }]);
-    await expect(call(destroy)).rejects.toBeInstanceOf(HandBackToRails);
+  const thumbnail = { guid: "guid", unsplash_url: "https://images.unsplash.com/photo" };
+
+  it("answers a failed delete when the product has no thumbnail", async () => {
+    mocks.selectRows.mockResolvedValue([]);
+    expect(await call(destroy)).toEqual({ status: 200, body: { success: false } });
+    expect(mocks.markDeleted).not.toHaveBeenCalled();
   });
+
+  it("answers a failed delete for the guid of another thumbnail without deleting the product's", async () => {
+    mocks.selectRows.mockResolvedValue([thumbnail]);
+    expect(await call(destroy, {}, "other")).toEqual({ status: 200, body: { success: false } });
+    expect(mocks.markDeleted).not.toHaveBeenCalled();
+  });
+
+  it("soft-deletes the product's thumbnail and answers it", async () => {
+    mocks.selectRows.mockResolvedValue([thumbnail]);
+    expect(await call(destroy)).toEqual({
+      status: 200,
+      body: { success: true, thumbnail: { url: thumbnail.unsplash_url, guid: "guid" } },
+    });
+    expect(mocks.markDeleted).toHaveBeenCalledWith(thumbnail);
+  });
+
+  it.each([null, "", "  "])(
+    "hands a thumbnail backed by a file (unsplash url %j) back to Rails before any write",
+    async (url) => {
+      mocks.selectRows.mockResolvedValue([{ ...thumbnail, unsplash_url: url }]);
+      await expect(call(destroy)).rejects.toBeInstanceOf(HandBackToRails);
+      expect(mocks.markDeleted).not.toHaveBeenCalled();
+    },
+  );
 });

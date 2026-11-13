@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -114,11 +115,13 @@ describe.skipIf(!url)("WS-12n guards", () => {
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
       ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
-    return replayOptionsFor({ ignore });
+    return replayOptionsFor({ ignore }, file);
   };
 
-  const replayOptionsFor = (compare: { ignore: string[] }) => ({
+  const replayOptionsFor = (compare: { ignore: string[] }, file: string) => ({
     sql,
+    // A saved review queues the seller's email, which the examples of the review form record.
+    ...(file.includes("product_review_set_parity_spec") ? { jobs: redisJobsChannel(redis) } : {}),
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },

@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/editor_media_guards_parity_spec.rb",
-  "example": "Editor media guards DELETE /links/:link_id/thumbnails/:id hands a deletion of the product's thumbnail to Rails",
+  "example": "Editor media guards DELETE /links/:link_id/thumbnails/:id soft-deletes the product's thumbnail and touches the product",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-13",
   "exchanges": [
     {
       "seed": {
@@ -112,7 +112,7 @@
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
                 "created_at": "<now>",
-                "updated_at": "<now>",
+                "updated_at": "<now-10m>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
                 "price_cents": 100,
@@ -241,9 +241,9 @@
                 "id": 1,
                 "product_id": 1,
                 "deleted_at": null,
-                "guid": "3192f2e277a72021c2cdd2454c99a75f",
-                "created_at": "<now>",
-                "updated_at": "<now>",
+                "guid": "d5072c74900d9d17879cef5c5ff5cd89",
+                "created_at": "<now-10m>",
+                "updated_at": "<now-10m>",
                 "unsplash_url": "https://images.unsplash.com/photo-parity"
               }
             ]
@@ -324,15 +324,15 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$.KJ0SlW24TKjZ4sxROpnhOgAj2n18h7zi/j6y.Hsed6A9O.gdKz8q",
+                "encrypted_password": "$2a$04$TwP83XCRF2mQO9vkHqrPoeq5yWR0AqsqUyWrQ3kIUcxxd2gu1/mmC",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "7.186.154.25",
-                "last_sign_in_ip": "156.173.25.102",
+                "current_sign_in_ip": "108.216.10.124",
+                "last_sign_in_ip": "28.14.80.244",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Media Seller",
@@ -361,8 +361,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "6586948093432",
-                "account_created_ip": "127.85.209.189",
+                "external_id": "2843122001973",
+                "account_created_ip": "121.30.28.17",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -380,7 +380,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "5QFMPQ67FTVJM54DY6AFBHJTRNTANOD5",
+                "otp_secret_key": "JHVZWEF76H3JRZU4CII3YD3WWCTPHOPL",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -463,13 +463,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "XkdR0vVd9UPPVkcZekTsw2LgoFX-0K6SQbpfsrZCMSuSoi_-r_NY3tRyXcVYfSX1p5mCH-WhEEmX649oWRZd2w",
+            "value": "jRvc-vqdzlPwL2L-uEiVnPrMfuGv9qtjGH6ZIyhR5HjhOa0bbRwbIZu-lxZQLvFoUmN1TGUYep75oC_xn8aZsw",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "SvZg51OIH0AhJmeq4OnK8eR6kg5xyuLsHn3NI1Z11TRDc3KRty1WmRrzRbMDOQgL6fINU0rvu1xVAycCCfULk4vVB7Ndjc4lO3gJDPyJTm+AJ0ESXhzta7JNcjk+lh2VxunhhEdiMwRPX4vMxVRh6m+cL7x12V9g3JFiGJQZ/X8VHsuB59ZoyAdOZjlfRcpMmwx/XHRWVR0Rcg6wBeqrQwtu6eq5tFsFYUfwpCHBTf+NhiLw2+in9ujs514oj9hNS2YHYfAAKh54Sw3vrkQdyKBAfp14hZQJ9ndM114Le+KFFozu1kgt+hABPSyqCDVji3pFu/csMhBlXZQb+uaoMGfmIUw2GlAlgr4j7kMM9sE+iUIL/Sn/ERJWkXMg0ArvW9jP--aXSObozX1Xpfn5g0--LLmoIrG8h9GLUnAq8qlXyg==",
+            "value": "EBtlAaNlP+PBn1Ic+1LXZBStCrpm0CLe0az2DGwMNPWpo9pH6OheXdLwCxkX1N/eIgmhbSdQHHuWro7Y+4PcacMNjxsDbKcWWbBBn9+7a+185UbaNudvFMu/Le03Wybyruh5PD8xiYVdra9z/JHEG2mLS5sFDeObGm3UyfyLZI8WDCGFGEPEGV8vKDncYWUbkDIWqWbU3rdlVwtg0elm7ulCqXwjAUo0VQVwYZqfqcZstSKnxB5Bq4TarWQhIvJ6iUl3Uhl6qw2C8UUmcneAcqAiQ16PA4ySoZXMdbMk2d3I0cPTYXChhLVzMMQWN82oGIxHRoiaGZ0x30puJkPdz6kEYCvrbJk8Tfvn54NhaCM9RcRXxzfOk8xb0TIwWV2d7JER--/fPOtYPSHCXP6nFB--G51zGWQ1gKR5AaYROjrTIw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -509,12 +509,12 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "P+avqfghQCbxwC83p7Ek79HwhEPdcdQGxJkjbEE6oew=",
+            "csp_nonce": "yfX4fQLjiaVZkawXiGQVl7kfdRHY+IsucWhiOkz0lU4=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "0i5a285tuI5zTe0DkKFl9v07n-YZZMSVbhTaqUGXyxQeyyT3lMMVE2hp99-ymKzAOEK9rAIVek64RQpzrsOn5A",
+            "authenticity_token": "IBjosKaf5K6J9IHM2m7lIkjadU7WqPlO_aJ5mG6qE-ZMOplRMR4x3OJldCQyCIHW4HV-4xxGKLMcfM9K2T1uLQ",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "category": {
@@ -597,7 +597,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "B6cuEzRk419pi0t_KeHDGWxdBL9rZI1qBm9j7hP9rtHLQlA_bspOwnKvUaML2AovqSQm9XAVM7HQPrM0_KnCIQ"
+                "content": "KPAy8gTFN1sneWulw0-MqlKAwWzfDt7B101YrzraACVE0kMTk0TiKUzonk0rKehe-i_KwRXgDzw2k-59jU197g"
               },
               {
                 "tagName": "meta",
@@ -854,7 +854,7 @@
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
                 "created_at": "<now>",
-                "updated_at": "<now>",
+                "updated_at": "<now-10m>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
                 "price_cents": 100,
@@ -983,9 +983,9 @@
                 "id": 1,
                 "product_id": 1,
                 "deleted_at": null,
-                "guid": "3192f2e277a72021c2cdd2454c99a75f",
-                "created_at": "<now>",
-                "updated_at": "<now>",
+                "guid": "d5072c74900d9d17879cef5c5ff5cd89",
+                "created_at": "<now-10m>",
+                "updated_at": "<now-10m>",
                 "unsplash_url": "https://images.unsplash.com/photo-parity"
               }
             ]
@@ -1066,15 +1066,15 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$.KJ0SlW24TKjZ4sxROpnhOgAj2n18h7zi/j6y.Hsed6A9O.gdKz8q",
+                "encrypted_password": "$2a$04$TwP83XCRF2mQO9vkHqrPoeq5yWR0AqsqUyWrQ3kIUcxxd2gu1/mmC",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "7.186.154.25",
-                "last_sign_in_ip": "156.173.25.102",
+                "current_sign_in_ip": "108.216.10.124",
+                "last_sign_in_ip": "28.14.80.244",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Media Seller",
@@ -1103,8 +1103,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "6586948093432",
-                "account_created_ip": "127.85.209.189",
+                "external_id": "2843122001973",
+                "account_created_ip": "121.30.28.17",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1122,7 +1122,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "5QFMPQ67FTVJM54DY6AFBHJTRNTANOD5",
+                "otp_secret_key": "JHVZWEF76H3JRZU4CII3YD3WWCTPHOPL",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1188,12 +1188,12 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "XkdR0vVd9UPPVkcZekTsw2LgoFX-0K6SQbpfsrZCMSuSoi_-r_NY3tRyXcVYfSX1p5mCH-WhEEmX649oWRZd2w",
-          "_gumroad_app_session_test": "SvZg51OIH0AhJmeq4OnK8eR6kg5xyuLsHn3NI1Z11TRDc3KRty1WmRrzRbMDOQgL6fINU0rvu1xVAycCCfULk4vVB7Ndjc4lO3gJDPyJTm+AJ0ESXhzta7JNcjk+lh2VxunhhEdiMwRPX4vMxVRh6m+cL7x12V9g3JFiGJQZ/X8VHsuB59ZoyAdOZjlfRcpMmwx/XHRWVR0Rcg6wBeqrQwtu6eq5tFsFYUfwpCHBTf+NhiLw2+in9ujs514oj9hNS2YHYfAAKh54Sw3vrkQdyKBAfp14hZQJ9ndM114Le+KFFozu1kgt+hABPSyqCDVji3pFu/csMhBlXZQb+uaoMGfmIUw2GlAlgr4j7kMM9sE+iUIL/Sn/ERJWkXMg0ArvW9jP--aXSObozX1Xpfn5g0--LLmoIrG8h9GLUnAq8qlXyg==",
-          "_gumroad_guid": "9231fc6c-4c26-4bc5-ae9a-2e1e78695ad5"
+          "XSRF-TOKEN": "jRvc-vqdzlPwL2L-uEiVnPrMfuGv9qtjGH6ZIyhR5HjhOa0bbRwbIZu-lxZQLvFoUmN1TGUYep75oC_xn8aZsw",
+          "_gumroad_app_session_test": "EBtlAaNlP+PBn1Ic+1LXZBStCrpm0CLe0az2DGwMNPWpo9pH6OheXdLwCxkX1N/eIgmhbSdQHHuWro7Y+4PcacMNjxsDbKcWWbBBn9+7a+185UbaNudvFMu/Le03Wybyruh5PD8xiYVdra9z/JHEG2mLS5sFDeObGm3UyfyLZI8WDCGFGEPEGV8vKDncYWUbkDIWqWbU3rdlVwtg0elm7ulCqXwjAUo0VQVwYZqfqcZstSKnxB5Bq4TarWQhIvJ6iUl3Uhl6qw2C8UUmcneAcqAiQ16PA4ySoZXMdbMk2d3I0cPTYXChhLVzMMQWN82oGIxHRoiaGZ0x30puJkPdz6kEYCvrbJk8Tfvn54NhaCM9RcRXxzfOk8xb0TIwWV2d7JER--/fPOtYPSHCXP6nFB--G51zGWQ1gKR5AaYROjrTIw==",
+          "_gumroad_guid": "de359e17-d959-4d97-a8f7-3f61ba488bbc"
         },
         "remoteIp": "127.0.0.1",
-        "body": "authenticity_token=0i5a285tuI5zTe0DkKFl9v07n-YZZMSVbhTaqUGXyxQeyyT3lMMVE2hp99-ymKzAOEK9rAIVek64RQpzrsOn5A&user[login_identifier]=seller%40example.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+        "body": "authenticity_token=IBjosKaf5K6J9IHM2m7lIkjadU7WqPlO_aJ5mG6qE-ZMOplRMR4x3OJldCQyCIHW4HV-4xxGKLMcfM9K2T1uLQ&user[login_identifier]=seller%40example.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
       },
       "response": {
         "status": 302,
@@ -1212,13 +1212,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "Bhpf__ataTSx2I0QRC8Gqr2VtJsVicUqgd0BKva-FfzK_yHTrAPEqar8l8xmFs-ceOyW0Q74e_FXjNHwGep5DA",
+            "value": "cz4XcQUGGYOl76wf3bxgZqc_NHrNbaJY5SwMQV6JnkwfHGaQkofM8c5-Wfc12gSSD5A_1weDc6UE8rqT6R7jhw",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "5DTchd5aNmL96IW/Kmy4RhuQJSd2GDPIqcASVPP8Ak5QEJI6SsOt5iTLbyX2rJLk3WKC7MQb3VhjnvqgtXpTjj5gIrkEMA5SlAOJvPMUHBXXTyjWOTBgc44kEi3YiegR66YLtlSY7aBc3Iap9fM6J63FYVC1euPygrkzlm2JYr1UD7jU3A1IKv3tZ8vMflHFZEZ+Aqbx8l0yVzKfieihcJa69+fFc1Owiq5pUVUaDf9cj6ToFkF76Lru3fKlbTkYEJn0zTBWGK8YFp370xpE6Iyj4RyXP4bgo/As2biUddngsYV1bJ3HZ1HDob5chznv8rEyl03jyR5c5gw6BI3N48c/8WCKvndhiutSIZC+ukWXwFGqnxpSfUNo3cuStcP0fl/CQBsRIfo5zoVlpU/pyD6l4MyZiAsI5VbylN0TFASFKKjjOnwBVWRu1ZioA3OIU3UpucH+eAPevflQARdqWAQWM9/bDZZr8VP4iPmJKYvXN7RdfXFGhhE44lnKgL0gT/qHFfAXdJTXTkb+SWS664imx2mr6vOje2nHIbGa7dcGHnxssv1MyK9mv/DWzGgj2N5kYAgb7kBn+cUCmGSvdTygq3XTaU8uJV4g2c2kTzsChxPhoSoQ6JwaORDOGwMb7juh--AvSmJZN7EJC09J0m--dDf1g2leAkmqnKZg1Q1W3g==",
+            "value": "pdn07r5ESBzE0mr4GoyDvoFGUPeyibKWUIpETBUEZBBTiKbspVG4T/TzTJ2jMetqVhb94cvOzTiXpTAC8okUfUxNkZ3xvwdj0lnfUVxzyom20fJbjgaYjeUsyCHyHo0Kip1n9gBjaY4LEigh3EN4Om4hfCUuwlcFTD+EWi37NK/eEdt2pj3OUy82b08cWFlVeiAqQkGABBoNra0JH7VGfoN3YeadqWIzKYHkHXslsP0ec0tqrsqWbnr21BMWXoSRAYcfyf6eRMXaU/X8YmFMAIgftNOh5MgIGvSnLVQIz/h2ufnvAd8k5zDqj9D5yNdd6ZxDCSsWmJCfJjkveh2n5dRGbQHSd4IXhVxGbUQoE7KUGJdyPFVuwJzB+NmFOxAhD2+rt/u/+hGTAJcASFAy9eTcFtmqZQxSt2JgD+kIEWLPJUrnfNq6wknckpb2poAciuno9L3sutpD1+Ld7gUc1Nm69A1ppbXg0Q8RNKCT7vRPgOUjbYi2O8Kptpi8DIwGYCG9Z8uPuMZ+sRB+8XYTncHdINDaGJlKsVj22C17gg0h2FGd2xT9hOTKJBz5iLEcK2g4yVHHZkr+/ssxTO/QrvFbtulvCDOQU4Oy5Cqc1rx6tTENS1DsBTYsA6feuzieQlju--FkZ+7W7StSgHAqxB--IgIvWSfgsbDidGt+RGMisw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -1226,7 +1226,7 @@
             "samesite": "lax"
           },
           "remember_user_token": {
-            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKQzVMU2pCVGJGY3lORlJMYWxvMGMzaFNUM0J1YUU4aUxDSXhOemswTXpreU1qZ3lMakUzTURBMU16Y2lYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQxMDoxODowMi4xNzBaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--6352129d63414b568bd9cb5a7e8d0aa38159c4f7",
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRlIzVURneldFTlNSakp0VVU4NWRtdEljWEpRYjJVaUxDSXhOemswTlRRMU9Ea3pMakkwTWpRMk55SmQiLCJleHAiOiIyMDI2LTEyLTEzVDA0OjU4OjEzLjI0MloiLCJwdXIiOiJjb29raWUucmVtZW1iZXJfdXNlcl90b2tlbiJ9fQ==--21a7a7524ac5672e245f5165a3b2058f28000edf",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+720h>",
@@ -1278,16 +1278,12 @@
                   "<now>"
                 ],
                 "current_sign_in_ip": [
-                  "7.186.154.25",
+                  "108.216.10.124",
                   "127.0.0.1"
                 ],
                 "last_sign_in_ip": [
-                  "156.173.25.102",
-                  "7.186.154.25"
-                ],
-                "updated_at": [
-                  "<now>",
-                  "<now>"
+                  "28.14.80.244",
+                  "108.216.10.124"
                 ]
               }
             }
@@ -1312,6 +1308,31 @@
             "status": 200,
             "body": ""
           }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "seller_profiles"
+        },
+        {
+          "type": "job",
+          "index": 0
         }
       ]
     },
@@ -1421,7 +1442,7 @@
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
                 "created_at": "<now>",
-                "updated_at": "<now>",
+                "updated_at": "<now-10m>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
                 "price_cents": 100,
@@ -1585,9 +1606,9 @@
                 "id": 1,
                 "product_id": 1,
                 "deleted_at": null,
-                "guid": "3192f2e277a72021c2cdd2454c99a75f",
-                "created_at": "<now>",
-                "updated_at": "<now>",
+                "guid": "d5072c74900d9d17879cef5c5ff5cd89",
+                "created_at": "<now-10m>",
+                "updated_at": "<now-10m>",
                 "unsplash_url": "https://images.unsplash.com/photo-parity"
               }
             ]
@@ -1668,7 +1689,7 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$.KJ0SlW24TKjZ4sxROpnhOgAj2n18h7zi/j6y.Hsed6A9O.gdKz8q",
+                "encrypted_password": "$2a$04$TwP83XCRF2mQO9vkHqrPoeq5yWR0AqsqUyWrQ3kIUcxxd2gu1/mmC",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -1676,7 +1697,7 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "7.186.154.25",
+                "last_sign_in_ip": "108.216.10.124",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Media Seller",
@@ -1705,8 +1726,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "6586948093432",
-                "account_created_ip": "127.85.209.189",
+                "external_id": "2843122001973",
+                "account_created_ip": "121.30.28.17",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1724,7 +1745,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "5QFMPQ67FTVJM54DY6AFBHJTRNTANOD5",
+                "otp_secret_key": "JHVZWEF76H3JRZU4CII3YD3WWCTPHOPL",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1790,10 +1811,10 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "Bhpf__ataTSx2I0QRC8Gqr2VtJsVicUqgd0BKva-FfzK_yHTrAPEqar8l8xmFs-ceOyW0Q74e_FXjNHwGep5DA",
-          "_gumroad_app_session_test": "5DTchd5aNmL96IW/Kmy4RhuQJSd2GDPIqcASVPP8Ak5QEJI6SsOt5iTLbyX2rJLk3WKC7MQb3VhjnvqgtXpTjj5gIrkEMA5SlAOJvPMUHBXXTyjWOTBgc44kEi3YiegR66YLtlSY7aBc3Iap9fM6J63FYVC1euPygrkzlm2JYr1UD7jU3A1IKv3tZ8vMflHFZEZ+Aqbx8l0yVzKfieihcJa69+fFc1Owiq5pUVUaDf9cj6ToFkF76Lru3fKlbTkYEJn0zTBWGK8YFp370xpE6Iyj4RyXP4bgo/As2biUddngsYV1bJ3HZ1HDob5chznv8rEyl03jyR5c5gw6BI3N48c/8WCKvndhiutSIZC+ukWXwFGqnxpSfUNo3cuStcP0fl/CQBsRIfo5zoVlpU/pyD6l4MyZiAsI5VbylN0TFASFKKjjOnwBVWRu1ZioA3OIU3UpucH+eAPevflQARdqWAQWM9/bDZZr8VP4iPmJKYvXN7RdfXFGhhE44lnKgL0gT/qHFfAXdJTXTkb+SWS664imx2mr6vOje2nHIbGa7dcGHnxssv1MyK9mv/DWzGgj2N5kYAgb7kBn+cUCmGSvdTygq3XTaU8uJV4g2c2kTzsChxPhoSoQ6JwaORDOGwMb7juh--AvSmJZN7EJC09J0m--dDf1g2leAkmqnKZg1Q1W3g==",
-          "_gumroad_guid": "9231fc6c-4c26-4bc5-ae9a-2e1e78695ad5",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKQzVMU2pCVGJGY3lORlJMYWxvMGMzaFNUM0J1YUU4aUxDSXhOemswTXpreU1qZ3lMakUzTURBMU16Y2lYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQxMDoxODowMi4xNzBaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--6352129d63414b568bd9cb5a7e8d0aa38159c4f7"
+          "XSRF-TOKEN": "cz4XcQUGGYOl76wf3bxgZqc_NHrNbaJY5SwMQV6JnkwfHGaQkofM8c5-Wfc12gSSD5A_1weDc6UE8rqT6R7jhw",
+          "_gumroad_app_session_test": "pdn07r5ESBzE0mr4GoyDvoFGUPeyibKWUIpETBUEZBBTiKbspVG4T/TzTJ2jMetqVhb94cvOzTiXpTAC8okUfUxNkZ3xvwdj0lnfUVxzyom20fJbjgaYjeUsyCHyHo0Kip1n9gBjaY4LEigh3EN4Om4hfCUuwlcFTD+EWi37NK/eEdt2pj3OUy82b08cWFlVeiAqQkGABBoNra0JH7VGfoN3YeadqWIzKYHkHXslsP0ec0tqrsqWbnr21BMWXoSRAYcfyf6eRMXaU/X8YmFMAIgftNOh5MgIGvSnLVQIz/h2ufnvAd8k5zDqj9D5yNdd6ZxDCSsWmJCfJjkveh2n5dRGbQHSd4IXhVxGbUQoE7KUGJdyPFVuwJzB+NmFOxAhD2+rt/u/+hGTAJcASFAy9eTcFtmqZQxSt2JgD+kIEWLPJUrnfNq6wknckpb2poAciuno9L3sutpD1+Ld7gUc1Nm69A1ppbXg0Q8RNKCT7vRPgOUjbYi2O8Kptpi8DIwGYCG9Z8uPuMZ+sRB+8XYTncHdINDaGJlKsVj22C17gg0h2FGd2xT9hOTKJBz5iLEcK2g4yVHHZkr+/ssxTO/QrvFbtulvCDOQU4Oy5Cqc1rx6tTENS1DsBTYsA6feuzieQlju--FkZ+7W7StSgHAqxB--IgIvWSfgsbDidGt+RGMisw==",
+          "_gumroad_guid": "de359e17-d959-4d97-a8f7-3f61ba488bbc",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRlIzVURneldFTlNSakp0VVU4NWRtdEljWEpRYjJVaUxDSXhOemswTlRRMU9Ea3pMakkwTWpRMk55SmQiLCJleHAiOiIyMDI2LTEyLTEzVDA0OjU4OjEzLjI0MloiLCJwdXIiOiJjb29raWUucmVtZW1iZXJfdXNlcl90b2tlbiJ9fQ==--21a7a7524ac5672e245f5165a3b2058f28000edf"
         },
         "remoteIp": "127.0.0.1"
       },
@@ -1814,13 +1835,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "YqfPL2K2pfXPTFnAQGK330D_0QBWmLtWYkLLvEDX9cWuQrEDOBgIaNRoQxxiW37phYbzSk3pBY20Extmr4OZNQ",
+            "value": "2nQ7X4ygGsGqH80Vu1f8ZII_L3YN9NV0bGRL0k_xyJy2Vkq-GyHPs8GOOP1TMZiQKpAk28caBImNuv0A-Ga1Vw",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "+Ztpd4r+N5uWNm6nWKfMJPai0EBrGXjLzCZcnXrJ2jwzhjd17af5/w1dIl5AFblHmOMRMZF25NV55FAWO+wLs0PAsr+7WLn/C1Bsr3b/8r5ERCamgLKYckR+g8ZqX2U7/yb6I+JXI4gtywx45WmMV1qQx4tfM3QKaarR5YSEkjuL1xPd1QyqY9p0XNSXz3hujFE9Dtwkh+lX+y7KJZrauIfsxYp1ES/yQ/nsgPuJK07CR8E7evGMSZ+4QoIY7RUl28Q8idrnTTIhcyWuWhwHCMW1fW5eOnoC1dPZeeVrVDnaN23xiRIkRgkgG4yzmanbeQ66YVs+gJX26sHoLAO8by+q5fcKgTFqGz0LAM2sEvLSnazPyyGo9UdFLHNbmJBBz1pqgcmDuPAcLQvS9s0MCpwdpJw1cH4w50ZW5HNPma6UrJelIEXoN5x9t6qBUJFVbw3PYbnT/OUjpGh7EaTYH/AZy/mUo5+wE/M+kr2lHscR85DARkOyqN1Iy5mGdHBz26G6dOTuCmVyac4PWGB3q9jh3zshrDdnRGJ0H21FOJe3xzIrNSfrQU2DLeLrMCMXbTv+/NFNIUcVJZZqpM2JByNAbZ9++l1Hx3C6E3WpkIUg+ynh0pmKjAkyoDlDhZGhZIc7--2x8ko8QeXay0yjNJ--gWKRflJzt1Z4TG5aImEUrw==",
+            "value": "hYdGa5HtlneB+ueAPJuHJQzC1ZghzChCbbeO0ERxWMeRg2G/2YVN7VjO2qsoOU2YFfPS3HQyGQ8UTTBpjJOo2y6xmSDBZNsxoEW+zCOKWDpNsNSzGi7EEGQF/NUnJQrkcyNbofJa1RAAjzvVAt4XB6AVboqBj3uK4Wfg2WQtZ1/gglUTnAP8+8aKMPdAs5l1oxWv2oSeQfRYgRZHpQM12r5KKINFLpfKf8xbNmqxv6r4Cd1oJqvSeyAD9WYPYEp2/5kbaHbFXVFYyAeC67U6iHIkHe20T7GphUe2RM19PPVGVR5XtaLt/kPEsk39mjmLmddKT7NuKY1/MG71A0Xu5lmUluAkeaoL++wYs9gavgi1/Vo7GE6zd8Si8Sojk7njC/3CN1pvJ6Tg4ItnuNUIRlqEdw6DupguqG4NVUv77CJvZzzHXk4F34EuYU1xv9R3nFPw3j7g5qoTA5mTm8UpiM2Z5OKRvIWaLPg3gppANJePPr98cIhH7VKX/HI5XNdXClDx2PvcFWOu+4TegeQXODKdHuMMeJgYxawUGwjnj7GZVct0dqE8f9ZGs+tLop/aqrefLteRuRYx6TGoyzi4Ttq1affygxFVUsCdEmIZfnk4Q6yQhzd0nRoNncI2T5f1wS1w--//eD/XqW7ZfOSdmc--EKz8T3Fsmg+to29X3WDd7A==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -1851,7 +1872,7 @@
               "is_mobile": false
             },
             "logged_in_user": {
-              "id": "6586948093432",
+              "id": "2843122001973",
               "email": "seller@example.com",
               "name": "Media Seller",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
@@ -1935,7 +1956,7 @@
               "lazy_load_offscreen_discover_images": false
             },
             "current_seller": {
-              "id": "6586948093432",
+              "id": "2843122001973",
               "email": "seller@example.com",
               "name": "Media Seller",
               "subdomain": "seller.test.gumroad.com:31337",
@@ -1956,12 +1977,12 @@
               "profile_highlight_color": "#ff90e8",
               "profile_font": "ABC Favorit"
             },
-            "csp_nonce": "tEqYWBUVZFM77Z/ki/Bli2E+v5imYkmfD8HPWY3vx3M=",
+            "csp_nonce": "Ud+rrDgt+HKNptyDd7YXD22m0QNQV1LhWVm5wj3K/cY=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "skqjT2jBZbpwt7eMMWjjA8u6CgeOaPF7Fgoau7Mxral-r91jMm_IJ2uTrVATUSo1DsMoTZUZT6DAW8phXGXBWQ",
+            "authenticity_token": "CAPL5YsQ3idhXooxwoc7v6d8_fur3t7LLd2LFGv28KVkIboEHJELVQrPf9kq4V9LD9P2VmEwDzbMAz3G3GGNbg",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "current_user": {
@@ -2050,7 +2071,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "fhwIeDpmWfEMpy2j5BAGtT_lrcNKmrQerxXIoxnob5Ky-XZUYMj0bBeDN3_GKc-D-pyPiVHrCsV5RBh59rwDYg"
+                "content": "aQ_XJ8WJUJS4hMgjqtfWfM_mwwP43zeeA-bV8YoTX_0FLabGUgiF5tMVPctCsbKIZ0nIrjIx5mPiOGMjPYQiNg"
               },
               {
                 "tagName": "meta",
@@ -2164,7 +2185,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-gr-logged_in_user-id",
                 "property": "gr:logged_in_user:id",
-                "content": "6586948093432"
+                "content": "2843122001973"
               },
               {
                 "tagName": "meta",
@@ -2246,8 +2267,8 @@
                 "seller_id": null,
                 "affiliate_user_id": 1,
                 "affiliate_basis_points": 1000,
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "deleted_at": null,
                 "flags": 0,
                 "destination_url": null,
@@ -2354,8 +2375,8 @@
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
-                "created_at": "<now-5s>",
-                "updated_at": "<now>",
+                "created_at": "<now>",
+                "updated_at": "<now-10m>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
                 "price_cents": 100,
@@ -2430,8 +2451,8 @@
                 "price_cents": 100,
                 "currency": "usd",
                 "recurrence": null,
-                "created_at": "<now-5s>",
-                "updated_at": "<now-5s>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
                 "deleted_at": null,
                 "flags": 0,
                 "variant_id": null,
@@ -2519,9 +2540,9 @@
                 "id": 1,
                 "product_id": 1,
                 "deleted_at": null,
-                "guid": "3192f2e277a72021c2cdd2454c99a75f",
-                "created_at": "<now>",
-                "updated_at": "<now>",
+                "guid": "d5072c74900d9d17879cef5c5ff5cd89",
+                "created_at": "<now-10m>",
+                "updated_at": "<now-10m>",
                 "unsplash_url": "https://images.unsplash.com/photo-parity"
               }
             ]
@@ -2602,7 +2623,7 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$.KJ0SlW24TKjZ4sxROpnhOgAj2n18h7zi/j6y.Hsed6A9O.gdKz8q",
+                "encrypted_password": "$2a$04$TwP83XCRF2mQO9vkHqrPoeq5yWR0AqsqUyWrQ3kIUcxxd2gu1/mmC",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -2610,12 +2631,12 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "7.186.154.25",
-                "created_at": "<now-5s>",
+                "last_sign_in_ip": "108.216.10.124",
+                "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Media Seller",
                 "payment_address": "edgar_22@gumroad.com",
-                "confirmed_at": "<now-5s>",
+                "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
                 "unconfirmed_email": null,
@@ -2639,8 +2660,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "6586948093432",
-                "account_created_ip": "127.85.209.189",
+                "external_id": "2843122001973",
+                "account_created_ip": "121.30.28.17",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -2658,7 +2679,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "5QFMPQ67FTVJM54DY6AFBHJTRNTANOD5",
+                "otp_secret_key": "JHVZWEF76H3JRZU4CII3YD3WWCTPHOPL",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -2719,18 +2740,18 @@
       "request": {
         "source": "request",
         "method": "DELETE",
-        "path": "/links/mediaprod/thumbnails/3192f2e277a72021c2cdd2454c99a75f",
+        "path": "/links/mediaprod/thumbnails/d5072c74900d9d17879cef5c5ff5cd89",
         "headers": {
           "accept": "application/json",
           "content-type": "application/json",
           "host": "app.test.gumroad.com:31337",
-          "x-csrf-token": "skqjT2jBZbpwt7eMMWjjA8u6CgeOaPF7Fgoau7Mxral-r91jMm_IJ2uTrVATUSo1DsMoTZUZT6DAW8phXGXBWQ"
+          "x-csrf-token": "CAPL5YsQ3idhXooxwoc7v6d8_fur3t7LLd2LFGv28KVkIboEHJELVQrPf9kq4V9LD9P2VmEwDzbMAz3G3GGNbg"
         },
         "cookies": {
-          "XSRF-TOKEN": "YqfPL2K2pfXPTFnAQGK330D_0QBWmLtWYkLLvEDX9cWuQrEDOBgIaNRoQxxiW37phYbzSk3pBY20Extmr4OZNQ",
-          "_gumroad_app_session_test": "+Ztpd4r+N5uWNm6nWKfMJPai0EBrGXjLzCZcnXrJ2jwzhjd17af5/w1dIl5AFblHmOMRMZF25NV55FAWO+wLs0PAsr+7WLn/C1Bsr3b/8r5ERCamgLKYckR+g8ZqX2U7/yb6I+JXI4gtywx45WmMV1qQx4tfM3QKaarR5YSEkjuL1xPd1QyqY9p0XNSXz3hujFE9Dtwkh+lX+y7KJZrauIfsxYp1ES/yQ/nsgPuJK07CR8E7evGMSZ+4QoIY7RUl28Q8idrnTTIhcyWuWhwHCMW1fW5eOnoC1dPZeeVrVDnaN23xiRIkRgkgG4yzmanbeQ66YVs+gJX26sHoLAO8by+q5fcKgTFqGz0LAM2sEvLSnazPyyGo9UdFLHNbmJBBz1pqgcmDuPAcLQvS9s0MCpwdpJw1cH4w50ZW5HNPma6UrJelIEXoN5x9t6qBUJFVbw3PYbnT/OUjpGh7EaTYH/AZy/mUo5+wE/M+kr2lHscR85DARkOyqN1Iy5mGdHBz26G6dOTuCmVyac4PWGB3q9jh3zshrDdnRGJ0H21FOJe3xzIrNSfrQU2DLeLrMCMXbTv+/NFNIUcVJZZqpM2JByNAbZ9++l1Hx3C6E3WpkIUg+ynh0pmKjAkyoDlDhZGhZIc7--2x8ko8QeXay0yjNJ--gWKRflJzt1Z4TG5aImEUrw==",
-          "_gumroad_guid": "9231fc6c-4c26-4bc5-ae9a-2e1e78695ad5",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKQzVMU2pCVGJGY3lORlJMYWxvMGMzaFNUM0J1YUU4aUxDSXhOemswTXpreU1qZ3lMakUzTURBMU16Y2lYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQxMDoxODowMi4xNzBaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--6352129d63414b568bd9cb5a7e8d0aa38159c4f7"
+          "XSRF-TOKEN": "2nQ7X4ygGsGqH80Vu1f8ZII_L3YN9NV0bGRL0k_xyJy2Vkq-GyHPs8GOOP1TMZiQKpAk28caBImNuv0A-Ga1Vw",
+          "_gumroad_app_session_test": "hYdGa5HtlneB+ueAPJuHJQzC1ZghzChCbbeO0ERxWMeRg2G/2YVN7VjO2qsoOU2YFfPS3HQyGQ8UTTBpjJOo2y6xmSDBZNsxoEW+zCOKWDpNsNSzGi7EEGQF/NUnJQrkcyNbofJa1RAAjzvVAt4XB6AVboqBj3uK4Wfg2WQtZ1/gglUTnAP8+8aKMPdAs5l1oxWv2oSeQfRYgRZHpQM12r5KKINFLpfKf8xbNmqxv6r4Cd1oJqvSeyAD9WYPYEp2/5kbaHbFXVFYyAeC67U6iHIkHe20T7GphUe2RM19PPVGVR5XtaLt/kPEsk39mjmLmddKT7NuKY1/MG71A0Xu5lmUluAkeaoL++wYs9gavgi1/Vo7GE6zd8Si8Sojk7njC/3CN1pvJ6Tg4ItnuNUIRlqEdw6DupguqG4NVUv77CJvZzzHXk4F34EuYU1xv9R3nFPw3j7g5qoTA5mTm8UpiM2Z5OKRvIWaLPg3gppANJePPr98cIhH7VKX/HI5XNdXClDx2PvcFWOu+4TegeQXODKdHuMMeJgYxawUGwjnj7GZVct0dqE8f9ZGs+tLop/aqrefLteRuRYx6TGoyzi4Ttq1affygxFVUsCdEmIZfnk4Q6yQhzd0nRoNncI2T5f1wS1w--//eD/XqW7ZfOSdmc--EKz8T3Fsmg+to29X3WDd7A==",
+          "_gumroad_guid": "de359e17-d959-4d97-a8f7-3f61ba488bbc",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRlIzVURneldFTlNSakp0VVU4NWRtdEljWEpRYjJVaUxDSXhOemswTlRRMU9Ea3pMakkwTWpRMk55SmQiLCJleHAiOiIyMDI2LTEyLTEzVDA0OjU4OjEzLjI0MloiLCJwdXIiOiJjb29raWUucmVtZW1iZXJfdXNlcl90b2tlbiJ9fQ==--21a7a7524ac5672e245f5165a3b2058f28000edf"
         },
         "remoteIp": "127.0.0.1",
         "body": "{}"
@@ -2751,13 +2772,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "VTj-tL5WFn4OwKv7xgljYsOoRcbaU6dHIDjWoe5UJOKZ3YCY5Pi74xXksSfkMKpUBtFnjMEiGZz2aQZ7AQBIEg",
+            "value": "m4OK1kLyRZlaR25xcwYqxQwilguFSUbHCDG3mGc-axP3ofs31XOQ6zHWm5mbYE4xpI2dpk-nlzrp7wFK0KkW2A",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "HliAiAjBfush3lRVbKb2FWgl08N65KpvAh06NBeumfxDCz6hrqFCNeUZ/uxKwSIScEsqZprKcolKo0oLbaUmT3XMlcwEK06dLkP03afkv2CmkXL2e+ATMqPH+Hn6vbIsXMmLltJlAFIVjquNAAImtidGlasIaQVtD3lCZ6VVZcpYDR0yZuh9hbsCkr1St3HldkK38512Rl+FZEIY41JjOWe/nTpG5dne0D53lwn+kOX/RVLrIGrae612Jb75fC4S0/N4jNB8phqs0YJ/eQdBMigqvxg90C2eZMuCbcskASpqqgCmKK6e1qq6bDGTVDdNIDX4iwS/FDshkURbaP6U8Q745nEuz3WhzZQP343wPIUTnv23YA4ZrDCcABgUWhnIRCtjT5jX66mC9nXhzS8191GCvO0JeHG3Rp1vXPGB9byTUL4uQHcjhsEOqAEE8NWe5yiOtkVc2C0rMsfjft3HBT6J6jYgMGBM8NwrvVllLhKO8B2457Es2qIdt7rsu67+g29u6XQ2+hUlz8euZbAX9m4dRxqxjkDDTfhW2IMLXj//6OmuLA1z4SyNFcHqVMQMeFWhxvUNXtuq03iRLcARbctmR46hG+pMApkJnxN+wRfmR7B9B/C+xunCIxDIc3AI6tCl--WE0HU9A//Hl9MKOJ--OgN9tDGlcVy7BVTHaop4sg==",
+            "value": "3puLKpHRQx7nCNyPT3XoPc5KkGH7y09kcpWzQFsSf+na1jy6FPBWEp5GitL27lBoF+woSItXwHDnfxn+/pjnDJyd5YlK8GgrbiRjaUtQ6rj7WSC3nr5n5uefiVfIyhvDOwAKAGx2n2ytft8xWU+SyokE5Lw3SLqImRSHso8eJSFtowtebvskNDdnw1r04CILcMKPIFtssUUU6T8x2evzyozhb5VvPg9CcatU0+9NpPEcymEjOg1bL7ExGwwW/sTA0Km0+UmZnqaPp9HfhrbezDWO2aiQIGfZnTqaoffKdyK74kNXhqc8os8i99U1Xy4sCvlkZ3P4pn9RnmA9zBZGr7k7rxYLCjVIz3qxYJz1bQlU/BTClIMz3SHXn46cSK7sg/riyJ2/PLoHSHLWun79bITYzEfMwZ10USs+93a6WhafY+GpFAJ/qcjOOXoXUs1Ud3C3WDIYqAPnUyuvH292EpPYNK1ifvq0/7JyLBhMO/Ddqjin6TV893gBP2Mt2VgLi2dfFgOLE29XJcujyZhnaKQjnynfrukhbVcTjYMlk15wfa/ngAs7mqkNYIrL6nE0xNQC3Ujd7RQDz83ms9JrLY4MGj3ZQJ/UnGlC6KwG++OcTNuYhMmS4slHAXzWZbN8JYSQ--e0tS49r60NiWrxyq--JtX13sAeLTgnk5JC8t/u/w==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -2769,7 +2790,7 @@
           "success": true,
           "thumbnail": {
             "url": "https://images.unsplash.com/photo-parity",
-            "guid": "3192f2e277a72021c2cdd2454c99a75f"
+            "guid": "d5072c74900d9d17879cef5c5ff5cd89"
           }
         }
       },
@@ -2782,7 +2803,7 @@
               },
               "changes": {
                 "updated_at": [
-                  "<now>",
+                  "<now-10m>",
                   "<now>"
                 ]
               }
@@ -2801,7 +2822,7 @@
                   "<now>"
                 ],
                 "updated_at": [
-                  "<now>",
+                  "<now-10m>",
                   "<now>"
                 ]
               }
