@@ -125,6 +125,23 @@ cases << run("a negative ledger already noted adds no second note", seed: seed(
   Payouts.create_payments(PAYOUT_DATE, PayoutProcessorType::STRIPE, seller)
 end
 
+# A hold note some other run claimed but never finished reporting: stale, failed, or still fresh.
+def held_note(state, claimed_at)
+  { comments: [{ id: 1, commentable_id: 5, commentable_type: "User", author_id: GUMROAD_ADMIN_ID, comment_type: "payout_note",
+                 content: "Payout STRIPE withheld for ledger x because the unpaid ledger is not payable. Reconcile the unpaid balance ledger before retry.",
+                 json_data: { ledger_hold_debt_keys: ["b2"], ledger_hold_notification_state: state, ledger_hold_claimed_at: claimed_at }.to_json,
+                 created_at: "2025-10-31 00:00:00", updated_at: "2025-10-31 00:00:00" }] }
+end
+
+[["a negative ledger whose note was claimed long ago is claimed and reported again", "claimed", "2025-11-01T12:00:00Z"],
+ ["a negative ledger whose note was claimed a moment ago is left alone", "claimed", "2025-11-01T12:20:00Z"],
+ ["a negative ledger whose note failed to report is claimed and reported again", "failed", "2025-11-01T12:20:00Z"],
+ ["a negative ledger whose note was reported is left alone", "notified", "2025-11-01T12:00:00Z"]].each do |name, state, claimed_at|
+  cases << run(name, seed: seed(balances: [balance_row(1), balance_row(2, date: "2025-10-26", amount_cents: -20_000, holding_amount_cents: -20_000)], extra: held_note(state, claimed_at))) do
+    Payouts.create_payments(PAYOUT_DATE, PayoutProcessorType::STRIPE, seller)
+  end
+end
+
 cases << run("a group the claim leaves non-positive is released", seed: seed(balances: [balance_row(1, amount_cents: 0, holding_amount_cents: 0), balance_row(2, date: "2025-10-26", amount_cents: 0, holding_amount_cents: 0)])) do
   Payouts.create_payments(PAYOUT_DATE, PayoutProcessorType::STRIPE, seller)
 end

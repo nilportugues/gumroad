@@ -124,7 +124,7 @@ function withoutClockBumps<T extends { db?: unknown }>(exchange: T): T {
         ),
     );
     if (entry.updated.length === 0) delete entry.updated;
-    if (Object.keys(entry).length === 0) delete db[table];
+    if (Object.keys(entry).length === 0) Reflect.deleteProperty(db, table);
   }
   return { ...exchange, db };
 }
@@ -291,7 +291,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     ]);
     expect(exchange.http[3]!.headers).toMatchObject({
       "idempotency-key": "<uuid>",
-      "stripe-account": expect.stringMatching(/^acct_/u),
+      "stripe-account": expect.stringMatching(/^acct_/u) as string,
     });
     expect(timelineSegments(exchange.timeline!)).toEqual([
       [],
@@ -569,10 +569,10 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     const dropped = exchangeOf("drops on every attempt");
     expect(dropped.http.every((call) => (call.response as { dropped?: boolean }).dropped === true)).toBe(true);
     for (const fragment of ["fails with a server error", "drops on every attempt", "answers a rate limit"])
-      expect(exchangeOf(fragment).jobs!.map((job) => `${job.class} ${job.queue}`)).toEqual([
+      expect(exchangeOf(fragment).jobs.map((job) => `${job.class} ${job.queue}`)).toEqual([
         "RetryStripeRejectedPayoutSetupForSellerJob low",
       ]);
-    expect(exchangeOf("rejects the account details").jobs ?? []).toEqual([]);
+    expect(exchangeOf("rejects the account details").jobs).toEqual([]);
 
     // A dropped first attempt retried: two calls, the second answered, and the account is written after them.
     const retried = exchangeOf("drops once");
@@ -603,7 +603,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       seen: { calls: { method: string }[]; writtenAfter: string[] },
     ) => {
       expect(handedBack).toHaveLength(1);
-      expect(Object.keys(result.exchanges[0]!.actual.db ?? {})).toEqual([]);
+      expect(Object.keys(result.exchanges[0]!.actual.db)).toEqual([]);
       expect(seen.calls.filter((call) => call.method !== "GET")).toEqual([]);
       expect(seen.writtenAfter).toEqual([]);
     };
@@ -633,7 +633,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       try {
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
-        expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        expected.jobs = [...expected.jobs].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         handedBack.length = 0;
         stripe.arm(expected.http);
         if (/hands-an?-/u.test(name)) {
@@ -646,7 +646,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
             url: request.query ? `${request.path}?${request.query}` : request.path,
           });
           expect(JSON.parse(handedBack[0]!.body)).toEqual(JSON.parse(request.body ?? "{}"));
-          expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
           const seen = await stripe.finish();
           expect(seen.calls).toEqual([]);
           expect(seen.writtenAfter).toEqual([]);

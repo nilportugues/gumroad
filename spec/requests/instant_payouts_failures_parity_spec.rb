@@ -194,6 +194,23 @@ describe "Instant payout failures", type: :request, parity_timeline: true do
     end
   end
 
+  # Payouts.create_payments hands the payment back with errors: preparation fails it before any bank payout is requested.
+  describe "when preparation fails the payment", parity: true do
+    it "serves an instant payout when the destination balance cannot cover the ledger" do
+      prepare_seller(held_by: :stripe)
+      stub_request(:get, "#{STRIPE_API}/balance").to_return(
+        status: 200, headers: JSON_HEADERS,
+        body: { object: "balance", available: [{ amount: 100_00, currency: "usd" }], pending: [{ amount: 0, currency: "usd" }] }.to_json
+      )
+
+      post_instant_payout
+
+      expect_failed_payout(Payment::FailureReason::INSUFFICIENT_FUNDS)
+      expect(payment.error_message).to include("Destination Stripe balance mismatch")
+      expect(a_request(:post, "#{STRIPE_API}/payouts")).not_to have_been_made
+    end
+  end
+
   describe "when the funds are held by Gumroad", parity: true do
     it "serves an instant payout when the bank payout fails and the internal transfer is reversed" do
       prepare_seller(held_by: :gumroad)

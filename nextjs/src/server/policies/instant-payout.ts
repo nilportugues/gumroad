@@ -2,7 +2,7 @@
 import { requireUser, roleAccountantFor, roleAdminFor, type SellerContext } from "./seller-context.ts";
 
 export const instantPayoutPolicy = {
-  create(context: SellerContext): boolean {
+  create: (context: SellerContext): boolean => {
     const c = requireUser(context);
     return roleAccountantFor(c) || roleAdminFor(c);
   },

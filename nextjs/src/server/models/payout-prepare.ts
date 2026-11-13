@@ -34,7 +34,7 @@ import { getPayoutDetails, holdOf, type HeldBalance } from "./payout-reads.ts";
 import { PAYOUT_TYPE_INSTANT } from "./payouts.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
-import { NoMethodError, NotPortedError } from "./user.ts";
+import { NoMethodError, NotPortedError, type UserRecord } from "./user.ts";
 
 const PROCESSOR_REF = "app/business/payments/payouts/processor/stripe/stripe_payout_processor.rb";
 // StripePayoutProcessor::INSTANT_PAYOUT_FEE_PERCENT
@@ -104,11 +104,11 @@ function balanceList(balance: StripeBalanceAmounts, key: "available" | "pending"
 }
 
 // retired_account_balances_hint: names the seller's retired Gumroad-managed accounts that still hold money at Stripe.
-async function retiredAccountBalancesHint(merchantAccount: MerchantAccountRow) {
-  // `merchant_account.user`: a read of its own, not the payment's cached user.
-  const user = await merchantAccountUser(
-    MerchantAccounts.load(castRow<MerchantAccount>("MerchantAccount", merchantAccount)),
-  );
+async function retiredAccountBalancesHint(merchantAccount: MerchantAccountRow, cachedUser: UserRecord | null) {
+  // `merchant_account.user`: a read of its own, unless the account came from `user.merchant_accounts`, whose inverse is the seller.
+  const user =
+    cachedUser ??
+    (await merchantAccountUser(MerchantAccounts.load(castRow<MerchantAccount>("MerchantAccount", merchantAccount))));
   const merchantAccountId = accountOf(merchantAccount).id;
   const rows = await selectRows<MerchantAccountRow>(
     Prisma.sql`SELECT ${Prisma.raw("`merchant_accounts`.*")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} = ${user!.get("id")} AND ${column("merchant_accounts", "charge_processor_id")} = 'stripe' AND ${column("merchant_accounts", "deleted_at")} IS NOT NULL AND ${column("merchant_accounts", "id")} != ${merchantAccountId}`,
@@ -145,6 +145,7 @@ async function destinationBalanceDriftError(
   merchantAccount: MerchantAccountRow,
   heldByStripe: HeldBalance[],
   payoutCurrency: string,
+  cachedUser: UserRecord | null,
 ): Promise<[string, string] | null> {
   if (!isGumroadManagedStripeAccount(merchantAccount)) return null;
   if (heldByStripe.length === 0) return null;
@@ -152,7 +153,7 @@ async function destinationBalanceDriftError(
   const expected = sumHolding(heldByStripe);
   const usdLedger = heldByStripe.reduce((total, entry) => total + Number(entry.balance.get("amount_cents") ?? 0), 0);
   const accountId = stripeAccountId(merchantAccount);
-  const hint = () => retiredAccountBalancesHint(merchantAccount);
+  const hint = () => retiredAccountBalancesHint(merchantAccount, cachedUser);
 
   if (expected < 0 && !(usdLedger < 0)) {
     const message =
@@ -190,6 +191,8 @@ export async function preparePaymentAndSetAmount(
   merchantAccountArgument: MerchantAccountRow | null,
   payoutCurrencyArgument: string | null,
   options: SaveOptions = {},
+  // The account is one the seller's own `merchant_accounts` produced, so its `user` is already loaded.
+  accountFromSeller = false,
 ): Promise<string[]> {
   let failed = false;
   let failureReason: string | null = null;
@@ -253,7 +256,12 @@ export async function preparePaymentAndSetAmount(
     payment.set("currency", payoutCurrency);
     payment.set("amount_cents", 0n);
 
-    const drift = await destinationBalanceDriftError(merchantAccount, heldByStripe, payoutCurrency);
+    const drift = await destinationBalanceDriftError(
+      merchantAccount,
+      heldByStripe,
+      payoutCurrency,
+      accountFromSeller ? user : null,
+    );
     if (drift !== null) {
       const [message, reason] = drift;
       setJsonDataForAttr(payment, "error_message", truncate(message));
