@@ -34,7 +34,7 @@ describe "MCP dynamic client registration", type: :request do
     expect_refusal("JSON parse error")
   end
 
-  %w[muse chatgpt].each do |client|
+  %w[muse chatgpt cursor antigravity].each do |client|
     it "answers the #{client} connector like the claude one", parity: true do
       register({ redirect_uris: ["/callback"] }, client:)
 
