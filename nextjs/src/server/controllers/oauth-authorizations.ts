@@ -294,7 +294,11 @@ async function destroyAuthorization(input: MutationInput): Promise<ActionResult>
 }
 
 const ALIASES = ["muse", "claude", "chatgpt", "ifttt"];
-const NEW_PATTERNS = ["/oauth/authorize", "/notion/oauth2/authorize", ...ALIASES.map((client) => `/${client}/v1/oauth2/authorize`)];
+const NEW_PATTERNS = [
+  "/oauth/authorize",
+  "/notion/oauth2/authorize",
+  ...ALIASES.map((client) => `/${client}/v1/oauth2/authorize`),
+];
 const SHOW_PATTERNS = ALIASES.map((client) => `/${client}/v1/oauth2/authorize/:code`);
 
 registerMutations(

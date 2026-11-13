@@ -3,6 +3,7 @@
 import { Redis } from "ioredis";
 
 import { redisUrl } from "../infra/redis.ts";
+
 import { LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION } from "./constants.ts";
 
 export const CONNECTORS = ["muse", "claude", "chatgpt"];
