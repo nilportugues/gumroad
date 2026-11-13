@@ -1,5 +1,6 @@
 // Usage: node e2e/replay/compare-cli.ts <recording.jsonl> <rails-url> <node-url> <out-dir>
 // Replays one recording against both servers (Rails first, then Node, on the same database), writes
+// REPLAY_KEEP_HOST_PORT=1 sends the Node replay with the recorded Host port (Node proxies to Rails, whose routes match that host).
 // <out-dir>/replay-rails.jsonl, replay-node.jsonl, report.json and report.md. Exit 0 when they agree after masking, 1 when not.
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -18,7 +19,7 @@ try {
   const recording = readRecording(input);
   const rails = await replay(recording, railsUrl);
   writeRecording(path.join(outDir, "replay-rails.jsonl"), rails);
-  const node = await replay(recording, nodeUrl);
+  const node = await replay(recording, nodeUrl, { keepRecordedPort: process.env.REPLAY_KEEP_HOST_PORT === "1" });
   writeRecording(path.join(outDir, "replay-node.jsonl"), node);
   const report = diffReplays(rails, node);
   writeFileSync(path.join(outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

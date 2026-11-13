@@ -148,6 +148,14 @@ describe("replay", () => {
   });
 });
 
+describe("mapHost keepRecordedPort", () => {
+  it("keeps the recorded port in the Host header only when asked", () => {
+    const base = new URL("http://localhost:3101");
+    expect(mapHost("localhost:3001", base)).toBe("localhost:3101");
+    expect(mapHost("localhost:3001", base, true)).toBe("localhost:3001");
+  });
+});
+
 describe("diffReplays", () => {
   const run = async (variant: Variant) => {
     const server = await startServer(variant);
