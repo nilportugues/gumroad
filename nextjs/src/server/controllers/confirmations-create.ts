@@ -1,13 +1,14 @@
 // ConfirmationsController#create on `POST /users/confirmation` (Devise's resend form): `send_confirmation_instructions` finds the account by the
 // address it is changing to, then by its current one, and User#resend_confirmation_instructions claims the one-minute floor and queues
 // ResendConfirmationEmailJob. Whatever ends in the `new` view (a blank or unknown address, an account with nothing pending) is an ERB page and
-// goes to Rails whole, before the first write.
+// is rendered here from the same view as `new`; the shapes no recording covers go to Rails whole, before the first write.
 import { db } from "../../lib/db.ts";
 import { isBlank } from "../html/text-helper.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { findUser, isConfirmed, type UserRecord } from "../models/user.ts";
 
 import { type ActionResult, HandBackToRails } from "./application-controller.ts";
+import { confirmationFormPage } from "./devise-pages.ts";
 import { type MutationInput, registerMutations } from "./mutation.ts";
 
 const SIGN_IN_PATH = "/users/sign_in";
@@ -29,20 +30,28 @@ async function findPending(email: string): Promise<UserRecord | null> {
   return row === null ? null : await findUser(row.id);
 }
 
-async function confirmationCreate({ params, chain }: MutationInput): Promise<ActionResult> {
-  const userParams = params.user === undefined ? {} : params.user;
+async function confirmationCreate(input: MutationInput): Promise<ActionResult> {
+  const { params, chain } = input;
+  // No `user` parameter: Devise looks the account up by a nil email.
+  if (params.user === undefined) return confirmationFormPage(input.request, input, { error: "Email can't be blank" });
+  const userParams = params.user;
   if (!isHash(userParams)) throw new HandBackToRails("a user parameter that is not a hash");
   const email = userParams.email;
-  if (email !== undefined && email !== null && typeof email !== "string")
-    throw new HandBackToRails("an email that is not a string");
   if (typeof email !== "string" || isBlank(email))
-    throw new HandBackToRails("the resend form with an error, an ERB view");
+    throw new HandBackToRails("a blank or non-string email, the resend form with an error");
 
   const user = await findPending(email);
-  if (user === null) throw new HandBackToRails("an unknown address, the resend form with an error");
+  if (user === null) return confirmationFormPage(input.request, input, { error: "Email not found", email });
   // Devise::Models::Confirmable#pending_any_confirmation
-  if (isConfirmed(user) && isBlank(user.get("unconfirmed_email")))
-    throw new HandBackToRails("an address that is already confirmed, the resend form with an error");
+  if (isConfirmed(user) && isBlank(user.get("unconfirmed_email"))) {
+    // The form holds the found account's address, which the collation lets differ from what was typed in case; only the exact match is recorded.
+    if (user.get("email") !== email) throw new HandBackToRails("an already confirmed address typed in another case");
+    return confirmationFormPage(input.request, input, {
+      error: "Email was already confirmed, please try signing in",
+      email,
+      persisted: true,
+    });
+  }
 
   // The claim is one conditional UPDATE so two clicks queue one mail; a lost claim still redirects with the flash, as Devise sees no error.
   const sentAt = toSeconds(chain.now);
