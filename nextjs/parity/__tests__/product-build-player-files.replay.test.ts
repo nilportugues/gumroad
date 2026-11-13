@@ -17,13 +17,19 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays ProductBuildPlayerFilesController. The last exchange of each fixture is sent to `next dev` with the
+// Replays ProductBuildPlayerFilesController and the public demo's controllers (ProductBuildDemosController, ProductBuildDemoFilesController).
+// The demo page's 200 examples ("renders ...") are not served from Node: demo.test.ts proves their props. The last exchange of each fixture is sent to `next dev` with the
 // routes' flag on; a stand-in Rails receives whatever Node hands back.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["product_build_player_files_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = "nextjs_product_build_player_files";
+const SPECS = [
+  "product_build_player_files_parity_spec",
+  "product_build_demos_parity_spec",
+  "product_build_demo_files_parity_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = "nextjs_product_build_player_files,nextjs_product_build_demos";
+const NOT_REPLAYED = /^product-build-demo-page-renders-/u;
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -88,20 +94,20 @@ process.env.SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const grantsOf = () =>
   SPECS.flatMap((spec) =>
     readdirSync(path.join(FIXTURES, spec))
-      .filter((file) => file.endsWith(".json"))
-      .map(
-        (file) =>
-          loadFixture(path.join(FIXTURES, spec, file))
-            .exchanges.at(-1)!
-            .request.path.split("/")[4],
-      )
+      .filter((file) => file.endsWith(".json") && !NOT_REPLAYED.test(file))
+      .map((file) => {
+        const requestPath = loadFixture(path.join(FIXTURES, spec, file))
+          .exchanges.at(-1)!
+          .request.path.split("/");
+        return requestPath[1] === "demo" ? requestPath[3] : requestPath[4];
+      })
       .filter((grant): grant is string => grant !== undefined),
   );
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
-    .filter((file) => file.endsWith(".json"))
+    .filter((file) => file.endsWith(".json") && !NOT_REPLAYED.test(file))
     .map(
       (file) =>
         [
