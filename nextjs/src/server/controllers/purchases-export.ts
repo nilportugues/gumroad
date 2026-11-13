@@ -54,9 +54,13 @@ function utcDay(value: unknown, name: string): string | undefined {
   return day;
 }
 
-// `params[:in_seller_time_zone].present?`. Only a plain word is judged here; whitespace, Unicode and structures are Rails' to read.
-function presentFlag(value: unknown): boolean {
+// Ruby's `blank?` for a string of ASCII whitespace only (`[[:space:]]` also holds Unicode spaces, which Rails keeps).
+const ASCII_BLANK = /^[\t-\r ]+$/u;
+
+// `params[:in_seller_time_zone].present?`. Only a plain word or ASCII whitespace is judged here; Unicode and structures are Rails' to read.
+export function presentFlag(value: unknown): boolean {
   if (value === undefined || value === null || value === "") return false;
+  if (typeof value === "string" && ASCII_BLANK.test(value)) return false;
   if (typeof value !== "string" || !PLAIN_WORD.test(value))
     throw new HandBackToRails("an in_seller_time_zone that is not a plain word");
   return true;
