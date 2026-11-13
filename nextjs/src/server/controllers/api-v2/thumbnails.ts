@@ -1,7 +1,7 @@
 // Api::V2::ThumbnailsController (app/controllers/api/v2/thumbnails_controller.rb): the answers it gives before it touches storage or the
-// database. Attaching a blob or fetching a URL goes through Active Storage and SsrfFilter, and soft-deleting a thumbnail touches the
-// product (`touch: true`), which runs the product's callbacks; Rails takes those whole.
+// database, and the soft-delete. Attaching a blob or fetching a URL goes through Active Storage and SsrfFilter; Rails takes those whole.
 import { db } from "../../../lib/db.ts";
+import { softDeletion, Thumbnails } from "../../models/thumbnail.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
 import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, loadProduct, present, registerApiV2, renderResponse } from "./base.ts";
@@ -26,7 +26,9 @@ async function destroy({ state }: ApiV2Input) {
   });
   if (thumbnail === null || thumbnail.deleted_at !== null)
     return renderResponse(false, { message: "The thumbnail was not found." });
-  throw new HandBackToRails("a thumbnail deletion that touches the product");
+  // Alive, so Thumbnail#validate_file is skipped for the deleted row; the save touches the product (`belongs_to :product, touch: true`).
+  await softDeletion.markDeletedBang(Thumbnails.load(thumbnail));
+  return renderResponse(true, { thumbnail: null });
 }
 
 registerApiV2(

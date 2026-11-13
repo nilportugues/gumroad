@@ -4,7 +4,7 @@ require "spec_helper"
 
 # Api::V2::ThumbnailsController through the full Rack stack, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. Node answers the checks that run before storage or the product is touched; attaching
-# a blob, fetching a URL and soft-deleting a thumbnail (which touches the product) are recorded as what Node hands back.
+# a blob and fetching a URL are recorded as what Node hands back; the soft-delete of a thumbnail runs in Node through the Thumbnail model, which touches the product.
 describe "API v2 thumbnails", type: :request do
   include Parity::ApiV2Requests
 
@@ -117,21 +117,27 @@ describe "API v2 thumbnails", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands a deletion of a thumbnail to Rails", parity: true do
+    it "soft-deletes a thumbnail backed by a file and touches the product", parity: true do
       thumbnail = create(:thumbnail, product:)
+      product.update_column(:updated_at, 2.days.ago)
 
       thumbnail_call(:delete)
 
-      expect(response.parsed_body).to include("success" => true)
+      expect(response.parsed_body).to eq("success" => true, "thumbnail" => nil)
       expect(thumbnail.reload.deleted_at).to be_present
+      expect(thumbnail.file).to be_attached
+      expect(product.reload.updated_at).to be > 1.minute.ago
     end
 
-    it "hands a deletion of an unsplash thumbnail through the /api prefix on the Gumroad domain to Rails", parity: true do
-      create(:unsplash_thumbnail, product:)
+    it "soft-deletes an unsplash thumbnail through the /api prefix on the Gumroad domain and touches the product", parity: true do
+      thumbnail = create(:unsplash_thumbnail, product:)
+      product.update_column(:updated_at, 2.days.ago)
 
       thumbnail_call(:delete, {}, api_host: false)
 
-      expect(response.parsed_body["success"]).to eq(true)
+      expect(response.parsed_body).to eq("success" => true, "thumbnail" => nil)
+      expect(thumbnail.reload.deleted_at).to be_present
+      expect(product.reload.updated_at).to be > 1.minute.ago
     end
   end
 end
