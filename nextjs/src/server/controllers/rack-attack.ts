@@ -205,6 +205,7 @@ const PRODUCT_WRITE_PATH = /^\/(api\/)?v2\/products\/[^/]+(\.\w+)?$/u;
 const AFFILIATE_REQUESTS_PATH = /^\/[\p{L}\p{N}]+\/affiliate_requests$/u;
 const ACME_CHALLENGE_PREFIX = "/.well-known/acme-challenge/";
 const HELP_CONTACT_PATH = /^\/help\/contact(?:\.[^/]+)?$/u;
+const PURCHASE_REFUND_REQUEST_PATH = /^\/purchases\/[^/]+\/refund_request(?:\.[^/]+)?$/u;
 const OAUTH_DEVICE_CODE_PATH = /^\/oauth\/device\/code(?:\.[^/]+)?$/u;
 const OAUTH_DEVICE_PATH = /^\/oauth\/device(?:\.[^/]+)?$/u;
 const OAUTH_TOKEN_PATH = /^\/oauth\/token(?:\.[^/]+)?$/u;
@@ -413,6 +414,7 @@ const RULES: Throttle[] = [
   // throttle_by_ip_for_period: one counter, no tiers.
   { name: "/ip/period:/purchases", limit: 50, period: 3600, discriminator: exactPathIp("/purchases") },
   ...backoff("help_center_contact/ip", 3, 60, 1, memoized(regexpIp(HELP_CONTACT_PATH, ["POST"]))),
+  ...backoff("purchase_refund_request/ip", 3, 60, 1, memoized(regexpIp(PURCHASE_REFUND_REQUEST_PATH, ["POST"]))),
   ...GROUPED_RECEIPT_PATHS.flatMap((path) =>
     backoff(
       `/ip:${path}`,
