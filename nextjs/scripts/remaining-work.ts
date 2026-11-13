@@ -386,7 +386,9 @@ function sourceLiterals(): Set<string> {
             ...segments,
             /^\[(\.\.\.)?(\w+)\]$/u.test(name) ? ":p" : name,
           ]);
-      } else if (name === "page.tsx" || name === "route.ts") found.add(normalizeParams(`/${segments.join("/")}`));
+      } else if (name === "page.tsx" || name === "route.ts")
+        // A `builds.json` directory serves `/products/:id/builds(.json)`; routes.json and the Rails parse are compared without the format.
+        found.add(normalizeParams(`/${segments.join("/")}`));
     }
   };
   walkApp(APP_DIR, []);
