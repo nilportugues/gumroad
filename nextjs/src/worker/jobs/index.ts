@@ -71,6 +71,7 @@ import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
 import { createAndEnqueueChunksWorker } from "./exports-sales-create-and-enqueue-chunks-worker.ts";
+import { finalizeBuyerPresentmentChargeJob } from "./finalize-buyer-presentment-charge-job.ts";
 import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
 import {
   emailOutstandingBalancesCsvWorker,
@@ -237,6 +238,7 @@ import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
 import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
 import { resumeStalledPartnerMigrationsJob } from "./resume-stalled-partner-migrations-job.ts";
 import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
+import { retryPendingMandateChargeJob } from "./retry-pending-mandate-charge-job.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
@@ -260,6 +262,7 @@ import {
 import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendBundlesMarketingEmailJob } from "./send-bundles-marketing-email-job.ts";
+import { sendChargeReceiptJob } from "./send-charge-receipt-job.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
@@ -486,6 +489,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   StaleTransientSuppressionSweepJob: staleTransientSuppressionSweepJob,
   ResendConfirmationEmailJob: resendConfirmationEmailJob,
   PdfUnstampableNotifierJob: pdfUnstampableNotifierJob,
+  RetryPendingMandateChargeJob: retryPendingMandateChargeJob,
+  FinalizeBuyerPresentmentChargeJob: finalizeBuyerPresentmentChargeJob,
+  SendChargeReceiptJob: sendChargeReceiptJob,
   GenerateLargeSellersAnalyticsCacheWorker: generateLargeSellersAnalyticsCacheWorker,
   SendSignedPiracyNoticesJob: sendSignedPiracyNoticesJob,
   RenewCustomDomainSslCertificates: renewCustomDomainSslCertificates,

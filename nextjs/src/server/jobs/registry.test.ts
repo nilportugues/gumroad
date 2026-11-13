@@ -3,11 +3,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { buildRegistry } from "../../../scripts/generate-job-registry.ts";
+
 import recurringLockTtls from "./__fixtures__/recurring-lock-ttl.golden.json" with { type: "json" };
 import { attemptsFor, sidekiqBackoffMs } from "./bullmq/options.ts";
 import { resolveJobClass } from "./enqueue.ts";
-import { CRON_SCHEDULE, JOB_REGISTRY } from "./registry.generated.ts";
 import type { JobDefinition } from "./registry-types.ts";
+import { CRON_SCHEDULE, JOB_REGISTRY } from "./registry.generated.ts";
 
 const registry = JOB_REGISTRY as Record<string, JobDefinition>;
 
@@ -43,9 +44,24 @@ describe("job registry", () => {
     expect(CRON_SCHEDULE.find((entry) => entry.name === "payouts_paypal")?.args).toEqual(["PAYPAL"]);
   });
 
+  it("marks an alias of a ported job as Node-run without listing it as node-owned", () => {
+    expect(registry.PdfUnstampableNotifierWorker!.runtime).toBe("node");
+    expect(registry.ProcessPurchaseEarlyFraudWarningJob!.runtime).toBe("node");
+    const nodeOwned = JSON.parse(
+      readFileSync(new URL("./node-owned-jobs.generated.json", import.meta.url), "utf8"),
+    ) as string[];
+    expect(nodeOwned).not.toContain("PdfUnstampableNotifierWorker");
+  });
+
   it("marks only ported jobs as Node-run", () => {
-    const nodeOwned = JSON.parse(readFileSync(new URL("./node-owned-jobs.generated.json", import.meta.url), "utf8")) as string[];
-    expect(Object.entries(registry).filter(([, entry]) => entry.runtime === "node").map(([name]) => name)).toEqual(nodeOwned);
+    const nodeOwned = JSON.parse(
+      readFileSync(new URL("./node-owned-jobs.generated.json", import.meta.url), "utf8"),
+    ) as string[];
+    expect(
+      Object.entries(registry)
+        .filter(([, entry]) => entry.runtime === "node" && !entry.aliasOf)
+        .map(([name]) => name),
+    ).toEqual(nodeOwned);
   });
 });
 
