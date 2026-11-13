@@ -262,4 +262,5 @@ export const PORTED_JOBS: readonly string[] = [
   "ScheduleOpenedNoClickWorkflowEmailsJob",
   "SendProductPublishScheduleNoticeJob",
   "PurchaseRefundRequests::EscalateOverdueJob",
+  "RecordUtmLinkVisitJob",
 ];

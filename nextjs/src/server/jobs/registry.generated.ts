@@ -2250,7 +2250,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RecoverAusBacktaxFromStripeAccountJob: {
     file: "app/sidekiq/recover_aus_backtax_from_stripe_account_job.rb",
