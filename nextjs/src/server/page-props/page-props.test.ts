@@ -168,7 +168,7 @@ describe("help center", () => {
   it("resolves every article's ERB category reference", () => {
     const { categories, articles } = helpCenterData();
     expect(categories).toHaveLength(11);
-    expect(articles).toHaveLength(130);
+    expect(articles).toHaveLength(131);
     const ids = new Set(categories.map((category) => category.id));
     for (const article of articles) expect(ids.has(article.category_id)).toBe(true);
     expect(enumConstant("Issues with your purchase")).toBe("ISSUES_WITH_YOUR_PURCHASE");

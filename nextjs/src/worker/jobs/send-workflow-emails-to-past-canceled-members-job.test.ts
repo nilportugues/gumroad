@@ -162,7 +162,7 @@ describe("SendWorkflowEmailsToPastCanceledMembersJob", () => {
       });
     }
 
-    it("treats blank tokens as absent", async () => {
+    it.skipIf(!url)("treats blank tokens as absent", async () => {
       const c = caseNamed("a member cancelled before the post was scheduled");
       const sql = sqlReplay(c.statements);
       await restore(redis!, {});
