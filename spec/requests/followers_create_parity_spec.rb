@@ -229,7 +229,7 @@ describe "Subscribing to a seller", type: :request do
       expect(embed_form_props).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.", "confirmed" => false)
     end
 
-    it "hands the embed form result of a signed-in visitor with a verified email to Rails", parity: true do
+    it "hands a signed-in visitor's embed form result to Rails", parity: true do
       log_in(create(:user, email: "member@example.com"))
 
       subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "member@example.com" }, headers: {}, as_json: false)
@@ -237,7 +237,7 @@ describe "Subscribing to a seller", type: :request do
       expect(embed_form_props).to eq("success" => true, "message" => "You are now following Followed Seller!", "confirmed" => true)
     end
 
-    it "hands the embed form of a seller who needs a CAPTCHA to Rails, pointing at the seller's subscribe page", parity: true do
+    it "hands a CAPTCHA refusal of the embed form to Rails, pointing at the seller's subscribe page", parity: true do
       seller.update_columns(user_risk_state: "not_reviewed")
 
       subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" }, headers: {}, as_json: false)
@@ -246,7 +246,7 @@ describe "Subscribing to a seller", type: :request do
       expect(Follower.where(followed_id: seller.id)).to be_empty
     end
 
-    it "hands the embed form of a seller with no name or username who needs a CAPTCHA to Rails", parity: true do
+    it "hands a CAPTCHA refusal of the embed form for a seller with no name or username to Rails", parity: true do
       seller.update_columns(user_risk_state: "not_reviewed", username: nil, name: nil)
 
       subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" }, headers: {}, as_json: false)

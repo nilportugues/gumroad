@@ -32,25 +32,33 @@ describe("Followers/FromEmbedForm props", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("covers the unconfirmed, confirmed and CAPTCHA renders of the embed form", () => {
-    expect(recorded.map(({ example }) => example.replace(/^.*POST \/follow_from_embed_form /u, "")).sort()).toEqual([
-      "hands a form post of the embed form to Rails",
-      "hands the embed form of a seller who needs a CAPTCHA to Rails, pointing at the seller's subscribe page",
-      "hands the embed form of a seller with no name or username who needs a CAPTCHA to Rails",
-      "hands the embed form result of a signed-in visitor with a verified email to Rails",
-    ]);
+    expect(recorded.map(({ example }) => example.replace(/^.*POST \/follow_from_embed_form /u, "")).sort()).toEqual(
+      [
+        "hands a form post of the embed form to Rails",
+        "hands a CAPTCHA refusal of the embed form to Rails, pointing at the seller's subscribe page",
+        "hands a CAPTCHA refusal of the embed form for a seller with no name or username to Rails",
+        "hands a signed-in visitor's embed form result to Rails",
+      ].sort(),
+    );
   });
 
-  it.each(recorded.map((fixture) => [fixture.example, fixture] as const))("builds what Rails rendered: %s", (_, fixture) => {
-    const exchange = fixture.exchanges.at(-1)!;
-    const { props } = exchange.response.inertia!;
-    const sellerId = new URLSearchParams(exchange.request.body).get("seller_id");
-    const row = exchange.seed.tables.users.rows.find((user) => user.external_id === sellerId)!;
-    const seller = Users.load(castRow<User>("User", row as never));
+  it.each(recorded.map((fixture) => [fixture.example, fixture] as const))(
+    "builds what Rails rendered: %s",
+    (_, fixture) => {
+      const exchange = fixture.exchanges.at(-1)!;
+      const { props } = exchange.response.inertia!;
+      const sellerId = new URLSearchParams(exchange.request.body).get("seller_id");
+      const row = exchange.seed.tables.users.rows.find((user) => user.external_id === sellerId)!;
+      const seller = Users.load(castRow<User>("User", row as never));
 
-    const built = "subscribe_url" in props ? embedFormCaptchaProps(seller) : embedFormFollowedProps(seller, props.confirmed === true);
-    // The page's own props, in the order Rails serialized them among the shared ones.
-    const own = Object.keys(props).filter((key) => key in built);
+      const built =
+        "subscribe_url" in props
+          ? embedFormCaptchaProps(seller)
+          : embedFormFollowedProps(seller, props.confirmed === true);
+      // The page's own props, in the order Rails serialized them among the shared ones.
+      const own = Object.keys(props).filter((key) => key in built);
 
-    expect(JSON.stringify(Object.fromEntries(own.map((key) => [key, props[key]])))).toBe(JSON.stringify(built));
-  });
+      expect(JSON.stringify(Object.fromEntries(own.map((key) => [key, props[key]])))).toBe(JSON.stringify(built));
+    },
+  );
 });
