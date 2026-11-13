@@ -4,7 +4,7 @@
 // Ported: #new's 301 to the seller's subdomain and its 404 (the page itself is `seller:/affiliates` in the page registry); #create's 404 and the redirect with the validation errors;
 // #update's 404, authorization and the "already processed" and "not a valid action" redirects; the 404 and sign-in redirect of
 // #approve and #ignore; #approve_all with nothing pending.
-// Handed to Rails before any write:
+// A missing or blank `affiliate_request` is ParameterMissing, a 400. Handed to Rails before any write:
 //   - #create of a valid request (the insert, the submission mails, and `approve!` when the seller auto-approves);
 //   - #update, #approve, #ignore and #approve_all that would transition a request (the requester's affiliate record, the mails);
 //   - #approve and #ignore render the `email_link_status` ERB view, which has no HTML shell in Node.
@@ -26,7 +26,7 @@ import { domainConfig } from "../page-props/domain.ts";
 import { affiliateRequestPolicy } from "../policies/affiliate-request.ts";
 import { authorize } from "../policies/authorize.ts";
 
-import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { profileUser, requireHtml } from "./users-controller.ts";
 
@@ -35,7 +35,7 @@ const FOUND = 302;
 const SEE_OTHER = 303;
 // affiliates_path and custom_domain_new_affiliate_request_path
 const AFFILIATES_PATH = "/affiliates";
-const NOT_A_HASH = "affiliate_request is missing or not a hash, which params.require turns into a 400 or a 500";
+const NOT_A_HASH = "affiliate_request is a scalar or a list, which `permit` raises NoMethodError on";
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -49,7 +49,10 @@ function toSentence(items: string[]): string {
 // `params.require(:affiliate_request).permit(...)`: a scalar is kept, a hash or an array is filtered out as nil.
 function permittedParams(input: MutationInput, keys: string[]): Record<string, string | null> {
   const value = input.params.affiliate_request;
-  if (!isHash(value) || Object.keys(value).length === 0) throw new HandBackToRails(NOT_A_HASH);
+  // `require` raises ParameterMissing for a blank value; a non-blank scalar or list reaches `permit` and raises NoMethodError.
+  if (value === undefined || value === null || value === "" || (isHash(value) && Object.keys(value).length === 0))
+    throw new ParameterMissing();
+  if (!isHash(value)) throw new HandBackToRails(NOT_A_HASH);
   return Object.fromEntries(
     keys.map((key) => {
       const entry = value[key];
