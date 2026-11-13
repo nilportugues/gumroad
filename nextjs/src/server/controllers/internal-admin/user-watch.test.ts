@@ -27,8 +27,14 @@ describe("parseThresholdCents", () => {
     for (const word of ["Infinity", "-Infinity", "NaN", "abc"]) expect(parseThresholdCents(word)).toBeNull();
   });
 
+  it("reads a whole number with a plain exponent", () => {
+    expect(parseThresholdCents("1e2")).toBe(10_000n);
+    expect(parseThresholdCents("3E1")).toBe(3_000n);
+    expect(parseThresholdCents("0e5")).toBeNull();
+  });
+
   it("hands back shapes BigDecimal reads in other ways", () => {
-    for (const text of ["1e2", "1_000", " 5 ", "5.", "0x10"]) expect(() => parseThresholdCents(text)).toThrow(NotPortedError);
+    for (const text of ["1e-2", "1.5e2", "1e+2", "1e999", "1_000", " 5 ", "5.", "0x10"]) expect(() => parseThresholdCents(text)).toThrow(NotPortedError);
   });
 
   it("hands back an amount past the bigint column", () => {

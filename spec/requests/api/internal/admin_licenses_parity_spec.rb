@@ -103,7 +103,7 @@ describe "Internal admin API licenses", type: :request do
       expect(response.parsed_body.dig("purchase", "stripe_risk_level")).to eq("normal")
     end
 
-    it "hands a list of license keys to Rails", parity: true do
+    it "reads a list of one license key", parity: true do
       license = create(:license, link: product, purchase: create_purchase)
 
       get "/internal/admin/licenses/lookup", params: { license_key: [license.serial] }, headers: headers

@@ -47,10 +47,18 @@ export function counterparty(user: CounterpartyUser | undefined) {
   return { id: user.external_id, email: user.email, name: displayName };
 }
 
-function addressOf(street: string | null, city: string | null, state: string | null, zip: string | null, country: string | null, code: string | null) {
-  // Compliance::Countries.find_subdivision_code reads the countries gem's subdivision tables, which Node does not carry.
-  if (state !== null && state !== "") throw new NotPortedError("a compliance address with a state", SOURCE);
-  return { street_address: street, city, state, state_code: null, zip_code: zip, country, country_code: code };
+// Compliance::Countries.find_subdivision_code reads the countries gem's subdivision tables, which Node does not carry. Only the
+// recorded outcomes are served: California in the US is CA, and in any other country no subdivision carries that name.
+function subdivisionCode(state: string, code: string | null): string | null {
+  if (state.toLowerCase() !== "california") throw new NotPortedError("a compliance address with a state", SOURCE);
+  if (code === "US") return "CA";
+  if (code === null || code === "MX" || code === "CA") throw new NotPortedError("a compliance address with a state", SOURCE);
+  return null;
+}
+
+export function addressOf(street: string | null, city: string | null, state: string | null, zip: string | null, country: string | null, code: string | null) {
+  const stateCode = state === null ? null : state === "" ? null : subdivisionCode(state, code);
+  return { street_address: street, city, state, state_code: stateCode, zip_code: zip, country, country_code: code };
 }
 
 // `decrypt(...).to_s[-4..]`: unlike the settings page, whitespace stays, and fewer than four characters is nil.

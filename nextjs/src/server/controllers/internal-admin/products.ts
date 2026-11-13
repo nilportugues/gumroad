@@ -9,6 +9,7 @@ import { LinkFlags, defaultPriceCents, findLinkBang } from "../../models/link.ts
 import { s3Fields } from "../../models/product-file.ts";
 import { selectRows } from "../../models/sql.ts";
 import { NotPortedError } from "../../models/user.ts";
+import { loadOembed, oembedUrl } from "../../presenters/asset-preview.ts";
 import { displayExtension, nameDisplayable } from "../../page-props/audience/product-file-json.ts";
 import { longUrl } from "../../page-props/piracy-reports/pages.ts";
 import { RubyFloat } from "../../search/es-json.ts";
@@ -62,7 +63,7 @@ export function serializeFile(file: ProductFile, owner: FileOwner) {
   };
 }
 
-// Link#preview_url is the first live preview's url: only an unsplash image is a plain column.
+// Link#preview_url is the first live preview's url: an unsplash image is a plain column and an oembed one is read off its iframe.
 async function previewUrl(productId: bigint): Promise<string | null> {
   const preview = await db.assetPreview.findFirst({
     where: { link_id: productId, deleted_at: null },
@@ -70,7 +71,10 @@ async function previewUrl(productId: bigint): Promise<string | null> {
   });
   if (preview === null) return null;
   if (preview.unsplash_url !== null && !isBlank(preview.unsplash_url)) return preview.unsplash_url;
-  throw new NotPortedError("a product cover that is an uploaded file or an oembed", SOURCE);
+  // `url` falls through to the attached file when the oembed document holds no usable iframe.
+  const embedded = preview.oembed === null ? null : oembedUrl(loadOembed(preview.oembed)?.html ?? null);
+  if (embedded !== null) return embedded;
+  throw new NotPortedError("a product cover that is an uploaded file or an oembed without an iframe", SOURCE);
 }
 
 type AncestryPaths = Map<string, string[]>;

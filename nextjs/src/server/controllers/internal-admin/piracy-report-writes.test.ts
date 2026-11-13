@@ -62,8 +62,12 @@ describe("descriptionFact", () => {
     expect(result.endsWith("...")).toBe(true);
   });
 
+  it("writes an escaped ampersand back unchanged", () => {
+    expect(descriptionFact("<p>Fish &amp; chips</p>")).toBe("Fish &amp; chips");
+  });
+
   it("hands back markup and entities the sanitizer treats specially", () => {
-    for (const text of ["<script>x</script>", "Fish &amp; chips", "1 < 2"]) expect(() => descriptionFact(text)).toThrow(NotPortedError);
+    for (const text of ["<script>x</script>", "Fish &lt; chips", "Fish & chips", "1 < 2"]) expect(() => descriptionFact(text)).toThrow(NotPortedError);
   });
 });
 

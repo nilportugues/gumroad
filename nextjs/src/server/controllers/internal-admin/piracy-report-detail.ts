@@ -14,14 +14,14 @@ export const REPORT_NOT_FOUND = "Piracy report not found";
 const MAX_PRODUCT_FILES = 50;
 const MAX_DESCRIPTION_LENGTH = 2000;
 const TRUNCATION_OMISSION = "...";
-// strip_tags(...).squish.truncate: the sanitizer's entity handling and its treatment of scripts are not reproduced, so only
-// descriptions made of plain text and ordinary formatting tags are served.
+// strip_tags(...).squish.truncate: the sanitizer's treatment of scripts and of entities other than &amp; (which it writes back
+// unchanged) is not reproduced, so only plain text, &amp; and ordinary formatting tags are served.
 const SIMPLE_TAG = /<\/?(?:p|br|strong|em|b|i|u|s|ul|ol|li|h[1-6]|a|div|span|blockquote|code|pre|hr)(?:\s[^<>&]*)?\/?>/giu;
 const WHITE_SPACE_RUN = /\p{White_Space}+/gu;
 
 export function descriptionFact(description: string | null): string {
   const text = (description ?? "").replace(SIMPLE_TAG, "");
-  if (/[<>&]/u.test(text)) throw new NotPortedError("a product description with markup the tag stripper treats specially", SOURCE);
+  if (/[<>]|&(?!amp;)/u.test(text)) throw new NotPortedError("a product description with markup the tag stripper treats specially", SOURCE);
   const characters = [...text.replace(WHITE_SPACE_RUN, " ").trim()];
   return characters.length > MAX_DESCRIPTION_LENGTH ? `${characters.slice(0, MAX_DESCRIPTION_LENGTH - TRUNCATION_OMISSION.length).join("")}${TRUNCATION_OMISSION}` : characters.join("");
 }
