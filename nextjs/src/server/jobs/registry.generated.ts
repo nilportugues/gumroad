@@ -1168,7 +1168,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Exports::Sales::ProcessChunkWorker": {
     file: "app/sidekiq/exports/sales/process_chunk_worker.rb",

@@ -68,6 +68,7 @@ import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconn
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
+import { createAndEnqueueChunksWorker } from "./exports-sales-create-and-enqueue-chunks-worker.ts";
 import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
 import {
   emailOutstandingBalancesCsvWorker,
@@ -596,6 +597,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "PurchaseRefundRequests::EscalateOverdueJob": purchaseRefundRequestsEscalateOverdueJob,
   RecordUtmLinkVisitJob: recordUtmLinkVisitJob,
   "Mcp::DeliverEventJob": mcpDeliverEventJob,
+  "Exports::Sales::CreateAndEnqueueChunksWorker": createAndEnqueueChunksWorker,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

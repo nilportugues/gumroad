@@ -264,4 +264,5 @@ export const PORTED_JOBS: readonly string[] = [
   "PurchaseRefundRequests::EscalateOverdueJob",
   "RecordUtmLinkVisitJob",
   "Mcp::DeliverEventJob",
+  "Exports::Sales::CreateAndEnqueueChunksWorker",
 ];
