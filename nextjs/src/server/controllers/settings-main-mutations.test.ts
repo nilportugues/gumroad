@@ -190,14 +190,35 @@ describe("PUT /settings", () => {
     expect(seller.set).toHaveBeenCalledWith("purchasing_power_parity_limit", stored);
   });
 
-  it("hands a float PPP limit past a 4-byte column to Rails", async () => {
+  it.each([
+    ["3.0e10", 2 ** 31],
+    ["-3.0e10", -(2 ** 31)],
+  ])(
+    "sets a stand-in past the column for the float PPP limit %s, which the validation refuses",
+    async (sent, stored) => {
+      const request = input(form());
+      (request as { rawBody: Uint8Array }).rawBody = new TextEncoder().encode(
+        JSON.stringify({ user: form({ purchasing_power_parity_limit: "FLOAT" }) }).replace('"FLOAT"', sent),
+      );
+
+      await update.run(request);
+
+      expect(seller.set).toHaveBeenCalledWith("purchasing_power_parity_limit", stored);
+    },
+  );
+
+  it.each([
+    ["12345678901234567890", 2 ** 31],
+    ["-12345678901234567890", -(2 ** 31)],
+  ])("sets a stand-in past the column for the integer PPP limit %s past 2**53", async (sent, stored) => {
     const request = input(form());
     (request as { rawBody: Uint8Array }).rawBody = new TextEncoder().encode(
-      JSON.stringify({ user: form({ purchasing_power_parity_limit: "FLOAT" }) }).replace('"FLOAT"', "3.0e10"),
+      JSON.stringify({ user: form({ purchasing_power_parity_limit: "BIG" }) }).replace('"BIG"', sent),
     );
 
-    await expect(update.run(request)).rejects.toBeInstanceOf(HandBackToRails);
-    expect(mocks.save).not.toHaveBeenCalled();
+    await update.run(request);
+
+    expect(seller.set).toHaveBeenCalledWith("purchasing_power_parity_limit", stored);
   });
 
   it("redirects with the model errors when the seller does not save, without touching the rest", async () => {
@@ -253,6 +274,26 @@ describe("PUT /settings", () => {
         flash: { notice: expect.stringContaining("Feature announcements changed elsewhere") as string },
       });
     });
+
+    it.each(["12345678901234567890", "-12345678901234567890"])(
+      "reads the version %s past 2**53 as stale without writing a subscription",
+      async (sent) => {
+        mocks.selectRows.mockResolvedValueOnce([{ subscribed: 0, version: 1 }]);
+        const request = input(form());
+        (request as { rawBody: Uint8Array }).rawBody = new TextEncoder().encode(
+          JSON.stringify({
+            user: form({ feature_announcements_subscribed: true, feature_announcements_version: "BIG" }),
+          }).replace('"BIG"', sent),
+        );
+
+        const result = await update.run(request);
+
+        expect(result).toMatchObject({
+          flash: { notice: expect.stringContaining("Feature announcements changed elsewhere") as string },
+        });
+        expect(mocks.execute).toHaveBeenCalledTimes(1);
+      },
+    );
 
     it("inserts the first row when none exists and the form carried version 0", async () => {
       mocks.selectRows.mockResolvedValueOnce([]);

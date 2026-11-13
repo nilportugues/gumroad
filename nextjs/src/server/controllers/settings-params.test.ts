@@ -112,9 +112,11 @@ describe("floats in a JSON body", () => {
     expect(isPermittedScalar(new RubyFloat(1))).toBe(true);
   });
 
-  it("keeps a float TikTok pixel id for the model to fail on, and hands back a float snippet field", () => {
+  it("keeps a float TikTok pixel id for the model to fail on, and a float or huge integer snippet field as sent", () => {
     expect(tiktokPixelIdValue(new RubyFloat(5))).toEqual(new RubyFloat(5));
-    expect(() => snippetValue(new RubyFloat(1.5))).toThrow(HandBackToRails);
+    expect(snippetValue(new RubyFloat(1.5))).toEqual(new RubyFloat(1.5));
+    expect(snippetValue(12345678901234567890n)).toBe(12345678901234567890n);
+    expect(() => snippetValue(new RubyFloat(Number.POSITIVE_INFINITY))).toThrow(HandBackToRails);
   });
 
   it("keeps an integer past 2**53 as a bigint, with every digit, and casts it to its digits for a string column", () => {
@@ -127,7 +129,6 @@ describe("floats in a JSON body", () => {
     expect(stringValue(12345678901234567890n)).toBe("12345678901234567890");
     expect(isPermittedScalar(12345678901234567890n)).toBe(true);
     expect(tiktokPixelIdValue(12345678901234567890n)).toBe(12345678901234567890n);
-    expect(() => snippetValue(12345678901234567890n)).toThrow(HandBackToRails);
     expect(trueValue(12345678901234567890n)).toBe(false);
   });
 

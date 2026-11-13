@@ -6,6 +6,7 @@ import { decrypt } from "../../lib/obfuscate-ids.ts";
 
 import { deletable } from "./concerns/deletable.ts";
 import { validatesAssociationPresence, type BelongsTo } from "./concerns/rails-validations.ts";
+import { RubyFloat, rubyFloatToS } from "./concerns/ruby-values.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { isBlank } from "./runtime/validators.ts";
@@ -41,13 +42,16 @@ type AnalyticRecord = ModelRecord<ThirdPartyAnalytic>;
 export type SnippetParams = { id?: unknown; code?: unknown; location?: unknown; name?: unknown; product?: unknown };
 
 const present = (value: unknown) => !isBlank(value);
-// A param cast for a string attribute; the controller has handed back floats. The MySQL adapter casts true/false to "1"/"0" for
+// A param cast for a string attribute (a Float by its `Float#to_s`). The MySQL adapter casts true/false to "1"/"0" for
 // a varchar column and to "t"/"f" for a text one (`analytics_code`).
 export function nullable(value: unknown, column: "varchar" | "text" = "varchar"): string | null {
   if (value === undefined || value === null) return null;
   if (typeof value === "boolean") return column === "text" ? (value ? "t" : "f") : value ? "1" : "0";
-  return String(value);
+  return value instanceof RubyFloat ? rubyFloatToS(value.value) : String(value);
 }
+
+// A Ruby Hash key: a Float is eql? only to an equal Float, never to its text or an Integer.
+const hashKey = (value: unknown): unknown => (value instanceof RubyFloat ? Symbol.for(`float:${value.value}`) : value);
 
 // ThirdPartyAnalytic.product_from_permalink: `Link.find_by(unique_permalink:)`, whoever owns it and deleted or not.
 async function productIdFromPermalink(permalink: unknown): Promise<number | null> {
@@ -81,7 +85,7 @@ export async function saveThirdPartyAnalytics(
   const taken = new Map<unknown, Set<number | null>>();
   for (const params of analyticsParams) {
     const productId = await productIdFromPermalink(params.product);
-    const location = params.location ?? null;
+    const location = hashKey(params.location ?? null);
     const products = taken.get(location) ?? new Set<number | null>();
     if (products.has(productId)) throw new ThirdPartyAnalyticInvalid(DUPLICATE_BLOCK_MESSAGE);
     products.add(productId);

@@ -110,12 +110,22 @@ describe "Settings main when signed in", type: :request do
       expect(flash[:alert]).to include("Support email")
     end
 
-    it "hands a purchasing power parity limit past 2**53 to Rails", parity: true do
-      log_in(seller)
+    [
+      ["an integer past 2**53", 12345678901234567890],
+      ["a negative integer past 2**53", -12345678901234567890],
+      ["an integer past a 4-byte column", 5000000000],
+      ["a float past a 4-byte column", 3.0e10],
+      ["a negative float past a 4-byte column", -3.0e10],
+    ].each do |label, limit|
+      it "answers a purchasing power parity limit of #{label} with its validation error", parity: true do
+        log_in(seller)
 
-      send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: 12345678901234567890))
+        send_form(:put, settings_main_path, settings(purchasing_power_parity_limit: limit, enable_payment_email: false))
 
-      expect(response).to have_http_status(:see_other)
+        expect(response).to redirect_to(settings_main_path)
+        expect(flash[:alert]).to include("Purchasing power parity limit")
+        expect(seller.reload.enable_payment_email).to eq(true)
+      end
     end
 
     it "reads an integer feature announcements flag past 2**53 as subscribed", parity: true do
@@ -260,6 +270,36 @@ describe "Settings main when signed in", type: :request do
         expect(response).to have_http_status(:see_other)
         expect(flash[:notice]).to eq("Your account has been updated, but Feature announcements changed elsewhere, so that setting was not saved.")
         expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 3)
+      end
+
+      it "reads a version past 2**53 as stale when the subscription would change", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_main_path, settings(feature_announcements_subscribed: true, feature_announcements_version: 12345678901234567890))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to include("Feature announcements changed elsewhere")
+        expect(FeatureAnnouncementSubscription.find_by(user_id: seller.id)).to be_nil
+      end
+
+      it "reads a negative version past 2**53 as stale when the subscription would change", parity: true do
+        log_in(seller)
+
+        send_form(:put, settings_main_path, settings(feature_announcements_subscribed: true, feature_announcements_version: -12345678901234567890))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to include("Feature announcements changed elsewhere")
+      end
+
+      it "leaves a subscription alone when the form agrees with it, whatever its version past 2**53", parity: true do
+        FeatureAnnouncementSubscription.create!(user_id: seller.id, subscribed: true, source: "settings")
+        log_in(seller)
+
+        send_form(:put, settings_main_path, settings(feature_announcements_subscribed: true, feature_announcements_version: 12345678901234567890))
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id).version).to eq(1)
       end
 
       it "reads a 0.0 subscription flag as subscribed because Boolean casts only the integer 0 to false", parity: true do

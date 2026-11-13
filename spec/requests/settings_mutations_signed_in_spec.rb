@@ -114,15 +114,6 @@ describe "Settings mutations when signed in", type: :request do
       expect(seller.reload).to have_attributes(disable_third_party_analytics: true, skip_free_sale_analytics: false)
     end
 
-    it "hands a float snippet field to Rails", parity: true do
-      create(:product, user: seller)
-      log_in(seller)
-
-      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 1.5, location: "receipt", code: "<script>1</script>", product: nil }]))
-
-      expect(response).to have_http_status(:see_other)
-    end
-
     it "stores an integer Facebook pixel id past 2**53 digit for digit", parity: true do
       log_in(seller)
 
@@ -142,12 +133,108 @@ describe "Settings mutations when signed in", type: :request do
       expect(flash[:alert]).to eq("Something broke. We're looking into what happened. Sorry about this!")
     end
 
-    it "hands a snippet field with an integer past 2**53 to Rails", parity: true do
+    def snippet_with(**fields)
+      analytics(snippets: [{ id: nil, name: "Name", location: "receipt", code: "<script>1</script>", product: nil }.merge(fields)])
+    end
+
+    it "casts a float snippet name and code like text columns", parity: true do
       log_in(seller)
 
-      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [{ id: nil, name: 12345678901234567890, location: "receipt", code: "<script>1</script>", product: nil }]))
+      send_form(:put, settings_third_party_analytics_path, snippet_with(name: 1.5, code: 2.0))
 
       expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+      expect(seller.third_party_analytics.alive.sole).to have_attributes(name: "1.5", analytics_code: "2.0")
+    end
+
+    it "casts a float snippet location like a text column", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(location: 1.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole.location).to eq("1.5")
+    end
+
+    it "looks a float permalink up as a string", parity: true do
+      create(:product, user: seller)
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(product: 4242.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole.link_id).to be_nil
+    end
+
+    it "treats two snippets with the same float location as one place", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [
+                                                                      { id: nil, name: "One", location: 1.5, code: "a", product: nil },
+                                                                      { id: nil, name: "Two", location: 1.5, code: "b", product: nil },
+                                                                    ]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to include("Only one analytics block")
+    end
+
+    it "does not take a float location for the same place as its text", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, analytics(snippets: [
+                                                                      { id: nil, name: "One", location: 1.5, code: "a", product: nil },
+                                                                      { id: nil, name: "Two", location: "1.5", code: "b", product: nil },
+                                                                    ]))
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+    end
+
+    it "answers a float snippet id like one that matches no snippet", parity: true do
+      kept = create(:third_party_analytic, user: seller, link: nil, name: "Kept", location: "all", analytics_code: "<script>old()</script>")
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(id: 1.5))
+
+      expect(response).to have_http_status(:see_other)
+      expect(kept.reload.deleted_at).to be_present
+    end
+
+    it "stores a snippet name and code with an integer past 2**53 digit for digit", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(name: 12345678901234567890, code: 12345678901234567891))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole).to have_attributes(name: "12345678901234567890", analytics_code: "12345678901234567891")
+    end
+
+    it "stores a snippet location with an integer past 2**53 digit for digit", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(location: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole.location).to eq("12345678901234567890")
+    end
+
+    it "looks a permalink with an integer past 2**53 up as a string", parity: true do
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(product: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(seller.third_party_analytics.alive.sole.link_id).to be_nil
+    end
+
+    it "answers a snippet id with an integer past 2**53 like one that matches no snippet", parity: true do
+      kept = create(:third_party_analytic, user: seller, link: nil, name: "Kept", location: "all", analytics_code: "<script>old()</script>")
+      log_in(seller)
+
+      send_form(:put, settings_third_party_analytics_path, snippet_with(id: 12345678901234567890))
+
+      expect(response).to have_http_status(:see_other)
+      expect(kept.reload.deleted_at).to be_present
     end
 
     it "answers a float Google Analytics id with its validation error", parity: true do

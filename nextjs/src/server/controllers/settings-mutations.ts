@@ -124,12 +124,10 @@ function plainStringValue(value: unknown): string | null {
 }
 
 // A snippet field stays as sent: `save_third_party_analytics` compares and keys on the raw param and casts it only when it
-// assigns a string column or looks a permalink up. A float hands back: the permalink lookup of a float is not recorded.
-export function snippetValue(value: unknown): string | number | boolean | null {
-  if (value instanceof RubyFloat || typeof value === "bigint")
-    throw new HandBackToRails("a float or a huge integer for a snippet field");
+// assigns a string column or looks a permalink up.
+export function snippetValue(value: unknown): string | number | bigint | boolean | RubyFloat | null {
   stringValue(value);
-  return value as string | number | boolean | null;
+  return value as string | number | bigint | boolean | RubyFloat | null;
 }
 
 const FLAG_PARAMS: Record<string, UserFlag> = {
