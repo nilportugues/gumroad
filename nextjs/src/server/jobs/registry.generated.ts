@@ -2339,7 +2339,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": true,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RefundPurchaseForFraudWorker": {
     "file": "app/sidekiq/refund_purchase_for_fraud_worker.rb",

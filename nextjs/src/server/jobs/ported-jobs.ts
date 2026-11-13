@@ -17,7 +17,6 @@ export const PORTED_JOBS: readonly string[] = [
   "ReleaseChargebackRatePayoutPauseForSellerJob",
   "UpdatePurchaseEmailToMatchAccountWorker",
   "CancelPreorderWorker",
-  "DeleteProductFilesWorker",
   "RenameProductFileWorker",
   "ChargeSuccessfulPreordersWorker",
   "ProcessAssetPreviewRetinaWorker",
@@ -240,4 +239,6 @@ export const PORTED_JOBS: readonly string[] = [
   "GenerateFinancialReportsForPreviousQuarterJob",
   "GenerateFinancialReportsForPreviousMonthJob",
   "DuplicateProductWorker",
+
+  "RefundAllForFraudWorker",
 ];

@@ -168,6 +168,7 @@ import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
+import { refundAllForFraudWorker } from "./refund-all-for-fraud-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
@@ -338,6 +339,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
   RetryStripeRejectedPayoutSetupsJob: retryStripeRejectedPayoutSetupsJob,
   StripeCreateMerchantAccountsWorker: stripeCreateMerchantAccountsWorker,
+
+  RefundAllForFraudWorker: refundAllForFraudWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,

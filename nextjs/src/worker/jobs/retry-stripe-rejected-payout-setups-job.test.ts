@@ -1,8 +1,8 @@
 // Replays retry-stripe-rejected-payout-setups-job.golden.json (scripts/golden/retry-stripe-rejected-payout-setups-job.rb):
-// RetryStripeRejectedPayoutSetupsJob run by the real app as a Sidekiq job. Node sends the batch statements Rails sent, watches the replica
-// lag once per batch, judges each request's json_data the way Rails does (including the Ruby errors an odd value raises) and queues
-// the same per-seller jobs. Those carry a unique-jobs lock, so this runs against a real Redis like
-// update-sales-related-products-infos-job.test.ts: JOBS_REDIS_URL=redis://127.0.0.1:6379/31 npm test. It is flushed between cases.
+// RetryStripeRejectedPayoutSetupsJob run by the real app as a Sidekiq job. Node sends the batch statements Rails sent, judges each
+// note's json_data the way Rails does (including the Ruby errors an odd value raises), queues the same per-seller jobs and ends with
+// the inline address resync. Those carry a unique-jobs lock, so this runs against a real Redis:
+// JOBS_REDIS_URL=redis://127.0.0.1:6379/31 npm test. It is flushed between cases.
 import { readFileSync } from "node:fs";
 
 import { Redis } from "ioredis";
@@ -34,8 +34,12 @@ const golden = parseRubyJson(
   readFileSync(new URL("./__fixtures__/retry-stripe-rejected-payout-setups-job.golden.json", import.meta.url), "utf8"),
 ) as unknown as { now: number; cases: Case[] };
 
-// Ruby's JSON::ParserError message is not ported, so the job is handed back.
-const HANDED_BACK = new Set(["json data that is not json"]);
+// json_data that Node does not read the way Ruby does, and a retry time that is not a string.
+const HANDED_BACK = new Set([
+  "json data that is not json",
+  "a retry time that is a number",
+  "a retry time that is true",
+]);
 
 const url = process.env.JOBS_REDIS_URL;
 if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
