@@ -116,7 +116,7 @@ export function underLegalGuardianAge(row: UserComplianceInfo, ageLimit: number,
 }
 
 // Unicode White_Space, which is what [[:space:]] matches in a Ruby UTF-8 string.
-const SPACE = new RegExp("[\\t-\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]", "gu");
+const SPACE = /[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/gu;
 
 // Strongbox decryption returns a binary string; Rails forces it to UTF-8 and drops invalid bytes.
 function scrubbedUtf8(plain: Buffer): string {

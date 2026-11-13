@@ -506,7 +506,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
 
   it.each(cases)(
     "%s",
-    async (_name, file, index) => {
+    async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
@@ -514,8 +514,8 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         expected.jobs = withoutLockedRepeats([...(expected.jobs ?? [])]).sort((a, b) =>
           jobKey(a).localeCompare(jobKey(b)),
         );
-        const { file: _file, ...options } = replayOptions(file, _name);
-        if (_name.includes("hands-a-")) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        if (name.includes("hands-a-")) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);
@@ -533,11 +533,11 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
-        await assertSend(_name, result.exchanges[0]!.actual);
-        await assertJoin(_name, result.exchanges[0]!.actual);
-        await assertTotp(_name, result.exchanges[0]!.actual);
-        await assertSetup(_name, result.exchanges[0]!.actual);
-        await assertRegistrationOptions(_name, fixture, result.exchanges[0]!.actual, result.exchanges[0]!.expected);
+        await assertSend(name, result.exchanges[0]!.actual);
+        await assertJoin(name, result.exchanges[0]!.actual);
+        await assertTotp(name, result.exchanges[0]!.actual);
+        await assertSetup(name, result.exchanges[0]!.actual);
+        await assertRegistrationOptions(name, fixture, result.exchanges[0]!.actual, result.exchanges[0]!.expected);
       } catch (error) {
         const logs = server
           .output()

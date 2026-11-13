@@ -378,15 +378,15 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
 
   it.each(cases)(
     "%s",
-    async (_name, file, index) => {
+    async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
         compareMailJobs = (expected.jobs ?? []).some((job) => job.activeJob === true);
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        const { file: _file, ...options } = replayOptions(file, _name);
-        if (_name.includes("hands-a-")) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        if (name.includes("hands-a-")) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);
@@ -402,10 +402,10 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
-        if (_name.startsWith("followers_create_parity_spec")) await assertConfirmationMail(_name, result);
+        if (name.startsWith("followers_create_parity_spec")) await assertConfirmationMail(name, result);
         // Recorded with the Sidekiq adapter, a comment that mails nobody leaves no mail job behind.
-        if (_name.startsWith("comments_mutations_signed_in_spec") && !compareMailJobs) expect(mailJobs).toHaveLength(0);
-        if (_name.includes("confirms-an-unconfirmed-follower")) {
+        if (name.startsWith("comments_mutations_signed_in_spec") && !compareMailJobs) expect(mailJobs).toHaveLength(0);
+        if (name.includes("confirms-an-unconfirmed-follower")) {
           const inserted = (result.exchanges.at(-1)!.actual.db as Record<string, { inserted: { details: string }[] }>)
             .audience_members!.inserted;
           expect(inserted).toHaveLength(1);
