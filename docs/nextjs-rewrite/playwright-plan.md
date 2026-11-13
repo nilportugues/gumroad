@@ -37,7 +37,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [x] 3.2 Discount code applied at checkout changes the total (`checkout-discount.spec.ts`)
 - [x] 3.3 Buying through an affiliate link records the affiliate (`affiliate-purchase.spec.ts`)
 - [ ] 3.4 Membership: subscribe, see it in the library, cancel
-- [ ] 3.5 Seller edits a product price and the product page follows
+- [x] 3.5 Seller edits a product price and the product page follows (`product-price-edit.spec.ts`)
 - [ ] 3.6 Seller refunds a sale (needs Stripe test keys or a free-sale equivalent)
 - [ ] 3.7 Customers page lists a new sale and its CSV export downloads
 - [ ] 3.8 Bundle created, published and bought
