@@ -36,6 +36,7 @@ export const MAX_PARTIAL_SEARCH_RESULTS = 5;
 export const MAX_RESULT_WINDOW = 10_000;
 const HOT_AND_NEW_PRODUCT_RECENTNESS_MS = 90 * 86_400_000;
 export const TOP_CREATORS_SIZE = 6;
+export const MAX_TOP_CREATORS_SIZE = 50;
 
 // ProductSortKey
 export const ProductSortKey = {
@@ -274,8 +275,12 @@ export async function searchOptions(params: Params, deps: SearchDeps): Promise<J
 
   const aggregations: Clause = { "tags.keyword": { terms: { field: "tags.keyword", size: tagsAggregationSize } } };
   if (truthy(params.include_top_creators)) {
+    // Integer only: a request's strings never change the size.
+    const requested = params.top_creators_size;
+    const topCreatorsSize =
+      typeof requested === "number" && Number.isInteger(requested) ? Math.min(Math.max(requested, 1), MAX_TOP_CREATORS_SIZE) : TOP_CREATORS_SIZE;
     aggregations.top_creators = {
-      terms: { field: "user_id", size: TOP_CREATORS_SIZE, order: { sales_volume_sum: "desc" } },
+      terms: { field: "user_id", size: topCreatorsSize, order: { sales_volume_sum: "desc" } },
       aggregations: { sales_volume_sum: { sum: { field: "sales_volume" } } },
     };
   }
