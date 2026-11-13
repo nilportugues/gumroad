@@ -2059,7 +2059,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 600,
-    runtime: "ruby",
+    runtime: "node",
   },
   PurgeOldDeletedAssetPreviewsWorker: {
     file: "app/sidekiq/purge_old_deleted_asset_previews_worker.rb",

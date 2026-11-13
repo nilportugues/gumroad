@@ -127,6 +127,7 @@ import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-ch
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
 import { partnerMigrationNotificationJob } from "./partner-migration-notification-job.ts";
+import { purchaseRefundRequestsEscalateOverdueJob } from "./purchase-refund-requests-escalate-overdue-job.ts";
 import {
   executeScheduledPayoutsJob,
   failAbandonedPurchaseWorker,
@@ -590,6 +591,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   SendWorkflowEmailToOpenedNonClickerJob: sendWorkflowEmailToOpenedNonClickerJob,
   ScheduleOpenedNoClickWorkflowEmailsJob: scheduleOpenedNoClickWorkflowEmailsJob,
   SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
+  "PurchaseRefundRequests::EscalateOverdueJob": purchaseRefundRequestsEscalateOverdueJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
