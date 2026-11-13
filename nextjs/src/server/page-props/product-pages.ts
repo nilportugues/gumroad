@@ -36,12 +36,6 @@ const productPage: PageSpec = {
   props: async (params, action) => {
     const row = (await findLink(BigInt(String(action.state.product_id))))!;
     const seller = (await findUserById(row.user_id!))!;
-    // prepare_product_page: `@user = @product.user`, so set_analytics_meta_tags follows the product's seller, not the visitor.
-    const env = domainConfig(process.env).railsEnv;
-    const analyticsEnabled =
-      (env === "production" || env === "staging") && !UserFlags.isSet(seller.flags, "disable_third_party_analytics");
-    for (const property of ["gr:google_analytics:enabled", "gr:fb_pixel:enabled", "gr:tiktok_pixel:enabled"])
-      action.meta.set({ property, content: String(analyticsEnabled) });
     const query = parseQuery(action.url.search.replace(/^\?/u, ""));
     const pathCode = params.code;
     const queryCode = typeof query.code === "string" && query.code.trim() !== "" ? query.code : null;
@@ -62,6 +56,12 @@ const productPage: PageSpec = {
         autocomplete_results: await autocompleteResults({ query: query.query as never }, user, guid),
       };
     }
+    // prepare_product_page (not the autocomplete answer above): `@user = @product.user`, so set_analytics_meta_tags follows the product's seller, not the visitor.
+    const env = domainConfig(process.env).railsEnv;
+    const analyticsEnabled =
+      (env === "production" || env === "staging") && !UserFlags.isSet(seller.flags, "disable_third_party_analytics");
+    for (const property of ["gr:google_analytics:enabled", "gr:fb_pixel:enabled", "gr:tiktok_pixel:enabled"])
+      action.meta.set({ property, content: String(analyticsEnabled) });
     const afterRender: (() => Promise<void>)[] = [];
     const viewer = viewerOf(
       query,
