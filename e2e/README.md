@@ -30,11 +30,16 @@ The suite never creates its own data for the catalogue; it relies on `bin/rails 
    PlatformBlock.delete_all # clears a block already armed in this lane
    ```
 
-4. Install the browser once: `npx playwright install chromium` (Linux hosts also need
+4. Development has no `SECURE_EXTERNAL_ID__*` keys, so the receipt page answers 500. Export the test values for the
+   lane's Rails process (`SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION=1`, `SECURE_EXTERNAL_ID__KEYS__1=...`, both in
+   `.env.test`).
+5. Install the browser once: `npx playwright install chromium` (Linux hosts also need
    `npx playwright install-deps chromium`).
 
 The `preflight` project runs before every spec and bot run. It fails with these instructions when the app is
 unreachable or `/l/demo` / `/discover` show no seeded products.
+
+Known noise: `GET /braintree/client_token` answers 500 on checkout without Braintree credentials; the bot records it.
 
 Seeded data used (from `db/seeds/020_development_staging`, `030_development`):
 
