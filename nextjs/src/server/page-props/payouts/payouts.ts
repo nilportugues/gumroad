@@ -3,7 +3,8 @@
 //
 // What the port cannot prove goes to Rails whole (`HandBackToRails`, decided before the page renders by
 // `planPayouts`): daily payouts of a compliant seller (Payouts.is_user_payable), a seller whose payout account is
-// seasoned for instant payouts (Stripe is asked about the bank account), a cached balance-stats blob that exists, a PayPal
+// seasoned for instant payouts and whose schedule is daily, a seller whose instant payout props hold a balance Stripe holds, one
+// without an account or two sharing a date, a cached balance-stats blob that exists, a PayPal
 // connected account and bank account classes whose routing number is not derivable. A daily seller that is not
 // compliant is scheduled weekly, an unseasoned account rules instant payouts out, and payouts in a currency the
 // money gem knows are formatted here.
@@ -17,10 +18,24 @@ import { getRedis } from "../../infra/redis.ts";
 import { enqueue } from "../../jobs/enqueue.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { knownCurrency, moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
+import {
+  instantPayoutPipelineUnpaidBalanceCents,
+  instantlyPayableUnpaidBalances,
+  summedHoldingCents,
+} from "../../models/instant-payable-balances.ts";
+import { bankAccountSupportsInstantPayouts } from "../../models/instant-payouts-supported.ts";
 import { type MerchantAccountRow, isStripeConnectAccount } from "../../models/merchant-account.ts";
+import { INSTANT_PAYOUT_FEE_PERCENT } from "../../models/payouts.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
-import { jsonDataForAttr, RISK_STATES, UserFlags, Users } from "../../models/user.ts";
+import {
+  jsonDataForAttr,
+  NotPortedError as ModelNotPortedError,
+  RISK_STATES,
+  UserFlags,
+  Users,
+} from "../../models/user.ts";
+import { StripeError } from "../../stripe/errors.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
 import { NotPortedError } from "../not-ported.ts";
 import PAYMENTS_DATA from "../settings/payments-data.generated.json" with { type: "json" };
@@ -259,16 +274,31 @@ function routingNumber(bank: BankAccountRow): string | null {
     : template.replace("{bank_number}", bank.bank_number ?? "").replace("{branch_code}", bank.branch_code ?? "");
 }
 
-// BankAccount#to_hash. No class defines bank_name, so it is never part of the hash.
-function bankAccountHash(bank: BankAccountRow) {
+// `AchAccount#bank_name`: `Bank.find_by(routing_number:)`; no other bank account class names its bank. A routing number two banks
+// share is whichever row the database returns first, which the port cannot name.
+async function bankName(bank: BankAccountRow): Promise<string | null> {
+  if ((bank.type ?? "AchAccount") !== "AchAccount") return null;
+  const rows = await selectRows<{ name: string | null }>(
+    bank.bank_number === null
+      ? Prisma.sql`SELECT banks.name FROM banks WHERE banks.routing_number IS NULL LIMIT 2`
+      : Prisma.sql`SELECT banks.name FROM banks WHERE banks.routing_number = ${bank.bank_number} LIMIT 2`,
+  );
+  if (rows.length > 1) throw new HandBackToRails();
+  return rows[0]?.name ?? null;
+}
+
+// BankAccount#to_hash
+async function bankAccountHash(bank: BankAccountRow) {
   const type = bank.type ?? "AchAccount";
   const accountType = (DATA.bankAccountType as Record<string, string>)[type];
   if (accountType === undefined) throw new NotPortedError(`BankAccount#bank_account_type for ${type}`);
+  const name = await bankName(bank);
   return {
     bank_number: bank.bank_number,
     routing_number: routingNumber(bank),
-    account_number: `******${bank.account_number_last_four}`,
+    account_number: `******${bank.account_number_last_four ?? ""}`,
     bank_account_type: accountType,
+    ...(present(name) ? { bank_name: name } : {}),
   };
 }
 const bankAccountCurrency = (bank: BankAccountRow) => {
@@ -346,6 +376,11 @@ export type PayoutsPlan = {
   activeBank: BankAccountRow | null;
   // `eligible_for_instant_payouts? && !active_bank_account&.supports_instant_payouts?`, served only where the second is true.
   showInstantPayoutsNotice: boolean;
+  // The two Stripe answers behind the instant payout props and the notice, when the page asked: the filter reads them once and
+  // the props reuse them.
+  instantReads: InstantReads | null;
+  // `PayoutsPresenter#instant_payout_data`, built from the same reads.
+  instantPayout: InstantPayoutData | null;
   frequency: PayoutFrequency;
   // Stored as daily, scheduled as weekly (see planPayouts).
   dailyFallback: boolean;
@@ -354,6 +389,8 @@ export type PayoutsPlan = {
   // The blob's two periods, when one exists: Rails serves them as stored, however stale, and still enqueues the refresh.
   cached: CachedPeriods | null;
 };
+
+export type InstantReads = [instantPayout: boolean, notice: boolean];
 
 type CachedPeriods = { next: Record<string, unknown> | null; processing: Record<string, unknown>[] };
 
@@ -460,7 +497,87 @@ async function eligibleForInstantPayouts(
   );
 }
 
-export async function planPayouts(seller: Seller, pageParam: string | null, now = new Date()): Promise<PayoutsPlan> {
+export type InstantPayoutData = {
+  instant_payout_fee_percent: number;
+  payable_amount_cents: number;
+  unpaid_amount_cents: number;
+  payable_balances: { id: string; date: string; amount_cents: number }[];
+  bank_account_type: string;
+  bank_name: string | null;
+  routing_number: string | null;
+  account_number: string;
+};
+
+// `PayoutsPresenter#instant_payout_data`. Each of its three uses of the instantly payable balances asks Stripe for the balance
+// again, so this reads three times, in the order the hash evaluates them.
+async function instantPayoutData(seller: Seller, bank: BankAccountRow, now: Date): Promise<InstantPayoutData> {
+  const record = Users.load(seller);
+  const options = { now: () => now };
+  const payableCents = summedHoldingCents(await instantlyPayableUnpaidBalances(record, options));
+  const unsettled = Math.max(
+    (await instantPayoutPipelineUnpaidBalanceCents(record)) -
+      summedHoldingCents(await instantlyPayableUnpaidBalances(record, options)),
+    0,
+  );
+  const payable = await instantlyPayableUnpaidBalances(record, options);
+  const dates = payable.map((balance) => ymd(balance.get("date") as unknown as Date));
+  // Ruby's sort_by is not stable: balances that share a date come back in no order the port can name.
+  if (new Set(dates).size !== dates.length) throw new HandBackToRails();
+  const type = bank.type ?? "AchAccount";
+  const accountType = (DATA.bankAccountType as Record<string, string>)[type];
+  if (accountType === undefined) throw new HandBackToRails();
+  return {
+    instant_payout_fee_percent: INSTANT_PAYOUT_FEE_PERCENT,
+    payable_amount_cents: payableCents,
+    unpaid_amount_cents: unsettled,
+    payable_balances: payable
+      .map((balance, index) => ({
+        id: externalId(balance.get("id") as number),
+        date: dates[index]!,
+        amount_cents: Number(balance.get("holding_amount_cents")),
+      }))
+      .sort((a, b) => (a.date < b.date ? 1 : -1)),
+    bank_account_type: accountType,
+    bank_name: await bankName(bank),
+    routing_number: routingNumber(bank),
+    account_number: `******${bank.account_number_last_four ?? ""}`,
+  };
+}
+
+// Rails asks Stripe once for `instant_payout` and once for the notice, each on a bank account record of its own, so a partial reload
+// that asks for one of them makes one call: a port that always reads twice would not match, and hands those back. A bank account
+// Stripe lists instant payouts for gets the instant payout props between the two reads. Anything refused after a read goes to Rails,
+// which asks Stripe again: the reads change nothing there.
+async function readInstantSupport(
+  seller: Seller,
+  bank: BankAccountRow,
+  partial: boolean,
+  now: Date,
+): Promise<{ reads: InstantReads; instantPayout: InstantPayoutData | null }> {
+  if (partial) throw new HandBackToRails();
+  try {
+    const first = await bankAccountSupportsInstantPayouts(bank);
+    const instantPayout = first ? await instantPayoutData(seller, bank, now) : null;
+    return { reads: [first, await bankAccountSupportsInstantPayouts(bank)], instantPayout };
+  } catch (error) {
+    if (error instanceof ModelNotPortedError || error instanceof NotPortedError || error instanceof StripeError)
+      throw new HandBackToRails();
+    throw error;
+  }
+}
+
+export type PlanOptions = {
+  partial?: boolean;
+  instantReads?: InstantReads | null;
+  instantPayout?: InstantPayoutData | null;
+};
+
+export async function planPayouts(
+  seller: Seller,
+  pageParam: string | null,
+  now = new Date(),
+  { partial = false, instantReads, instantPayout }: PlanOptions = {},
+): Promise<PayoutsPlan> {
   const record = Users.load(seller);
   const storedFrequency = jsonDataForAttr(record, "payout_frequency", "weekly");
   if (!PAYOUT_FREQUENCIES.includes(storedFrequency as PayoutFrequency)) throw new HandBackToRails();
@@ -476,14 +593,26 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   const facts = await payoutFacts(seller, now);
   const activeBank = await activeBankAccount(seller.id);
   const eligibleForInstant = await eligibleForInstantPayouts(seller, facts, compliant, dateOnly(now), now);
-  // BankAccount#supports_instant_payouts? is false without both Stripe ids, and asks Stripe otherwise.
+  // BankAccount#supports_instant_payouts? is false without both Stripe ids, and asks Stripe otherwise. A daily schedule asks it
+  // again (Payouts.is_user_payable), so it goes to Rails before any read.
+  let reads: InstantReads | null = null;
+  let instantPayoutProps: InstantPayoutData | null = null;
   if (
     eligibleForInstant &&
     activeBank &&
     present(activeBank.stripe_connect_account_id) &&
     present(activeBank.stripe_bank_account_id)
-  )
-    throw new HandBackToRails();
+  ) {
+    if (storedFrequency === "daily") throw new HandBackToRails();
+    if (instantReads) {
+      reads = instantReads;
+      instantPayoutProps = instantPayout ?? null;
+    } else {
+      const answered = await readInstantSupport(seller, activeBank, partial, now);
+      reads = answered.reads;
+      instantPayoutProps = answered.instantPayout;
+    }
+  }
 
   const count = await sumOf(Prisma.sql`SELECT COUNT(*) AS value ${completedDisplayable(seller.id)}`);
   const pageNumber = validatedPageNumber(rubyToI(pageParam), count);
@@ -513,7 +642,9 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     pastPayments: await withBank(past),
     processingPayments: await withBank(processing),
     activeBank,
-    showInstantPayoutsNotice: eligibleForInstant,
+    showInstantPayoutsNotice: eligibleForInstant && !(reads?.[1] ?? false),
+    instantReads: reads,
+    instantPayout: instantPayoutProps,
     frequency: frequency as PayoutFrequency,
     dailyFallback: storedFrequency === "daily",
     refreshBalanceStatsCache,
@@ -525,9 +656,9 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     for (const { payment, bank } of [...plan.pastPayments, ...plan.processingPayments]) {
       displayedAmount(payment);
       if (payment.payout_period_end_date === null) throw new NotPortedError("A payout without a period end date");
-      if (bank) bankAccountHash(bank);
+      if (bank) await bankAccountHash(bank);
     }
-    if (plan.activeBank) bankAccountHash(plan.activeBank);
+    if (plan.activeBank) await bankAccountHash(plan.activeBank);
     if (!present(seller.payment_address) && plan.activeBank === null && (await paypalConnectAccountExists(seller.id)))
       throw new NotPortedError("PayPal Connect payout email");
   } catch (error) {
@@ -746,7 +877,7 @@ async function payoutMethodDetailsForUser(ctx: Context, balances: UnpaidBalance[
     details = { payout_method_type: method, stripe_connect_account_id: connectAccountId };
   } else if (plan.activeBank) {
     method = "bank";
-    details = { ...bankAccountHash(plan.activeBank), payout_method_type: method };
+    details = { ...(await bankAccountHash(plan.activeBank)), payout_method_type: method };
   } else if (present(seller.payment_address)) {
     method = "paypal";
     details = { payout_method_type: method, paypal_address: seller.payment_address };
@@ -831,7 +962,7 @@ async function oldPayoutPeriodData(ctx: Context, payment: PaymentRow, bank: Bank
   const connectId =
     merchantAccount && isStripeConnectAccount(merchantAccount) ? payment.stripe_connect_account_id : null;
   if (connectId) return { ...data, payout_method_type: "stripe_connect", stripe_connect_account_id: connectId };
-  if (bank) return { ...data, ...bankAccountHash(bank), payout_method_type: "bank" };
+  if (bank) return { ...data, ...(await bankAccountHash(bank)), payout_method_type: "bank" };
   if (present(payment.payment_address))
     return { ...data, payout_method_type: "paypal", paypal_address: payment.payment_address };
   return { ...data, payout_method_type: "legacy-na" };
@@ -929,7 +1060,7 @@ export function payoutsProps(plan: PayoutsPlan, now = new Date()): PayoutsProps 
       payouts_status: payoutsStatus(seller),
       payouts_paused_by: (await ctx()).facts.payoutsPausedBySource,
       payout_reserve_percent: (await ctx()).facts.chargebackRateReserveActive ? RESERVE_PERCENT : null,
-      instant_payout: null,
+      instant_payout: plan.instantPayout,
       show_instant_payouts_notice: plan.showInstantPayoutsNotice,
       tax_center_enabled: await taxCenterEnabled(seller.id),
       pagination: { pages: plan.pages, page: plan.pageNumber },

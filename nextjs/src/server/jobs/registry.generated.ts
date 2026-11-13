@@ -1829,7 +1829,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": true,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PerformPayoutsUpToDelayDaysAgoWorker": {
     "file": "app/sidekiq/perform_payouts_up_to_delay_days_ago_worker.rb",
@@ -1844,7 +1844,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": true,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "PostToIndividualPingEndpointWorker": {
     "file": "app/sidekiq/post_to_individual_ping_endpoint_worker.rb",

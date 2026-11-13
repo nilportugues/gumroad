@@ -1,9 +1,11 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db } from "../../../lib/db.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { getRedis } from "../../infra/redis.ts";
 import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
+import { InvalidRequestError } from "../../stripe/errors.ts";
+import { Account, Balance } from "../../stripe/resources.ts";
 
 import { planPayouts, payoutsProps } from "./payouts.ts";
 
@@ -90,11 +92,225 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
       }
     });
 
-    it("hands back a seasoned account whose bank account carries both Stripe ids: Stripe is asked", async () => {
-      const seller = await user();
-      await account("2026-01-01");
-      await bank({ connect: "acct_1", external: "ba_1" });
-      await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    describe("with a seasoned account and a bank account carrying both Stripe ids", () => {
+      const read = (...answers: unknown[]) => {
+        const spy = vi.spyOn(Account, "retrieveExternalAccount");
+        for (const answer of answers) {
+          if (answer instanceof Error) spy.mockRejectedValueOnce(answer);
+          else spy.mockResolvedValueOnce(answer as never);
+        }
+        return spy;
+      };
+      const standard = { available_payout_methods: ["standard"] };
+      const instant = { available_payout_methods: ["standard", "instant"] };
+      const prepare = async () => {
+        const seller = await user();
+        await account("2026-01-01");
+        await bank({ connect: "acct_1", external: "ba_1" });
+        return seller;
+      };
+      afterEach(() => vi.restoreAllMocks());
+
+      it("offers the notice when Stripe lists no instant payouts, after the two reads Rails makes", async () => {
+        const spy = read(standard, standard);
+        const plan = await planPayouts(await prepare(), null, NOW);
+        expect(plan.showInstantPayoutsNotice).toBe(true);
+        expect(plan.instantReads).toEqual([false, false]);
+        expect(spy.mock.calls.map(([account, external]) => [account, external])).toEqual([
+          ["acct_1", "ba_1"],
+          ["acct_1", "ba_1"],
+        ]);
+      });
+
+      it("withholds the notice when only the second read lists instant payouts", async () => {
+        read(standard, instant);
+        expect((await planPayouts(await prepare(), null, NOW)).showInstantPayoutsNotice).toBe(false);
+      });
+
+      it("offers the notice when Stripe refuses the read", async () => {
+        read(new InvalidRequestError("No such external account: 'ba_1'", null), new InvalidRequestError("boom", null));
+        const plan = await planPayouts(await prepare(), null, NOW);
+        expect(plan.showInstantPayoutsNotice).toBe(true);
+      });
+
+      it("reuses the reads of the filter instead of asking Stripe again", async () => {
+        const spy = read();
+        const plan = await planPayouts(await prepare(), null, NOW, { instantReads: [false, false] });
+        expect(plan.showInstantPayoutsNotice).toBe(true);
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      describe("when Stripe lists instant payouts for the bank account", () => {
+        const GUMROAD_ACCOUNT = 9_100_002;
+        const stripeBalance = { instant_available: [] };
+        const prepared = async () => {
+          const seller = await prepare();
+          await db.$executeRawUnsafe(`UPDATE bank_accounts SET bank_number = '110000000' WHERE user_id = ${USER_ID}`);
+          return seller;
+        };
+        const gumroadAccount = () =>
+          db.$executeRawUnsafe(
+            `INSERT INTO merchant_accounts (id, user_id, charge_processor_id, charge_processor_merchant_id, charge_processor_alive_at, created_at, updated_at) VALUES (${GUMROAD_ACCOUNT}, NULL, 'stripe', 'acct_gumroad_handback', '2026-01-01', '2026-01-01', '2026-01-01')`,
+          );
+        const unpaid = (
+          date: string,
+          holding: string,
+          merchantAccountId: string | number = GUMROAD_ACCOUNT,
+          amount = holding === "NULL" ? 0 : holding,
+        ) =>
+          db.$executeRawUnsafe(
+            `INSERT INTO balances (user_id, merchant_account_id, date, amount_cents, holding_amount_cents, state, created_at, updated_at) VALUES (${USER_ID}, ${merchantAccountId}, '${date}', ${amount}, ${holding}, 'unpaid', NOW(), NOW())`,
+          );
+        // The order Rails reads in: the external account, three balances, the external account again.
+        const reads = (...external: unknown[]) => {
+          const order: string[] = [];
+          vi.spyOn(Account, "retrieveExternalAccount").mockImplementation(() => {
+            order.push("external account");
+            return Promise.resolve((external.shift() ?? instant) as never);
+          });
+          const balance = vi.spyOn(Balance, "retrieve").mockImplementation(() => {
+            order.push("balance");
+            return Promise.resolve(stripeBalance as never);
+          });
+          return { order, balance };
+        };
+        afterEach(async () => {
+          await db.$executeRawUnsafe(`DELETE FROM merchant_accounts WHERE id = ${GUMROAD_ACCOUNT}`);
+          await db.$executeRawUnsafe(`DELETE FROM banks WHERE routing_number = 'handback-routing'`);
+        });
+
+        it("builds the instant payout props from three balance reads between the two external account reads", async () => {
+          const { order, balance } = reads();
+          const seller = await prepared();
+          await gumroadAccount();
+          await unpaid("2026-03-01", "1500");
+          await unpaid("2026-02-20", "2700", GUMROAD_ACCOUNT, "3000");
+          await unpaid("2026-03-10", "400");
+          const plan = await planPayouts(seller, null, NOW);
+          expect(order).toEqual(["external account", "balance", "balance", "balance", "external account"]);
+          expect(balance.mock.calls[0]).toEqual([
+            { expand: ["instant_available.net_available"] },
+            { stripeAccount: "acct_1" },
+          ]);
+          expect(plan.showInstantPayoutsNotice).toBe(false);
+          expect(plan.instantPayout).toMatchObject({
+            instant_payout_fee_percent: 3,
+            payable_amount_cents: 4200,
+            unpaid_amount_cents: 400,
+            bank_account_type: "ACH",
+            bank_name: null,
+            account_number: "******",
+          });
+          expect(plan.instantPayout?.payable_balances.map(({ date, amount_cents }) => [date, amount_cents])).toEqual([
+            ["2026-03-01", 1500],
+            ["2026-02-20", 2700],
+          ]);
+        });
+
+        it("keeps the props and offers the notice when the second read lists standard payouts only", async () => {
+          reads(instant, standard);
+          const seller = await prepared();
+          await gumroadAccount();
+          await unpaid("2026-03-01", "1500");
+          const plan = await planPayouts(seller, null, NOW);
+          expect(plan.showInstantPayoutsNotice).toBe(true);
+          expect(plan.instantReads).toEqual([true, false]);
+          expect(plan.instantPayout?.payable_amount_cents).toBe(1500);
+        });
+
+        it("names the bank of the routing number", async () => {
+          reads();
+          const seller = await prepared();
+          await gumroadAccount();
+          await db.$executeRawUnsafe(
+            `UPDATE bank_accounts SET bank_number = 'handback-routing' WHERE user_id = ${USER_ID}`,
+          );
+          await db.$executeRawUnsafe(
+            `INSERT INTO banks (routing_number, name) VALUES ('handback-routing', 'Handback Bank')`,
+          );
+          const plan = await planPayouts(seller, null, NOW);
+          expect(plan.instantPayout).toMatchObject({ bank_name: "Handback Bank", routing_number: "handback-routing" });
+        });
+
+        it("hands back a routing number two banks share", async () => {
+          reads();
+          const seller = await prepared();
+          await gumroadAccount();
+          await db.$executeRawUnsafe(
+            `UPDATE bank_accounts SET bank_number = 'handback-routing' WHERE user_id = ${USER_ID}`,
+          );
+          await db.$executeRawUnsafe(
+            `INSERT INTO banks (routing_number, name) VALUES ('handback-routing', 'One'), ('handback-routing', 'Two')`,
+          );
+          await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+        });
+
+        it("reuses the stored props instead of reading Stripe again", async () => {
+          const { order } = reads();
+          const stored = { instant_payout_fee_percent: 3 } as never;
+          const plan = await planPayouts(await prepared(), null, NOW, {
+            instantReads: [true, true],
+            instantPayout: stored,
+          });
+          expect(plan.instantPayout).toBe(stored);
+          expect(order).toEqual([]);
+        });
+
+        it("hands back when Stripe refuses a balance read", async () => {
+          reads();
+          vi.spyOn(Balance, "retrieve").mockRejectedValue(new InvalidRequestError("boom", null));
+          const seller = await prepared();
+          await gumroadAccount();
+          await unpaid("2026-03-01", "1500");
+          await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+        });
+
+        it("hands back balances that share a date: Ruby's sort_by is not stable", async () => {
+          reads();
+          const seller = await prepared();
+          await gumroadAccount();
+          await unpaid("2026-03-01", "1500");
+          await unpaid("2026-03-01", "700");
+          await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+        });
+
+        it("hands back a balance that names no merchant account", async () => {
+          reads();
+          const seller = await prepared();
+          await unpaid("2026-03-01", "1500", "NULL");
+          await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+        });
+
+        it("hands back a balance without a holding amount", async () => {
+          reads();
+          const seller = await prepared();
+          await gumroadAccount();
+          await unpaid("2026-03-01", "NULL");
+          await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+        });
+      });
+
+      it("hands back an external account answered without its payout methods", async () => {
+        read({});
+        await expect(planPayouts(await prepare(), null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+      });
+
+      it("hands back a partial reload without asking Stripe: Rails asks only for the props requested", async () => {
+        const spy = read();
+        await expect(planPayouts(await prepare(), null, NOW, { partial: true })).rejects.toBeInstanceOf(
+          HandBackToRails,
+        );
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      it("hands back a daily schedule, which asks Stripe again", async () => {
+        read(standard, standard);
+        const seller = await prepare();
+        await db.$executeRawUnsafe(`UPDATE users SET json_data = '{"payout_frequency":"daily"}' WHERE id = ${USER_ID}`);
+        await expect(
+          planPayouts(await db.user.findUniqueOrThrow({ where: { id: seller.id } }), null, NOW),
+        ).rejects.toBeInstanceOf(HandBackToRails);
+      });
     });
 
     it("serves an unseasoned account whose bank account carries both Stripe ids", async () => {

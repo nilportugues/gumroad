@@ -28,6 +28,14 @@ type NetAvailable = { destination?: unknown; amount?: unknown };
 type InstantAvailable = { net_available?: unknown };
 
 const holdingCents = (balance: BalanceRecord) => Number(balance.get("holding_amount_cents") ?? 0);
+// `sum(&:holding_amount_cents)` raises on a nil.
+export function summedHoldingCents(balances: BalanceRecord[]): number {
+  return balances.reduce((total, balance) => {
+    if (balance.get("holding_amount_cents") == null)
+      throw new NotPortedError("a balance without a holding amount", PROCESSOR_REF);
+    return total + holdingCents(balance);
+  }, 0);
+}
 const dateOf = (balance: BalanceRecord) => balance.get("date") as unknown as Date;
 const byDate = (a: BalanceRecord, b: BalanceRecord) => dateOf(a).getTime() - dateOf(b).getTime();
 
@@ -92,6 +100,20 @@ export async function instantlyPayableUnpaidBalancesUpTo(user: UserRecord, date:
     .filter((entry) => entry.holder === HOLDER_OF_FUNDS.STRIPE || entry.holder === HOLDER_OF_FUNDS.GUMROAD)
     .map((entry) => entry.balance)
     .sort(byDate);
+}
+
+// `User#instant_payout_pipeline_unpaid_balance_cents`: every unpaid balance Stripe or Gumroad holds, whatever its date. A balance that names
+// no account is Ruby's `&.` nil here but refused by `holdOf`, so it is not served.
+export async function instantPayoutPipelineUnpaidBalanceCents(user: UserRecord): Promise<number> {
+  const rows = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`balances`.*")} FROM ${table("balances")} WHERE ${column("balances", "user_id")} = ${user.get("id")} AND ${column("balances", "state")} = 'unpaid'`,
+  );
+  const balances = rows.map((row) => Balances.load(castRow<BalanceRow>("Balance", row)));
+  return summedHoldingCents(
+    (await heldBy(balances))
+      .filter((entry) => entry.holder === HOLDER_OF_FUNDS.STRIPE || entry.holder === HOLDER_OF_FUNDS.GUMROAD)
+      .map((entry) => entry.balance),
+  );
 }
 
 // `User#instantly_payable_unpaid_balances`
