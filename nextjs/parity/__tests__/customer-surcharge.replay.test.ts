@@ -32,14 +32,18 @@ const VENDOR_HOSTS: Record<string, string> = {
   "apisandbox.iras.gov.sg": "/iras",
   "svcnab2b.revenuquebec.ca": "/qst",
   "v3.api.taxid.pro": "/taxid",
+  "ec.europa.eu": "/vies",
+  "api.vatstack.com": "/vatstack",
 };
+// The endpoints the port takes whole (the others are bases).
+const WHOLE_URL_PREFIXES = ["/iras", "/vies", "/vatstack"];
 const vendorOf = (call: CapturedHttp) =>
   Object.keys(VENDOR_HOSTS).find((host) => new URL(call.url).hostname.endsWith(host));
-// Where the port should send what Rails sent to the vendor: IRAS_ENDPOINT is the whole URL, the others are bases.
+// Where the port should send what Rails sent to the vendor: IRAS_ENDPOINT, VIES_ENDPOINT and VATSTACK_ENDPOINT are the whole URL, the others are bases.
 const expectedPath = (call: CapturedHttp) => {
   const url = new URL(call.url);
   const prefix = VENDOR_HOSTS[vendorOf(call) ?? ""] ?? "";
-  return decodeURIComponent(prefix === "/iras" ? prefix : `${prefix}${url.pathname}${url.search}`);
+  return decodeURIComponent(WHOLE_URL_PREFIXES.includes(prefix) ? prefix : `${prefix}${url.pathname}${url.search}`);
 };
 
 const COMPARE = {
@@ -111,6 +115,9 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
       IRAS_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/iras`,
       REVENU_QUEBEC_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/qst`,
       TAX_ID_PRO_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/taxid`,
+      VIES_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/vies`,
+      VATSTACK_ENDPOINT: `http://127.0.0.1:${(taxjar.address() as AddressInfo).port}/vatstack`,
+      VATSTACK_API_KEY: "vatstack-key",
       IRAS_API_ID: "iras-id",
       IRAS_API_SECRET: "iras-secret",
       TAX_ID_PRO_API_KEY: "taxid-key",
@@ -138,7 +145,7 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
 
   it.each(cases)(
     "%s",
-    async (name, fixturePath, index) => {
+    async (_name, fixturePath, index) => {
       const fixture = loadFixture(fixturePath);
       const recorded = fixture.exchanges[index]!.http.filter((call) => vendorOf(call) !== undefined);
       taxjarRecorded.splice(0, taxjarRecorded.length, ...recorded);
@@ -151,12 +158,6 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
         compare: COMPARE,
       });
       try {
-        if (name.includes("-hands-a")) {
-          // A tax id checked by VIES or Vatstack is Rails' to answer: the stand-in Rails replies 218 and no vendor is asked.
-          expect(result.exchanges[0]!.actual.response.status).toBe(218);
-          expect(taxjarReceived).toEqual([]);
-          return;
-        }
         assertParity(result);
         // The port asked the vendors exactly what Rails asked, in the same order.
         expect(
@@ -170,7 +171,10 @@ describe.skipIf(!url)("Customer surcharge parity", () => {
           recorded.map((call) => ({
             method: call.method,
             path: expectedPath(call),
-            contentType: call.contentType,
+            // Net::HTTP adds the form type the recording of a Vatstack call does not carry.
+            contentType:
+              call.contentType ??
+              (vendorOf(call) === "api.vatstack.com" ? "application/x-www-form-urlencoded" : undefined),
             body: call.body ?? "",
           })),
         );

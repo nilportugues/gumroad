@@ -241,8 +241,10 @@ fixture or golden that covers the behaviour, or with the covering check not run.
    are `customer_surcharge_controller_spec` vectors "then derived half-up cases", i.e. the extra cases are
    reasoned, not recorded. The offline id validators and `regionalVatIdValidator` routing are now pinned by
    `tax-id-validators.golden.json` (lane 31, below), IRAS, Revenu Quebec and taxid.pro by `tax-id-vendors.golden.json`, and the
-   `TaxjarApi` request and memo by `taxjar-api.golden.json`. Still open: `ZipTaxRate` selection and GeoIP hand back, the Vatstack
-   (ABN, MVA) and VIES validators hand back, and no golden calls `SalesTaxCalculator#calculate` end to end (the lookup-table
+   `TaxjarApi` request and memo by `taxjar-api.golden.json`. Vatstack (ABN, MVA) and VIES (`vies-vat-id.ts`) are ported against the same
+   golden (WS-22 tax-2): Vatstack without the ten-minute memo (Ruby caches a marshalled `HTTParty::Response`, so Node asks per cart line and
+   ignores Ruby's entry), VIES hands back only the bodies listed as handed back in `vies-vat-id.test.ts`. `ZipTaxRate` selection is served by
+   `customer-surcharge.ts` (recorded examples); the GeoIP leg hands back for a Canary region. Still open: no golden calls `SalesTaxCalculator#calculate` end to end (the lookup-table
    branch and `lookupTaxCents` rounding keep their reasoned half-up cases).
    Recorded 2026-11-10 (lane 15): the empty 400 typed by a registered `format` param (`xml`, `text`, `js`). Disproved by recording:
    a Singapore rate with an empty `applicable_years` is not served as `[]` (`json_data_for_attr` reads a blank list as nil, so

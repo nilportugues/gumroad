@@ -1,14 +1,20 @@
 // Ports of GstValidationService (IRAS), QstValidationService (Revenu Quebec) and TaxIdValidationService (taxid.pro) with the
 // `rescue` of RegionalVatIdValidationService#process, recorded by scripts/golden/tax-id-vendors.rb. Each answer is memoised
-// for ten minutes in Rails.cache under the key Ruby uses, so the two stacks share it. Not ported: the Vatstack validators
-// (ABN, MVA: their cache entry is a marshalled HTTParty::Response) and VIES through valvat.
+// for ten minutes in Rails.cache under the key Ruby uses, so the two stacks share it. The Vatstack validators (ABN, MVA) are
+// ported without that memo: Ruby caches the whole HTTParty::Response (a Marshal dump), which Node can neither write nor read, so
+// every cart line asks Vatstack. VIES through valvat is `vies-vat-id.ts`.
 import { type RailsCache, railsCache } from "../cache/rails-cache.ts";
 import { getConfig } from "../infra/config.ts";
 import { railsEnv } from "../infra/rails-env.ts";
 
 import { isBlank } from "./regional-vat-id-shape.ts";
 
-export type VendorTaxIdService = "GstValidationService" | "QstValidationService" | "TaxIdValidationService";
+export type VendorTaxIdService =
+  | "GstValidationService"
+  | "QstValidationService"
+  | "TaxIdValidationService"
+  | "AbnValidationService"
+  | "MvaValidationService";
 
 export type VendorTaxIdOutcome =
   | { kind: "valid"; valid: boolean }
@@ -85,6 +91,8 @@ export const irasEndpoint = () => {
 };
 // The overrides let a replay stand in for the vendors (as TAXJAR_ENDPOINT does for TaxJar).
 export const revenuQuebecBase = () => process.env.REVENU_QUEBEC_ENDPOINT?.trim() || "https://svcnab2b.revenuquebec.ca";
+export const vatstackEndpoint = () =>
+  process.env.VATSTACK_ENDPOINT?.trim() || "https://api.vatstack.com/v1/validations";
 export const taxIdProBase = () => process.env.TAX_ID_PRO_ENDPOINT?.trim() || "https://v3.api.taxid.pro";
 
 type Answer = { status: number; contentType: string | null; body: string };
@@ -138,6 +146,19 @@ function taxIdProValid(answer: Answer): boolean | null | "is_valid" {
   return typeof valid === "boolean" ? valid : unsupported("an is_valid that is not a boolean");
 }
 
+// Vatstack's `type` for each validator.
+const VATSTACK_TYPE = { AbnValidationService: "au_gst", MvaValidationService: "no_vat" } as const;
+
+// `return false if "INVALID_INPUT" == response["code"]; return false if response["valid"].nil?; response["valid"] && response["active"]`.
+// A nil body falls through to the header lookup (nil); the other shapes `[]` is not defined for are Ruby's.
+function vatstackVerdict(parsed: Parsed): unknown {
+  if (parsed.kind === "nil") return false;
+  if (parsed.kind !== "json" || !isRecord(parsed.value)) return unsupported("a Vatstack answer that is not an object");
+  const { code, valid, active } = parsed.value;
+  if (code === "INVALID_INPUT" || valid === undefined || valid === null) return false;
+  return valid === false ? false : active;
+}
+
 const truthy = (value: unknown): boolean => value !== null && value !== undefined && value !== false;
 
 /** `RegionalVatIdValidationService#process` for a country whose validator calls a vendor and whose answer is modelled here. */
@@ -151,6 +172,16 @@ export async function validateVendorTaxId(
   const fetcher = deps.fetch ?? fetch;
   const cache = deps.cache ?? railsCache();
   try {
+    if (service === "AbnValidationService" || service === "MvaValidationService") {
+      const key = getConfig("VATSTACK_API_KEY");
+      if (key === undefined) return { kind: "unsupported", reason: "a Vatstack key that is not configured" };
+      const answer = await call(fetcher, vatstackEndpoint(), {
+        method: "POST",
+        headers: { "X-API-KEY": key, "content-type": "application/x-www-form-urlencoded" },
+        body: `type=${VATSTACK_TYPE[service]}&query=${expand(taxId)}`,
+      });
+      return { kind: "valid", valid: truthy(vatstackVerdict(parseBody(answer.contentType, answer.body))) };
+    }
     if (service === "GstValidationService") {
       const id = getConfig("IRAS_API_ID");
       const secret = getConfig("IRAS_API_SECRET");

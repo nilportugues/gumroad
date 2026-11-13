@@ -41,6 +41,8 @@ beforeEach(() => {
   vi.stubEnv("IRAS_API_ID", "iras-id");
   vi.stubEnv("IRAS_API_SECRET", "iras-secret");
   vi.stubEnv("TAX_ID_PRO_API_KEY", "taxid-key");
+  vi.stubEnv("VATSTACK_ENDPOINT", "");
+  vi.stubEnv("VATSTACK_API_KEY", "vatstack-key");
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -171,5 +173,65 @@ describe("IRAS, Revenu Quebec and taxid.pro against the Ruby golden", () => {
     now += 2;
     await ask();
     expect(sent).toHaveLength(2);
+  });
+});
+
+// Vatstack (ABN and MVA). Ruby memoises the whole HTTParty::Response, so the recorded second run is a cache hit that Node, which does not
+// memoise, answers by asking again: the check is the first run's request and every run's answer where the stand-in repeats it.
+const vatstackCases = golden.filter((entry) =>
+  ["AbnValidationService", "MvaValidationService"].includes(entry.service),
+);
+// Answers Ruby reads as a String, a redirect it follows or a body it cannot index: Ruby's.
+const VATSTACK_HANDED_BACK = [
+  "a JSON array",
+  "a JSON string",
+  "an answer typed text/plain",
+  "an answer with no content type",
+  "a redirect",
+];
+
+describe("Vatstack ABN and MVA against the Ruby golden", () => {
+  it("records both validators", () => {
+    expect(vatstackCases.length).toBeGreaterThan(40);
+  });
+
+  it.each(vatstackCases.map((entry) => [`${entry.service.slice(0, 3)} ${entry.name}`, entry] as const))(
+    "%s",
+    async (_name, entry) => {
+      const { fetcher, sent } = stand(entry.http_responses);
+      const [taxId] = entry.args as [string | null];
+      const outcome = await validateVendorTaxId(entry.service as VendorTaxIdService, taxId, undefined, {
+        fetch: fetcher,
+      });
+
+      if (VATSTACK_HANDED_BACK.some((suffix) => entry.name.endsWith(suffix))) {
+        expect(outcome).toEqual({ kind: "unsupported", reason: expect.any(String) as string });
+        return;
+      }
+      const first = entry.results[0]!;
+      expect(outcome).toEqual({
+        kind: "valid",
+        valid: first.raised === undefined ? truthy(first.value) : false, // only the rescued ECONNRESET and ParserError reach here
+      });
+      expect(sent.map(({ url, method }) => [url, method.toLowerCase()])).toEqual(
+        entry.httparty.slice(0, 1).map(({ url, verb }) => [url, verb]),
+      );
+      expect(sent.map(({ body }) => body)).toEqual(entry.http.slice(0, 1).map(({ body }) => body));
+      for (const request of sent) {
+        expect(request.headers).toEqual({
+          "X-API-KEY": entry.httparty[0]!.options.headers!["X-API-KEY"],
+          "content-type": "application/x-www-form-urlencoded",
+        });
+        expect(request.signal).toBe(true);
+      }
+    },
+  );
+
+  it("calls nobody when the Vatstack key is missing", async () => {
+    vi.stubEnv("VATSTACK_API_KEY", "");
+    const { fetcher, sent } = stand([]);
+    const outcome = await validateVendorTaxId("AbnValidationService", "51824753556", "AU", { fetch: fetcher });
+    expect(outcome.kind).toBe("unsupported");
+    expect(sent).toHaveLength(0);
   });
 });

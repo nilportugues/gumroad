@@ -172,7 +172,7 @@ cases << run("a country that is not a code", TaxIdValidationService, ["123456789
 cases << run("an id with a percent sign", TaxIdValidationService, ["12%3", "ZA"], tax_id.call(true))
 cases << run("an id with a newline", TaxIdValidationService, ["12\n3", "ZA"], tax_id.call(true))
 
-# Vatstack (ABN and MVA): POST of a form body; the cache holds the whole HTTParty::Response, so Node does not serve these
+# Vatstack (ABN and MVA): POST of a form body; the cache holds the whole HTTParty::Response, so Node does not memoise these
 vatstack = ->(body) { json(200, body) }
 [[AbnValidationService, "12345678901"], [MvaValidationService, "123456789MVA"]].each do |service, id|
   cases << run("#{service.name} valid and active", service, [id], vatstack.call({ valid: true, active: true }))
@@ -183,7 +183,26 @@ vatstack = ->(body) { json(200, body) }
   cases << run("#{service.name} invalid input", service, [id], vatstack.call({ code: "INVALID_INPUT", valid: true, active: true }))
   cases << run("#{service.name} a dropped connection", service, [id], { dropped: true })
   cases << run("#{service.name} a blank id", service, [nil])
+  cases << run("#{service.name} an answer 401 with a valid body", service, [id], json(401, { valid: true, active: true }))
+  cases << run("#{service.name} an answer 500 with an empty object", service, [id], json(500, {}))
+  cases << run("#{service.name} an answer with truthy strings", service, [id], vatstack.call({ valid: "yes", active: "no" }))
+  cases << run("#{service.name} an answer with a zero active", service, [id], vatstack.call({ valid: true, active: 0 }))
+  cases << run("#{service.name} an answer with a null active", service, [id], vatstack.call({ valid: true, active: nil }))
+  cases << run("#{service.name} an answer with a false valid and another code", service, [id], vatstack.call({ code: "OTHER", valid: false, active: true }))
+  cases << run("#{service.name} an object with only a code", service, [id], vatstack.call({ code: "INVALID_INPUT" }))
+  cases << run("#{service.name} an empty object", service, [id], vatstack.call({}))
+  cases << run("#{service.name} an empty body", service, [id], json(200, ""))
+  cases << run("#{service.name} a JSON null", service, [id], json(200, "null"))
+  cases << run("#{service.name} a JSON array", service, [id], json(200, "[]"))
+  cases << run("#{service.name} a JSON string", service, [id], json(200, '"valid"'))
+  cases << run("#{service.name} a body that is not JSON", service, [id], json(200, "not json"))
+  cases << run("#{service.name} an answer typed text/plain", service, [id], json(200, { valid: true, active: true }, headers: { "Content-Type" => "text/plain" }))
+  cases << run("#{service.name} an answer with no content type", service, [id], json(200, { valid: true, active: true }, headers: {}))
+  cases << run("#{service.name} an answer typed application/hal+json", service, [id], json(200, { valid: true, active: true }, headers: { "Content-Type" => "application/hal+json" }))
+  cases << run("#{service.name} a redirect", service, [id], { status: 302, body: "", headers: { "Location" => "https://example.com/vatstack" } })
 end
+cases << run("AbnValidationService an id with reserved characters", AbnValidationService, ["51 824&753=556+é/#%"], vatstack.call({ valid: true, active: true }))
+cases << run("MvaValidationService an id with reserved characters", MvaValidationService, ["NO 123*456'(7)!~"], vatstack.call({ valid: true, active: true }))
 
 # What HTTParty reads before it looks at the type: a BOM, a blank body, the literal null
 bom = "\u{feff}"
@@ -213,6 +232,92 @@ end
   cases << run("QST typed #{type}", QstValidationService, ["1234567890TQ0001"], answer.call({ Resultat: { StatutSousDossierUsager: "R" } }))
   cases << run("taxid.pro typed #{type}", TaxIdValidationService, ["123456789", "ZA"], answer.call({ is_valid: true }))
 end
+
+# VIES through valvat (VatValidationService): the id is normalised and shape-checked offline, then VIES answers a SOAP checkVatApprox.
+# Nothing is memoised; every failure but a "valid = false" answer falls back to the offline shape check.
+SOAP_NS = 'xmlns:env="http://schemas.xmlsoap.org/soap/envelope/"'
+VIES_NS = 'xmlns:ns2="urn:ec.europa.eu:taxud:vies:services:checkVat:types"'
+xml_type = { "Content-Type" => "text/xml;charset=UTF-8" }.freeze
+vies_body = lambda do |children, wrapper: "ns2:checkVatApproxResponse"|
+  "<env:Envelope #{SOAP_NS}><env:Header/><env:Body><#{wrapper} #{VIES_NS}>#{children}</#{wrapper}></env:Body></env:Envelope>"
+end
+vies_fields = lambda do |valid, request_date: "2026-11-04+01:00"|
+  "<ns2:countryCode>DE</ns2:countryCode><ns2:vatNumber>123456789</ns2:vatNumber><ns2:requestDate>#{request_date}</ns2:requestDate>" \
+    "<ns2:valid>#{valid}</ns2:valid><ns2:traderName>---</ns2:traderName><ns2:traderCompanyType>---</ns2:traderCompanyType>" \
+    "<ns2:traderAddress>Main Street 1 &amp; Co</ns2:traderAddress><ns2:requestIdentifier>WAPIAAAA</ns2:requestIdentifier>"
+end
+vies = ->(status, body, headers: xml_type) { { status:, body:, headers: } }
+fault = lambda do |code, status: 500|
+  vies.call(status, "<env:Envelope #{SOAP_NS}><env:Body><env:Fault><faultcode>env:Server</faultcode><faultstring>#{code}</faultstring></env:Fault></env:Body></env:Envelope>")
+end
+de_valid = vies.call(200, vies_body.call(vies_fields.call("true")))
+de_invalid = vies.call(200, vies_body.call(vies_fields.call("false")))
+cases << run("VIES a valid German id", VatValidationService, ["DE123456789"], de_valid)
+cases << run("VIES an unregistered German id", VatValidationService, ["DE123456789"], de_invalid)
+cases << run("VIES an id with spaces, dots and lower case", VatValidationService, ["de 123.456-789"], de_valid)
+cases << run("VIES a Greek id with the EL prefix", VatValidationService, ["EL123456789"], de_valid)
+cases << run("VIES a Greek id with the GR prefix", VatValidationService, ["GR123456789"], de_valid)
+cases << run("VIES a Northern Ireland id", VatValidationService, ["XI123456789"], de_valid)
+cases << run("VIES a Spanish id", VatValidationService, ["ESX1234567L"], de_invalid)
+cases << run("VIES a French id with letters in the key", VatValidationService, ["FRAB123456789"], de_invalid)
+cases << run("VIES an Irish id", VatValidationService, ["IE1234567T"], de_valid)
+cases << run("VIES a Dutch id", VatValidationService, ["NL123456789B01"], de_valid)
+cases << run("VIES a Swedish id", VatValidationService, ["SE123456789001"], de_valid)
+cases << run("VIES a Cypriot id", VatValidationService, ["CY12345678L"], de_valid)
+cases << run("VIES an id of the wrong shape", VatValidationService, ["DE12345"], de_valid)
+cases << run("VIES an id of a country valvat does not know", VatValidationService, ["US123456789"], de_valid)
+cases << run("VIES a country with no number", VatValidationService, ["DE"], de_valid)
+cases << run("VIES an id with punctuation and symbols", VatValidationService, ["DE~123=456|789$+<>^`"], de_valid)
+cases << run("VIES an id with a currency symbol", VatValidationService, ["DE123€456789"], de_valid)
+cases << run("VIES an id with a trailing newline", VatValidationService, ["DE123456789\n"], de_valid)
+cases << run("VIES an id with full-width digits", VatValidationService, ["DE１２３４５６７８９"], de_valid)
+cases << run("VIES a nil id", VatValidationService, [nil], de_valid)
+cases << run("VIES a blank id", VatValidationService, [" "], de_valid)
+cases << run("VIES a United Kingdom id", VatValidationService, ["GB123456789"])
+cases << run("VIES a United Kingdom id with a branch", VatValidationService, ["GB123456789012"])
+cases << run("VIES a United Kingdom government id", VatValidationService, ["GBGD123"])
+cases << run("VIES a malformed United Kingdom id", VatValidationService, ["GB12345"])
+cases << run("VIES the INVALID_INPUT fault", VatValidationService, ["DE123456789"], fault.call("INVALID_INPUT"))
+cases << run("VIES the INVALID_INPUT fault answered 200", VatValidationService, ["DE123456789"], fault.call("INVALID_INPUT", status: 200))
+%w[SERVICE_UNAVAILABLE MS_UNAVAILABLE INVALID_REQUESTER_INFO TIMEOUT VAT_BLOCKED IP_BLOCKED GLOBAL_MAX_CONCURRENT_REQ MS_MAX_CONCURRENT_REQ_TIME SOMETHING_NEW].each do |code|
+  cases << run("VIES the #{code} fault", VatValidationService, ["DE123456789"], fault.call(code))
+end
+cases << run("VIES a fault with an empty faultstring", VatValidationService, ["DE123456789"], vies.call(200, "<env:Envelope #{SOAP_NS}><env:Body><env:Fault><faultstring/></env:Fault></env:Body></env:Envelope>"))
+cases << run("VIES a fault with a dashed faultstring", VatValidationService, ["DE123456789"], vies.call(200, "<env:Envelope #{SOAP_NS}><env:Body><env:Fault><faultstring>---</faultstring></env:Fault></env:Body></env:Envelope>"))
+cases << run("VIES an unregistered answer with a 500", VatValidationService, ["DE123456789"], vies.call(500, de_invalid[:body]))
+cases << run("VIES an unregistered answer with a 202", VatValidationService, ["DE123456789"], vies.call(202, de_invalid[:body]))
+cases << run("VIES a redirect", VatValidationService, ["DE123456789"], { status: 302, body: "", headers: { "Location" => "https://example.com/vies" } })
+cases << run("VIES a dropped connection", VatValidationService, ["DE123456789"], { dropped: true })
+cases << run("VIES an answer with no valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:countryCode>DE</ns2:countryCode>")))
+cases << run("VIES an empty response element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("")))
+cases << run("VIES a valid element that is neither true nor false", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("maybe"))))
+cases << run("VIES a valid element in capitals", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("TRUE"))))
+cases << run("VIES a dashed valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("---"))))
+cases << run("VIES an empty valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call(""))))
+cases << run("VIES an unregistered answer with a request date that does not parse", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("false", request_date: "soon"))))
+cases << run("VIES a registered answer with an empty request date", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("true", request_date: ""))))
+cases << run("VIES a request date in UTC", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("false", request_date: "2026-11-04Z"))))
+cases << run("VIES a request date that is not a calendar day", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("false", request_date: "2026-02-31"))))
+cases << run("VIES an answer of the checkVat operation", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call(vies_fields.call("false"), wrapper: "ns2:checkVatResponse")))
+cases << run("VIES an answer with whitespace between its elements", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("\n  #{vies_fields.call("false")}\n")))
+cases << run("VIES an answer with a Header element and whitespace around the Body", VatValidationService, ["DE123456789"], vies.call(200, "<env:Envelope #{SOAP_NS}>\n<env:Header/>\n<env:Body>#{vies_body.call(vies_fields.call("false"))[/<ns2:.*<\/ns2:[^>]*>/]}</env:Body>\n</env:Envelope>"))
+cases << run("VIES an answer with an XML declaration", VatValidationService, ["DE123456789"], vies.call(200, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>#{de_invalid[:body]}"))
+cases << run("VIES an answer with another prefix for the envelope", VatValidationService, ["DE123456789"], vies.call(200, de_invalid[:body].gsub("env:", "soap:").gsub("xmlns:env", "xmlns:soap")))
+cases << run("VIES an answer with the default namespace", VatValidationService, ["DE123456789"], vies.call(200, "<env:Envelope #{SOAP_NS}><env:Body><checkVatApproxResponse xmlns=\"urn:ec.europa.eu:taxud:vies:services:checkVat:types\"><valid>false</valid></checkVatApproxResponse></env:Body></env:Envelope>"))
+cases << run("VIES an answer that is not XML", VatValidationService, ["DE123456789"], vies.call(200, "not xml"))
+cases << run("VIES an empty answer", VatValidationService, ["DE123456789"], vies.call(200, ""))
+cases << run("VIES an HTML error page", VatValidationService, ["DE123456789"], vies.call(503, "<html><body>valid false</body></html>", headers: { "Content-Type" => "text/html" }))
+cases << run("VIES a truncated answer", VatValidationService, ["DE123456789"], vies.call(200, de_invalid[:body][0, 150]))
+cases << run("VIES an answer typed text/plain", VatValidationService, ["DE123456789"], vies.call(200, de_invalid[:body], headers: { "Content-Type" => "text/plain" }))
+cases << run("VIES an element name in capitals", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:VALID>false</ns2:VALID>")))
+cases << run("VIES a camel-cased valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:isValid>false</ns2:isValid>")))
+cases << run("VIES a trader valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:traderValid>false</ns2:traderValid>")))
+cases << run("VIES two valid elements", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:valid>true</ns2:valid><ns2:valid>false</ns2:valid>")))
+cases << run("VIES a nested element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:valid>false</ns2:valid><ns2:extra><ns2:inner>1</ns2:inner></ns2:extra>")))
+cases << run("VIES a CDATA valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:valid><![CDATA[false]]></ns2:valid>")))
+cases << run("VIES a comment inside the response", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<!-- c --><ns2:valid>false</ns2:valid>")))
+cases << run("VIES an attribute on the valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:valid x=\"1\">false</ns2:valid>")))
+cases << run("VIES an entity in the valid element", VatValidationService, ["DE123456789"], vies.call(200, vies_body.call("<ns2:valid>fal&#115;e</ns2:valid>")))
 
 File.write(OUT, "#{JSON.pretty_generate(cases)}\n")
 puts "wrote #{OUT} (#{cases.size} cases)"

@@ -386,13 +386,53 @@ describe "Customer surcharge", type: :request do
       expect(response.parsed_body).to include("vat_id_valid" => false)
     end
 
-    it "hands a tax id that needs a vendor lookup back to Rails", parity: true do
-      create_de_vat_rate
-      allow_any_instance_of(VatValidationService).to receive(:process).and_return(false)
+    describe "tax ids checked by VIES" do
+      let(:vies_url) { "https://ec.europa.eu/taxation_customs/vies/services/checkVatService" }
 
-      post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE000")
+      def vies_answer(valid)
+        "<env:Envelope xmlns:env=\"http://schemas.xmlsoap.org/soap/envelope/\"><env:Header/><env:Body>" \
+          "<ns2:checkVatApproxResponse xmlns:ns2=\"urn:ec.europa.eu:taxud:vies:services:checkVat:types\">" \
+          "<ns2:countryCode>DE</ns2:countryCode><ns2:vatNumber>123456789</ns2:vatNumber><ns2:requestDate>2026-11-04+01:00</ns2:requestDate>" \
+          "<ns2:valid>#{valid}</ns2:valid><ns2:traderName>---</ns2:traderName></ns2:checkVatApproxResponse></env:Body></env:Envelope>"
+      end
 
-      expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 190, "has_vat_id_input" => true)
+      def stub_vies(valid: true, status: 200)
+        stub_request(:post, vies_url).to_return(status:, body: vies_answer(valid), headers: { "Content-Type" => "text/xml;charset=UTF-8" })
+      end
+
+      before { create_de_vat_rate }
+
+      it "zeroes the tax of a German buyer whose VAT id VIES confirms", parity: true do
+        stub_vies
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE 123.456.789")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+        expect(a_request(:post, vies_url)).to have_been_made.once
+      end
+
+      it "taxes a German buyer whose VAT id VIES does not know", parity: true do
+        stub_vies(valid: false)
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE123456789")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 190, "has_vat_id_input" => true)
+      end
+
+      it "falls back to the shape of the VAT id when VIES is down", parity: true do
+        stub_vies(status: 500)
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE123456789")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+      end
+
+      it "taxes a German buyer whose VAT id has the wrong shape without asking VIES", parity: true do
+        post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE000")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 190, "has_vat_id_input" => true)
+        expect(a_request(:post, vies_url)).not_to have_been_made
+      end
     end
 
     describe "tax ids checked by IRAS, Revenu Quebec and taxid.pro" do
@@ -518,12 +558,50 @@ describe "Customer surcharge", type: :request do
         expect(a_request(:post, iras_url)).not_to have_been_made
       end
 
-      it "hands an Australian ABN, which Vatstack checks, back to Rails", parity: true do
-        stub_request(:post, "https://api.vatstack.com/v1/validations").to_return(status: 200, body: { valid: true, active: true }.to_json, headers: json_type)
+      describe "tax ids checked by Vatstack" do
+        let(:vatstack_url) { "https://api.vatstack.com/v1/validations" }
 
-        post_surcharge(products: [line(product, price: 1_000)], country: "AU", vat_id: "51824753556")
+        def stub_vatstack(body)
+          stub_request(:post, vatstack_url).to_return(status: 200, body: body.to_json, headers: json_type)
+        end
 
-        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+        it "zeroes the tax of an Australian buyer whose ABN Vatstack finds active", parity: true do
+          create(:zip_tax_rate, country: "AU", state: nil, zip_code: nil, combined_rate: 0.1, is_seller_responsible: false)
+          stub_vatstack(valid: true, active: true)
+
+          post_surcharge(products: [line(product, price: 1_000)], country: "AU", vat_id: "51 824 753 556")
+
+          expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+          expect(a_request(:post, vatstack_url).with(body: "type=au_gst&query=51%20824%20753%20556")).to have_been_made.once
+        end
+
+        it "taxes an Australian buyer whose ABN Vatstack finds inactive", parity: true do
+          create(:zip_tax_rate, country: "AU", state: nil, zip_code: nil, combined_rate: 0.1, is_seller_responsible: false)
+          stub_vatstack(valid: true, active: false)
+
+          post_surcharge(products: [line(product, price: 1_000)], country: "AU", vat_id: "51824753556")
+
+          expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 100)
+        end
+
+        it "zeroes the tax of a Norwegian buyer whose MVA number Vatstack finds active", parity: true do
+          create(:zip_tax_rate, country: "NO", state: nil, zip_code: nil, combined_rate: 0.25, is_seller_responsible: false)
+          stub_vatstack(valid: true, active: true)
+
+          post_surcharge(products: [line(product, price: 1_000)], country: "NO", vat_id: "123456789MVA")
+
+          expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+          expect(a_request(:post, vatstack_url).with(body: "type=no_vat&query=123456789MVA")).to have_been_made.once
+        end
+
+        it "taxes a Norwegian buyer whose MVA number Vatstack rejects as input", parity: true do
+          create(:zip_tax_rate, country: "NO", state: nil, zip_code: nil, combined_rate: 0.25, is_seller_responsible: false)
+          stub_vatstack(code: "INVALID_INPUT", valid: true, active: true)
+
+          post_surcharge(products: [line(product, price: 1_000)], country: "NO", vat_id: "bad")
+
+          expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 250)
+        end
       end
     end
   end
