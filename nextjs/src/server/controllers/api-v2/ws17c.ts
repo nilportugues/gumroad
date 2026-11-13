@@ -1,5 +1,5 @@
 // WS-17c: the v2 API routes of users, emails, workflows and their emails, pages, UTM links and help articles, plus the aliases that share the
-// controllers (`/ifttt`, `/muse`, `/claude`, `/chatgpt`, `/.well-known`, `/notion`), registered with the dispatcher in ./base.ts.
+// controllers (`/ifttt`, `/muse`, `/claude`, `/chatgpt`, `/cursor`, `/antigravity`, `/.well-known`, `/notion`), registered with the dispatcher in ./base.ts.
 import { PUBLIC_READ_SCOPES, registerApiV2, type ApiV2Route } from "./base.ts";
 import * as emails from "./ws17c-emails.ts";
 import * as helpArticles from "./ws17c-help-articles.ts";
@@ -119,7 +119,7 @@ registerApiV2(
   get("/v2/help/articles", helpArticles.index),
   get("/v2/help/articles/:slug", helpArticles.show),
 
-  ...["muse", "claude", "chatgpt"].flatMap(connector),
+  ...["muse", "claude", "chatgpt", "cursor", "antigravity"].flatMap(connector),
   get("/.well-known/mcp.json", mcp.mcpDiscovery, { anonymous: true }),
   get("/.well-known/openai-apps-challenge", mcp.openaiAppsChallenge, { anonymous: true }),
   get("/.well-known/oauth-authorization-server", mcp.oauthMetadata, { anonymous: true }),

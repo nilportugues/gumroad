@@ -174,7 +174,7 @@ describe "OAuth tokens", type: :request do
     end
   end
 
-  describe "POST /oauth/token and the muse, claude and chatgpt aliases" do
+  describe "POST /oauth/token and the muse, claude, chatgpt, cursor and antigravity aliases" do
     it "answers a failing code exchange on /oauth/token", parity: true do
       post "/oauth/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
@@ -195,6 +195,18 @@ describe "OAuth tokens", type: :request do
 
     it "answers a failing code exchange on the chatgpt alias", parity: true do
       post "/chatgpt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+
+    it "answers a failing code exchange on the cursor alias", parity: true do
+      post "/cursor/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
+
+      expect(response.parsed_body["error"]).to eq("invalid_grant")
+    end
+
+    it "answers a failing code exchange on the antigravity alias", parity: true do
+      post "/antigravity/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: public_app.uid, redirect_uri: public_app.redirect_uri }
 
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end

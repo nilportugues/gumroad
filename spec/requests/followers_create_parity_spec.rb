@@ -144,7 +144,7 @@ describe "Subscribing to a seller", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a waitlist signup to Rails", parity: true do
+    it "follows plainly when the product's waitlist is off", parity: true do
       product = create(:product, user: seller)
 
       subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: product.external_id })
@@ -254,7 +254,7 @@ describe "Subscribing to a seller", type: :request do
       expect(embed_form_props).to eq("success" => false, "message" => "Please subscribe from #{seller.external_id}'s subscribe page so we can confirm you're not a bot.", "subscribe_url" => "#{seller.subdomain_with_protocol}/subscribe", "waitlist_url" => nil)
     end
 
-    it "hands a request for an unknown seller to Rails", parity: true do
+    it "answers an unknown seller with a JSON 404", parity: true do
       subscribe(follow_user_from_embed_form_path, { seller_id: "unknownseller", email: "visitor@example.com" })
 
       expect(response).to have_http_status(:not_found)

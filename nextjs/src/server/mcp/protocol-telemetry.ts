@@ -3,9 +3,10 @@
 import { Redis } from "ioredis";
 
 import { redisUrl } from "../infra/redis.ts";
+
 import { LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION } from "./constants.ts";
 
-export const CONNECTORS = ["muse", "claude", "chatgpt"];
+export const CONNECTORS = ["muse", "claude", "chatgpt", "cursor", "antigravity"];
 // Every published revision, so a client declaring one we do not serve is still named.
 const VERSIONS = [LEGACY_PROTOCOL_VERSION, MODERN_PROTOCOL_VERSION, "2024-11-05", "2025-06-18", "2025-11-25"];
 const METHODS = [
