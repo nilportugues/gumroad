@@ -41,7 +41,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [ ] 3.6 Seller refunds a sale (needs Stripe test keys or a free-sale equivalent)
 - [x] 3.7 Customers page renders and its CSV export downloads with the sales columns (`customers.spec.ts`); listing a sale made during the run needs Sidekiq indexing, see 5.1
 - [ ] 3.8 Bundle created, published and bought
-- [ ] 3.9 Buyer downloads a file from the content page
+- [x] 3.9 Buyer downloads a file from the content page (`download-file.spec.ts`)
 - [ ] 3.10 Analytics and dashboard pages render with the seeded data
 - [ ] 3.11 Payouts and payment settings pages render (render only, no live Stripe)
 - [ ] 3.12 Mobile viewport project runs the main buyer flow
