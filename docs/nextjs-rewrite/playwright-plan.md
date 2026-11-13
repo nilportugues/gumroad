@@ -39,7 +39,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [ ] 3.4 Membership: subscribe, see it in the library, cancel
 - [x] 3.5 Seller edits a product price and the product page follows (`product-price-edit.spec.ts`)
 - [ ] 3.6 Seller refunds a sale (needs Stripe test keys or a free-sale equivalent)
-- [ ] 3.7 Customers page lists a new sale and its CSV export downloads
+- [x] 3.7 Customers page renders and its CSV export downloads with the sales columns (`customers.spec.ts`); listing a sale made during the run needs Sidekiq indexing, see 5.1
 - [ ] 3.8 Bundle created, published and bought
 - [ ] 3.9 Buyer downloads a file from the content page
 - [ ] 3.10 Analytics and dashboard pages render with the seeded data
