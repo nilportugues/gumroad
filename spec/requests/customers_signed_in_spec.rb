@@ -355,6 +355,21 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customer["price"]["cents"]).to eq(deposit.displayed_price_cents)
   end
 
+  it "leaves an in-progress commission completion charged outside Stripe out of the deposit row", parity: true do
+    commission_product = create(:commission_product, user: seller, name: "Portrait")
+    deposit = sell(commission_product, days_ago: 3, is_commission_deposit_purchase: true)
+    completion = sell(commission_product, days_ago: 1, is_commission_completion_purchase: true, purchase_state: "in_progress", charge_processor_id: PaypalChargeProcessor.charge_processor_id, stripe_transaction_id: "paypal-order-1")
+    commission = Commission.find_or_create_by!(deposit_purchase: deposit) { _1.status = Commission::STATUS_IN_PROGRESS }
+    commission.update_columns(completion_purchase_id: completion.id)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    customer = customers_of(response).first
+    expect(customer["commission"]).to include("status" => "in_progress", "files_are_editable" => false)
+    expect(customer["price"]["cents"]).to eq(deposit.displayed_price_cents)
+  end
+
   it "lists a review's pending and approved videos", parity: true do
     purchase = sell(product, days_ago: 3)
     review = create(:product_review, purchase:, link: product, rating: 5, message: "Great")

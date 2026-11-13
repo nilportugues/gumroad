@@ -8,6 +8,7 @@ import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
+import { decryptSecureExternalId } from "@/server/models/secure-external-id";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
@@ -35,6 +36,8 @@ const COMPARE = {
     "response.headers.x-original-headers-class",
     "response.headers.cache-control",
     "response.headers.link",
+    // The manage-license token carries a random IV and an expiry a week out; the test below decrypts both sides.
+    "response.json.customers.*.license.id",
     // Next.js adds its RSC headers to Vary; checked below without them.
     "response.headers.vary",
     "response.cookies.__profilin",
@@ -105,6 +108,12 @@ describe.skipIf(!url)("customers table JSON", () => {
       OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")
+        ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! }
+        : {}),
+      ...(testEnv("SECURE_EXTERNAL_ID__KEYS__1")
+        ? { SECURE_EXTERNAL_ID__KEYS__1: testEnv("SECURE_EXTERNAL_ID__KEYS__1")! }
+        : {}),
       ELASTICSEARCH_HOST,
       ES_INDEX_SUFFIX,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
@@ -193,6 +202,15 @@ describe.skipIf(!url)("customers table JSON", () => {
         assertParity(result);
         const { expected, actual } = result.exchanges[0]!;
         expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
+        if (name.includes("license-uses")) {
+          process.env.SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION = testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION");
+          process.env.SECURE_EXTERNAL_ID__KEYS__1 = testEnv("SECURE_EXTERNAL_ID__KEYS__1");
+          const licenseIds = (response: unknown) =>
+            (response as { json: { customers: { license: { id: string } }[] } }).json.customers.map((customer) =>
+              decryptSecureExternalId("License", customer.license.id, "manage_license"),
+            );
+          expect(licenseIds(actual.response)).toEqual(licenseIds(expected.response));
+        }
       } catch (error) {
         const logs = server
           .output()
