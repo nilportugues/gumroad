@@ -35,6 +35,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { esJson } from "../search/es-json.ts";
 import { redirectUrlFor } from "../services/subdomain-redirector.ts";
 
+import { InvalidMimeType, type MimeType, requestFormats } from "./mime-negotiation.ts";
 import { countRackAttack, uncountRackAttack } from "./rack-attack.ts";
 import { setCookieHeader } from "./rack-cookies.ts";
 import { isPresent, queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
@@ -740,41 +741,36 @@ function applyCorsVary(headers: Headers): void {
   headers.set("vary", values.join(", "));
 }
 
-// ActionDispatch::PublicExceptions for the formats an Accept header names on its own; anything
-// else (including q-value lists) gets the HTML page.
+// ActionDispatch::PublicExceptions: the body is chosen by `request.formats.first` (see mime-negotiation.ts),
+// so `application/json, text/html` is JSON and `text/html, application/json` is the HTML page. Only json, xml
+// and yaml have a `Hash#to_<symbol>`; every other format gets public/<status>.html. A HEAD request answers
+// with the first format's content type and no body, even for a format that has no body to render.
 const PUBLIC_EXCEPTION_MESSAGES: Record<number, string> = { 404: "Not Found", 422: "Unprocessable Content" };
-function publicException(request: RailsRequest, status: number): { headers: Headers; body: string } {
+export function publicException(request: RailsRequest, status: number): { headers: Headers; body: string } {
   const message = PUBLIC_EXCEPTION_MESSAGES[status] ?? "Internal Server Error";
-  const accept = request.headers.get("accept");
-  const single =
-    accept !== null && !accept.includes(",") && !BROWSER_LIKE_ACCEPTS.test(accept)
-      ? accept.split(/\s*;\s*/u)[0]!.trim()
-      : "";
-  const formats: Record<string, [string, () => string]> = {
-    json: ["application/json", () => JSON.stringify({ status, error: message })],
-    xml: [
-      "application/xml",
-      () =>
-        `<?xml version="1.0" encoding="UTF-8"?>\n<hash>\n  <status type="integer">${status}</status>\n  <error>${message}</error>\n</hash>\n`,
-    ],
-    yaml: ["application/x-yaml", () => `---\n:status: ${status}\n:error: ${message}\n`],
+  const formats: Record<string, () => string> = {
+    json: () => JSON.stringify({ status, error: message }),
+    xml: () =>
+      `<?xml version="1.0" encoding="UTF-8"?>\n<hash>\n  <status type="integer">${status}</status>\n  <error>${message}</error>\n</hash>\n`,
+    yaml: () => `---\n:status: ${status}\n:error: ${message}\n`,
   };
-  const symbol =
-    (
-      {
-        "application/json": "json",
-        "text/x-json": "json",
-        "application/jsonrequest": "json",
-        "application/problem+json": "json",
-      } as Record<string, string>
-    )[single] ??
-    ({ "application/xml": "xml", "text/xml": "xml", "application/x-xml": "xml" } as Record<string, string>)[single] ??
-    ({ "application/x-yaml": "yaml", "text/yaml": "yaml" } as Record<string, string>)[single];
-  // The test environment's DebugExceptions answers a 422 with an HTML page whatever the Accept header says.
-  if (symbol && !(status === 422 && railsEnv() === "test")) {
-    const [type, body] = formats[symbol]!;
-    const headers = new Headers({ "content-type": `${type}; charset=utf-8` });
-    return { headers, body: request.method === "HEAD" ? "" : body() };
+  // An Accept header with an invalid MIME type is a 406 for every request in Rails, which the port does not model.
+  let first: MimeType | undefined;
+  try {
+    first = requestFormats(request)[0];
+  } catch (error) {
+    if (!(error instanceof InvalidMimeType)) throw error;
+  }
+  // Test environment only (consider_all_requests_local): DebugExceptions answers a rescuable error (404, 422) with its HTML page
+  // whatever the Accept header says, or its plain-text report for an XHR. A HEAD request is still answered by PublicExceptions.
+  const debugPage = railsEnv() === "test" && (status === 404 || status === 422) && request.method !== "HEAD";
+  if (debugPage && /XMLHttpRequest/iu.test(request.headers.get("x-requested-with") ?? ""))
+    return { headers: new Headers({ "content-type": "text/plain; charset=utf-8" }), body: message };
+  if (request.method === "HEAD")
+    return { headers: new Headers({ "content-type": `${first?.string ?? ""}; charset=utf-8` }), body: "" };
+  const render = first?.symbol ? formats[first.symbol] : undefined;
+  if (render && !debugPage) {
+    return { headers: new Headers({ "content-type": `${first!.string}; charset=utf-8` }), body: render() };
   }
   const file = path.join(railsRoot(), "public", `${status}.html`);
   if (!existsSync(file)) return { headers: new Headers({ "x-cascade": "pass" }), body: "" };

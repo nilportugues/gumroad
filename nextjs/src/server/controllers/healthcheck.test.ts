@@ -49,12 +49,14 @@ describe("GET /healthcheck/apple_pay_domain outside a staging branch deployment"
     expect(await response.text()).toBe(fs.readFileSync(path.join(railsRoot(), "public/404.html"), "utf8"));
   });
 
-  it("renders the error as JSON for an Accept header asking for it", async () => {
+  // The test environment answers DebugExceptions' page whatever the Accept header says; production's JSON for
+  // an Accept header asking for it is pinned by public-exceptions.test.ts.
+  it("answers HTML for an Accept header asking for JSON", async () => {
     setSubdomainRedirectorDepsForTesting({ readConfig: async () => null });
     const response = await GET(new Request(`${APP}/healthcheck/apple_pay_domain`, { headers: { accept: "application/json" } }));
 
-    expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
-    expect(await response.text()).toBe('{"status":404,"error":"Not Found"}');
+    expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
   });
 
   it("sends no body for HEAD", async () => {
