@@ -28,6 +28,7 @@ vi.mock("../../lib/db.ts", () => ({ db: { user: { findFirst: mocks.findFirst } }
 vi.mock("../../lib/obfuscate-ids.ts", () => ({
   decrypt: (id: string) => (id === "unknown" ? null : 7),
   decryptNumeric: (id: number) => id,
+  encrypt: (id: number) => `ext-${id}`,
 }));
 vi.mock("../models/sql.ts", () => ({
   selectRows: mocks.selectRows,
@@ -225,9 +226,9 @@ describe("PATCH /affiliates/:id", () => {
     await expect(call(update, affiliate())).rejects.toBeInstanceOf(RoutingError);
   });
 
-  it("sends a refusal to the edit page with the database id", async () => {
+  it("sends a refusal to the edit page by external id", async () => {
     expect(await call(update, affiliate({ email: "" }))).toEqual(
-      refusal("/affiliates/5/edit", "Invalid affiliate parameters"),
+      refusal("/affiliates/ext-5/edit", "Invalid affiliate parameters"),
     );
   });
 

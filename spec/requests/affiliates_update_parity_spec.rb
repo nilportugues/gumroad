@@ -173,7 +173,7 @@ describe "Affiliates update", type: :request, parity_timeline: true, parity_mail
     send_update(direct_affiliate, body(fee_percent: 90))
 
     expect(response).to have_http_status(:see_other)
-    expect(response.location).to end_with("/affiliates/#{direct_affiliate.id}/edit")
+    expect(response.location).to end_with("/affiliates/#{direct_affiliate.external_id}/edit")
   end
 
   it "refuses an edit onto an account the seller has as another live affiliate", parity: true do
@@ -184,6 +184,6 @@ describe "Affiliates update", type: :request, parity_timeline: true, parity_mail
     send_update(direct_affiliate, body)
 
     expect(response).to have_http_status(:see_other)
-    expect(response.location).to end_with("/affiliates/#{direct_affiliate.id}/edit")
+    expect(response.location).to end_with("/affiliates/#{direct_affiliate.external_id}/edit")
   end
 end
