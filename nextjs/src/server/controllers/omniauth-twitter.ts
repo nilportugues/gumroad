@@ -24,6 +24,7 @@ import {
   assertHtml,
   BARE,
   consumeSocialConnectReturn,
+  formCallback,
   fullHost,
   humanize,
   isHash,
@@ -396,4 +397,5 @@ class NotPorted extends Error {
 registerMutations(
   { method: "POST", pattern: REQUEST_PATH, options: BARE, run: requestPhase },
   { method: "GET", pattern: CALLBACK_PATH, skipForgeryProtection: true, run: callbackPhase },
+  { method: "POST", pattern: CALLBACK_PATH, run: formCallback(callbackPhase) },
 );

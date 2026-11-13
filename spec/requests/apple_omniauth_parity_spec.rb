@@ -498,4 +498,121 @@ describe "Sign in with Apple", type: :request do
       expect(response).to have_http_status(:found)
     end
   end
+
+  # Devise routes `/users/auth/apple/callback` to the same action for a GET, which carries no CSRF check to fail: the failure action runs
+  # with the session, so the flash is written (the form POST runs it with a null session).
+  describe "GET /users/auth/apple/callback" do
+    before { stub_keys }
+
+    def get_callback(token: id_token, **params)
+      get "/users/auth/apple/callback", params: { code: "apple-code-1", state: "ignored", id_token: token }.merge(params)
+    end
+
+    it "signs in a user who signed in with Apple before", parity: true do
+      link_apple_identity
+      begin_flow
+      stub_token
+
+      get_callback
+
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload.sign_in_count).to eq(1)
+      expect(a_request(:post, "#{apple}/auth/token").with { |request| request.body.include?("code=apple-code-1") }).to have_been_made
+    end
+
+    it "tells a visitor who cancelled that Apple refused", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "user_cancelled_authorize" }
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"User cancelled authorize\".")
+    end
+
+    it "prefers the reason of the provider to its error code", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "access_denied", error_reason: "user_denied" }
+
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"User denied\".")
+    end
+
+    it "sends a visitor to the payments settings with the error description of Apple", parity: true do
+      begin_flow
+
+      get "/users/auth/apple/callback", params: { error: "access_denied", error_description: "The user denied access" }
+
+      expect(response).to redirect_to("/settings/payments")
+      expect(flash[:notice]).to eq("The user denied access")
+    end
+
+    {
+      "an id_token for another app" => [-> { id_token(aud: "com.example.other") }, "Aud invalid"],
+      "an id_token from another issuer" => [-> { id_token(iss: "https://accounts.example.com") }, "Iss invalid"],
+      "an id_token that has expired" => [-> { id_token(exp: Time.now.to_i - 60) }, "Exp invalid"],
+      "an id_token issued in the future" => [-> { id_token(iat: Time.now.to_i + 3600) }, "Iat invalid"],
+      "an id_token for another nonce" => [-> { id_token(nonce: "another-nonce") }, "Nonce invalid"],
+    }.each do |label, (build, reason)|
+      it "tells a visitor with #{label} that the claims are invalid", parity: true do
+        link_apple_identity
+        begin_flow
+
+        get_callback(token: instance_exec(&build))
+
+        expect(response).to redirect_to("/users/sign_in")
+        expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"#{reason}\".")
+        expect(a_request(:post, "#{apple}/auth/token")).not_to have_been_made
+      end
+    end
+
+    it "tells a visitor that Apple refused the code", parity: true do
+      link_apple_identity
+      begin_flow
+      stub_token(status: 400, body: { error: "invalid_grant", error_description: "The code has expired or has been revoked." })
+
+      get_callback
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from Apple because \"Invalid credentials\".")
+    end
+
+    it "creates an account for the first sign-in with Apple", parity: true do
+      begin_flow
+      stub_token
+
+      get_callback(token: id_token(sub: "001234.newuser.0001", email: "new.apple@example.com"), user: { name: { firstName: "New", lastName: "Visitor" } }.to_json)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(User.find_by!(email: "new.apple@example.com")).to have_attributes(name: "New Visitor", provider: "apple", sign_in_count: 1)
+    end
+
+    it "hands an id_token signed with another key to Rails", parity: true do
+      link_apple_identity
+      begin_flow
+
+      get_callback(token: id_token(key: OpenSSL::PKey::RSA.new(2048)))
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to start_with("Could not authenticate you from Apple because")
+    end
+
+    it "hands a callback when Apple's keys cannot be fetched to Rails", parity: true do
+      link_apple_identity
+      stub_keys(status: 500, body: { error: "server_error" })
+      begin_flow
+
+      get_callback
+
+      expect(response).to redirect_to("/users/sign_in")
+    end
+
+    it "hands a callback without an id_token to Rails", parity: true do
+      begin_flow
+      stub_token(status: 400, body: { error: "invalid_grant" })
+
+      get "/users/auth/apple/callback", params: { code: "apple-code-1" }
+
+      expect(response).to redirect_to("/users/sign_in")
+    end
+  end
 end

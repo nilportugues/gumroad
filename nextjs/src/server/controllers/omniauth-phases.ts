@@ -4,7 +4,7 @@
 // A callback that gets past those checks carries a code, and the exchange for a token spends it; sign-in, sign-up and the Stripe account
 // lookup that follow cannot be redone by Rails once Node has made the call. Those callbacks go to Rails whole, before anything is asked
 // of the provider, except where a handler is registered (Google: omniauth-google.ts; a signed-in seller's Stripe Connect:
-// omniauth-stripe-connect.ts). Twitter (OAuth 1) and Apple (signed cookie, ES256 client secret, POST callback) are not registered.
+// omniauth-stripe-connect.ts). Twitter (OAuth 1) and Apple (signed cookie, ES256 client secret) have their own files.
 //
 // YouTube, Instagram and TikTok (the social connects) add three things to the same phases: a feature flag that each strategy checks in the
 // middleware (a disabled one answers before the provider is asked), the `attempted` funnel event, and a failure action that records
@@ -402,7 +402,7 @@ function callbackFailure(strategy: Strategy, input: MutationInput): { type: stri
 }
 
 // Devise::OmniauthCallbacksController#failure through User::OmniauthCallbacksController#failure, for a strategy that is no social connect.
-function failure(strategy: Strategy, input: MutationInput, type: string, reason: string | null): ActionResult {
+export function oauthFailure(kind: string, input: MutationInput, type: string, reason: string | null): ActionResult {
   const description = stringParam(input, "error_description");
   if (description !== undefined && isPresent(description))
     return { status: FOUND, location: SETTINGS_PAYMENTS_PATH, flash: { notice: description } };
@@ -411,9 +411,12 @@ function failure(strategy: Strategy, input: MutationInput, type: string, reason:
   return {
     status: FOUND,
     location: SIGN_IN_PATH,
-    flash: { alert: `Could not authenticate you from ${strategy.kind} because "${humanize(reason ?? type)}".` },
+    flash: { alert: `Could not authenticate you from ${kind} because "${humanize(reason ?? type)}".` },
   };
 }
+
+const failure = (strategy: Strategy, input: MutationInput, type: string, reason: string | null) =>
+  oauthFailure(strategy.kind, input, type, reason);
 
 // SocialConnectReturn#consume_social_connect_return, the `before_action` of the failure action: the destination a verified return
 // names. The session entry is spent whether or not it checks out.
@@ -557,6 +560,22 @@ function callbackPhase(strategy: Strategy) {
   };
 }
 
+// `Rack::Request#params` reads a form body only; a JSON body is a Rails parameter the middleware never sees, so the two would disagree on `code`.
+const FORM_CONTENT_TYPE = /^(?:application\/x-www-form-urlencoded|multipart\/form-data)(?:;|$)/iu;
+
+// The callback of a form POST: Devise routes `/users/auth/:provider/callback` to the same action for GET and POST. Only the middleware's
+// own checks and the action run in Node, as for the GET; the CSRF check is the framework's (`protect_from_forgery` is `null_session`, so a POST
+// without a valid token runs the action with a session that is never written, which Rails keeps).
+export function formCallback(run: (input: MutationInput) => Promise<ActionResult>) {
+  return (input: MutationInput): Promise<ActionResult> => {
+    const contentType = input.request.headers.get("content-type");
+    if (contentType !== null && contentType !== "" && !FORM_CONTENT_TYPE.test(contentType))
+      throw new HandBackToRails("a callback whose body is not a form");
+    if (isXhr(input)) throw new HandBackToRails("an XHR callback sent as a form POST");
+    return run(input);
+  };
+}
+
 export const BARE: ActionOptions = {
   bare: true,
   metal: true,
@@ -582,6 +601,12 @@ registerMutations(
       skipForgeryProtection: true,
       ...(strategy.social ? { options: { prepended: unavailableCallback(strategy) } } : {}),
       run: callbackPhase(strategy),
+    },
+    {
+      method: "POST",
+      pattern: callbackPath(strategy),
+      ...(strategy.social ? { options: { prepended: unavailableCallback(strategy) } } : {}),
+      run: formCallback(callbackPhase(strategy)),
     },
   ]),
 );

@@ -79,6 +79,66 @@ describe "Google OAuth2 login and signup", type: :request do
     create(:user, deleted_at: Time.current, google_uid: google_sub, provider: "google_oauth2", **attrs).tap { |row| row.update_columns(updated_at: 1.hour.ago) }
   end
 
+  # Devise routes the callback to the same action for a form POST, under `protect_from_forgery`: a valid authenticity token runs the same
+  # action; without one Rails runs it with a null session.
+  describe "a form POST callback" do
+    before { aged(user) }
+
+    def post_callback(state, token: csrf_token, **params)
+      post "/users/auth/google_oauth2/callback", params: { authenticity_token: token, code: "google-code-1", state: }.merge(params)
+    end
+
+    it "signs the user in", parity: true do
+      stub_google
+      state = begin_flow
+
+      post_callback(state)
+
+      expect(response).to redirect_to("/dashboard")
+      expect(user.reload.sign_in_count).to eq(1)
+      expect(a_request(:post, "https://oauth2.googleapis.com/token").with { |request| request.body.include?("code=google-code-1") }).to have_been_made
+    end
+
+    it "signs up a Google user who has no account yet", parity: true do
+      user.update_columns(google_uid: "someone-else", email: "someone.else@example.com")
+      stub_google
+      state = begin_flow("referer=/library")
+
+      post_callback(state)
+
+      expect(response).to redirect_to("/library")
+      expect(User.find_by!(google_uid: google_sub)).to have_attributes(provider: "google_oauth2", sign_in_count: 1)
+    end
+
+    it "ends in the failure action when Google refuses the code", parity: true do
+      stub_google(token_status: 400, token_body: { error: "invalid_grant", error_description: "Bad Request" })
+      state = begin_flow
+
+      post_callback(state)
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Invalid credentials\".")
+    end
+
+    it "hands a callback without an authenticity token to Rails", parity: true do
+      stub_google
+      state = begin_flow
+
+      post "/users/auth/google_oauth2/callback", params: { code: "google-code-1", state: }
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "hands a callback with a wrong authenticity token to Rails", parity: true do
+      stub_google
+      state = begin_flow
+
+      post_callback(state, token: "forged")
+
+      expect(response).to have_http_status(:found)
+    end
+  end
+
   describe "a user who signed in with Google before" do
     before { aged(user) }
 

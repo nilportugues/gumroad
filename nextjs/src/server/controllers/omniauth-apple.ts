@@ -24,7 +24,16 @@ import { signedInUserHome } from "./auth-pages.ts";
 import { signIn } from "./auth-session.ts";
 import { faradayQuery } from "./faraday-query.ts";
 import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
-import { assertHtml, BARE, fullHost, isHash, queryParams, sessionHash, stringParam } from "./omniauth-phases.ts";
+import {
+  assertHtml,
+  BARE,
+  fullHost,
+  isHash,
+  oauthFailure,
+  queryParams,
+  sessionHash,
+  stringParam,
+} from "./omniauth-phases.ts";
 import { safeRedirectPath } from "./rails-params.ts";
 import { isPresent } from "./rails-request.ts";
 import {
@@ -53,12 +62,24 @@ const DELETED_ACCOUNT_LOGIN_ERROR =
   "You cannot log in because your account was deleted. Email support@gumroad.com if you'd like to use this email address for a new account.";
 const SCOPE = "email name";
 
-// A callback that ends in the failure action: Rails runs it with a null session, so only the redirect goes out.
+// A callback that ends in the failure action. The form POST has no CSRF token, so Rails runs the action with a null session and only the
+// redirect goes out; the GET has no check to fail, so the flash is written.
 class AppleFailure extends Error {}
 
-const nullSessionFailure = (input: MutationInput): ActionResult => {
-  input.chain.bare = true;
-  return { status: FOUND, location: SIGN_IN_PATH };
+const CLAIMS = ["iss", "aud", "iat", "exp", "nonce"];
+const KIND = "Apple";
+
+const callbackFailure = (input: MutationInput, failure?: AppleFailure): ActionResult => {
+  if (input.request.method !== "GET") {
+    input.chain.bare = true;
+    return { status: FOUND, location: SIGN_IN_PATH };
+  }
+  // verify_claims! raises CallbackError(:id_token_claims_invalid, "<claim> invalid"); the gem's other failures carry the message of a library
+  // exception, and a refused token call is OAuth2::Error, which has no reason of its own.
+  if (failure === undefined) return oauthFailure(KIND, input, "invalid_credentials", null);
+  if (!CLAIMS.includes(failure.message))
+    throw new HandBackToRails(`an id_token failure (${failure.message}) with a library message`);
+  return oauthFailure(KIND, input, "id_token_claims_invalid", `${failure.message} invalid`);
 };
 
 // SecureRandom.hex / urlsafe_base64
@@ -247,6 +268,18 @@ function appleData(claims: IdToken, uid: string, name: string | null): AppleData
   };
 }
 
+// OmniAuth::Strategies::OAuth2#callback_phase on `error`/`error_reason`, before any token is looked at: the same failure type and reason as
+// the other OAuth 2 strategies, with the session entries of the request phase spent.
+function deniedCallback(input: MutationInput): ActionResult {
+  const error = stringParam(input, "error_reason") ?? stringParam(input, "error");
+  if (error === undefined || !isPresent(error)) throw new HandBackToRails("a blank error");
+  delete input.chain.session.data["omniauth.origin"];
+  delete input.chain.session.data["omniauth.params"];
+  const reason =
+    stringParam(input, "error_description") ?? stringParam(input, "error_reason") ?? stringParam(input, "error");
+  return oauthFailure(KIND, input, error, reason ?? error);
+}
+
 async function callbackPhase(input: MutationInput): Promise<ActionResult> {
   assertHtml(input);
   const { chain } = input;
@@ -258,13 +291,14 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
       chain.auth.authenticatedVia === "remember_cookie"
     )
       throw new HandBackToRails("a visitor who is signed in");
+    const errored = input.params.error !== undefined || input.params.error_reason !== undefined;
+    if (errored && input.request.method !== "GET") throw new HandBackToRails("a callback that carries an error");
+    if (errored) return deniedCallback(input);
     const token = stringParam(input, "id_token");
     const code = stringParam(input, "code");
     const clientId = getConfig("APPLE_WEB_CLIENT_ID");
     if (token === undefined || !isPresent(token) || code === undefined || !isPresent(code) || !clientId)
       throw new HandBackToRails("a callback without an id_token or a code");
-    if (input.params.error !== undefined || input.params.error_reason !== undefined)
-      throw new HandBackToRails("a callback that carries an error");
 
     // callback_call: the session's OmniAuth entries are spent, then the cookie's data replaces the params.
     const sessionParams = sessionHash(chain, "omniauth.params");
@@ -289,7 +323,7 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
         clientId,
       );
     } catch (error) {
-      if (error instanceof AppleFailure) return nullSessionFailure(input);
+      if (error instanceof AppleFailure) return callbackFailure(input, error);
       throw error;
     }
 
@@ -305,7 +339,7 @@ async function callbackPhase(input: MutationInput): Promise<ActionResult> {
 
     // From here the code is spent.
     const exchanged = await exchange(code, chain.now);
-    if (!exchanged) return nullSessionFailure(input);
+    if (!exchanged) return callbackFailure(input);
 
     const user = plan.kind === "user" ? await applyAppleSignIn(plan, () => chain.now) : null;
     if (user === null) {
@@ -364,4 +398,5 @@ async function exchange(code: string, now: Date): Promise<boolean> {
 registerMutations(
   { method: "POST", pattern: REQUEST_PATH, options: BARE, run: requestPhase },
   { method: "POST", pattern: CALLBACK_PATH, skipForgeryProtection: true, run: callbackPhase },
+  { method: "GET", pattern: CALLBACK_PATH, skipForgeryProtection: true, run: callbackPhase },
 );

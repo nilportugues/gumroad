@@ -167,6 +167,65 @@ describe "Stripe Connect callback", type: :request do
     end
   end
 
+  # Devise routes the callback to the same action for a form POST, under `protect_from_forgery`: a valid authenticity token runs the same
+  # action; without one Rails runs it with a null session.
+  describe "a form POST callback" do
+    def post_callback(token: csrf_token, **params)
+      post "/users/auth/stripe_connect/callback", params: { authenticity_token: token, code: "stripe-code-1" }.merge(params)
+    end
+
+    it "sends a signed-in seller on to complete the connection", parity: true do
+      stub_stripe
+      log_in(seller)
+      begin_flow(referer: "/settings/payments")
+
+      post_callback
+
+      expect(response).to redirect_to("/oauth_completions/stripe")
+      expect(a_request(:post, "https://connect.stripe.com/oauth/token").with { |request| request.body.include?("code=stripe-code-1") }).to have_been_made.once
+    end
+
+    it "refuses a seller whose Stripe account is in a country Stripe Connect does not support", parity: true do
+      stub_stripe(country: "IN")
+      log_in(seller)
+      begin_flow(referer: "/settings/payments")
+
+      post_callback
+
+      expect(response).to redirect_to("/settings/payments")
+      expect(flash[:alert]).to eq("Sorry, Stripe Connect is not supported in India yet.")
+    end
+
+    it "ends in the failure action when Stripe refuses the code", parity: true do
+      stub_stripe(token_status: 400, token_body: { error: "invalid_grant", error_description: "Authorization code does not exist" })
+      log_in(seller)
+      begin_flow
+
+      post_callback
+
+      expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
+    end
+
+    it "hands a callback without an authenticity token to Rails", parity: true do
+      stub_stripe
+      log_in(seller)
+      begin_flow
+
+      post "/users/auth/stripe_connect/callback", params: { code: "stripe-code-1" }
+
+      expect(response).to have_http_status(:found)
+    end
+
+    it "hands a callback of a visitor who is not signed in to Rails", parity: true do
+      stub_stripe
+      begin_flow
+
+      post_callback
+
+      expect(response).to have_http_status(:found)
+    end
+  end
+
   describe "a callback Node leaves to Rails" do
     it "hands a callback of a visitor who is not signed in to Rails", parity: true do
       begin_flow

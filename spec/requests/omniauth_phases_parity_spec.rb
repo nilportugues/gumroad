@@ -202,4 +202,69 @@ describe "OmniAuth phases", type: :request do
       expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
     end
   end
+
+  # Devise routes `/users/auth/:provider/callback` to the same action for a form POST, and `protect_from_forgery` (null_session) applies to it:
+  # without a valid authenticity token Rails runs the action with a session it never writes. Only a POST with a valid token is Node's.
+  describe "POST /users/auth/:provider/callback" do
+    it "ends a Google callback whose state is not the one that was sent in the failure action", parity: true do
+      begin_flow("google_oauth2")
+
+      post "/users/auth/google_oauth2/callback", params: { authenticity_token: csrf_token, code: "code-1", state: "forged" }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Csrf detected\".")
+    end
+
+    it "tells a visitor who denied access that Google refused", parity: true do
+      state = begin_flow("google_oauth2")
+
+      post "/users/auth/google_oauth2/callback", params: { authenticity_token: csrf_token, error: "access_denied", state: }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Access denied\".")
+    end
+
+    it "sends a seller to the payments settings with the error description of Stripe", parity: true do
+      begin_flow("stripe_connect")
+
+      post "/users/auth/stripe_connect/callback", params: { authenticity_token: csrf_token, error: "access_denied", error_description: "The user denied your request" }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/settings/payments")
+      expect(flash[:notice]).to eq("The user denied your request")
+    end
+
+    it "ends an error callback of a signed-in seller in the failure action", parity: true do
+      log_in(user)
+      begin_flow("stripe_connect")
+
+      post "/users/auth/stripe_connect/callback", params: { authenticity_token: csrf_token, error: "access_denied" }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
+    end
+
+    it "hands a Google callback without an authenticity token to Rails", parity: true do
+      state = begin_flow("google_oauth2")
+
+      post "/users/auth/google_oauth2/callback", params: { error: "access_denied", state: }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
+    end
+
+    it "hands a Stripe Connect callback with a wrong authenticity token to Rails", parity: true do
+      begin_flow("stripe_connect")
+
+      post "/users/auth/stripe_connect/callback", params: { authenticity_token: "forged", error: "access_denied", error_description: "The user denied your request" }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/settings/payments")
+    end
+
+    it "hands a Google callback sent as JSON to Rails", parity: true do
+      state = begin_flow("google_oauth2")
+
+      post "/users/auth/google_oauth2/callback", params: { authenticity_token: csrf_token, error: "access_denied", state: }.to_json,
+                                                 headers: { "Content-Type" => "application/json" }
+
+      expect(response).to have_http_status(:found)
+    end
+  end
 end
