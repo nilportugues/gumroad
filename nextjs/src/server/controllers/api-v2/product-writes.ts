@@ -403,7 +403,9 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   const customizablePrice = has(params, "customizable_price")
     ? customizablePriceParam(params.customizable_price)
     : undefined;
-  const tagWork = has(params, "tags") ? await planTagChanges(0n, params.tags as string[]) : undefined;
+  const tagWork = has(params, "tags")
+    ? await planTagChanges(0n, params.tags as string[], { plainOnly: true })
+    : undefined;
   const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
 
   const draft = createAsDraft(params);
@@ -558,7 +560,17 @@ function integerParam(key: string, value: unknown): number | null {
   return cast;
 }
 
-// FlagShihTzu's TRUE_VALUES and ActiveModel's boolean cast differ on everything but a JSON boolean.
+// FlagShihTzu's TRUE_VALUES and ActiveModel's boolean cast differ on everything but a JSON boolean and these four spellings, which
+// both read the same way (the recordings hold each).
+const TEXT_BOOLEANS: Record<string, boolean> = { true: true, "1": true, false: false, "0": false };
+
+function booleanParam(key: string, value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string" && Object.hasOwn(TEXT_BOOLEANS, value)) return TEXT_BOOLEANS[value]!;
+  throw new HandBackToRails(`a ${key} that is not true or false`);
+}
+
+// The creation records only a JSON boolean; the update also records the text.
 function customizablePriceParam(value: unknown): boolean {
   if (typeof value !== "boolean") throw new HandBackToRails("a customizable_price that is not true or false");
   return value;
@@ -568,16 +580,14 @@ function customizablePriceParam(value: unknown): boolean {
 export const isPublishedProduct = (product: Link) =>
   product.deleted_at === null && product.purchase_disabled_at === null && !product.draft;
 
-// #update with none of UNPORTED_UPDATE_KEYS: assign_attributes, save!, then the product JSON. A flag value other than true or false
-// goes to Rails (FlagShihTzu's TRUE_VALUES and ActiveModel's casts differ from each other).
+// #update with none of UNPORTED_UPDATE_KEYS: assign_attributes, save!, then the product JSON. A flag value other than a boolean or
+// the text of one (see TEXT_BOOLEANS) goes to Rails.
 async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
   const { params, owner } = input;
   if (UNPORTED_UPDATE_KEYS.some((key) => has(params, key)))
     throw new HandBackToRails("an update of more than the simple attributes");
   if (has(params, "name") && typeof params.name !== "string") throw new HandBackToRails("a name that is not text");
-  for (const key of UPDATE_FLAG_PARAMS)
-    if (has(params, key) && typeof params[key] !== "boolean")
-      throw new HandBackToRails(`a ${key} that is not true or false`);
+  for (const key of UPDATE_FLAG_PARAMS) if (has(params, key)) booleanParam(key, params[key]);
   // content_moderation_check runs on the rename of a published product; check_offer_code_validity runs after every save.
   if (typeof params.name === "string" && params.name !== product.name && isPublishedProduct(product))
     throw new HandBackToRails("the rename of a published product");
@@ -600,7 +610,7 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
 
   const columns: Partial<Link> = {};
   if (has(params, "customizable_price")) {
-    columns.customizable_price = customizablePriceParam(params.customizable_price);
+    columns.customizable_price = booleanParam("customizable_price", params.customizable_price);
   }
   if (has(params, "suggested_price_cents"))
     columns.suggested_price_cents = integerParam("suggested_price_cents", params.suggested_price_cents);
@@ -633,7 +643,8 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
   }
 
   let flags = product.flags;
-  for (const key of UPDATE_FLAG_PARAMS) if (has(params, key)) flags = LinkFlags.set(flags, key, params[key] as boolean);
+  for (const key of UPDATE_FLAG_PARAMS)
+    if (has(params, key)) flags = LinkFlags.set(flags, key, booleanParam(key, params[key]));
   const attributes: Partial<Link> = { flags, ...columns };
   if (typeof params.name === "string") attributes.name = params.name;
   if (description !== undefined) attributes.description = description;
@@ -649,8 +660,9 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
     });
   } catch (caught) {
     if (!(caught instanceof RecordInvalid)) throw caught;
+    // The refused record is the product or, for tags, a Tag or ProductTagging: each renders its own messages.
     return renderResponse(false, {
-      message: toSentence(record.errors.fullMessages()) || "The product was unable to be modified.",
+      message: toSentence(caught.errors.fullMessages()) || "The product was unable to be modified.",
     });
   }
   return successWithObject("product", await json((await db.link.findUnique({ where: { id: product.id } }))!));

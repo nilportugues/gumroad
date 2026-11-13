@@ -419,10 +419,26 @@ describe "API v2 throttled routes", type: :request do
         expect(response.parsed_body.dig("product", "name")).to eq("Pen")
       end
 
-      it "hands a flag given as text back to Rails", parity: true do
+      it "reads a flag given as the text true", parity: true do
         call(:put, draft_path, params: { is_adult: "true" })
 
-        expect(response.parsed_body["success"]).to be true
+        expect(draft.reload.is_adult).to be true
+      end
+
+      it "reads a flag given as the text 0", parity: true do
+        draft.update!(is_adult: true)
+
+        call(:put, draft_path, params: { is_adult: "0" })
+
+        expect(draft.reload.is_adult).to be false
+      end
+
+      it "reads a flag given as the text false", parity: true do
+        draft.update!(should_show_sales_count: true)
+
+        call(:put, draft_path, params: { should_show_sales_count: "false" })
+
+        expect(draft.reload.should_show_sales_count).to be false
       end
 
       it "hands a name with a currency back to Rails", parity: true do
@@ -653,28 +669,69 @@ describe "API v2 throttled routes", type: :request do
           expect(product.reload.tags.pluck(:name)).to eq(%w[paper])
         end
 
-        it "hands a tag with capitals back to Rails", parity: true do
+        it "lowercases a tag with capitals", parity: true do
           call(:put, draft_path, params: { tags: %w[Paper] })
 
           expect(response.parsed_body["success"]).to be true
+          expect(draft.reload.tags.pluck(:name)).to eq(%w[paper])
         end
 
-        it "hands a tag that is too short back to Rails", parity: true do
-          call(:put, draft_path, params: { tags: %w[a] })
+        it "refuses a tag that is too short and saves nothing", parity: true do
+          call(:put, draft_path, params: { name: "Pen", tags: %w[ink a] })
 
           expect(response.parsed_body["success"]).to be false
+          expect(draft.reload.tags).to be_empty
         end
 
-        it "hands a tag that repeats back to Rails", parity: true do
+        it "refuses a tag that repeats and saves nothing", parity: true do
           call(:put, draft_path, params: { tags: %w[paper paper] })
 
-          expect(response.parsed_body).to include("success")
+          expect(response.parsed_body["success"]).to be false
+          expect(draft.reload.tags).to be_empty
         end
 
-        it "hands a tag with a comma back to Rails", parity: true do
+        it "refuses a tag that repeats one the product has not got but another product has", parity: true do
+          other = create(:product, user: seller, name: "Other", unique_permalink: "other")
+          other.tag!("paper")
+
+          call(:put, draft_path, params: { tags: %w[paper paper] })
+
+          expect(response.parsed_body["message"]).to eq("Product has already been taken")
+          expect(Tag.find_by(name: "paper").taggings_count).to eq(1)
+        end
+
+        it "keeps a tag the list repeats when the product has it", parity: true do
+          draft.tag!("paper")
+
+          call(:put, draft_path, params: { tags: %w[paper paper] })
+
+          expect(response.parsed_body["success"]).to be true
+          expect(Tag.find_by(name: "paper").taggings_count).to eq(1)
+        end
+
+        it "refuses a tag with a comma", parity: true do
           call(:put, draft_path, params: { tags: ["a,b"] })
 
           expect(response.parsed_body["success"]).to be false
+        end
+
+        it "finds the tag a capitalized name spells when another product has it", parity: true do
+          other = create(:product, user: seller, name: "Other", unique_permalink: "other")
+          other.tag!("paper")
+
+          call(:put, draft_path, params: { tags: %w[Paper] })
+
+          expect(draft.reload.tags.pluck(:name)).to eq(%w[paper])
+          expect(Tag.find_by(name: "paper").taggings_count).to eq(2)
+        end
+
+        it "removes the tags a list with capitals leaves out", parity: true do
+          draft.tag!("paper")
+
+          call(:put, draft_path, params: { tags: %w[Pens] })
+
+          expect(draft.reload.tags.pluck(:name)).to eq(%w[pens])
+          expect(Tag.find_by(name: "paper").taggings_count).to eq(0)
         end
       end
 
@@ -728,10 +785,18 @@ describe "API v2 throttled routes", type: :request do
           expect(product.reload.customizable_price).to be true
         end
 
-        it "hands a flag given as text back to Rails", parity: true do
+        it "reads pay-what-you-want given as the text true", parity: true do
           call(:put, draft_path, params: { customizable_price: "true" })
 
-          expect(response.parsed_body["success"]).to be true
+          expect(draft.reload.customizable_price).to be true
+        end
+
+        it "reads pay-what-you-want given as the text false", parity: true do
+          draft.update!(customizable_price: true)
+
+          call(:put, draft_path, params: { customizable_price: "false" })
+
+          expect(draft.reload.customizable_price).to be false
         end
 
         it "truncates a suggested price given with cents", parity: true do
@@ -878,10 +943,10 @@ describe "API v2 throttled routes", type: :request do
           expect(draft.reload.quantity_enabled).to be false
         end
 
-        it "hands a quantity flag given as text back to Rails", parity: true do
+        it "reads a quantity flag given as the text 1", parity: true do
           call(:put, draft_path, params: { quantity_enabled: "1" })
 
-          expect(response.parsed_body["success"]).to be true
+          expect(draft.reload.quantity_enabled).to be true
         end
       end
 
