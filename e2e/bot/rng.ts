@@ -1,3 +1,4 @@
+import { present } from "../support/assert";
 /** mulberry32: tiny, fast and reproducible from a 32-bit seed. */
 export const createRng = (seed: number) => {
   let state = seed >>> 0;
@@ -11,7 +12,7 @@ export const createRng = (seed: number) => {
   return {
     next,
     int: (maxExclusive: number) => Math.floor(next() * maxExclusive),
-    pick: <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)]!,
+    pick: <T>(items: readonly T[]): T => present(items[Math.floor(next() * items.length)], "an item to pick"),
     weighted: <T extends { weight: number }>(items: readonly T[]): T => {
       const total = items.reduce((sum, item) => sum + item.weight, 0);
       let roll = next() * total;
@@ -19,7 +20,7 @@ export const createRng = (seed: number) => {
         roll -= item.weight;
         if (roll < 0) return item;
       }
-      return items[items.length - 1]!;
+      return present(items[items.length - 1], "a weighted item");
     },
   };
 };

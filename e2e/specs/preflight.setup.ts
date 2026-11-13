@@ -24,5 +24,8 @@ setup("app is reachable and seeded", async ({ request, baseURL }) => {
   ).toBe(true);
 
   const discover = await request.get("/discover");
-  expect(await discover.text(), `Seed data missing: /discover lists no seeded products. Run bin/rails db:seed.${HELP}`).toContain("widget");
+  expect(
+    await discover.text(),
+    `Seed data missing: /discover lists no seeded products. Run bin/rails db:seed.${HELP}`,
+  ).toContain("widget");
 });

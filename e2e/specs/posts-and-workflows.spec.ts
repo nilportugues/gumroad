@@ -11,13 +11,13 @@ test.describe("seller emails and workflows", () => {
   test("a post is saved as a draft and listed", async ({ page }) => {
     const title = `E2E post ${uniqueSuffix()}`;
     await createPost(page, { title, body: "Hello from the e2e suite." });
-    await expect(page).toHaveURL(/\/emails\/[^/]+\/edit/);
+    await expect(page).toHaveURL(/\/emails\/[^/]+\/edit/u);
     await page.goto("/emails/drafts");
     await expect(page.getByText(title).first()).toBeVisible();
   });
 
   test("a workflow is created and lands on its emails", async ({ page }) => {
     await createWorkflow(page, `E2E workflow ${uniqueSuffix()}`);
-    await expect(page).toHaveURL(/\/workflows\/[^/]+\/emails/);
+    await expect(page).toHaveURL(/\/workflows\/[^/]+\/emails/u);
   });
 });

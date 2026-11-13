@@ -15,7 +15,7 @@ export const blockExternalRequests = async (context: import("@playwright/test").
   await context.route(
     // Stripe.js is let through only for the @stripe specs, which require pk_test_/sk_test_ keys.
     (url) =>
-      /^https?:$/.test(url.protocol) &&
+      /^https?:$/u.test(url.protocol) &&
       !isSafeHost(url.hostname) &&
       !(stripeTestKeysConfigured() && isStripeHost(url.hostname)),
     (route) => route.abort(),

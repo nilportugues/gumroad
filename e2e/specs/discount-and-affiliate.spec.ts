@@ -1,8 +1,7 @@
-import { logInAsSeededSeller } from "../support/auth";
-import { uniqueSuffix } from "../support/env";
+import { logInAsSeededSeller, signUp } from "../support/auth";
+import { uniqueEmail, uniqueSuffix } from "../support/env";
 import { expect, test } from "../support/fixtures";
-
-const GUMBO_CREATORS = ["film", "music", "writing", "education", "software", "comics", "drawing", "animation", "audio", "games", "photography", "crafts", "design", "sports", "merchandise"];
+import { addAffiliate } from "../support/seller";
 
 test.describe("discount codes and affiliates", () => {
   test.beforeEach(async ({ page }) => {
@@ -22,15 +21,14 @@ test.describe("discount codes and affiliates", () => {
     await expect(page.getByText(code).first()).toBeVisible();
   });
 
-  test("an affiliate is added by email", async ({ page }) => {
-    await page.goto("/affiliates/new");
-    // One affiliate per creator per seller: rotate so repeated runs against one database keep passing.
-    const creator = GUMBO_CREATORS[Math.floor(Date.now() / 1000) % GUMBO_CREATORS.length]!;
-    await page.getByPlaceholder("Email of a Gumroad creator").fill(`gumbo_${creator}@gumroad.com`);
-    await page.getByRole("switch", { name: "Enable all products" }).click();
-    await page.getByRole("textbox", { name: "Commission" }).first().fill("20");
-    await page.getByRole("button", { name: "Add affiliate" }).click();
-    await expect(page).toHaveURL(/\/affiliates(\?|$)/);
-    await expect(page.getByRole("table").getByText(new RegExp(`Gumbo ${creator}`, "i")).first()).toBeVisible();
+  test("an affiliate is added by email", async ({ page, browser }) => {
+    // A fresh account per run: an affiliate can be added once per seller, so reusing a seeded creator breaks the second run.
+    const affiliateEmail = uniqueEmail("affiliate");
+    const affiliate = await browser.newContext();
+    await signUp(await affiliate.newPage(), affiliateEmail);
+    await affiliate.close();
+
+    await addAffiliate(page, { email: affiliateEmail, commissionPercent: 20 });
+    await expect(page.getByRole("table").getByText(affiliateEmail).first()).toBeVisible();
   });
 });

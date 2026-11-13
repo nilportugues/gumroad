@@ -1,11 +1,11 @@
-import path from "node:path";
-
 import { expect, test } from "@playwright/test";
+import path from "node:path";
 
 import { logInAsSeededSeller, signUp } from "../support/auth";
 import { uniqueEmail } from "../support/env";
 import { blockExternalRequests } from "../support/fixtures";
 import { attachRecorder, OUT_DIR, type RecorderState } from "../support/recorder";
+
 import { ACTIONS, type BotContext } from "./actions";
 import { createRng, seedFromString } from "./rng";
 
@@ -15,7 +15,7 @@ const STEPS = Number(process.env.BOT_STEPS ?? 15);
 const WITH_HAR = process.env.BOT_HAR === "1";
 const SEARCH_TERMS = (process.env.BOT_SEARCH_TERMS ?? "widget,music,film,design,book,course").split(",");
 
-const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+const stamp = new Date().toISOString().replace(/[:.]/gu, "-");
 const OUT_FILE = process.env.BOT_OUT ?? path.join(OUT_DIR, `bot-${SEED_TEXT}-${stamp}.jsonl`);
 
 // Same BOT_SEED + same app data => same action sequence, so a replay tool can line two servers up step by step.
@@ -61,11 +61,13 @@ for (let session = 0; session < SESSIONS; session += 1) {
         results.push({ step, action: action.name, ok: true, detail });
       } catch (error) {
         // A failing step is data, not a reason to stop the traffic generator.
-        results.push({ step, action: action.name, ok: false, detail: String(error).split("\n")[0]! });
+        results.push({ step, action: action.name, ok: false, detail: String(error).split("\n")[0] ?? "" });
       }
     }
 
-    console.log(`session ${session}:\n${results.map((r) => `  ${r.step} ${r.ok ? "ok " : "ERR"} ${r.action} ${r.detail}`).join("\n")}`);
+    process.stdout.write(
+      `session ${session}:\n${results.map((r) => `  ${r.step} ${r.ok ? "ok " : "ERR"} ${r.action} ${r.detail}`).join("\n")}`,
+    );
     await buyerContext.close();
     await sellerContext.close();
     expect(results.length).toBe(STEPS);

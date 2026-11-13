@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { startCheckout, completeFreeCheckout } from "../support/buyer";
 import { SEED, uniqueSuffix } from "../support/env";
 import { createPost, createWorkflow } from "../support/seller";
+
 import type { Rng } from "./rng";
 
 export type Actor = "buyer" | "seller";
@@ -45,8 +46,9 @@ const SETTINGS_PATHS = [
 const harvestProductLinks = async (page: Page, seen: Set<string>) => {
   const hrefs = await page.$$eval("a[href*='/l/']", (anchors) => anchors.map((a) => a.getAttribute("href") ?? ""));
   for (const href of hrefs) {
-    const match = /\/l\/([^/?#]+)/.exec(href);
-    if (match) seen.add(match[1]!);
+    const match = /\/l\/([^/?#]+)/u.exec(href);
+    const id = match?.[1];
+    if (id) seen.add(id);
   }
 };
 
@@ -61,7 +63,13 @@ export const ACTIONS: BotAction[] = [
     weight: 20,
     actor: "buyer",
     run: async ({ buyer, seenProducts, rng }) => {
-      const path = rng.pick(["/discover", "/discover?sort=hot_and_new", "/discover?sort=best_sellers", "/discover?sort=featured", "/"]);
+      const path = rng.pick([
+        "/discover",
+        "/discover?sort=hot_and_new",
+        "/discover?sort=best_sellers",
+        "/discover?sort=featured",
+        "/",
+      ]);
       await buyer.goto(path);
       await harvestProductLinks(buyer, seenProducts);
       return path;

@@ -1,3 +1,4 @@
+import { present } from "../support/assert";
 import { logInAsSeededSeller, signUp } from "../support/auth";
 import { buyFreeProduct } from "../support/buyer";
 import { SEED, uniqueEmail } from "../support/env";
@@ -19,10 +20,10 @@ test.describe("buying the seeded free product", () => {
     await buyFreeProduct(page, SEED.freeProductPermalink, { email: uniqueEmail("receipt") });
     // The receipt card is an anchor that is not always laid out; follow its href.
     const href = await page.locator('a[href*="/receipt"]').first().getAttribute("href");
-    const response = await page.goto(href!);
+    const response = await page.goto(present(href, "the receipt link href"));
     expect(response?.status()).toBe(200);
-    await expect(page).toHaveURL(/\/receipt/);
-    await expect(page.locator("body")).toContainText(/receipt|total|\$0/i);
+    await expect(page).toHaveURL(/\/receipt/u);
+    await expect(page.locator("body")).toContainText(/receipt|total|\$0/iu);
   });
 });
 
@@ -37,6 +38,6 @@ test.describe("library", () => {
   test("a new unconfirmed account is sent to settings instead of the library", async ({ page }) => {
     await signUp(page, uniqueEmail("unconfirmed"));
     await page.goto("/library");
-    await expect(page).toHaveURL(/\/settings/);
+    await expect(page).toHaveURL(/\/settings/u);
   });
 });

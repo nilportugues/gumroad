@@ -5,9 +5,9 @@ import { expect, test } from "../support/fixtures";
 const SETTINGS_PAGES = [
   { path: "/settings", heading: "Settings" },
   // A "Where are you located?" dialog covers the page heading until the payout country is confirmed.
-  { path: "/settings/payments", heading: /Settings|Where are you located/ },
+  { path: "/settings/payments", heading: /Settings|Where are you located/u },
   { path: "/settings/password", heading: "Settings" },
-  { path: "/settings/profile", heading: /Profile|Settings/ },
+  { path: "/settings/profile", heading: /Profile|Settings/u },
   { path: "/settings/advanced", heading: "Settings" },
   { path: "/settings/third_party_analytics", heading: "Settings" },
   { path: "/settings/team", heading: "Settings" },
@@ -30,7 +30,7 @@ test.describe("seller settings pages", () => {
     await page.goto("/settings");
     await page.getByPlaceholder("you@example.com").first().fill("support@example.com");
     await page.getByRole("button", { name: "Update settings" }).click();
-    await expect(page.getByText(/updated/i).first()).toBeVisible();
+    await expect(page.getByText(/updated/iu).first()).toBeVisible();
     await page.reload();
     await expect(page.getByPlaceholder("you@example.com").first()).toHaveValue("support@example.com");
   });
