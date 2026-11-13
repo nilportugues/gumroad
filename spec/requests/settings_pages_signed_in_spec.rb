@@ -192,6 +192,16 @@ describe "Settings pages when signed in", type: :request do
       expect(props["applications"].size).to eq(1)
     end
 
+    it "renders the signing secret of a seller who enabled ping signing", parity: true do
+      seller.create_ping_signing_setting!(secret: "s3cret")
+      log_in(seller)
+
+      get settings_advanced_path
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["ping_signing_secret"]).to eq("s3cret")
+    end
+
     it "renders the page for an admin team member", parity: true do
       member_with_role(TeamMembership::ROLE_ADMIN)
 
