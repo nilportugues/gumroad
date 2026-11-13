@@ -40,7 +40,8 @@ import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
 import { setHostMeta } from "../page-props/storefront/post-pages.ts";
 import { storefrontCatalogSections } from "../page-props/storefront/catalog.ts";
 import { visitorSearchParams } from "../page-props/storefront/product-sections.ts";
-import { createDiscoverSearch, hasCuratedProductSources } from "../page-props/discover/discover.ts";
+import { curatedTaxonomyIds } from "../page-props/discover/curated-products.ts";
+import { createDiscoverSearch } from "../page-props/discover/discover.ts";
 import { taxonomiesForNav } from "../page-props/discover/taxonomies.ts";
 import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
 
@@ -514,10 +515,9 @@ async function build(
     };
   }
   if (kind !== "discover") return page;
-  // The navigation lists the visitor's curated products first; the port answers only the case where there are none.
-  if (await hasCuratedProductSources(viewer.user, viewer.browserGuid))
-    throw new NotPortedError("curated products for the discover navigation");
-  return { ...page, taxonomy_path: await taxonomyPath(row), taxonomies_for_nav: await taxonomiesForNav() };
+  // A visitor seeded by 4 or more products makes curatedTaxonomyIds throw NotPortedError (Rails samples them at random).
+  const navTaxonomies = await taxonomiesForNav(await curatedTaxonomyIds(viewer.user, viewer.browserGuid));
+  return { ...page, taxonomy_path: await taxonomyPath(row), taxonomies_for_nav: navTaxonomies };
 }
 
 // The click-through of a Discover result is attributed to the clicked product's own category, not the browsed one.

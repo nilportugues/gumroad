@@ -27,7 +27,10 @@ vi.mock("../../presenters/product-reads.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../presenters/product-reads.ts")>()),
   findLink: mocks.findLink,
 }));
-vi.mock("../../presenters/product.ts", () => ({ cardForWeb: mocks.card }));
+vi.mock("../../presenters/product.ts", () => ({
+  cardForWeb: mocks.card,
+  linkFields: { externalId: (row: { id: bigint }) => `ext-${row.id}` },
+}));
 vi.mock("./recommended-wishlists.ts", () => ({ recommendedWishlistsProps: mocks.wishlists }));
 vi.mock("../../presenters/discover/recently-viewed.ts", () => ({
   recentlyViewedProps: mocks.recentlyViewed,
@@ -60,8 +63,11 @@ const request: DiscoverRequest = {
   guid: null,
   currentSellerId: null,
 };
-const prepared = (params: Record<string, unknown>, taxonomy: { id: bigint } | null = null) =>
-  ({ params, taxonomy, searchParams: {} }) as unknown as PreparedSearch;
+const prepared = (
+  params: Record<string, unknown>,
+  taxonomy: { id: bigint } | null = null,
+  curated: { id: bigint }[] = [],
+) => ({ params, taxonomy, searchParams: {}, curated }) as unknown as PreparedSearch;
 const resolve = (props: Record<string, unknown>, name: string) => (props[name] as { resolve: () => unknown }).resolve();
 
 beforeEach(() => {
@@ -109,9 +115,9 @@ describe("deferred Discover props", () => {
         request,
       ),
     ).toBe(true);
-    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n, null);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n, null, []);
     expect(await resolve(deferredProps(prepared({}), request, null), "recommended_wishlists")).toEqual([{ id: "w" }]);
-    expect(mocks.wishlists).toHaveBeenLastCalledWith(null, null);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(null, null, []);
   });
 
   it("answers recommended_wishlists for a signed-in visitor on behalf of their current seller", async () => {
@@ -121,11 +127,11 @@ describe("deferred Discover props", () => {
     expect(
       await deferredPropsPortable(["recommended_wishlists"], prepared({}, { id: 5n }), visitor, null, signedIn),
     ).toBe(true);
-    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n, 3n);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(5n, 3n, []);
     expect(await resolve(deferredProps(prepared({}), signedIn, visitor), "recommended_wishlists")).toEqual([
       { id: "w" },
     ]);
-    expect(mocks.wishlists).toHaveBeenLastCalledWith(null, 3n);
+    expect(mocks.wishlists).toHaveBeenLastCalledWith(null, 3n, []);
   });
 
   it("hands back recommended_wishlists when a wishlist is one the port cannot build", async () => {
@@ -239,6 +245,73 @@ describe("deferred Discover props", () => {
     expect(exposureLogLine({ treatment: true, hasHistory: false, userId: 9n, guid: "g" })).toBe(
       '{"event":"discover_recently_viewed_exposure","arm":"treatment","has_history":false,"user_id":9,"browser_guid_hash":null}',
     );
+  });
+
+  describe("with curated products", () => {
+    const curated = Array.from({ length: 10 }, (_, index) => ({ id: BigInt(index + 1) }));
+
+    it("answers the root page's recommended products, which are no longer a random sample", async () => {
+      expect(
+        await deferredPropsPortable(["recommended_products"], prepared({}, null, curated), null, null, request),
+      ).toBe(true);
+    });
+
+    it("builds the cards of the first eight curated products as products for you", async () => {
+      mocks.card.mockImplementation(async (id: bigint) => ({ id }));
+      const cards = (await resolve(
+        deferredProps(prepared({}, null, curated), request, null),
+        "recommended_products",
+      )) as {
+        id: bigint;
+      }[];
+      expect(cards.map((card) => card.id)).toEqual([1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n]);
+      expect(mocks.card.mock.calls[0]![1]).toMatchObject({
+        recommendedBy: "products_for_you",
+        target: "discover",
+        recommenderModelName: "sales",
+        affiliateId: null,
+        descriptionMaxLength: 300,
+      });
+      expect(mocks.search).not.toHaveBeenCalled();
+    });
+
+    it("searches the taxonomy as before when the page is a taxonomy page", async () => {
+      mocks.search.mockResolvedValue({ product_ids: [3] });
+      mocks.findLink.mockResolvedValue({ id: 3n });
+      mocks.card.mockImplementation(async (id: bigint) => ({ id }));
+      const cards = await resolve(
+        deferredProps(prepared({}, { id: 5n }, curated), request, null),
+        "recommended_products",
+      );
+      expect(cards).toEqual([{ id: 3n }]);
+      expect(mocks.card.mock.calls[0]![1]).toMatchObject({ recommendedBy: "discover" });
+    });
+
+    it("shows nothing on an offer code page", async () => {
+      expect(
+        await resolve(
+          deferredProps(prepared({ offer_code: "X" }, null, curated), request, null),
+          "recommended_products",
+        ),
+      ).toEqual([]);
+      expect(mocks.card).not.toHaveBeenCalled();
+    });
+
+    it("passes the curated product ids to the recommended wishlists", async () => {
+      mocks.wishlists.mockResolvedValue([]);
+      await resolve(deferredProps(prepared({}, null, curated), request, null), "recommended_wishlists");
+      expect(mocks.wishlists).toHaveBeenLastCalledWith(
+        null,
+        null,
+        curated.map((row) => row.id),
+      );
+      await deferredPropsPortable(["recommended_wishlists"], prepared({}, { id: 5n }, curated), null, null, request);
+      expect(mocks.wishlists).toHaveBeenLastCalledWith(
+        5n,
+        null,
+        curated.map((row) => row.id),
+      );
+    });
   });
 
   it("returns no recommended products on an offer code page without searching", async () => {

@@ -1,15 +1,16 @@
 // DiscoverController#index's filters: everything the port cannot answer exactly goes to Rails whole, before the
-// page renders. The deferred props and the autocomplete request the port cannot answer are Rails'; curated products
-// (a visitor whose cart has alive products or who has purchases), the Black Friday page and a card the product presenter
-// cannot build are too.
+// page renders. The deferred props and the autocomplete request the port cannot answer are Rails'; so are curated
+// products seeded by 4 or more ids (a random sample) and a card the product presenter cannot build.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
+import { blackFridayStats } from "../page-props/discover/black-friday-stats.ts";
+import { curatedProducts } from "../page-props/discover/curated-products.ts";
 import {
   autocompleteResults,
+  BLACK_FRIDAY_CODE,
   blackFridayFeatureActive,
   deferredPropsPortable,
   type DiscoverRequest,
-  hasCuratedProductSources,
   isAutocompleteOnlyRequest,
   isDeferredOnlyRequest,
   prepareSearch,
@@ -18,6 +19,7 @@ import {
   searchResults,
 } from "../page-props/discover/discover.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
+
 import { affiliateCookieForParams } from "./affiliate-redirect.ts";
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } from "./application-controller.ts";
 
@@ -70,10 +72,15 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
       throw error;
     }
   }
-  if (await hasCuratedProductSources(visitor, guid)) throw new HandBackToRails();
-  if (await blackFridayFeatureActive(rawParams)) throw new HandBackToRails();
+  let curated;
+  try {
+    curated = await curatedProducts(visitor, guid);
+  } catch (error) {
+    if (error instanceof NotPortedError) throw new HandBackToRails();
+    throw error;
+  }
 
-  const prepared = await prepareSearch(request, visitor);
+  const prepared = await prepareSearch(request, visitor, curated);
   if (deferredOnly) {
     if (
       !(await deferredPropsPortable(
@@ -89,11 +96,15 @@ export async function discoverFilters(chain: Chain): Promise<FilterOutcome> {
   }
   try {
     await searchResults(prepared, discoverRequestOf(request, guid, currentSellerId));
+    // The page props are lambdas: only a full load computes the stats.
+    const stats = (await blackFridayFeatureActive(rawParams))
+      ? await blackFridayStats(BLACK_FRIDAY_CODE, chain.now)
+      : null;
+    return { state: { blackFridayStats: stats } };
   } catch (error) {
     if (error instanceof NotPortedError) throw new HandBackToRails();
     throw error;
   }
-  return { state: {} };
 }
 
 export const DISCOVER_OPTIONS: ActionOptions = { filters: discoverFilters };

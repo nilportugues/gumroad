@@ -20,8 +20,8 @@ import {
   seededDocuments,
 } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
-import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -32,8 +32,8 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests/discover_parity_spec";
-// A buyer's cart or purchases make curated products, which the port hands back to Rails.
-const HANDED_BACK = /buyer-who-has-purchased/u;
+// Four or more associated ids are sampled at random by Rails, so the port hands them back.
+const HANDED_BACK = /four-seeds/u;
 const RAILS_ANSWER = "rails answered";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";

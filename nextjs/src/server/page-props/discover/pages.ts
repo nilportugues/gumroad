@@ -5,6 +5,8 @@ import { DISCOVER_OPTIONS } from "../../controllers/discover-page.ts";
 import { remoteIp } from "../audience/events.ts";
 import type { PageSpec } from "../pages.ts";
 
+import type { BlackFridayStats } from "./black-friday-stats.ts";
+import { curatedProducts } from "./curated-products.ts";
 import {
   autocompleteResults,
   createDiscoverSearch,
@@ -55,7 +57,8 @@ const discoverPage: PageSpec = {
         );
       return { autocomplete_results: state.autocomplete ?? (await autocompleteResults(params, visitor, guid)) };
     }
-    const prepared = await prepareSearch(request, visitor);
+    const curated = await curatedProducts(visitor, guid);
+    const prepared = await prepareSearch(request, visitor, curated);
     if (isDeferredOnlyRequest(headers)) {
       for (const key of meta.keys()) meta.remove(key);
       return deferredProps(prepared, request, visitor);
@@ -74,7 +77,7 @@ const discoverPage: PageSpec = {
       );
     }
     setMetaTags(meta, prepared, results, visitor !== null, queryString);
-    return discoverProps(prepared, results, visitor, request);
+    return discoverProps(prepared, results, visitor, request, state.blackFridayStats as BlackFridayStats | null);
   },
 };
 

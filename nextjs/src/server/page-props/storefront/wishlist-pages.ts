@@ -1,5 +1,5 @@
 // WishlistsController#show on seller subdomains and custom domains (`seller:/wishlists/:id`), for a signed-out or signed-in visitor
-// and the `profile` and `discover` layouts. A discover layout whose visitor has curated-product sources goes to Rails.
+// and the `profile` and `discover` layouts. A discover layout seeded by 4 or more curated-product ids goes to Rails.
 import { Prisma } from "@prisma/client";
 
 import { decryptNumeric } from "../../../lib/obfuscate-ids.ts";
@@ -19,8 +19,9 @@ import { settingsProfilePolicy } from "../../policies/settings/profile.ts";
 import { guidOf } from "../../presenters/product-page.ts";
 import { findUserById } from "../../presenters/product-reads.ts";
 import { publicProps, setWishlistPageMeta, type WishlistRow } from "../../presenters/wishlist.ts";
-import { hasCuratedProductSources } from "../discover/discover.ts";
+import { curatedTaxonomyIds } from "../discover/curated-products.ts";
 import { taxonomiesForNav } from "../discover/taxonomies.ts";
+import { NotPortedError } from "../not-ported.ts";
 import type { PageSpec } from "../pages.ts";
 import { creatorProfile } from "../settings/profile.ts";
 
@@ -53,13 +54,27 @@ async function wishlistFilters(chain: Chain): Promise<FilterOutcome> {
   requireHtmlPage(chain);
   assertFlatQuery(chain.request.queryString);
   const { wishlist, ownerId } = await wishlistOf(chain);
-  // `curated_products` (RecommendedProducts::DiscoverService) feeds the discover navigation; the port answers only the empty list.
+  // `curated_products` (RecommendedProducts::DiscoverService) orders the discover navigation. Resolved here so a visitor
+  // seeded by 4 or more products (random sample in Rails) is handed back before the page is built.
+  let curatedTaxonomies: bigint[] = [];
   if (queryParam(chain.request, "layout") === "discover") {
-    const visitor = railsLoggedInUser(chain.auth.context);
-    if (await hasCuratedProductSources(visitor, guidOf(chain.headers.get("cookie"))))
-      throw new HandBackToRails("curated products for the discover navigation");
+    try {
+      curatedTaxonomies = await curatedTaxonomyIds(
+        railsLoggedInUser(chain.auth.context),
+        guidOf(chain.request.headers.get("cookie")),
+      );
+    } catch (error) {
+      if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
+      throw error;
+    }
   }
-  return { state: { wishlist_id: String(wishlist.id), owner_id: String(ownerId) } };
+  return {
+    state: {
+      wishlist_id: String(wishlist.id),
+      owner_id: String(ownerId),
+      curated_taxonomy_ids: curatedTaxonomies.map(String),
+    },
+  };
 }
 
 export const WISHLIST_PAGES: Record<string, PageSpec> = {
@@ -95,7 +110,8 @@ export const WISHLIST_PAGES: Record<string, PageSpec> = {
             owner as unknown as Parameters<typeof creatorProfile>[0],
             !!context.user && context.seller?.id === owner.id && settingsProfilePolicy.update(context),
           ),
-        taxonomiesForNav,
+        taxonomiesForNav: () =>
+          taxonomiesForNav((action.state.curated_taxonomy_ids as string[]).map((id) => BigInt(id))),
       });
     },
   },

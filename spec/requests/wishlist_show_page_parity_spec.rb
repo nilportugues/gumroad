@@ -263,15 +263,96 @@ describe "Wishlist show page", type: :request do
     end
   end
 
-  it "hands a discover-layout wishlist of a buyer with a cart to Rails", parity: true do
-    add_products(1)
-    visitor = create(:user)
-    cart = create(:cart, user: visitor)
-    create(:cart_product, cart:, product: create(:product))
-    log_in(visitor)
+  describe "with the discover layout for a visitor with curated products" do
+    let(:visitor) { create(:user, name: "Curated Visitor") }
+    let(:curator) { create(:user, name: "Curated Seller") }
 
-    visit_wishlist(params: { layout: "discover" })
+    # "design" outranks "3d" and "writing" in the default navigation order.
+    before do
+      design = Taxonomy.create!(slug: "design")
+      writing = Taxonomy.create!(slug: "writing")
+      modeling = Taxonomy.create!(slug: "3d-modeling", parent: Taxonomy.create!(slug: "3d"))
+      [[design, 500], [writing, 400], [modeling.parent, 10], [modeling, 5]].each { |taxonomy, count| TaxonomyStat.create!(taxonomy:, recent_sales_count: count) }
+      add_products(1)
+    end
 
-    expect(props["layout"]).to eq("discover")
+    def seed_product(name = "Seed") = create(:product, user: curator, name:)
+
+    def relate(seed, related)
+      CachedSalesRelatedProductsInfo.create!(product: seed, counts: related.transform_keys { _1.id.to_s })
+    end
+
+    def curated(name, slug) = create(:product, user: curator, name:, taxonomy: Taxonomy.find_by!(slug:))
+
+    def buy(seed)
+      build(:purchase, purchaser: visitor, link: seed, purchase_state: "successful").save!(validate: false)
+    end
+
+    def nav_slugs = props["taxonomies_for_nav"].map { _1["slug"] }
+
+    it "orders the navigation by the roots of a buyer's curated products", parity: true do
+      seed = seed_product
+      relate(seed, curated("Modeling pick", "3d-modeling") => 5, curated("Writing pick", "writing") => 3)
+      buy(seed)
+      log_in(visitor)
+
+      visit_wishlist(params: { layout: "discover" })
+
+      expect(props["layout"]).to eq("discover")
+      expect(nav_slugs.first(3)).to eq(%w[3d writing design])
+    end
+
+    it "orders the navigation by the cart of a signed-in visitor", parity: true do
+      seed = seed_product
+      relate(seed, curated("Writing pick", "writing") => 3)
+      create(:cart_product, cart: create(:cart, user: visitor), product: seed)
+      log_in(visitor)
+
+      visit_wishlist(params: { layout: "discover" })
+
+      expect(nav_slugs.first).to eq("writing")
+    end
+
+    it "orders the navigation by the cart of a guest", parity: true do
+      host! owner.subdomain
+      cookies[:_gumroad_guid] = "wishlist-guest-guid"
+      seed = seed_product
+      relate(seed, curated("Writing pick", "writing") => 3)
+      create(:cart_product, cart: create(:cart, :guest, browser_guid: "wishlist-guest-guid"), product: seed)
+
+      visit_wishlist(params: { layout: "discover" })
+
+      expect(nav_slugs.first).to eq("writing")
+    end
+
+    it "leaves the navigation alone when the seeds have no related products", parity: true do
+      create(:cart_product, cart: create(:cart, user: visitor), product: seed_product)
+      log_in(visitor)
+
+      visit_wishlist(params: { layout: "discover" })
+
+      expect(nav_slugs.first).to eq("design")
+    end
+
+    it "does not read the curated products for the profile layout", parity: true do
+      seed = seed_product
+      relate(seed, curated("Writing pick", "writing") => 3)
+      buy(seed)
+      log_in(visitor)
+
+      visit_wishlist(params: { layout: "profile" })
+
+      expect(props.keys).not_to include("taxonomies_for_nav")
+    end
+
+    it "hands a discover-layout wishlist of a buyer with four products in the cart to Rails", parity: true do
+      cart = create(:cart, user: visitor)
+      Array.new(4) { |index| create(:cart_product, cart:, product: seed_product("Seed #{index}")) }
+      log_in(visitor)
+
+      visit_wishlist(params: { layout: "discover" })
+
+      expect(props["layout"]).to eq("discover")
+    end
   end
 end

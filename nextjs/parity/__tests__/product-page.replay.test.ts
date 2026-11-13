@@ -133,6 +133,13 @@ const RENDERED = new Set(
     "with-the-discover-layout-renders-a-product-without-a-taxonomy",
     "with-the-discover-layout-answers-the-search-box-s-autocomplete-request-with-the-sugge-b0c7b45c",
     "with-the-discover-layout-renders-a-storefront-seller-s-product-without-the-catalogue",
+    // Hands back (not listed): "hands a visitor with four products ..." and "... three purchases and a cart product" (4 ids).
+    "with-the-discover-layout-for-a-visitor-with-curated-products-orders-the-navigation-by-43df4c4d",
+    "with-the-discover-layout-for-a-visitor-with-curated-products-orders-the-navigation-by-60625323",
+    "with-the-discover-layout-for-a-visitor-with-curated-products-orders-the-navigation-by-07860f7e",
+    "with-the-discover-layout-for-a-visitor-with-curated-products-sums-the-counts-of-three-c88b3ae4",
+    "with-the-discover-layout-for-a-visitor-with-curated-products-leaves-the-navigation-al-dee2bdc7",
+    "with-the-discover-layout-for-a-visitor-with-curated-products-leaves-the-navigation-al-51cc8920",
     "of-a-storefront-seller-answers-an-inertia-visit-with-the-profile-component",
     "of-a-storefront-seller-applies-the-visitor-s-filters-to-the-catalogue",
     "of-a-storefront-seller-keeps-a-hidden-header-of-a-saved-section-hidden",
