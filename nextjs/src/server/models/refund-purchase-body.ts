@@ -5,11 +5,10 @@
 //
 // Not served by any route, and not complete: what Ruby does after the VAT credit (the webhook, the buyer's mail, the analytics cache, the
 // Elasticsearch index, LowBalanceFraudCheckWorker, the license) is the caller's `tail`, so a refund cannot finish without it. The
-// processor's refund is an input, never made here. Refused before the first statement: a buyer-currency presentment, a gift, a
-// subscription, a bundle, any chargeback, PayPal and Braintree. Refused after the lock and before the first write: a partial refund
-// of a sale that charged a Gumroad VAT, and a refund of one whose VAT was already refunded.
+// processor's refund is an input, never made here. Refused before the first statement: a buyer-currency presentment, any chargeback, PayPal and Braintree.
 // Refused inside the transaction after writes, which the caller's rollback discards: a retained fee that is collected from Stripe
-// after commit (an account Gumroad manages for the seller).
+// after commit, and the Stripe transfer reversal of a partial refund once the VAT is refunded (both an account Gumroad manages for
+// the seller).
 import { Prisma } from "@prisma/client";
 
 import { PurchaseFlags } from "../search/flags.ts";
@@ -26,7 +25,12 @@ import { loadLinkAssociations, markAssociationsReloaded } from "./purchase-reloa
 import { decrementBalanceForRefundBang } from "./refund-affiliate-balance.ts";
 import { createForRefundFeeRetentionBang } from "./refund-fee-retention-credit.ts";
 import { buildRefund, type RefundSale } from "./refund-ledger.ts";
+import { markGifteePurchaseAsRefundedBang, markProductPurchasesAsRefundedBang } from "./refund-purchase-effects.ts";
 import { hasPresentment } from "./refund-seller-balance.ts";
+import {
+  cancelImmediatelyIfPendingCancellationBang,
+  excludeProductReviewOnChargeReversalBang,
+} from "./refund-subscription.ts";
 import { createForVatExclusiveRefundBang } from "./refund-vat-exclusive-credit.ts";
 import { appendRefund, assignRefundAttribute, refundJsonAttr, Refunds, type RefundRecord } from "./refund.ts";
 import type { SaveOptions } from "./runtime/define-model.ts";
@@ -69,6 +73,9 @@ async function effectiveSumsOfAll(purchaseId: unknown) {
   };
 }
 
+// What the tail needs of the body's transaction
+export type RefundTailFacts = { fundsRefundedCents: number; partiallyRefundedPreviously: boolean | null };
+
 export type RefundBodyArguments = {
   flowOfFunds: SellerFlowOfFunds;
   refundingUserId: number;
@@ -84,9 +91,6 @@ const flag = (purchase: PurchaseRecord, name: (typeof PurchaseFlags.names)[numbe
   PurchaseFlags.isSet(purchase.get("flags"), name);
 
 function refuseBeforeAnyStatement(purchase: PurchaseRecord): void {
-  if (flag(purchase, "is_gift_sender_purchase")) throw notPorted("a gift");
-  if (purchase.get("subscription_id") != null) throw notPorted("a subscription");
-  if (flag(purchase, "is_bundle_purchase")) throw notPorted("a bundle");
   if (purchase.get("chargeback_date") != null || purchase.get("purchase_chargeback_balance_id") != null)
     throw notPorted("a chargeback");
   if (purchase.get("paypal_order_id") != null) throw notPorted("a PayPal order");
@@ -116,12 +120,18 @@ async function buildRefundRecord(
     sums = { ...empty, gumroad_tax_cents: await effectiveSum(id, "gumroad_tax_cents") };
   } else if (fundsRefundedCents > 0) {
     // partial_refund_amount_acceptable?: gross_amount_refundable_cents
-    if (sale.gumroad_tax_cents > 0) throw notPorted("a partial refund of a sale that charged a Gumroad VAT");
     sums = {
       ...empty,
       amount_cents: await effectiveSum(id, "amount_cents"),
       gumroad_tax_cents: await effectiveSum(id, "gumroad_tax_cents"),
     };
+    const refundable = sale.price_cents - sums.amount_cents + (sale.gumroad_tax_cents - sums.gumroad_tax_cents);
+    // A sale with Gumroad VAT reads the refundable VAT twice more (the `> 0` test, then the `[tax, refundable].min`); the second
+    // only when some is left.
+    if (fundsRefundedCents <= refundable && sale.gumroad_tax_cents > 0) {
+      const taxLeft = sale.gumroad_tax_cents - (await effectiveSum(id, "gumroad_tax_cents"));
+      if (taxLeft > 0) await effectiveSum(id, "gumroad_tax_cents");
+    }
   }
   const draft = buildRefund({ sale, sums, flags, grossRefundAmount: fundsRefundedCents, refundingUserId });
   if (draft === null) return null;
@@ -135,7 +145,7 @@ async function buildRefundRecord(
 export async function refundPurchaseBodyBang(
   purchase: PurchaseRecord,
   args: RefundBodyArguments,
-  tail: (refund: RefundRecord) => Promise<boolean>,
+  tail: (refund: RefundRecord, facts: RefundTailFacts) => Promise<boolean>,
   options: SaveOptions = {},
 ): Promise<boolean> {
   refuseBeforeAnyStatement(purchase);
@@ -155,12 +165,12 @@ export async function refundPurchaseBodyBang(
     const stripeRefunded = grossRefundedCents + fundsRefundedCents >= purchase.get("total_transaction_cents")!;
     purchase.set("stripe_refunded", stripeRefunded);
     purchase.set("stripe_partially_refunded", !stripeRefunded);
-    const flags = { stripe_refunded: stripeRefunded, stripe_partially_refunded: !stripeRefunded };
+    const stripePartiallyRefunded = !stripeRefunded;
+    const flags = { stripe_refunded: stripeRefunded, stripe_partially_refunded: stripePartiallyRefunded };
 
     const vatAlreadyRefunded =
       purchase.get("gumroad_tax_cents")! > 0 &&
       purchase.get("gumroad_tax_cents") === (await effectiveSum(purchase.get("id"), "gumroad_tax_cents"));
-    if (vatAlreadyRefunded) throw notPorted("a sale whose VAT was already refunded");
 
     const sale: RefundSale = {
       price_cents: purchase.get("price_cents")!,
@@ -197,10 +207,23 @@ export async function refundPurchaseBodyBang(
       PurchaseFlags.set(purchase.get("flags"), "is_refund_chargeback_fee_waived", feeWaived) as never,
     );
 
+    if (flag(purchase, "is_gift_sender_purchase"))
+      await markGifteePurchaseAsRefundedBang(purchase, stripePartiallyRefunded, options);
+    await cancelImmediatelyIfPendingCancellationBang(purchase, options);
     if (!skipSellerBalance)
       await decrementBalanceForRefundBang(purchase, refund, { flowOfFunds: args.flowOfFunds }, options);
+    if (flag(purchase, "is_bundle_purchase"))
+      await markProductPurchasesAsRefundedBang(purchase, stripePartiallyRefunded, options);
     await loadLinkAssociations(purchase);
     await Purchases.saveBang(purchase, options);
+
+    // reverse_excess_amount_from_stripe_transfer: only an account Gumroad manages for the seller has a Stripe transfer to reverse.
+    if (stripePartiallyRefunded && vatAlreadyRefunded && !skipSellerBalance && account !== null) {
+      if (account.charge_processor_id !== "stripe")
+        throw notPorted("the holder of funds of a processor other than Stripe");
+      if (!isStripeConnect(account) && account.user_id != null)
+        throw notPorted("a Stripe transfer reversal for a sale whose VAT was already refunded");
+    }
 
     if (!feeWaived && !skipSellerBalance) {
       await createForRefundFeeRetentionBang(purchase, refund, options);
@@ -210,7 +233,8 @@ export async function refundPurchaseBodyBang(
     }
     if (account !== null && isStripeConnect(account) && !skipSellerBalance)
       await createForVatExclusiveRefundBang(purchase, refund, options);
+    await excludeProductReviewOnChargeReversalBang(purchase, options);
 
-    return tail(refund);
+    return tail(refund, { fundsRefundedCents, partiallyRefundedPreviously });
   });
 }

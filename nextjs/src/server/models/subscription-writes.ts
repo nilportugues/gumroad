@@ -363,8 +363,8 @@ export function withLock<T>(record: SubscriptionModel, fn: () => Promise<T>): Pr
 
 export type DeactivateOptions = {
   // The workflows `schedule_member_cancellation_workflow_jobs` reads, fetched before the first write
-  // (see readWorkflowsForCancellation).
-  workflows?: Workflow[];
+  // (see readWorkflowsForCancellation), or a reader called where Ruby reads them (a caller whose transaction rolls back).
+  workflows?: Workflow[] | (() => Promise<Workflow[]>);
 };
 
 // `seller.workflows.alive.seller_or_product_or_variant_type`, the read of `schedule_member_cancellation_workflow_jobs`.
@@ -436,7 +436,8 @@ export async function deactivateBang(record: SubscriptionModel, options: Deactiv
   if (isCancelled(record)) {
     if (options.workflows === undefined)
       throw new NotPortedError("Subscription#schedule_member_cancellation_workflow_jobs", "subscription.rb:2028");
-    await scheduleMemberCancellationWorkflowJobs(record, original, options.workflows);
+    const workflows = typeof options.workflows === "function" ? await options.workflows() : options.workflows;
+    await scheduleMemberCancellationWorkflowJobs(record, original, workflows);
   }
 }
 
