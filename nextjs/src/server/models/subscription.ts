@@ -120,7 +120,8 @@ export function renewalAdvanceReminderEmailDays(recurrence: string | null): numb
 // Statements
 
 const star = (name: string) => Prisma.raw(`${quoteName(name)}.*`);
-const SUBSCRIPTION_PURCHASES_SELECT = Prisma.sql`SELECT ${star(PURCHASES)} FROM ${table(PURCHASES)}`;
+// A function: purchase.ts can still be mid-evaluation (import cycle through the mailers) when this module loads.
+const subscriptionPurchasesSelect = () => Prisma.sql`SELECT ${star(PURCHASES)} FROM ${table(PURCHASES)}`;
 const forSubscription = (id: bigint) => Prisma.sql`${column(PURCHASES, "subscription_id")} = ${id}`;
 const inState = (state: string) => Prisma.sql`${column(PURCHASES, "purchase_state")} = ${state}`;
 // Purchase.not_fully_refunded / .not_chargedback_or_chargedback_reversed (chargeback_reversed is flag bit 512).
@@ -223,7 +224,7 @@ export class SubscriptionRecord {
   originalPurchase(): Promise<Purchase | null> {
     return this.loaded("original_purchase", async () => {
       const [row] = await selectRows(
-        Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} AND ${purchaseFlagScope("is_original_subscription_purchase", true)} AND ${purchaseFlagScope("is_archived_original_subscription_purchase", false)} LIMIT 1`,
+        Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(this.id)} AND ${purchaseFlagScope("is_original_subscription_purchase", true)} AND ${purchaseFlagScope("is_archived_original_subscription_purchase", false)} LIMIT 1`,
       );
       return row ? castRow<Purchase>("Purchase", row) : null;
     });
@@ -427,7 +428,7 @@ export class SubscriptionRecord {
   // `successful_purchases.last`
   async lastSuccessfulCharge(): Promise<Purchase | null> {
     const [row] = await purchaseRows(
-      Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
+      Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
     );
     return row ?? null;
   }
@@ -435,7 +436,7 @@ export class SubscriptionRecord {
   // `purchases.last`
   async lastPurchaseRow(): Promise<Purchase | null> {
     const [row] = await purchaseRows(
-      Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
+      Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(this.id)} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
     );
     return row ?? null;
   }
@@ -443,7 +444,7 @@ export class SubscriptionRecord {
   // `purchases.is_free_trial_purchase.last`
   async lastFreeTrialPurchase(): Promise<Purchase | null> {
     const [row] = await purchaseRows(
-      Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} AND ${purchaseFlagScope("is_free_trial_purchase", true)} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
+      Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(this.id)} AND ${purchaseFlagScope("is_free_trial_purchase", true)} ORDER BY ${column(PURCHASES, "id")} DESC LIMIT 1`,
     );
     return row ?? null;
   }
@@ -451,7 +452,7 @@ export class SubscriptionRecord {
   // `last_successful_not_reversed_or_refunded_charge`
   async lastSuccessfulNotReversedOrRefundedCharge(): Promise<Purchase | null> {
     const [row] = await purchaseRows(
-      Prisma.sql`${SUBSCRIPTION_PURCHASES_SELECT} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())} AND ${NOT_FULLY_REFUNDED} AND ${NOT_CHARGEDBACK_OR_REVERSED} ORDER BY ${column(PURCHASES, "succeeded_at")} DESC LIMIT 1`,
+      Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(this.id)} AND ${inState(this.successfulState())} AND ${NOT_FULLY_REFUNDED} AND ${NOT_CHARGEDBACK_OR_REVERSED} ORDER BY ${column(PURCHASES, "succeeded_at")} DESC LIMIT 1`,
     );
     return row ?? null;
   }

@@ -150,6 +150,7 @@ import { reindexUserElasticsearchDataWorker } from "./reindex-user-elasticsearch
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
+import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
@@ -277,6 +278,7 @@ import {
 } from "./generate-subscribe-preview-job.ts";
 import { productBuildUnpackJob } from "./product-build-unpack-job.ts";
 import { stampPdfForPurchaseJob } from "./stamp-pdf-for-purchase-job.ts";
+import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
 import { deliverFilesReadyNotificationJob } from "./deliver-files-ready-notification-job.ts";
 import { customDomainVerificationWorker } from "./custom-domain-verification-worker.ts";
 import { affiliateExportWorker, audienceExportWorker } from "./user-export-workers.ts";
@@ -315,6 +317,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
   ProcessPaymentWorker: processPaymentWorker,
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
+  RetryStripeRejectedPayoutSetupsJob: retryStripeRejectedPayoutSetupsJob,
+  StripeCreateMerchantAccountsWorker: stripeCreateMerchantAccountsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,
