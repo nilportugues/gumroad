@@ -4,7 +4,7 @@ require "spec_helper"
 
 # The Api::Mobile products, subscriptions, preorders and installments answers the Next.js port serves itself
 # (nextjs/src/server/controllers/mobile-{products,subscriptions,preorders,installments}.ts): the products listing, the 404s, and the
-# subscription payload of a USD membership whose seller has no posts. The examples that end in `hands a ...` are the cases it leaves to
+# subscription payload of a membership whose seller has no posts. The examples that end in `hands a ...` are the cases it leaves to
 # Rails whole; the replay asserts Node forwards each one and writes nothing.
 describe "Mobile API products, subscriptions, preorders and installments", type: :request do
   include Parity::MobileApi
@@ -92,6 +92,14 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
 
       expect(response.parsed_body["subscription"]).to include("updates_data" => [], "purchase_id" => be_present)
+    end
+
+    it "serves the recurring amount of a subscription in another currency", parity: true do
+      subscription.original_purchase.update_columns(displayed_price_currency_type: "eur", displayed_price_cents: 550)
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response.parsed_body["subscription"]["subscription_data"]["recurring_amount"]).to eq("€5.50 a month")
     end
 
     it "serves the cover fields of a membership whose main cover is a player the apps embed", parity: true do

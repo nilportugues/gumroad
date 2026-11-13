@@ -1,13 +1,13 @@
 // Port of app/controllers/api/mobile/subscriptions_controller.rb#subscription_attributes.
 //
 // Served here: the 404 for a subscription that is not `Subscription.active` and the payload of one whose product, creator and original
-// purchase fit the ported serializers (USD, no asset previews, no uploaded avatar or thumbnail) and whose seller has no posts, so
+// purchase fit the ported serializers (no asset previews, no uploaded avatar or thumbnail) and whose seller has no posts, so
 // `updates_data` is []. Everything else goes to Rails whole. #cancel runs Subscription#cancel! (subscription-writes.ts).
 import { Prisma, type Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
-import { formatJustPriceInCents } from "../models/concerns/money-formatter.ts";
+import { formatJustPriceInCents, knownCurrency } from "../models/concerns/money-formatter.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { ACTIVE_SUBSCRIPTION } from "../models/subscription-json.ts";
 import { cancelBang, loadSubscription } from "../models/subscription-writes.ts";
@@ -76,9 +76,11 @@ function formattedDisplayPrice(
   recurrence: string | null,
   chargeOccurrenceCount: number | null,
 ): string {
-  if ((purchase.displayed_price_currency_type ?? "usd") !== "usd" || purchase.displayed_price_cents === null)
-    throw new NotPortedError("a purchase priced in a currency other than USD");
-  const text = formatJustPriceInCents(purchase.displayed_price_cents, "usd");
+  const currency = purchase.displayed_price_currency_type ?? "usd";
+  if (purchase.displayed_price_cents === null) throw new NotPortedError("a purchase without a displayed price");
+  // An unknown code soft-fails in Rails through ErrorNotifier.
+  if (!knownCurrency(currency)) throw new NotPortedError(`a purchase priced in the unknown currency ${currency}`);
+  const text = formatJustPriceInCents(purchase.displayed_price_cents, currency);
   const count = chargeOccurrenceCount === SINGLE_CHARGE ? SINGLE_CHARGE : null;
   if (recurrence === null) return count === null ? text : `${text} x ${count}`;
   if (count === SINGLE_CHARGE) return `${text} once`;

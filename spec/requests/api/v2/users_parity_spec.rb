@@ -230,9 +230,9 @@ describe "API v2 user", type: :request do
       post "/ifttt/v1/triggers/sale", headers: auth(token_for(scopes: "ifttt"))
     end
 
-    it "hands back the sale trigger for a purchase priced in another currency", parity: true do
+    it "prices the sale trigger of a purchase in another currency at its stored rate", parity: true do
       product = create(:product, user: seller, name: "Sketch pack")
-      purchase_row(link: product, seller:, email: "one@example.com", displayed_price_currency_type: "eur", displayed_price_cents: 90, rate_converted_to_usd: "1.11", created_at: Time.utc(2024, 3, 1, 12))
+      purchase_row(link: product, seller:, email: "one@example.com", price_cents: 1250, displayed_price_currency_type: "eur", displayed_price_cents: 90, rate_converted_to_usd: "1.11", created_at: Time.utc(2024, 3, 1, 12))
       post "/ifttt/v1/triggers/sale", headers: auth(token_for(scopes: "ifttt"))
     end
 

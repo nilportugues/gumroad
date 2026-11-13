@@ -100,8 +100,34 @@ describe("formatted prices", () => {
     expect(formattedDisplayPrice(purchase({ displayed_price_cents: 99 }))).toBe("99¢");
   });
 
+  const EURO = { displayed_price_currency_type: "eur", rate_converted_to_usd: "0.81" };
+
+  it("converts the USD total at the stored rate and leaves the displayed price in its own currency", () => {
+    const euro = purchase({ ...EURO, price_cents: 1250, displayed_price_cents: 1000 });
+    expect(formattedTotalPrice(euro)).toBe("€10.13");
+    expect(formattedDisplayPrice(euro)).toBe("€10");
+  });
+
+  it("divides by 100 for a single-unit currency and groups its thousands", () => {
+    const yen = purchase({
+      displayed_price_currency_type: "jpy",
+      rate_converted_to_usd: "150.0",
+      price_cents: 1000,
+      displayed_price_cents: 1500,
+    });
+    expect(formattedTotalPrice(yen)).toBe("¥1,500");
+    expect(formattedDisplayPrice(yen)).toBe("¥1,500");
+  });
+
+  it("reads a rate of zero as zero, as String#to_f does", () => {
+    expect(formattedTotalPrice(purchase({ ...EURO, rate_converted_to_usd: "oops" }))).toBe("€0");
+  });
+
   it.each([
-    ["a currency other than USD", { displayed_price_currency_type: "eur" }],
+    ["a currency with no stored rate", { displayed_price_currency_type: "eur", rate_converted_to_usd: null }],
+    ["a currency with a blank rate", { displayed_price_currency_type: "eur", rate_converted_to_usd: " " }],
+    ["a currency the money gem does not know", { displayed_price_currency_type: "zzz", rate_converted_to_usd: "1.0" }],
+    ["no currency", { displayed_price_currency_type: null }],
     ["a recurrence price", { price_id: 5n }],
     ["a subscription", { subscription_id: 5n }],
   ])("refuses %s", (_name, overrides) => {
@@ -342,9 +368,21 @@ describe("Purchase#json_data_for_mobile", () => {
     expect(keys.indexOf("preorder_data")).toBe(keys.indexOf("is_archived") + 1);
   });
 
-  it("refuses gifts and other currencies", () => {
+  it("refuses gifts and a currency with no stored rate", () => {
     expect(() => mobile({}, purchase({ flags: GIFT_SENDER_BIT }))).toThrow(/not ported/u);
-    expect(() => mobile({}, purchase({ displayed_price_currency_type: "eur" }))).toThrow(/not ported/u);
+    expect(() => mobile({}, purchase({ displayed_price_currency_type: "eur", rate_converted_to_usd: null }))).toThrow(
+      /not ported/u,
+    );
+  });
+
+  it("writes the symbol and the refundable amount in the purchase currency at the stored rate", () => {
+    const euro = purchase({ displayed_price_currency_type: "eur", rate_converted_to_usd: "0.81", price_cents: 1250 });
+    expect(mobile({ amountRefundedCents: 250 }, euro)).toMatchObject({
+      currency_symbol: "€",
+      amount_refundable_in_currency: "8.10",
+    });
+    const yen = purchase({ displayed_price_currency_type: "jpy", rate_converted_to_usd: "150.0", price_cents: 1000 });
+    expect(mobile({}, yen)).toMatchObject({ currency_symbol: "¥", amount_refundable_in_currency: "1,500" });
   });
 
   it("puts subscription_data before purchase_email and leaves file_data out for a membership that ended", () => {

@@ -1,7 +1,7 @@
 // Port of app/controllers/api/mobile/purchases_controller.rb and app/controllers/api/mobile/sales_controller.rb (index, show, options).
 //
 // Served here: the unconfirmed-account 403, the 404 for a purchase that is not the caller's, the empty lists, sales#index rows
-// whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: USD, no recurrence), and
+// whose Purchase#as_json(creator_app_api: true) is ported (presenters/mobile-serializers.ts: a USD or stored-rate currency, no recurrence), and
 // purchase_attributes, archive, unarchive and destroy of a purchase that is not a membership or a gift (refunds, a review, a url
 // redirect and a preorder are serialized) whose seller and product have no post. Everything else (the rest of those, a non-empty
 // library page, sales#show) goes to Rails whole, because the posts of the product-updates preloader are not ported.

@@ -151,12 +151,19 @@ describe("GET /mobile/subscriptions/subscription_attributes/:id", () => {
     );
   });
 
-  it("hands back a seller with posts, a product with previews and a non-USD purchase", async () => {
+  it("writes the recurring amount in the currency the purchase displays", async () => {
+    stub({ row: purchase({ displayed_price_currency_type: "eur", displayed_price_cents: 550 }) });
+    expect(body(await action.run(input({ id: "4" }), null)).subscription.subscription_data.recurring_amount).toBe(
+      "€5.50 a month",
+    );
+  });
+
+  it("hands back a seller with posts, a product with previews and a purchase in a currency the money gem lacks", async () => {
     stub({ posts: true });
     await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/seller with posts/u);
     stub({ previews: true });
     await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/uploaded cover/u);
-    stub({ row: purchase({ displayed_price_currency_type: "eur" }) });
-    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/currency other than USD/u);
+    stub({ row: purchase({ displayed_price_currency_type: "zzz" }) });
+    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/unknown currency zzz/u);
   });
 });

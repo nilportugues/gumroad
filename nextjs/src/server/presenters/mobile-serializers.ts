@@ -1,10 +1,16 @@
 // Pure ports of the JSON the Api::Mobile purchases and sales endpoints build. Each builder takes rows already loaded (see
 // mobile-serializer-reads.ts) and throws NotPortedError for every shape it does not reproduce, so the caller hands the request
-// to Rails whole. The simple shape is: USD, no subscription, no price record, no preorder, no url_redirect, no gift.
+// to Rails whole. The simple shape is: a USD or stored-rate currency, no subscription, no price record, no preorder, no url_redirect, no gift.
 import type { Link, Purchase, User } from "@prisma/client";
 
 import { encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
-import { moneyFormatterFormat, symbolFor, formatJustPriceInCents } from "../models/concerns/money-formatter.ts";
+import { rubyStringToF, usdCentsToCurrencyAtRate } from "../models/concerns/currency-helper.ts";
+import {
+  formatJustPriceInCents,
+  knownCurrency,
+  moneyFormatterFormat,
+  symbolFor,
+} from "../models/concerns/money-formatter.ts";
 import { timeAgoInWords } from "../models/concerns/time-ago-in-words.ts";
 import { LinkFlags } from "../models/link.ts";
 import { UserFlags } from "../models/user.ts";
@@ -70,10 +76,26 @@ export function linkAsJsonMobile(input: MobileLinkInput): Record<string, unknown
 const isFlag = (purchase: Purchase, name: Parameters<typeof PurchaseFlags.isSet>[1]) =>
   PurchaseFlags.isSet(purchase.flags, name);
 
-// Purchase#symbol_for(displayed_price_currency_type) and the prices below are only proven for USD with no recurrence label.
+// The currency a purchase prices in, with what the helpers below need to convert USD cents into it. Anything that would make
+// Rails look a rate up, or soft-fail an unknown code (an ErrorNotifier call), is Rails'.
+function purchaseCurrency(purchase: Purchase): { code: string; rate: number | null } {
+  const code = purchase.displayed_price_currency_type;
+  if (code === null) throw new NotPortedError("a purchase without a currency");
+  if (code === "usd") return { code, rate: null };
+  if (!knownCurrency(code)) throw new NotPortedError(`a purchase priced in the unknown currency ${code}`);
+  if (purchase.rate_converted_to_usd == null || purchase.rate_converted_to_usd.trim() === "")
+    throw new NotPortedError("CurrencyHelper#get_rate for a purchase with no stored rate");
+  return { code, rate: rubyStringToF(purchase.rate_converted_to_usd) };
+}
+
+// usd_cents_to_currency(displayed_price_currency_type, cents, rate_converted_to_usd)
+function usdCentsToPurchaseCurrency(purchase: Purchase, cents: number): number {
+  const { code, rate } = purchaseCurrency(purchase);
+  return rate === null ? cents : usdCentsToCurrencyAtRate(code, cents, rate);
+}
+
+// The prices below are only proven without a recurrence label.
 function assertSimpleMoneyShape(purchase: Purchase): void {
-  if (purchase.displayed_price_currency_type !== "usd")
-    throw new NotPortedError("a purchase priced in a currency other than USD");
   if (purchase.price_id != null || purchase.subscription_id != null)
     throw new NotPortedError(
       "a purchase with a recurrence price (Purchase#format_price_in_cents with price_for_recurrence)",
@@ -85,13 +107,16 @@ function assertSimpleMoneyShape(purchase: Purchase): void {
 // Purchase#formatted_display_price
 export function formattedDisplayPrice(purchase: Purchase): string {
   assertSimpleMoneyShape(purchase);
-  return formatJustPriceInCents(purchase.displayed_price_cents, "usd");
+  return formatJustPriceInCents(purchase.displayed_price_cents, purchaseCurrency(purchase).code);
 }
 
-// Purchase#formatted_total_price (usd_cents_to_currency is the identity for USD)
+// Purchase#formatted_total_price
 export function formattedTotalPrice(purchase: Purchase): string {
   assertSimpleMoneyShape(purchase);
-  return formatJustPriceInCents(purchase.price_cents, "usd");
+  return formatJustPriceInCents(
+    usdCentsToPurchaseCurrency(purchase, purchase.price_cents!),
+    purchaseCurrency(purchase).code,
+  );
 }
 
 // Purchase#chargedback_not_reversed?
@@ -192,8 +217,6 @@ export type SaleDetails = {
 export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<string, unknown> {
   const { purchase, seller, purchaser } = input;
   // The fields below print no recurrence label, so only the currency and a price are needed.
-  if (purchase.displayed_price_currency_type !== "usd")
-    throw new NotPortedError("a purchase priced in a currency other than USD");
   if (purchase.price_cents == null) throw new NotPortedError("a purchase without a price");
   if (isFlag(purchase, "is_gift_sender_purchase") || isFlag(purchase, "is_gift_receiver_purchase"))
     throw new NotPortedError("a gift purchase");
@@ -230,16 +253,17 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
   json.quantity = purchase.quantity;
   json.order_id = encryptNumeric(Number(purchase.id));
   json.full_name = presence(rubyStrip(purchase.full_name)) ?? purchaser?.name ?? null;
-  json.currency_symbol = symbolFor("usd");
+  json.currency_symbol = symbolFor(purchaseCurrency(purchase).code);
   const priceCents = purchase.price_cents ?? 0;
   // amount_refundable_cents: 0 for a processor that is no longer supported
   const refundableCents = CHARGE_PROCESSOR_IDS.includes(purchase.charge_processor_id ?? "")
     ? priceCents - input.amountRefundedCents
     : 0;
-  json.amount_refundable_in_currency = moneyFormatterFormat(refundableCents, "usd", {
-    noCentsIfWhole: true,
-    symbol: false,
-  });
+  json.amount_refundable_in_currency = moneyFormatterFormat(
+    usdCentsToPurchaseCurrency(purchase, refundableCents),
+    purchaseCurrency(purchase).code,
+    { noCentsIfWhole: true, symbol: false },
+  );
   json.refund_fee_notice_shown = UserFlags.isSet(seller.flags, "refund_fee_notice_shown");
   json.product_rating = input.productRating;
   json.refunded = purchase.stripe_refunded === true;

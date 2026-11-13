@@ -111,7 +111,12 @@ describe("purchaseAsJsonForIfttt", () => {
     );
   });
 
-  it("hands back a purchase in another currency", () => {
+  it("prices a purchase in another currency at its stored rate", () => {
+    const euro = purchase({ price_cents: 1250, displayed_price_currency_type: "eur", rate_converted_to_usd: "1.11" });
+    expect(purchaseAsJsonForIfttt(euro, link(), seller, null).Price).toBe("€13.88");
+  });
+
+  it("hands back a purchase in another currency with no stored rate", () => {
     expect(() =>
       purchaseAsJsonForIfttt(purchase({ displayed_price_currency_type: "eur" }), link(), seller, null),
     ).toThrow(NotPortedError);
