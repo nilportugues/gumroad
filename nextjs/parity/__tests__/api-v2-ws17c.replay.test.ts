@@ -137,6 +137,7 @@ const dedupeUnique = <T extends { class: string; args: unknown; queue?: string }
 const VALIDITY_INSTANTS: [fragment: string, valid_at: string, expires_at: string][] = [
   ["-creates-a-code-with-a-validity-period", "2099-01-01T10:00:00Z", "2099-02-01T08:00:00Z"],
   ["-sets-a-validity-period-with-a-put", "2099-01-01T10:00:00Z", "2099-03-01T10:00:00Z"],
+  ["-truncates-a-validity-period-with-a-fraction", "2099-01-01T10:59:59Z", "2099-02-01T08:00:00Z"],
 ];
 const VALIDITY_FIELDS = [
   "response.json.offer_code.valid_at",

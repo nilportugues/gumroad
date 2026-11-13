@@ -5,7 +5,7 @@ process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY ??= "123456789";
 
 const { HandBackToRails } = await import("../application-controller.ts");
 const { present, registeredApiV2Routes } = await import("./base.ts");
-const { validityPeriodError } = await import("./offer-codes.ts");
+const { validityPeriodError, validityPeriodOf } = await import("./offer-codes.ts");
 await import("./index.ts");
 
 const messageOf = (params: Record<string, unknown>) => {
@@ -59,10 +59,41 @@ describe("validityPeriodError", () => {
     expect(messageOf({ valid_at: "2100-02-29T10:00:00Z" })?.success).toBe(false);
   });
 
-  it("hands back minutes or an offset Time.zone.rfc3339 may refuse and years the Julian calendar reads differently", () => {
-    expect(() => validityPeriodError({ valid_at: "2099-01-01T10:75:00Z" })).toThrow(HandBackToRails);
+  it("refuses minutes out of range, with or without a fraction or an offset", () => {
+    const message = "valid_at must be an RFC 3339 timestamp with a time zone, or null.";
+    expect(messageOf({ valid_at: "2099-01-01T10:75:00Z" })).toEqual({ success: false, message });
+    expect(messageOf({ valid_at: "2099-01-01T10:60:00Z" })?.message).toBe(message);
+    expect(messageOf({ valid_at: "2099-01-01T10:99:00.5+02:00" })?.message).toBe(message);
+    expect(messageOf({ valid_at: "2099-01-01T10:00:00Z", expires_at: "2099-01-01T10:75:00Z" })?.message).toMatch(
+      /^expires_at /u,
+    );
+    expect(validityPeriodError({ valid_at: "2099-01-01T10:59:00Z" })).toBeUndefined();
+  });
+
+  it("hands back an offset Time.zone.rfc3339 reads as none and years the Julian calendar reads differently", () => {
     expect(() => validityPeriodError({ valid_at: "2099-01-01T10:00:00+25:00" })).toThrow(HandBackToRails);
     expect(() => validityPeriodError({ valid_at: "1500-01-01T10:00:00Z" })).toThrow(HandBackToRails);
+  });
+});
+
+describe("validityPeriodOf", () => {
+  it("truncates a fraction of a second to whole seconds instead of rounding it", () => {
+    expect(validityPeriodOf({ valid_at: "2099-01-01T10:59:59.9Z", expires_at: "2099-02-01T08:00:00.5+02:00" })).toEqual(
+      {
+        valid_at: new Date("2099-01-01T10:59:59.000Z"),
+        expires_at: new Date("2099-02-01T06:00:00.000Z"),
+      },
+    );
+    expect(validityPeriodOf({ valid_at: "2099-01-01T10:59:59.999999999Z" }).valid_at?.toISOString()).toBe(
+      "2099-01-01T10:59:59.000Z",
+    );
+  });
+
+  it("reads whole seconds, offsets and blanks", () => {
+    expect(validityPeriodOf({ valid_at: "2099-01-01T10:00:00-05:30", expires_at: "" })).toEqual({
+      valid_at: new Date("2099-01-01T15:30:00.000Z"),
+      expires_at: null,
+    });
   });
 });
 
