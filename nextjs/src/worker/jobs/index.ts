@@ -182,6 +182,14 @@ import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
+import {
+  alertOnStripeDobDriftJob,
+  sweepClosedSellerConnectAccountsJob,
+} from "./merchant-account-cursor-sweep-jobs.ts";
+import {
+  sendStripeBalanceCheckNotificationJob,
+  verifyFinanceReportsDeliveryJob,
+} from "./production-only-jobs.ts";
 import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
 import { reconcileStripePayoutsPauseForSellerJob } from "./reconcile-stripe-payouts-pause-for-seller-job.ts";
 import { reconcileStripePayoutsPausesJob } from "./reconcile-stripe-payouts-pauses-job.ts";
@@ -612,6 +620,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ReconcileStripePayoutsPausesJob: reconcileStripePayoutsPausesJob,
   ReconcileStripePayoutsPauseForSellerJob: reconcileStripePayoutsPauseForSellerJob,
   SendPostBlastEmailsSliceJob: sendPostBlastEmailsSliceJob,
+  SendStripeBalanceCheckNotificationJob: sendStripeBalanceCheckNotificationJob,
+  VerifyFinanceReportsDeliveryJob: verifyFinanceReportsDeliveryJob,
+  SweepClosedSellerConnectAccountsJob: sweepClosedSellerConnectAccountsJob,
+  AlertOnStripeDobDriftJob: alertOnStripeDobDriftJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
