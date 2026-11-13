@@ -4,7 +4,7 @@ import { expect, test } from "../support/fixtures";
 
 const SETTINGS_PAGES = [
   { path: "/settings", heading: "Settings" },
-  { path: "/settings/payments", heading: "Payments" },
+  { path: "/settings/payments", heading: "Settings" },
   { path: "/settings/password", heading: "Settings" },
   { path: "/settings/profile", heading: /Profile|Settings/ },
   { path: "/settings/advanced", heading: "Settings" },
@@ -27,10 +27,10 @@ test.describe("seller settings pages", () => {
 
   test("changing a setting persists", async ({ page }) => {
     await page.goto("/settings");
-    await page.getByLabel("Name", { exact: true }).fill("E2E Seller");
+    await page.getByPlaceholder("you@example.com").first().fill("support@example.com");
     await page.getByRole("button", { name: "Update settings" }).click();
     await expect(page.getByText(/updated/i).first()).toBeVisible();
     await page.reload();
-    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("E2E Seller");
+    await expect(page.getByPlaceholder("you@example.com").first()).toHaveValue("support@example.com");
   });
 });

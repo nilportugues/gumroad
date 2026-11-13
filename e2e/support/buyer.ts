@@ -19,8 +19,8 @@ export const startCheckout = async (page: Page, permalink: string) => {
 
 /** Completes a free checkout. The email field is only shown (and required) when not signed in. */
 export const completeFreeCheckout = async (page: Page, { email }: { email?: string } = {}) => {
-  const emailInput = page.getByLabel("Email address");
-  if (email && (await emailInput.isVisible())) await emailInput.fill(email);
+  // Waits for hydration: checking visibility first races it and submits an empty email.
+  if (email) await page.getByLabel("Email address").fill(email);
   const submit = page.getByRole("button", { name: "Get", exact: true });
   await expect(submit).toBeEnabled();
   // Let the quote request that follows the email edit settle so the click is not swallowed by a re-render.
