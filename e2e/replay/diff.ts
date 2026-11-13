@@ -98,7 +98,8 @@ export const formatMarkdown = (report: DiffReport, labels: { a: string; b: strin
   ];
   if (report.differences.length > 0) {
     lines.push(`| Request | Field | ${labels.a} | ${labels.b} |`, "| --- | --- | --- | --- |");
-    for (const d of report.differences) lines.push(`| \`${d.request}\` (${d.key}) | ${d.field} | ${cell(d.a)} | ${cell(d.b)} |`);
+    for (const d of report.differences)
+      lines.push(`| \`${d.request}\` (${d.key}) | ${d.field} | ${cell(d.a)} | ${cell(d.b)} |`);
   }
   for (const key of report.onlyInA) lines.push(`- only in ${labels.a}: ${key}`);
   for (const key of report.onlyInB) lines.push(`- only in ${labels.b}: ${key}`);

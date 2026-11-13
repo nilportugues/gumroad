@@ -212,6 +212,8 @@ describe("diffReplays", () => {
     const b = await run({ token: "t", stamp: "2026-01-01T00:00:00Z", id: 1, discoverStatus: 500 });
     const report = diffReplays(a, b);
     expect(report.differences[0]?.request).toMatch(/^GET .*\/discover/u);
-    expect(formatMarkdown(report, { a: "Rails", b: "Node" })).toMatch(/\| `GET [^`]*\/discover` .*\| status \| `200` \| `500` \|/u);
+    expect(formatMarkdown(report, { a: "Rails", b: "Node" })).toMatch(
+      /\| `GET [^`]*\/discover` .*\| status \| `200` \| `500` \|/u,
+    );
   });
 });

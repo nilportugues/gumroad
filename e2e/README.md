@@ -203,7 +203,7 @@ REPLAY_KEEP_HOST_PORT=1 node e2e/replay/compare-cli.ts <recording.jsonl> http://
 ```
 
 `REPLAY_KEEP_HOST_PORT=1` sends the Node replay with the recorded `Host` port: Node proxies to Rails, whose domain routes
-match `localhost:<lane port>`. The Node dev server (`next dev --port 3101` in `nextjs/`) needs, besides `DATABASE_URL`, `REDIS_HOST`,
+match `localhost:<lane port>`. `E2E_LANE=1 bin/e2e-node` starts it (written from the env that worked by hand; the script itself was only syntax-checked, not run). The Node dev server (`next dev --port 3101` in `nextjs/`) needs, besides `DATABASE_URL`, `REDIS_HOST`,
 `RAILS_ORIGIN` and `NEXTJS_ROUTE_FLAGS` (every flag in `routes.json`): `DEV_LANE_PORT`, `SECRET_KEY_BASE` (the Rails app's, read with
 `rails runner`), `RACK_ATTACK_REDIS_HOST`, `ELASTICSEARCH_HOST`, `ES_INDEX_SUFFIX`, the DynamoDB endpoint and prefix, and
 `NEXTJS_ASSUME_SIGNED_OUT=1` (the replay is anonymous; without it `/settings` throws NotPortedError, a 500). A missing variable shows
