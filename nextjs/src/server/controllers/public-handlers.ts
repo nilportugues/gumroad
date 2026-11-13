@@ -37,7 +37,7 @@ import { gumclawPage } from "./erb-pages.ts";
 import { embeddedJavascript } from "./embedded-javascripts.ts";
 import { homePage, homePageOptions } from "./home-pages.ts";
 import { mcpConnectorPage } from "./mcp-connectors-page.ts";
-import { impersonate, redirectToStripeDashboard } from "./internal-admin/admin-web.ts";
+import { impersonate, redirectToStripeDashboard, vendorMount } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
 import { mobileResponse } from "./mobile-api.ts";
@@ -341,6 +341,7 @@ const HANDLERS: Record<string, Handler> = {
   embedded_js_embed: { run: async (request) => embeddedJavascript(request, "embed") },
   admin_impersonate: { run: (request, url, action) => impersonate(request, url, action) },
   admin_stripe_dashboard: { run: (request, url, action) => redirectToStripeDashboard(request, url, action) },
+  admin_vendor_mount: { run: (_request, _url, action) => Promise.resolve(vendorMount(action)) },
   // GROUPED_RECEIPT_LOOKUP_PATHS
   charge_data: {
     options: { optOutOfCsp: true },

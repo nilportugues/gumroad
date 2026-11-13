@@ -1,5 +1,6 @@
-// Admin::BaseController: the team-member entry points the admin web UI left behind (#impersonate, #unimpersonate,
-// #redirect_to_stripe_dashboard).
+// Port of app/controllers/admin/base_controller.rb: the team-member entry points the admin web UI left behind (#impersonate,
+// #unimpersonate, #redirect_to_stripe_dashboard), and the routing constraint in config/routes/admin.rb that guards the Sidekiq web
+// and Flipper UI mounts (the `Admin::SidekiqWebController#mount` and `Admin::FlipperUiController#mount` rows of remaining-work.md).
 import type { User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -8,7 +9,14 @@ import { getRedis } from "../../infra/redis.ts";
 import { railsEnv } from "../../infra/rails-env.ts";
 import { isFlagSet, Users } from "../../models/user.ts";
 import { NotPortedError } from "../../models/user.ts";
-import type { ActionContext, ActionResult, Redirected, Rendered } from "../application-controller.ts";
+import {
+  type ActionContext,
+  type ActionResult,
+  HandBackToRails,
+  type Redirected,
+  type Rendered,
+  RoutingError,
+} from "../application-controller.ts";
 import { jsonResponse } from "../json-seller.ts";
 import { registerMutations } from "../mutation.ts";
 import { requestFormat } from "../rails-params.ts";
@@ -67,6 +75,14 @@ export async function redirectToStripeDashboard(request: RailsRequest, url: URL,
   if (account?.charge_processor_merchant_id == null || account.charge_processor_merchant_id === "") return redirectTo(request, "/", { alert: "Stripe account not found" });
   const base = `https://dashboard.stripe.com${railsEnv() === "production" ? "" : "/test"}`;
   return { status: 302, location: `${base}/connect/accounts/${account.charge_processor_merchant_id}` };
+}
+
+// `constraints(->(request) { warden.authenticate? && warden.user.is_team_member? })` around the two vendor Rack apps. A request that fails
+// it matches no route (404); one that passes belongs to the vendor app, which has no Node port.
+export function vendorMount({ context }: Pick<ActionContext, "context">): never {
+  const user = context.loggedInUser;
+  if (user === null || !isFlagSet(Users.load(user), "is_team_member")) throw new RoutingError("No route matches");
+  throw new HandBackToRails("Sidekiq web and Flipper UI are vendor Rack apps");
 }
 
 registerMutations({

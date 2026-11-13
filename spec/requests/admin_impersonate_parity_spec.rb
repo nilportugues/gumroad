@@ -140,4 +140,35 @@ describe "Admin impersonation entry points", type: :request do
       expect(response).to redirect_to(root_path)
     end
   end
+
+  # The Sidekiq and Flipper UI mounts sit behind a routing constraint, so anyone who is not a signed-in team member gets
+  # the routing error page; a team member reaches the vendor Rack app, which stays in Rails.
+  {
+    "/admin/features" => [:admin_flipper_ui_path, "/admin/features/features"],
+    "/admin/sidekiq" => [:admin_sidekiq_web_path, "/admin/sidekiq/busy"],
+  }.each do |mount, (route_helper, team_member_page)|
+    describe "GET #{mount}" do
+      it "answers a signed-out visitor with 404", parity: true do
+        get public_send(route_helper)
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "answers a non-team member with 404", parity: true do
+        log_in(create(:user))
+
+        get public_send(route_helper)
+
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "hands a team member to the vendor Rack app", parity: true do
+        log_in(admin)
+
+        get team_member_page
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+  end
 end
