@@ -4,8 +4,8 @@ require "spec_helper"
 
 # POST /products/:product_id/waitlist_email.json (Products::WaitlistEmailsController#create), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/waitlist-emails.replay.test.ts, which sends the last request of each
-# example. Node answers the policy, the 404 and the refusals, and the edit url of a launch email that exists; an example named
-# "hands a ..." is one Node leaves to Rails whole because it would build the draft.
+# example. Node answers the policy, the 404 and the refusals, the edit url of a launch email that exists, and builds the draft on
+# the first press.
 describe "Product waitlist email", type: :request do
   include Parity::AudienceSignedIn
 
@@ -62,7 +62,7 @@ describe "Product waitlist email", type: :request do
       expect(response.parsed_body).to eq("success" => true, "edit_url" => "/emails/#{newest.external_id}/edit")
     end
 
-    it "hands the first press to Rails", parity: true do
+    it "creates the launch email on the first press", parity: true do
       start_email
 
       expect(response).to have_http_status(:ok)
@@ -70,7 +70,7 @@ describe "Product waitlist email", type: :request do
       expect(seller.installments.count).to eq(1)
     end
 
-    it "hands a product whose only email was deleted to Rails", parity: true do
+    it "creates a new launch email when the only one was deleted", parity: true do
       WaitlistLaunchEmail.new(product:).find_or_create_email!.update_column(:deleted_at, Time.utc(2025, 2, 1))
 
       start_email
