@@ -16,7 +16,7 @@ export type Country = {
 export const COUNTRIES: readonly Country[] = COUNTRY_DATA.countries as Country[];
 const BY_ALPHA2 = new Map(COUNTRIES.map((country) => [country.alpha2, country]));
 const BY_ALPHA3 = new Map(COUNTRIES.map((country) => [country.alpha3, country]));
-const ACCENT_MAP = new Map(Object.entries(COUNTRY_DATA.accent_map));
+const ACCENT_MAP = new Map<string, string>(Object.entries(COUNTRY_DATA.accent_map));
 
 // Compliance::Countries.mapping
 export const mapping = (): Array<[string, string]> => COUNTRIES.map((country) => [country.alpha2, country.common_name]);

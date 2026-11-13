@@ -130,7 +130,9 @@ export const ComboBox = <Option extends unknown>({
               {option(
                 item,
                 {
-                  ref: (node) => (itemRefs[index] = node),
+                  ref: (node) => {
+                    itemRefs[index] = node;
+                  },
                   role: "option",
                   id: `${uid}-${index}`,
                   className: classNames(
