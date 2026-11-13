@@ -4,7 +4,8 @@ require "spec_helper"
 
 # POST /users/confirmation (ConfirmationsController#create, Devise's resend form) recorded for the Next.js port (PARITY_RECORD=1) and
 # replayed by nextjs/parity/__tests__/ws10-rest.replay.test.ts, which sends the last request of each example. An example named "hands ..."
-# is one Node leaves to Rails: the replay asserts it reached Rails and wrote nothing.
+# is one Node leaves to Rails: the replay asserts it reached Rails and wrote nothing. The three that end in the form with an error are
+# compared whole (an unproven shape, such as a blank string or another case of a confirmed address, still hands back).
 describe "ConfirmationsController#create", type: :request do
   include Parity::AudienceSignedIn
 
@@ -53,23 +54,29 @@ describe "ConfirmationsController#create", type: :request do
     expect(ResendConfirmationEmailJob.jobs.size).to eq(0)
   end
 
-  it "hands an already confirmed address to Rails", parity: true do
+  it "renders the resend form with an error for an already confirmed address", parity: true do
     create(:user, email: "done@example.com")
 
     post "/users/confirmation", params: { authenticity_token: csrf_token, user: { email: "done@example.com" } }
 
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Email was already confirmed, please try signing in")
     expect(ResendConfirmationEmailJob.jobs.size).to eq(0)
   end
 
-  it "hands an unknown address to Rails", parity: true do
+  it "renders the resend form with an error for an unknown address", parity: true do
     post "/users/confirmation", params: { authenticity_token: csrf_token, user: { email: "nobody@example.com" } }
 
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Email not found")
     expect(ResendConfirmationEmailJob.jobs.size).to eq(0)
   end
 
-  it "hands a request with no user parameters to Rails", parity: true do
+  it "renders the resend form with a blank email error when the request has no user parameters", parity: true do
     post "/users/confirmation", params: { authenticity_token: csrf_token }
 
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("Email can&#39;t be blank")
     expect(ResendConfirmationEmailJob.jobs.size).to eq(0)
   end
 end
