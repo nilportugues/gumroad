@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
 # Brings up a seeded, running dev lane 3 app on http://localhost:3003 for the Playwright suite (e2e/README.md).
 # Idempotent: every step checks before it acts. `bin/e2e-down` removes what this creates.
+#
+#   bin/e2e-up            reuse the database as it is (seeds run once; a second suite run sees the first run's records)
+#   bin/e2e-up --reseed   first wipe lane 3's data (database, Redis dbs 8 and 9, *_lane3 indices, lane3_ table), then
+#                         run the normal flow so the seeds load into an empty database. Keeps the container, gems,
+#                         node_modules and the Vite build, so it is much faster than bin/e2e-down && bin/e2e-up.
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/e2e-common.sh"
+
+reseed=0
+for arg in "$@"; do
+  case "$arg" in
+    --reseed) reseed=1 ;;
+    *) e2e_die "unknown argument $arg (only --reseed is supported)" ;;
+  esac
+done
 
 for tool in docker git tar; do command -v "$tool" >/dev/null || e2e_die "$tool is required"; done
 
@@ -51,6 +64,19 @@ fi
 
 # 5. Gems come from the shared gr_bundle volume; fail rather than mutate it.
 e2e_exec 'bundle check >/dev/null' || e2e_die "gr_bundle lacks this checkout's gems; run bundle install once in a container that mounts it"
+
+# 5b. --reseed: same lane 3 resources, same commands as bin/e2e-down, minus removing the container.
+if [[ "$reseed" == 1 ]]; then
+  e2e_log "reseed: wiping lane 3 data"
+  e2e_exec '[ -f tmp/pids/server-lane3.pid ] && kill $(cat tmp/pids/server-lane3.pid) 2>/dev/null; rm -f tmp/pids/server-lane3.pid; true'
+  e2e_runner 'name = EmailEngagementDynamoStore.table_name; abort("refusing #{name}") unless name.start_with?("lane3_"); begin; EmailEngagementDynamoStore.send(:client).delete_table(table_name: name); rescue Aws::DynamoDB::Errors::ResourceNotFoundException; end' ||
+    e2e_log "warning: could not delete the DynamoDB table"
+  docker exec "$E2E_DB_CONTAINER" mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS gumroad_development_lane3' 2>/dev/null
+  for db in 8 9; do docker exec "$E2E_REDIS_CONTAINER" sh -c "valkey-cli -n $db flushdb 2>/dev/null || redis-cli -n $db flushdb" >/dev/null; done
+  for index in products purchases installments audience_members confirmed_follower_events product_page_views; do
+    docker exec "$E2E_ES_CONTAINER" curl -s -o /dev/null -XDELETE "http://localhost:9200/${index}_lane3"
+  done
+fi
 
 # S3 uploads during seeding go to MinIO at the .env.development endpoint (localhost:9000), which is also the address
 # a browser on the host uses for the stored files; forward it to the shared MinIO from inside the container.
