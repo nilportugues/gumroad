@@ -1,4 +1,4 @@
-// Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
+// Api::V2::McpController (the /muse, /claude, /chatgpt, /cursor and /antigravity connector paths and the `.well-known` documents) and
 // Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call runs here only for the bodies in mcp/tool-bodies.ts,
 // dynamic client registration runs here (the refusals and the row with its random client id and secret), and the product preview of the Notion unfurl stays in Rails.
 import { randomUUID } from "node:crypto";

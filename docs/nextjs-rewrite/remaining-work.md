@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 960 | 1008 | 95.2% |
-| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 960 | 1008 | 95.2% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1810 | 1915 | 94.5% |
-| Same, registered in routes.json (upper bound) | 1810 | 1915 | 94.5% |
+| Routes served natively (counted, static check) | 968 | 1008 | 96.0% |
+| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 968 | 1008 | 96.0% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1834 | 1915 | 95.8% |
+| Same, registered in routes.json (upper bound) | 1834 | 1915 | 95.8% |
 | Rails Inertia pages with Node props (counted, string match) | 114 | 115 | 99.1% |
 | Sidekiq job classes running in Node (counted) | 0 | 0 | n/a |
 
@@ -46,11 +46,11 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-16 Library and content delivery | 39 | 39 | 0 | 0 | 100.0% | 51 | 51 | 100.0% |
 | WS-17 Public and mobile API | 194 | 188 | 0 | 6 | 96.9% | 351 | 341 | 97.2% |
 | WS-18 Admin | 86 | 86 | 0 | 0 | 100.0% | 254 | 254 | 100.0% |
-| WS-19 AI, MCP and moderation | 43 | 35 | 0 | 8 | 81.4% | 129 | 105 | 81.4% |
+| WS-19 AI, MCP and moderation | 43 | 43 | 0 | 0 | 100.0% | 129 | 129 | 100.0% |
 | WS-20 Checkout and orders | 73 | 62 | 0 | 11 | 84.9% | 228 | 191 | 83.8% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 1008 | 960 | 0 | 48 | 95.2% | 1915 | 1810 | 94.5% |
+| **All** | 1008 | 968 | 0 | 40 | 96.0% | 1915 | 1834 | 95.8% |
 
 ## Sensitivity to the weights
 
@@ -58,10 +58,10 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 960 | 1008 | 95.2% |
-| Verb only: GET 1, other verbs 2 | 1397 | 1472 | 94.9% |
-| Rubric weights 1 to 4 (the headline) | 1810 | 1915 | 94.5% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2125 | 2261 | 94.0% |
+| Every route counts 1 (the plain route share) | 968 | 1008 | 96.0% |
+| Verb only: GET 1, other verbs 2 | 1409 | 1472 | 95.7% |
+| Rubric weights 1 to 4 (the headline) | 1834 | 1915 | 95.8% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2157 | 2261 | 95.4% |
 
 ## By weight
 
@@ -69,7 +69,7 @@ The weights are the soft part of this inventory, so here is the headline under o
 | ---: | ---: | ---: | ---: |
 | 1 | 397 | 383 | 96.5% |
 | 2 | 340 | 325 | 95.6% |
-| 3 | 246 | 231 | 93.9% |
+| 3 | 246 | 239 | 97.2% |
 | 4 | 25 | 21 | 84.0% |
 
 ## By controller
@@ -78,7 +78,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 | Controller | Workstream | Routes | Native | Hands back | Not registered | Weight | Remaining weight |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `Api::V2::McpController` | WS-19 AI, MCP and moderation | 25 | 17 | 0 | 8 | 3 (75) | 24 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 1 | 0 | 4 | 4 (20) | 16 |
 | `PartnerMigrationsController` | Unassigned (no rule matched) | 7 | 0 | 0 | 7 | 1/2 (12) | 12 |
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
@@ -172,6 +171,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Api::V2::LicensesController` | WS-17 Public and mobile API | 5 | 5 | 0 | 0 | 2 (10) | 0 |
 | `Api::V2::LinksController` | WS-17 Public and mobile API | 12 | 12 | 0 | 0 | 1/2 (20) | 0 |
 | `Api::V2::MarketingActionsController` | WS-19 AI, MCP and moderation | 6 | 6 | 0 | 0 | 3 (18) | 0 |
+| `Api::V2::McpController` | WS-19 AI, MCP and moderation | 25 | 25 | 0 | 0 | 3 (75) | 0 |
 | `Api::V2::MediaController` | WS-17 Public and mobile API | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `Api::V2::NotionUnfurlUrlsController` | WS-17 Public and mobile API | 2 | 2 | 0 | 0 | 2 (4) | 0 |
 | `Api::V2::OfferCodesController` | WS-17 Public and mobile API | 8 | 8 | 0 | 0 | 1/2 (12) | 0 |

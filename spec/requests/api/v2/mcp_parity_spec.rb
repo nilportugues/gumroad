@@ -13,7 +13,7 @@ describe "API v2 MCP and Notion", type: :request do
 
   def auth(scopes = "view_public") = { "Authorization" => "Bearer #{create("doorkeeper/access_token", application:, resource_owner_id: seller.id, scopes:).token}" }
 
-  %w[muse claude chatgpt].each do |client|
+  %w[muse claude chatgpt cursor antigravity].each do |client|
     it "reports the status of the #{client} connector", parity: true do
       get "/#{client}/v1/status"
     end
@@ -63,6 +63,29 @@ describe "API v2 MCP and Notion", type: :request do
 
     it "answers a tools/list call", parity: true do
       post "/muse/v1/mcp", params: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json, headers: rpc.merge(auth)
+    end
+
+    %w[cursor antigravity].each do |client|
+      it "challenges a GET on the #{client} connector without a token", parity: true do
+        get "/#{client}/v1/mcp"
+      end
+
+      it "challenges a POST on the #{client} connector without a token", parity: true do
+        post "/#{client}/v1/mcp", params: { jsonrpc: "2.0", id: 1, method: "ping" }.to_json, headers: rpc
+      end
+
+      it "refuses a GET on the #{client} connector with a token", parity: true do
+        get "/#{client}/v1/mcp", headers: auth
+      end
+
+      it "answers a tools/list call on the #{client} connector", parity: true do
+        post "/#{client}/v1/mcp", params: { jsonrpc: "2.0", id: 1, method: "tools/list" }.to_json, headers: rpc.merge(auth)
+      end
+
+      it "answers a tools/call of the #{client} connector", parity: true do
+        body = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_account", arguments: {} } }
+        post "/#{client}/v1/mcp", params: body.to_json, headers: rpc.merge(auth)
+      end
     end
 
     it "hands back a body that is not JSON", parity: true do
