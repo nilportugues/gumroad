@@ -268,16 +268,21 @@ describe "API v2 offer code writes", type: :request do
       expect(response.parsed_body["message"]).to eq("The discount code's start date must be earlier than its end date.")
     end
 
-    it "hands a timestamp with minutes out of range to Rails", parity: true do
+    it "refuses a timestamp with minutes out of range", parity: true do
       create_code({ name: "ODD", amount_off: "50", valid_at: "2099-01-01T10:75:00Z" })
 
-      expect(response.parsed_body["success"]).to eq(false)
+      expect(response.parsed_body).to eq("success" => false, "message" => "valid_at must be an RFC 3339 timestamp with a time zone, or null.")
+      expect(OfferCode.where(code: "ODD")).to be_empty
     end
 
-    it "hands a validity period with a fraction of a second to Rails", parity: true do
-      create_code({ name: "FRACTION", amount_off: "50", valid_at: "2099-01-01T10:00:00.5Z" })
+    it "truncates a validity period with a fraction of a second to whole seconds", parity: true do
+      create_code({ name: "FRACTION", amount_off: "50", valid_at: "2099-01-01T10:59:59.9Z", expires_at: "2099-02-01T08:00:00.7Z" })
 
-      expect(response.parsed_body).to include("success")
+      expect(response.parsed_body["offer_code"]).to include("valid_at" => "2099-01-01T10:59:59Z", "expires_at" => "2099-02-01T08:00:00Z")
+      stored = OfferCode.find_by!(code: "FRACTION")
+      expect(stored.valid_at).to eq(Time.utc(2099, 1, 1, 10, 59, 59))
+      expect(stored.expires_at).to eq(Time.utc(2099, 2, 1, 8, 0, 0))
+      expect(OfferCode.connection.select_value("SELECT valid_at FROM offer_codes WHERE id = #{stored.id}")).to eq(Time.utc(2099, 1, 1, 10, 59, 59))
     end
 
     describe "applied automatically" do

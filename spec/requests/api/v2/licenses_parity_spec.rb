@@ -380,10 +380,64 @@ describe "API v2 licenses", type: :request do
       end
     end
 
-    it "hands a verification that carries a token to Rails", parity: true do
-      verify({ product_id: product.external_id, license_key: key }, token: api_token(seller))
+    describe "a request that carries a token" do
+      def expect_verified(uses: 1)
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to include("success" => true, "uses" => uses)
+      end
 
-      expect(response).to have_http_status(:ok)
+      it "verifies a license for a bearer token and does not mark the seller as a CLI user", parity: true do
+        verify({ product_id: product.external_id, license_key: key }, token: api_token(seller))
+
+        expect_verified
+        expect(license.reload.uses).to eq(1)
+        expect(seller.reload.has_used_cli?).to eq(false)
+      end
+
+      it "verifies a license for an access_token parameter", parity: true do
+        verify({ product_id: product.external_id, license_key: key, access_token: api_token(seller).token })
+
+        expect_verified
+      end
+
+      it "verifies a license for a token that is revoked", parity: true do
+        verify({ product_id: product.external_id, license_key: key }, token: api_token(seller, revoked_at: 1.day.ago))
+
+        expect_verified
+      end
+
+      it "verifies a license for a bearer value that is no token", parity: true do
+        verify({ product_id: product.external_id, license_key: key }, headers: { "Authorization" => "Bearer unknown-token" })
+
+        expect_verified
+      end
+
+      it "verifies a license for the token of another seller", parity: true do
+        verify({ product_id: product.external_id, license_key: key }, token: api_token(create(:user)))
+
+        expect_verified
+      end
+
+      it "verifies a license for the CLI when the request carries no token", parity: true do
+        verify({ product_id: product.external_id, license_key: key }, headers: { "User-Agent" => "gumroad-cli/1.2.3" })
+
+        expect_verified
+      end
+
+      it "hands a verification from the CLI that carries a token to Rails", parity: true do
+        verify({ product_id: product.external_id, license_key: key }, token: api_token(seller), headers: { "User-Agent" => "gumroad-cli/1.2.3" })
+
+        expect_verified
+        expect(seller.reload.has_used_cli?).to eq(true)
+      end
+
+      it "hands a verification that carries a token without an owner to Rails", parity: true do
+        ownerless = create("doorkeeper/access_token", application: api_application, resource_owner_id: nil, scopes: "edit_products")
+
+        verify({ product_id: product.external_id, license_key: key }, token: ownerless)
+
+        expect(response).to have_http_status(:not_found)
+      end
     end
 
     it "serializes a license of a purchase with a variant", parity: true do

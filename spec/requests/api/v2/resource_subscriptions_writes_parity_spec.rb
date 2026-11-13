@@ -4,7 +4,7 @@ require "spec_helper"
 
 # Api::V2::ResourceSubscriptionsController#create and #test_event through the full Rack stack, recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. Both resolve or call the subscriber's URL, so they
-# are recorded as what Node hands back; Node answers the scope checks and the 404 of #test_event.
+# are recorded as what Node hands back; Node answers the scope checks, the 404 of #test_event and a post URL that is not a URI or is a reserved IPv4 literal (no DNS involved).
 describe "API v2 resource subscription writes", type: :request do
   include Parity::ApiV2Requests
 
@@ -29,22 +29,29 @@ describe "API v2 resource subscription writes", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "hands a subscription whose post URL is an IP address to Rails", parity: true do
+    it "refuses a post URL that is a reserved IP address", :skip_resource_subscription_dns_stub, parity: true do
       call(:put, "/resource_subscriptions", { resource_name: "sale", post_url: "http://127.0.0.1/hook" })
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Invalid post URL 'http://127.0.0.1/hook'")
+      expect(ResourceSubscription.where(post_url: "http://127.0.0.1/hook")).to be_empty
     end
 
-    it "hands a subscription with a post URL that is not a URL to Rails", parity: true do
+    it "refuses a post URL that is not a URL", parity: true do
       call(:put, "/resource_subscriptions", { resource_name: "sale", post_url: "not a url" })
 
-      expect(response.parsed_body["success"]).to eq(false)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Invalid post URL 'not a url'")
     end
 
-    it "hands a subscription through the /api prefix on the Gumroad domain to Rails", parity: true do
+    it "refuses a post URL that is not a URL through the /api prefix on the Gumroad domain", parity: true do
       call(:put, "/resource_subscriptions", { resource_name: "refund", post_url: "not a url" }, api_host: false)
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Invalid post URL 'not a url'")
+    end
+
+    it "hands a subscription whose post URL needs a DNS lookup to Rails", parity: true do
+      call(:put, "/resource_subscriptions", { resource_name: "sale", post_url: "http://example.com/hook2" })
+
+      expect(response.parsed_body["resource_subscription"]).to include("resource_name" => "sale", "post_url" => "http://example.com/hook2")
     end
   end
 

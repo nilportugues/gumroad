@@ -172,7 +172,8 @@ const leapYear = (year: number) => year % 4 === 0 && (year % 100 !== 0 || year %
 const daysInMonth = (year: number, month: number) => (month === 2 && leapYear(year) ? 29 : MONTH_DAYS[month - 1]!);
 
 // before_action :parse_validity_period. A value that is not a timestamp, or names an impossible date, hour or second, is answered here.
-// Minutes or offsets out of range might still be refused by Time.zone.rfc3339, so those go to Rails with the write.
+// Time.zone.rfc3339 raises on minutes out of range. An offset out of range it reads as no offset at all, which the port does not model, so
+// those go to Rails with the write.
 export function validityPeriodError(params: ApiV2Input["params"]): Rendered | undefined {
   for (const key of ["valid_at", "expires_at"]) {
     if (!(key in params)) continue;
@@ -195,7 +196,8 @@ export function validityPeriodError(params: ApiV2Input["params"]): Rendered | un
     if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month) || hour > MAX_HOUR || second > MAX_SECOND)
       return message;
     const offset = /^[-+](\d{2}):(\d{2})$/u.exec(match[7]!);
-    if (minute > MAX_MINUTE || (offset !== null && (Number(offset[1]) > MAX_HOUR || Number(offset[2]) > MAX_MINUTE)))
+    if (minute > MAX_MINUTE) return message;
+    if (offset !== null && (Number(offset[1]) > MAX_HOUR || Number(offset[2]) > MAX_MINUTE))
       throw new HandBackToRails("a validity period Time.zone.rfc3339 may refuse");
   }
   return undefined;
@@ -205,7 +207,7 @@ const trueParam = (value: unknown) => value === true || value === "true";
 
 // before_action :parse_validity_period, after validityPeriodError let the value through: Time.zone.rfc3339 of a whole-second timestamp.
 const TIMESTAMP =
-  /^[ \t\n\v\f\r]*(-?\d{4})-(\d{2})-(\d{2})(?:t|[ \t\n\v\f\r])(\d{2}):(\d{2}):(\d{2})(\.\d+)?(z|[-+]\d{2}:\d{2})[ \t\n\v\f\r]*$/iu;
+  /^[ \t\n\v\f\r]*(-?\d{4})-(\d{2})-(\d{2})(?:t|[ \t\n\v\f\r])(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(z|[-+]\d{2}:\d{2})[ \t\n\v\f\r]*$/iu;
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 type ValidityPeriod = { valid_at?: Date | null; expires_at?: Date | null };
@@ -220,8 +222,8 @@ export function validityPeriodOf(params: Params): ValidityPeriod {
     }
     const match = TIMESTAMP.exec(String(value));
     if (match === null) return notPorted("a validity period the port cannot read");
-    const [, year, month, day, hour, minute, second, fraction, zone] = match;
-    if (fraction !== undefined) return notPorted("a validity period with a fraction of a second");
+    // The fraction is dropped: the column holds whole seconds and Rails truncates what it is given.
+    const [, year, month, day, hour, minute, second, zone] = match;
     const utc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
     const offset = /^([-+])(\d{2}):(\d{2})$/u.exec(zone!);
     const minutes = offset
