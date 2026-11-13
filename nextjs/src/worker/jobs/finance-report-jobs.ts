@@ -42,6 +42,9 @@ export type FinanceReportJob = {
   maxArgs: number;
   // `.default_alert_args(reference_time)`; the class has none when this is absent.
   defaultAlertArgs?: (referenceTime: Date) => JsonValue[];
+  // What perform does in production when that is neither a report build nor a mail (a fan-out of other jobs). Without it the job
+  // hands back in production. It must hand back before its first push.
+  production?: (args: JsonValue[], deps: FinanceReportDeps, context: JobContext) => Promise<void>;
 };
 
 export type FinanceReportDeps = {
@@ -90,8 +93,9 @@ const periodArgsFor = (job: FinanceReportJob, referenceTime: Date): JsonValue[] 
 
 export function financeReportJobWith(job: FinanceReportJob, overrides: Partial<FinanceReportDeps> = {}): JobHandler {
   const deps = { ...defaultDeps, ...overrides };
-  return async (args: JsonValue[], _context: JobContext) => {
-    if (railsEnv() === "production") throw new HandBackToRuby("the report is built and mailed in production");
+  return async (args: JsonValue[], context: JobContext) => {
+    const production = railsEnv() === "production";
+    if (production && !job.production) throw new HandBackToRuby("the report is built and mailed in production");
     // The completion key is built after the token is taken; settle it first so a hand-back never follows the token.
     const periodArgs = args.length > 0 ? args : periodArgsFor(job, deps.now());
     if (args.length <= job.maxArgs) await beforeSideEffects(() => rubyJoin(periodArgs));
@@ -110,6 +114,7 @@ export function financeReportJobWith(job: FinanceReportJob, overrides: Partial<F
         );
       }
       checkArity(args, 0, job.maxArgs);
+      if (production) await job.production!(args, deps, context);
       await redis.set(
         completionKey(job.name, periodArgs),
         String(Math.floor(deps.now().getTime() / 1000)),

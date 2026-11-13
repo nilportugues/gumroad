@@ -1,0 +1,934 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "nothing in the way",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "a seller's products exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                1500000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "the shard limit is set",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                2500000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "merchant_center_feed_max_shard": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_max_shard": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "the shard limit is not a number",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                2500000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "merchant_center_feed_max_shard": {
+          "type": "string",
+          "value": "abc",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_max_shard": {
+          "type": "string",
+          "value": "abc",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "some units are finished",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "merchant_center_feed_progress": {
+          "type": "hash",
+          "value": {
+            "legacy": "1762000000"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_progress": {
+          "type": "hash",
+          "value": {
+            "legacy": "1762000000"
+          },
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "every unit is finished",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "merchant_center_feed_progress": {
+          "type": "hash",
+          "value": {
+            "legacy": "1762000000"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_progress": {
+          "type": "hash",
+          "value": {
+            "legacy": "1762000000"
+          },
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "every unit is finished with shards",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                1500000
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "merchant_center_feed_max_shard": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        },
+        "merchant_center_feed_progress": {
+          "type": "hash",
+          "value": {
+            "legacy": "1",
+            "shard:0": "1",
+            "shard:1": "1"
+          },
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_max_shard": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        },
+        "merchant_center_feed_progress": {
+          "type": "hash",
+          "value": {
+            "legacy": "1",
+            "shard:0": "1",
+            "shard:1": "1"
+          },
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "explicit arguments",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        500,
+        2
+      ],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "the feed lock is held",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[100000,2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held on the second attempt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[100000,3],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        100000,
+        2
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held on the fourth attempt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[250,5],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        4
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held on the fifth attempt",
+      "error": {
+        "class": "MerchantCenterFeedRun::GenerationInProgress",
+        "message": "another Merchant Center feed run is in progress"
+      },
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        5
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held on the sixth attempt",
+      "error": {
+        "class": "MerchantCenterFeedRun::GenerationInProgress",
+        "message": "another Merchant Center feed run is in progress"
+      },
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        6
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held with only a limit",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[250,2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held with an attempt of zero",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[250,1],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        0
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is held with a negative attempt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[250,-2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        -3
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the kill switch is on",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "disable_merchant_center_feed": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_merchant_center_feed"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "disable_merchant_center_feed": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_merchant_center_feed"
+          ],
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the kill switch is on and the lock is held",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "disable_merchant_center_feed": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_merchant_center_feed"
+          ],
+          "expires": false
+        },
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "disable_merchant_center_feed": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          },
+          "expires": false
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_merchant_center_feed"
+          ],
+          "expires": false
+        },
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "the kill switch is turned on mid-run",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {
+        "2": "engage"
+      },
+      "hands_back": false
+    },
+    {
+      "name": "the feed lock is lost mid-run",
+      "error": {
+        "class": "MerchantCenterFeedRun::LockLost",
+        "message": "the Merchant Center feed lock expired mid-run"
+      },
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [],
+      "calls": {
+        "2": "steal"
+      },
+      "hands_back": false
+    },
+    {
+      "name": "a limit given as a string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        "500"
+      ],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "a limit given as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT MAX(`links`.`id`) FROM `links`",
+          "result": {
+            "fields": [
+              "MAX(`links`.`id`)"
+            ],
+            "rows": [
+              [
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        500.0
+      ],
+      "calls": {},
+      "hands_back": true
+    },
+    {
+      "name": "an attempt given as a string with the lock held",
+      "error": {
+        "class": "ArgumentError",
+        "message": "comparison of String with 5 failed"
+      },
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        "2"
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "an attempt given as a float with the lock held",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[250,3.0],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        250,
+        2.0
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "a limit of nil with the lock held",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[null,2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        null
+      ],
+      "calls": {},
+      "hands_back": false
+    },
+    {
+      "name": "a limit given as a string with the lock held",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"class\":\"GenerateMerchantCenterFeedWorker\",\"args\":[\"500\",2],\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001}",
+              1793795745.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "merchant_center_feed_lock": {
+          "type": "string",
+          "value": "another-run-token",
+          "expires": false
+        }
+      },
+      "job": "GenerateMerchantCenterFeedWorker",
+      "args": [
+        "500"
+      ],
+      "calls": {},
+      "hands_back": false
+    }
+  ]
+}

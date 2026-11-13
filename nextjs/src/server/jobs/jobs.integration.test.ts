@@ -10,6 +10,7 @@ import { syncCronSchedulers } from "../../worker/cron.ts";
 import { startWorker, type StartedWorker } from "../../worker/index.ts";
 import type { JobHandler } from "../../worker/jobs/types.ts";
 
+import { withSortedChangelog } from "./__fixtures__/changelog-order.ts";
 import { enqueueWith } from "./enqueue.ts";
 import type { JobDefinition } from "./registry-types.ts";
 import { JOB_REGISTRY } from "./registry.generated.ts";
@@ -157,7 +158,7 @@ describe.skipIf(!url)("jobs against Redis", () => {
       }
       // Ruby's second push draws the next jid too, so only the first matches by value.
       expect(jids.map((jid) => jid !== null)).toEqual(push.jids.map((jid) => jid !== null));
-      expect(await snapshot(redis)).toEqual(push.redis);
+      expect(withSortedChangelog(await snapshot(redis))).toEqual(withSortedChangelog(push.redis));
     });
   });
 

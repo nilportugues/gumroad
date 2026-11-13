@@ -233,4 +233,11 @@ export const PORTED_JOBS: readonly string[] = [
   "CustomDomainVerificationWorker",
   "Exports::AffiliateExportWorker",
   "Exports::AudienceExportWorker",
+  "BackfillMembershipRenewalRemindersJob",
+  "UnstickStuckInProgressPurchasesJob",
+  "GenerateMerchantCenterFeedWorker",
+  "SyncGuardianToStripeJob",
+  "GenerateFinancialReportsForPreviousQuarterJob",
+  "GenerateFinancialReportsForPreviousMonthJob",
+  "DuplicateProductWorker",
 ];

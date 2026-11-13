@@ -4,6 +4,17 @@ import type { RetriesExhausted, RetryIn } from "../retry.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
+import { backfillMembershipRenewalRemindersJob } from "./backfill-membership-renewal-reminders-job.ts";
+import { unstickStuckInProgressPurchasesJob } from "./unstick-stuck-in-progress-purchases-job.ts";
+import {
+  generateFinancialReportsForPreviousMonthJob,
+  generateFinancialReportsForPreviousMonthJobRetriesExhausted,
+  generateFinancialReportsForPreviousQuarterJob,
+  generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
+} from "./generate-financial-reports-jobs.ts";
+import { duplicateProductWorker } from "./duplicate-product-worker.ts";
+import { syncGuardianToStripeJob } from "./sync-guardian-to-stripe-job.ts";
+import { generateMerchantCenterFeedWorker } from "./generate-merchant-center-feed-worker.ts";
 import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import {
@@ -528,6 +539,13 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CustomDomainVerificationWorker: customDomainVerificationWorker,
   "Exports::AffiliateExportWorker": affiliateExportWorker,
   "Exports::AudienceExportWorker": audienceExportWorker,
+  BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
+  UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,
+  GenerateMerchantCenterFeedWorker: generateMerchantCenterFeedWorker,
+  SyncGuardianToStripeJob: syncGuardianToStripeJob,
+  DuplicateProductWorker: duplicateProductWorker,
+  GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJob,
+  GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
@@ -556,4 +574,6 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   GenerateSubscribePreviewJob: generateSubscribePreviewJobRetriesExhausted,
   PerformPayoutsForUserSliceWorker: performPayoutsForUserSliceWorkerRetriesExhausted,
   PerformPayoutsUpToDelayDaysAgoWorker: performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
+  GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
+  GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJobRetriesExhausted,
 };
