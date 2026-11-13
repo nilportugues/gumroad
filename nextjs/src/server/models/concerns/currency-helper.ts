@@ -9,9 +9,9 @@ import { Prisma } from "@prisma/client";
 import type { Redis } from "ioredis";
 
 import { rubyFloatToS, rubyToS } from "../../../lib/ruby-to-s.ts";
+import { readCurrencySource } from "../../../worker/jobs/update-currencies-worker.ts";
 import { getRedis, namespacedKey } from "../../infra/redis.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../jobs/sidekiq/ruby-json.ts";
-import { readCurrencySource } from "../../../worker/jobs/update-currencies-worker.ts";
 import LINK_DATA from "../link-data.generated.json" with { type: "json" };
 
 const CURRENCIES = LINK_DATA.currencies as Record<string, { single_unit: boolean }>;
@@ -32,7 +32,9 @@ export class RedisTransportError extends Error {
 export class RateUnavailable extends Error {
   readonly rubyClass = "CurrencyHelper::RateUnavailable";
   constructor(currencyType: string) {
-    super(`No known ${currencyType} exchange rate and Redis could not be read; refusing to price with a substituted rate.`);
+    super(
+      `No known ${currencyType} exchange rate and Redis could not be read; refusing to price with a substituted rate.`,
+    );
   }
 }
 
@@ -73,7 +75,8 @@ export function rubyStringToF(value: string): number {
 function rememberRate(formattedCurrency: string, rate: string): string {
   if (!(rubyStringToF(rate) > 0)) return rate;
   const observedAt = deps.monotonicSeconds();
-  if (LAST_KNOWN_RATES.size < MAX_REMEMBERED_RATES || LAST_KNOWN_RATES.has(formattedCurrency)) LAST_KNOWN_RATES.set(formattedCurrency, [rate, observedAt]);
+  if (LAST_KNOWN_RATES.size < MAX_REMEMBERED_RATES || LAST_KNOWN_RATES.has(formattedCurrency))
+    LAST_KNOWN_RATES.set(formattedCurrency, [rate, observedAt]);
   return rate;
 }
 
@@ -103,10 +106,18 @@ const namespaceGet = (currency: string) => redisCall(() => deps.redis().get(rate
 async function queryRate(currencyType: string): Promise<JsonValue | string | null> {
   try {
     const document = parseRubyJson(await deps.readSource());
-    if (document === null || typeof document !== "object" || Array.isArray(document) || document instanceof RubyFloat) throw new TypeError("rates document is not an object");
-    const rates = (document as { [key: string]: JsonValue }).rates;
-    if (rates === null || rates === undefined || typeof rates !== "object" || Array.isArray(rates) || rates instanceof RubyFloat) throw new TypeError("rates is not an object");
-    return (rates as { [key: string]: JsonValue })[currencyType] ?? null;
+    if (document === null || typeof document !== "object" || Array.isArray(document) || document instanceof RubyFloat)
+      throw new TypeError("rates document is not an object");
+    const rates = (document as Record<string, JsonValue>).rates;
+    if (
+      rates === null ||
+      rates === undefined ||
+      typeof rates !== "object" ||
+      Array.isArray(rates) ||
+      rates instanceof RubyFloat
+    )
+      throw new TypeError("rates is not an object");
+    return (rates as Record<string, JsonValue>)[currencyType] ?? null;
   } catch {
     return namespaceGet(currencyType);
   }
@@ -151,15 +162,23 @@ export class FloatDomainError extends Error {
   readonly rubyClass = "FloatDomainError";
   constructor(quantity: number | bigint) {
     const sign = BigInt(quantity);
-    super(sign === 0n ? "Computation results in 'NaN' (Not a Number)" : sign > 0n ? "Computation results in 'Infinity'" : "Computation results in '-Infinity'");
+    super(
+      sign === 0n
+        ? "Computation results in 'NaN' (Not a Number)"
+        : sign > 0n
+          ? "Computation results in 'Infinity'"
+          : "Computation results in '-Infinity'",
+    );
   }
 }
 
 // is_currency_type_single_unit?: unknown codes read as usd.
-export const isCurrencyTypeSingleUnit = (currencyType: string): boolean => (CURRENCIES[currencyType.toLowerCase()] ?? CURRENCIES.usd!).single_unit;
+export const isCurrencyTypeSingleUnit = (currencyType: string): boolean =>
+  (CURRENCIES[currencyType.toLowerCase()] ?? CURRENCIES.usd!).single_unit;
 
 // `.round` on a BigDecimal: half away from zero, to an Integer.
-const roundToInteger = (value: Prisma.Decimal): number => value.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+const roundToInteger = (value: Prisma.Decimal): number =>
+  value.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP).toNumber();
 
 // unit_scaling_factor
 export const unitScalingFactor = (currencyType: string): number => (isCurrencyTypeSingleUnit(currencyType) ? 1 : 100);
@@ -181,13 +200,20 @@ export function usdCentsToCurrencyAtRate(currencyType: string, quantity: number 
 }
 
 // usd_cents_to_currency(currency_type, quantity, rate = nil)
-export async function usdCentsToCurrency(currencyType: string, quantity: number | bigint, rate?: number): Promise<number> {
+export async function usdCentsToCurrency(
+  currencyType: string,
+  quantity: number | bigint,
+  rate?: number,
+): Promise<number> {
   if (currencyType === "usd") return Number(quantity);
   return usdCentsToCurrencyAtRate(currencyType, quantity, rate ?? rubyStringToF(await getRate(currencyType)));
 }
 
 // formatted_dollar_amount: Money.new(cents, "USD").format(with_currency:, no_cents_if_whole:).
-export function formattedDollarAmount(amountCents: number | bigint, options: { withCurrency?: boolean; noCentsIfWhole?: boolean } = {}): string {
+export function formattedDollarAmount(
+  amountCents: number | bigint,
+  options: { withCurrency?: boolean; noCentsIfWhole?: boolean } = {},
+): string {
   const { withCurrency = false, noCentsIfWhole = true } = options;
   const cents = BigInt(amountCents);
   const absolute = cents < 0n ? -cents : cents;
