@@ -107,6 +107,12 @@ describe "API v2 MCP and Notion", type: :request do
       call_tool("get_customers", { breakdown: "conversion" })
     end
 
+    it "writes a conversion that took whole days as a float", parity: true do
+      sell(product, email: "dee@example.com", price_cents: 0, at: [2026, 4, 1, 0])
+      sell(product, email: "dee@example.com", price_cents: 900, at: [2026, 4, 3, 0])
+      call_tool("get_customers", { breakdown: "conversion", start_date: "2026-04-01" })
+    end
+
     it "reports sales totals by product", parity: true do
       call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31" })
     end
