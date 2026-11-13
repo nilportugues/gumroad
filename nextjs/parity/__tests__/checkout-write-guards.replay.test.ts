@@ -11,6 +11,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
+import type { JobsChannel, RawJob } from "../src/channels";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -37,6 +38,33 @@ const COMPARE = {
     "http",
   ],
 };
+
+// `lock: :until_executing`: Rails' test queue pushes every call, while Node drops a push whose lock is held, so identical pushes collapse.
+const UNIQUE_JOBS = new Set(["ReindexSellerOfferCodesJob"]);
+type QueuedJob = { class: string; args: unknown[]; queue: string };
+const jobKey = (job: QueuedJob) => `${job.class} ${JSON.stringify(job.args)} ${job.queue}`;
+const settle = (jobs: QueuedJob[]) =>
+  jobs
+    .filter((job, i) => !UNIQUE_JOBS.has(job.class) || jobs.findIndex((other) => jobKey(other) === jobKey(job)) === i)
+    .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item.
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const jobs: QueuedJob[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data !== null) jobs.push(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as QueuedJob);
+      }
+      return settle(jobs);
+    },
+  };
+}
 
 const cases = existsSync(DIR)
   ? readdirSync(DIR)
@@ -114,6 +142,7 @@ describe.skipIf(!url)("Checkout and customer write guards", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    jobs: redisJobs(redis),
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
@@ -166,6 +195,8 @@ describe.skipIf(!url)("Checkout and customer write guards", () => {
           ).toEqual([]);
           return;
         }
+        const expected = fixture.exchanges[index]!;
+        expected.jobs = settle((expected.jobs ?? []) as QueuedJob[]);
         assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
       } catch (error) {
         const logs = server

@@ -32,6 +32,11 @@ describe "Checkout and customer write guards", type: :request do
     create(:offer_code, user: owner, code: "guard#{owner.id}", amount_percentage: 10, amount_cents: nil, products: [])
   end
 
+  # A save in the same second as the factory leaves updated_at unchanged, which a replay seeded a second later would not reproduce.
+  def age(record)
+    record.update_columns(created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+  end
+
   describe "POST /checkout/discounts" do
     it "refuses a support team member", parity: true do
       as_team_member(:support)
@@ -106,9 +111,58 @@ describe "Checkout and customer write guards", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands the deletion of a code by an admin team member to Rails", parity: true do
-      code = discount_for(seller)
+    it "deletes a code of a product for an admin team member", parity: true do
+      product = create(:product, user: seller, price_cents: 1000)
+      code = create(:offer_code, user: seller, code: "guard#{seller.id}", amount_percentage: 10, amount_cents: nil, products: [product])
+      age(code)
       as_team_member(:admin)
+
+      send_json(:delete, checkout_discount_path(code.external_id))
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(code.reload).to be_deleted
+    end
+
+    it "deletes a universal code of the owner", parity: true do
+      create(:product, user: seller, price_cents: 1000)
+      code = create(:offer_code, user: seller, code: "all#{seller.id}", amount_percentage: 20, amount_cents: nil, universal: true, products: [])
+      age(code)
+      log_in(seller)
+
+      send_json(:delete, checkout_discount_path(code.external_id))
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(code.reload).to be_deleted
+    end
+
+    it "deletes a code that was already deleted", parity: true do
+      code = discount_for(seller)
+      code.update_columns(deleted_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+      log_in(seller)
+
+      send_json(:delete, checkout_discount_path(code.external_id))
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+
+    it "refuses to delete the default discount of a product", parity: true do
+      product = create(:product, user: seller, price_cents: 1000)
+      code = create(:offer_code, user: seller, code: "default#{seller.id}", amount_percentage: 10, amount_cents: nil, products: [product])
+      product.update_columns(default_offer_code_id: code.id)
+      log_in(seller)
+
+      send_json(:delete, checkout_discount_path(code.external_id))
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error_message"]).to include("default discount")
+      expect(code.reload).not_to be_deleted
+    end
+
+    it "hands the deletion of a universal code with an excluded product to Rails", parity: true do
+      product = create(:product, user: seller, price_cents: 1000)
+      code = create(:offer_code, user: seller, code: "excl#{seller.id}", amount_percentage: 20, amount_cents: nil, universal: true, products: [])
+      code.excluded_products << product
+      log_in(seller)
 
       send_json(:delete, checkout_discount_path(code.external_id))
 
