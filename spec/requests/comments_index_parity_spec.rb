@@ -153,7 +153,7 @@ describe "Post comments index", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands a follower of the seller to Rails", parity: true do
+    it "reads the comments of a post for an active follower of the seller", parity: true do
       follower_post = create(:follower_post, :published, seller:, shown_on_profile: false).tap { _1.update!(allow_comments: true) }
       create(:active_follower, user: seller, email: reader.email)
       sign_in_on_main_domain(reader)

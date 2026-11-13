@@ -2,8 +2,8 @@
 // seller's host, for a signed-out visitor or a signed-in one. PaginatedCommentsPresenter is the one the post page uses.
 //
 // Left to Rails, before anything is read: a request that is not JSON when it is refused (Rails redirects), a purchase (a
-// `purchase_id` that names one, or one the visitor made of the post's product), a signed-in visitor who follows the seller, bought
-// from them or is their affiliate (`User#visible_posts_for` weighs the filters of each post), a post without a seller, a page
+// `purchase_id` that names one, or one the visitor made of the post's product), a signed-in visitor who bought from the seller,
+// an unconfirmed or removed follower or an affiliate that is not a live direct one (`User#visible_posts_for` weighs the filters of each post), a post without a seller, a page
 // params that Ruby cannot `to_i`, and a page past the last (Pagy raises).
 import { Prisma, type Installment, type User } from "@prisma/client";
 
@@ -100,7 +100,7 @@ async function index(input: MutationInput): Promise<ActionResult> {
       if (!(error instanceof NotPortedError)) throw error;
       allowed = commentContextPolicy.index(sellerContext, {
         ...record,
-        postVisible: await visibleToVisitor(sellerContext, post),
+        postVisible: await visibleToVisitor(sellerContext, post, { relations: true }),
       });
     }
   } catch (error) {
