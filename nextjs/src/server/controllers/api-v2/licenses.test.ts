@@ -300,13 +300,21 @@ describe("Api::V2::LicensesController#verify parameters", () => {
     await expect(verify.before!(call({ license_key: "x", product_id: {} }))).rejects.toThrow(HandBackToRails);
   });
 
-  it("hands back a verification that carries a token", () => {
+  it("lets a verification without a token through", async () => {
     const request = new Request("http://example.com/v2/licenses/verify", {
       method: "POST",
-      headers: { authorization: "Bearer t" },
+      headers: { "user-agent": "gumroad-cli/1.2.3" },
     });
 
-    expect(() => verify.preAuth!({ request, params: {} } as never)).toThrow(HandBackToRails);
+    await expect(verify.preAuth!({ request, params: {} } as never)).resolves.toBeUndefined();
+  });
+
+  it("hands back a verification whose token parameter is not text", async () => {
+    const request = new Request("http://example.com/v2/licenses/verify", { method: "POST" });
+
+    await expect(verify.preAuth!({ request, params: { access_token: { a: "b" } } } as never)).rejects.toThrow(
+      HandBackToRails,
+    );
   });
 });
 
