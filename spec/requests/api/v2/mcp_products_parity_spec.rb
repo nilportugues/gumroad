@@ -11,6 +11,7 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
   let(:application) { create(:oauth_application, owner: create(:user)) }
   let(:rpc) { { "Content-Type" => "application/json" } }
   let!(:product) { create(:product, user: seller, name: "Sketch pack", unique_permalink: "sketchpk", description: "Draw <b>more</b>") }
+  let(:other_product) { create(:product, user: seller, name: "Icon set", unique_permalink: "iconset") }
 
   before { host! DOMAIN }
 
@@ -91,7 +92,37 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       call_tool("get_product", { id: "sketchpk" })
     end
 
-    it "hands back a bundle", parity: true do
+    it "reports the category, summary, additional details, tag and receipt texts of a product", parity: true do
+      design = create(:taxonomy, slug: "design")
+      product.update!(taxonomy: create(:taxonomy, slug: "3d-assets", parent_id: design.id))
+      product.json_data = { "custom_summary" => "Sketch every day", "custom_receipt_text" => "Thanks for buying", "custom_view_content_button_text" => "Open the pack",
+                            "custom_attributes" => [{ "name" => "Pages", "value" => "40" }, { "name" => "", "value" => "" }, { "name" => "Format", "value" => "" }] }
+      product.save!
+      product.save_tags!(["field-notes"])
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports a category whose slug the editor has no name for", parity: true do
+      product.update!(taxonomy: create(:taxonomy, slug: "no-editor-name"))
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "hands back a product with several tags", parity: true do
+      product.save_tags!(%w[field-notes sketching])
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports the products a bundle sells in order", parity: true do
+      bundle = create(:product, user: seller, name: "Bundle", unique_permalink: "bundlepk", is_bundle: true, native_type: Link::NATIVE_TYPE_BUNDLE, price_cents: 5000)
+      category = create(:variant_category, link: other_product)
+      license = create(:variant, variant_category: category, name: "Individual License")
+      create(:bundle_product, bundle:, product: other_product, variant: license, quantity: 2, position: 1)
+      create(:bundle_product, bundle:, product:, position: 0)
+      create(:bundle_product, bundle:, product: create(:product, user: seller, name: "Gone"), position: 2).update_columns(deleted_at: Time.utc(2026, 3, 1))
+      call_tool("get_product", { id: "bundlepk" })
+    end
+
+    it "hands back a bundle whose products share a position", parity: true do
       create(:product, :bundle, user: seller, name: "Bundle", unique_permalink: "bundlepk")
       call_tool("get_product", { id: "bundlepk" })
     end

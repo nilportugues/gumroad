@@ -100,9 +100,15 @@ export const TOOLS: readonly ToolDefinition[] = [
   ),
   tool(
     "get_product",
-    "Fetch one product by id or permalink, with its description and covers, and the products a bundle sells. The first cover is the main one.",
+    "Fetch one product by id or permalink, with its category, description, summary, additional details, tags, covers, receipt message and button text, and the products a bundle sells. The first cover is the main one.",
     { id: { type: "string", description: "Product id or permalink." } },
     { required: ["id"], readOnly: true },
+  ),
+  tool(
+    "list_categories",
+    "Every product category, as a slug path joined by / with the name the product editor shows. update_product takes one of these paths as its category; the category decides where the product appears in Discover.",
+    {},
+    { readOnly: true },
   ),
   tool(
     "create_draft_product",
@@ -113,6 +119,21 @@ export const TOOLS: readonly ToolDefinition[] = [
         type: "integer",
         description:
           "Price in minor units (cents for USD). Use 0 for a free product. Required for a digital product; not accepted for a membership, whose prices are set on its tiers.",
+      },
+      currency: {
+        type: "string",
+        description:
+          "Currency to price the product in, spelled as the product editor's list does it, e.g. usd, eur or jpy. Defaults to the creator's own currency. price_cents, and every tier's price_cents, are in this currency.",
+      },
+      pay_what_you_want: {
+        type: "boolean",
+        description:
+          "Whether buyers may pay more than price_cents, which stays the minimum. Not accepted for a membership; set it on each tier.",
+      },
+      suggested_price_cents: {
+        type: "integer",
+        description:
+          "The amount the price box suggests to buyers when pay what you want is on, in minor units. Must be at least price_cents. Needs pay_what_you_want true in the same call.",
       },
       description: { type: "string", description: "HTML or plain-text description." },
       product_type: { type: "string", enum: PRODUCT_TYPES, description: "digital (default) or membership." },
@@ -128,7 +149,16 @@ export const TOOLS: readonly ToolDefinition[] = [
             price_cents: {
               type: "integer",
               description:
-                "Price per billing period in minor units of the creator's currency. 0 makes the tier pay what you want.",
+                "Price per billing period in minor units of the product's currency. 0 makes the tier pay what you want.",
+            },
+            pay_what_you_want: {
+              type: "boolean",
+              description: "Whether buyers may pay more than this tier's price_cents, which stays the minimum.",
+            },
+            suggested_price_cents: {
+              type: "integer",
+              description:
+                "The amount this tier's price box suggests to buyers, in minor units. Must be at least the tier's price_cents. Needs pay_what_you_want true on the same tier.",
             },
             recurrence: { type: "string", enum: RECURRENCES, description: "Billing period." },
           },
@@ -141,14 +171,67 @@ export const TOOLS: readonly ToolDefinition[] = [
   ),
   tool(
     "update_product",
-    "Change the name, description, price, or URL of an existing product. Pass only the fields to change. The new description replaces the old one. Confirm the changes with the creator first.",
+    "Change the name, description, summary, additional details, category, tags, price, currency, pay-what-you-want amount, URL, receipt message, or receipt button text of an existing product. Pass only the fields to change. The new description replaces the old one. Confirm the changes with the creator first.",
     {
       id: PRODUCT_ID,
       name: { type: "string", description: "New product name." },
+      category: {
+        type: "string",
+        description:
+          'Category slug path from the list_categories result, e.g. 3d/3d-assets/blender. "other" means not categorised.',
+      },
       description: { type: "string", description: "New HTML or plain-text description." },
+      summary: {
+        type: "string",
+        description:
+          "New summary: the short plain-text line under the buy button on the product page. Send an empty string to remove it.",
+      },
+      additional_details: {
+        type: "array",
+        description:
+          'The name and value rows the product page shows in the card with the summary, e.g. "Pages: 40", in the order to show them. This replaces the whole list; send an empty array to remove every row.',
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: 'Row label, e.g. "Pages".' },
+            value: { type: "string", description: 'Row value, e.g. "40".' },
+          },
+        },
+      },
+      tags: {
+        type: "array",
+        description:
+          'The tags Discover matches the product to shoppers by, e.g. "field-notes". Up to ten, two to twenty characters each. This replaces the whole list; send an empty array to remove every tag.',
+        items: { type: "string" },
+      },
       price_cents: {
         type: "integer",
         description: "New price in minor units of the product's currency. Not available for memberships with tiers.",
+      },
+      currency: {
+        type: "string",
+        description:
+          "Currency to re-denominate the product in. The current price, and the rental price of a product that has one, carry across at the same number, so pass price_cents too when the amount should change with it. Not available for a membership with tiers or a product sold on several payment options.",
+      },
+      pay_what_you_want: {
+        type: "boolean",
+        description:
+          "Whether buyers may pay more than the price, which stays the minimum. Not available for memberships with tiers, whose tiers carry their own switch; a product priced 0 stays pay what you want.",
+      },
+      suggested_price_cents: {
+        type: "integer",
+        description:
+          "The amount the price box suggests to buyers when pay what you want is on, in minor units of the product's currency. Must be at least the price. Needs pay what you want to be on, from this call or already.",
+      },
+      custom_receipt_text: {
+        type: "string",
+        description:
+          "The message the buyer sees on the receipt, up to 500 characters. Send an empty string to remove it.",
+      },
+      custom_view_content_button_text: {
+        type: "string",
+        description:
+          "The text on the receipt's button that opens the product, up to 26 characters. Send an empty string to remove it.",
       },
       permalink: {
         type: "string",
@@ -175,11 +258,32 @@ export const TOOLS: readonly ToolDefinition[] = [
   ),
   tool(
     "add_file",
-    `Add a file that buyers receive with the product, from a public https URL. Files up to ${ADD_FILE_MAX_MB} MB; larger files, like a long video, must be uploaded in the product editor. Ask the creator for the link if they have not given one.`,
+    `Add a file that buyers receive with the product. Pass a public https url for a file the creator already has; ask for the link if they have not given one. Pass content and a filename only for text the creator is writing with you here (markdown, text, csv, json, ics, srt or vtt), which needs no hosting. Never stand in text you wrote for a file the creator owns. Files up to ${ADD_FILE_MAX_MB} MB from a URL, 2 MB from content; larger files, like a long video, must be uploaded in the product editor.`,
     {
       id: PRODUCT_ID,
-      url: { type: "string", description: "Public https URL of the file." },
-      display_name: { type: "string", description: "Name shown to the buyer. Defaults to the name in the URL." },
+      url: { type: "string", description: "Public https URL of the file. Omit when passing content." },
+      content: {
+        type: "string",
+        description: "The file's full text, written here rather than uploaded. Omit when passing url.",
+      },
+      filename: {
+        type: "string",
+        description: "File name with an extension, used for content, like field-notes.md. Ignored with url.",
+      },
+      display_name: {
+        type: "string",
+        description: "Name shown to the buyer. Defaults to the name in the URL, or the filename.",
+      },
+    },
+    { required: ["id"] },
+  ),
+  tool(
+    "add_content_link",
+    "Add a button with a link to a product's content page, which the buyer opens after purchase. Use it when the product is delivered as a link, like a Notion template's duplication link. Confirm the link and the button text with the creator first.",
+    {
+      id: PRODUCT_ID,
+      url: { type: "string", description: "The link the buyer opens. https is assumed when the value has no scheme." },
+      label: { type: "string", description: "Text on the button. Defaults to the URL." },
     },
     { required: ["id", "url"] },
   ),
@@ -299,6 +403,24 @@ export const TOOLS: readonly ToolDefinition[] = [
     { readOnly: true },
   ),
   tool(
+    "search_products",
+    "Search Gumroad's catalogue, not just the connected creator's own products. These are the same results the discover page shows. Use it when someone wants to see what exists in a topic, compare prices, or find something to learn a skill from. Each URL carries the MCP referrer, so a visit or purchase that starts from this result is distinguishable from the creator's own traffic.",
+    {
+      query: { type: "string", description: 'What to search for, e.g. "learn to draw" or "tax spreadsheet".' },
+      limit: { type: "integer", description: "Max products to return (1-25, default 10)." },
+    },
+    { required: ["query"], readOnly: true },
+  ),
+  tool(
+    "list_purchases",
+    'The products the connected creator bought, newest first, so an assistant can answer "what did I buy?" and open it. Each purchase links to the creator\'s library. When next_cursor is returned, pass it as cursor for the next page.',
+    {
+      limit: { type: "integer", description: "Max purchases to return (1-50, default 25)." },
+      cursor: { type: "string", description: "next_cursor from the previous page." },
+    },
+    { readOnly: true },
+  ),
+  tool(
     "create_bundle",
     "Create a draft bundle: one product that sells several of the creator's own products together at the bundle's own price. It is not for sale until publish_product runs. Confirm the products and the price with the creator first.",
     {
@@ -387,13 +509,15 @@ export function toolArgumentError(schema: ToolDefinition["inputSchema"], args: R
     if (!Object.hasOwn(schema.properties, key)) return `Unknown argument: ${key}`;
     const property = schema.properties[key]!;
     const type = property.type ?? "string";
-    // { "integer" => Integer, "array" => Array }.fetch(type, String)
+    // { "integer" => [Integer], "array" => [Array], "boolean" => [TrueClass, FalseClass] }.fetch(type, [String])
     const matches =
       type === "integer"
         ? Number.isInteger(value)
         : type === "array"
           ? Array.isArray(value)
-          : typeof value === "string";
+          : type === "boolean"
+            ? typeof value === "boolean"
+            : typeof value === "string";
     if (!matches) return `${key} must be ${type === "array" ? "an" : "a"} ${type}`;
     if (property.enum && !property.enum.includes(value as string))
       return `${key} must be one of: ${property.enum.join(", ")}`;
