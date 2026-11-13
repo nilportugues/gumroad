@@ -7,6 +7,7 @@ import type { Callback } from "../runtime/define-model.ts";
 import type { ModelRecord, Row } from "../runtime/record.ts";
 import { isBlank } from "../runtime/validators.ts";
 import { column, table } from "../sql.ts";
+
 import { RubyHash, type YamlValue } from "./psych.ts";
 import { isRubyFloat } from "./ruby-values.ts";
 import { rubyJsonGenerate, rubyJsonParse } from "./serialized-columns.ts";
@@ -28,7 +29,8 @@ const JSON_DATA = Symbol("json_data");
 
 export function toHash(value: YamlValue): RubyHash | null {
   if (value instanceof RubyHash) return value;
-  if (value !== null && typeof value === "object" && !Array.isArray(value) && !isRubyFloat(value)) return new RubyHash(Object.entries(value));
+  if (value !== null && typeof value === "object" && !Array.isArray(value) && !isRubyFloat(value))
+    return new RubyHash(Object.entries(value));
   return null;
 }
 
@@ -57,7 +59,11 @@ export function jsonData<R extends JsonDataRow>(record: ModelRecord<R>): RubyHas
 }
 
 // json_data_for_attr: the stored value when present, else the default.
-export function jsonDataForAttr<R extends JsonDataRow>(record: ModelRecord<R>, key: string, fallback: YamlValue = null): YamlValue {
+export function jsonDataForAttr<R extends JsonDataRow>(
+  record: ModelRecord<R>,
+  key: string,
+  fallback: YamlValue = null,
+): YamlValue {
   const value = jsonGet(jsonData(record), key);
   return value === undefined || isBlank(value) ? fallback : value;
 }
@@ -101,7 +107,8 @@ export function mergeJsonDataWithCurrentRow<R extends JsonDataRow>(
       for (const key of keys) {
         const b = jsonGet(base, key);
         const m = jsonGet(mine, key);
-        if ((b === undefined) === (m === undefined) && (b === undefined || dumpJsonData(b) === dumpJsonData(m!))) continue;
+        if ((b === undefined) === (m === undefined) && (b === undefined || dumpJsonData(b) === dumpJsonData(m!)))
+          continue;
         const index = merged.entries.findIndex(([k]) => k === key);
         if (m !== undefined) {
           if (index === -1) merged.entries.push([key, m]);
