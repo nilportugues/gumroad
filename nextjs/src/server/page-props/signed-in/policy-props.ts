@@ -9,7 +9,7 @@ import { hasAccessibleCommunities, hasCompletedPayment, madeSaleWithConnectOrPay
 const anyRole = (c: AuthorizedSellerContext) => roleAccountantFor(c) || roleAdminFor(c) || roleMarketingFor(c) || roleSupportFor(c);
 const adminOrMarketing = (c: AuthorizedSellerContext) => roleAdminFor(c) || roleMarketingFor(c);
 
-// User#eligible_for_store_agent?: cheapest checks first, so an unpaid seller never reaches Elasticsearch.
+// User#eligible_for_store_agent?, still read by PiracyReports::Eligibility: cheapest checks first, so an unpaid seller never reaches Elasticsearch.
 export async function eligibleForStoreAgent(seller: AuthorizedSellerContext["user"], isDevelopment: boolean): Promise<boolean> {
   if (isDevelopment) return true;
   const suspended = (RISK_STATES.SUSPENDED as readonly (string | null)[]).includes(seller.user_risk_state);
@@ -19,11 +19,9 @@ export async function eligibleForStoreAgent(seller: AuthorizedSellerContext["use
   return (await salesCentsTotal(seller.id)) >= MIN_SALES_CENTS_VALUE_FOR_STORE_AGENT;
 }
 
-export async function policiesProps(context: SellerContext, isDevelopment: boolean): Promise<Record<string, Record<string, boolean>>> {
+export async function policiesProps(context: SellerContext): Promise<Record<string, Record<string, boolean>>> {
   const c = requireUser(context);
-  const seller = c.seller!;
 
-  const viewStoreAgent = c.user.id === seller.id || roleAdminFor(c) || roleMarketingFor(c);
   return {
     affiliate_requests_onboarding_form: { update: adminOrMarketing(c) },
     direct_affiliate: { create: adminOrMarketing(c), update: adminOrMarketing(c) },
@@ -44,7 +42,6 @@ export async function policiesProps(context: SellerContext, isDevelopment: boole
     community: { index: await hasAccessibleCommunities(c.user) },
     churn: { show: roleAdminFor(c) || roleMarketingFor(c) || roleSupportFor(c) || roleAccountantFor(c) },
     page: { index: anyRole(c), create: adminOrMarketing(c) },
-    user: { view_store_agent: viewStoreAgent, use_store_agent: viewStoreAgent && (await eligibleForStoreAgent(seller, isDevelopment)) },
   };
 }
 

@@ -143,12 +143,36 @@ describe("resolveCreation", () => {
 
   it.each([
     ["a commission below the range", { percent: 0 }, /outside the allowed range/u],
-    ["a commission above the range", { percent: 51 }, /outside the allowed range/u],
     ["no commission for all products", { percent: null }, /without a commission/u],
   ])("hands back %s", async (_name, change, reason) => {
     reads();
     expect(await resolveCreation(SELLER, { ...requested, ...change })).toEqual({
       blocked: expect.stringMatching(reason),
+    });
+  });
+
+  it("refuses a commission above the range with the errors of the collaborator and its one product", async () => {
+    reads();
+    expect(await resolveCreation(SELLER, { ...requested, percent: 51 })).toEqual({
+      message: "Product affiliates affiliate basis points must be less than or equal to 5000",
+      errors: {
+        "collaborator.product_affiliates.affiliate_basis_points": "must be less than or equal to 5000",
+        "collaborator.affiliate_basis_points": "must be less than or equal to 5000",
+        "collaborator.base": "Product affiliates affiliate basis points must be less than or equal to 5000",
+      },
+    });
+  });
+
+  it("hands back a commission above the range for several products", async () => {
+    mocks.selectRows
+      .mockResolvedValueOnce([user])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 11 }])
+      .mockResolvedValueOnce([{ id: 12 }]);
+    const products = [requested.products[0]!, { ...requested.products[0]!, externalId: "12" }];
+    expect(await resolveCreation(SELLER, { ...requested, percent: 51, products })).toEqual({
+      blocked: expect.stringMatching(/outside the allowed range/u),
     });
   });
 

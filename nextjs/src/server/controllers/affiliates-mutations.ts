@@ -15,7 +15,7 @@
 import { Prisma } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
-import { decrypt, decryptNumeric } from "../../lib/obfuscate-ids.ts";
+import { decrypt, decryptNumeric, encrypt } from "../../lib/obfuscate-ids.ts";
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 import { isBlank } from "../models/compliance-countries.ts";
@@ -216,8 +216,8 @@ async function update(input: MutationInput): Promise<ActionResult> {
     authorize(directAffiliatePolicy.update, context);
   });
   if (redirect !== null) return redirect;
-  // edit_affiliate_path(@affiliate): Affiliate has no #to_param, so the path carries the database id.
-  return refuseOrHandBack(input, `/affiliates/${holder.id}/edit`, holder.id);
+  // `edit_affiliate_path(@affiliate.external_id)`
+  return refuseOrHandBack(input, `/affiliates/${encrypt(holder.id!)}/edit`, holder.id);
 }
 
 const AFFILIATE_MAILER = "AffiliateMailer";

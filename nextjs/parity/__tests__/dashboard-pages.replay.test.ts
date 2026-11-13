@@ -34,7 +34,7 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 // Day-by-day series and "Today" labels move with the request's day, so the replay and the server both run on the day the
 // fixtures were recorded, at the hour of the recording (late enough that the seeded "hours ago" sales fall on the same days).
-const PARITY_NOW = Date.parse("2026-11-09T23:00:00Z");
+const PARITY_NOW = Date.parse("2026-11-13T12:00:00Z");
 // The server's clock is the real clock plus a fixed offset. The worker's fake Date is re-anchored to that same formula before every
 // example: `shouldAdvanceTime` ticks 20ms per timer fire however late the fire is, so on a loaded host it falls behind the server.
 // performance is not faked, so it reads the real clock.

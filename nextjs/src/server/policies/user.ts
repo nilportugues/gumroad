@@ -1,4 +1,4 @@
-// app/policies/user_policy.rb: the queries the settings and agent pages read.
+// app/policies/user_policy.rb: the queries the settings pages read.
 import { UserFlags } from "../models/user.ts";
 import { requireUser, roleAdminFor, roleMarketingFor, roleOwnerFor, type SellerContext } from "./seller-context.ts";
 
@@ -11,9 +11,4 @@ export const userPolicy = {
     return UserFlags.isSet(c.user.flags, "is_team_member") || c.user.id === c.seller?.id || roleAdminFor(c) || roleMarketingFor(c);
   },
   deactivate: (context: SellerContext) => roleOwnerFor(requireUser(context)),
-  // The role may open the Agent tab; the earned-access bar is a separate check (use_store_agent?).
-  viewStoreAgent: (context: SellerContext) => {
-    const c = requireUser(context);
-    return c.user.id === c.seller?.id || roleAdminFor(c) || roleMarketingFor(c);
-  },
 };

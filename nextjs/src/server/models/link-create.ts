@@ -879,6 +879,8 @@ export async function createBundleFromEmail(
   link.ivars.tiered = false;
   link.ivars.priceCopies = 1;
   link.ivars.untieredFirstSave = false;
+  // A free bundle becomes pay-what-you-want in set_customizable_price after the save.
+  link.ivars.priceFromCents = true;
   link.ivars.bundleMembers = members ?? [];
   link.ivars.dailyCreationLimit = seller.isTeamMember
     ? null

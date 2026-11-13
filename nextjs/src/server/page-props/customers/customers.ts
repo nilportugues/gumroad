@@ -498,10 +498,7 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
   const purchaseIds = purchases.map((purchase) => purchase.id);
 
   const links = byId(await rowsBy("links", "id", [...new Set(purchases.map((purchase) => purchase.link_id))]));
-  for (const purchase of purchases) {
-    assertRefundableReadable(purchase);
-    if (PurchaseFlags.isSet(purchase.flags, "is_installment_payment")) throw new HandBackToRails();
-  }
+  for (const purchase of purchases) assertRefundableReadable(purchase);
   const commissions = await commissionReadings(purchases);
 
   const affiliates = byId(
