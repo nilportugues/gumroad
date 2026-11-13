@@ -309,7 +309,6 @@ function rubyLines(file: string): number {
 }
 
 const n = (value: number) => value.toLocaleString("en-US");
-const pct = (part: number, whole: number) => (whole === 0 ? "n/a" : `${((part / whole) * 100).toFixed(1)}%`);
 
 function build(): string {
   const all = rows(parseRoutes());

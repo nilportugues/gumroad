@@ -113,6 +113,7 @@ export const defaultPostEmailDeps = (): PostEmailDeps => ({
   redis: () => getRedis("main"),
   deliver: () => process.env.ACTION_MAILER_SKIP_DELIVERIES !== "1" && railsEnv() !== "test",
   sleep: (seconds) => new Promise((resolve) => setTimeout(resolve, seconds * 1000)),
+  // eslint-disable-next-line no-console -- default sink for the delivery log
   log: (message) => console.info(message),
 });
 
@@ -745,7 +746,6 @@ async function processResend(args: ProcessArgs, deps: PostEmailDeps): Promise<vo
 // ----- PostEmailApi.process
 
 async function providerFor(
-  post: InstallmentPost,
   email: string,
   sellerActor: FlipperActor | null,
   deps: PostEmailDeps,
@@ -774,7 +774,7 @@ export async function processPostEmail(args: ProcessArgs, deps: PostEmailDeps): 
 
   const byProvider = new Map<EmailProvider, Recipient[]>();
   for (const recipient of recipients) {
-    const provider = await providerFor(post, recipient.email, actor, deps);
+    const provider = await providerFor(recipient.email, actor, deps);
     byProvider.set(provider, [...(byProvider.get(provider) ?? []), recipient]);
   }
   const resend = byProvider.get(EMAIL_PROVIDER_RESEND) ?? [];

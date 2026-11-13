@@ -181,14 +181,14 @@ describe.skipIf(!url)("PurchasesController guards", () => {
 
   it.each(cases)(
     "%s",
-    async (_name, file, index) => {
+    async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        const { file: _file, ...options } = replayOptions(file, _name);
-        if (/hands-(a|the)-/u.test(_name)) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        if (/hands-(a|the)-/u.test(name)) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);
