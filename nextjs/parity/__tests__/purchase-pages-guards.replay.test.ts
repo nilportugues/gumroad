@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -93,7 +93,18 @@ describe.skipIf(!url)("Purchase pages guards", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    // The invoice fixtures seed the purchase as "<now-15543h>", so its printed date is right only on the recording day; PARITY_PIN_NOW
+    // (inside 2026-11-12T15:00Z..2026-11-13T15:00Z) moves both the seeding and the server clock there.
+    const pinMs = process.env.PARITY_PIN_NOW
+      ? Date.parse(process.env.PARITY_PIN_NOW) - (performance.timeOrigin + performance.now())
+      : 0;
     server = await startNextServer({
+      ...(process.env.PARITY_PIN_NOW
+        ? {
+            NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+            PARITY_CLOCK_OFFSET_MS: String(Math.round(pinMs)),
+          }
+        : {}),
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
@@ -111,6 +122,8 @@ describe.skipIf(!url)("Purchase pages guards", () => {
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
+    if (process.env.PARITY_PIN_NOW)
+      vi.useFakeTimers({ now: Date.parse(process.env.PARITY_PIN_NOW), toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
   const replayOptions = (file: string) => {

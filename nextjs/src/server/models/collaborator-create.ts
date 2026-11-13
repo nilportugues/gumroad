@@ -2,7 +2,8 @@
 // app/models/collaborator.rb, product_affiliate.rb): the products' row locks, the collaborator, its product assignments (each marks
 // its product as a collab), the invitation when the invited seller has not accepted the inviter as theirs, then the mail.
 //
-// Not ported, and refused before the first write by `creationBlocker`: a commission outside 1%..50%, a Brazilian Stripe Connect account
+// Not ported, and refused before the first write by `creationBlocker`: a commission below 1% or, but for one product under an all-products
+// collaboration, above 50%, a Brazilian Stripe Connect account
 // on either side, a product that already has a collaborator, a direct or self-service affiliate (the callback disables or destroys
 // them), a deleted product, the same product twice, and a product whose own save would fail.
 import { Prisma, type Affiliate, type CollaboratorInvitation, type Link, type ProductAffiliate } from "@prisma/client";
@@ -49,7 +50,8 @@ const ProductAffiliates = defineModel<ProductAffiliate>({
   delegate: (tx) => tx.productAffiliate as never,
 });
 
-export type Refusal = { message: string } | { blocked: string };
+// `errors` is the inertia error hash when the refusal carries more than the base message.
+export type Refusal = { message: string; errors?: Record<string, string> } | { blocked: string };
 export type Resolved = {
   sellerId: number;
   affiliateUserId: number;
@@ -121,24 +123,52 @@ export async function resolveCreation(
     dontShow: requested.dontShow,
     products,
   };
-  const blocked = await creationBlocker(resolved, user);
+  const overLimit = isOverLimit(resolved);
+  const blocked = await creationBlocker(resolved, user, overLimit);
   if (blocked !== null) return { blocked };
   // Everything else holds, so the one validation left is the invited seller's own setting.
-  if ((BigInt(user.flags as bigint | number) & REQUIRE_COLLAB_REQUEST_APPROVAL_BIT) !== 0n)
-    return { message: APPROVAL_REQUIRED };
+  const requiresApproval = (BigInt(user.flags as bigint | number) & REQUIRE_COLLAB_REQUEST_APPROVAL_BIT) !== 0n;
+  if (overLimit) {
+    // A second failing validation would change which message comes first and the error hash.
+    if (requiresApproval)
+      return { blocked: "a commission above the maximum from a user who reviews collaboration requests" };
+    return OVER_LIMIT_REFUSAL;
+  }
+  if (requiresApproval) return { message: APPROVAL_REQUIRED };
   return resolved;
 }
+
+// One product under an all-products collaboration, both carrying a commission above the maximum: the collaborator and its product
+// assignment fail the same numericality validation, and the assignment's error comes first.
+const OVER_LIMIT_MESSAGE = `must be less than or equal to ${MAX_PERCENT * 100}`;
+const OVER_LIMIT_BASE = `Product affiliates affiliate basis points ${OVER_LIMIT_MESSAGE}`;
+const OVER_LIMIT_REFUSAL: Refusal = {
+  message: OVER_LIMIT_BASE,
+  errors: {
+    "collaborator.product_affiliates.affiliate_basis_points": OVER_LIMIT_MESSAGE,
+    "collaborator.affiliate_basis_points": OVER_LIMIT_MESSAGE,
+    "collaborator.base": OVER_LIMIT_BASE,
+  },
+};
+const isOverLimit = (resolved: Resolved) =>
+  resolved.applyToAllProducts &&
+  resolved.products.length === 1 &&
+  resolved.basisPoints !== null &&
+  resolved.basisPoints > MAX_PERCENT * 100 &&
+  resolved.products[0]!.basisPoints === resolved.basisPoints;
 
 const inRange = (basisPoints: number) => basisPoints >= MIN_PERCENT * 100 && basisPoints <= MAX_PERCENT * 100;
 
 // Why the creation cannot be answered here, or null. Reads only: nothing has been written.
-async function creationBlocker(resolved: Resolved, user: Row): Promise<string | null> {
-  if (resolved.basisPoints !== null && !inRange(resolved.basisPoints))
-    return "a commission outside the allowed range, which fails validation";
-  if (resolved.applyToAllProducts && resolved.basisPoints === null)
-    return "an all-products collaboration without a commission, which fails validation";
-  if (resolved.products.some((product) => !inRange(product.basisPoints)))
-    return "a product commission outside the allowed range, which fails validation";
+async function creationBlocker(resolved: Resolved, user: Row, overLimit: boolean): Promise<string | null> {
+  if (!overLimit) {
+    if (resolved.basisPoints !== null && !inRange(resolved.basisPoints))
+      return "a commission outside the allowed range, which fails validation";
+    if (resolved.applyToAllProducts && resolved.basisPoints === null)
+      return "an all-products collaboration without a commission, which fails validation";
+    if (resolved.products.some((product) => !inRange(product.basisPoints)))
+      return "a product commission outside the allowed range, which fails validation";
+  }
   const linkIds = resolved.products.map((product) => product.linkId);
   if (new Set(linkIds).size !== linkIds.length) return "the same product twice";
 
