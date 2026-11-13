@@ -57,6 +57,11 @@ from `nextjs/`, with `PARITY_DATABASE_URL` set. Replay file shorthand: `R = npx 
 | WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 0 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
 | WS-17m | `api/mobile/mobile_sales_actions_parity_spec.rb` (whole file) | 0 | `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
 | WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 0 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
+
+| WS-17f | `api/mobile/mobile_api_parity_spec.rb` :300-:334 (stream/hls_playlist/download refusals) | 5 of 37 | `nextjs_mobile_url_redirect_delivery` | `R mobile-api.replay.test.ts` |
+| WS-17h | `api/mobile/mobile_purchases_sales_parity_spec.rb` (whole file) | 77 of 77 | `nextjs_mobile_purchases`, `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
+| WS-17m | `api/mobile/mobile_sales_actions_parity_spec.rb` (whole file) | 35 of 35 | `nextjs_mobile_sales` | `R mobile-api.replay.test.ts` |
+| WS-17k | `api/mobile/mobile_products_subscriptions_parity_spec.rb` (whole file) | 19 of 19 | `nextjs_mobile_products`, `_subscriptions`, `_preorders`, `_installments` | `R mobile-api.replay.test.ts` |
 | WS-23b | `payouts_signed_in_spec.rb` :251-:283 (chargeback-rate reserve) | 4 of 28 | `nextjs_payouts` | `R checkout-payouts.replay.test.ts` |
 
 Total: 119. Exact example names: `node scripts/parity-debt.ts`.
@@ -1184,3 +1189,4 @@ WS-17 mobile sales show, second pass (`nextjs/ws17-api-2`, stacked on `nextjs/ws
 - Bug fixed at base: `purchase-json.ts` read `purchase.direct_affiliate_id` as a column, but it lives in `json_data` (`attr_json_data_accessor`), so the "collaborator sale with a direct affiliate" hand-back never fired in `GET /v2/sales/:id`. `models/json-direct-affiliate.ts` reads it from `json_data`; recorded as `hands back a sale with a collaborator and a direct affiliate` in the v2 and mobile specs.
 - Still handed back, before any write: mobile sales show of an upsell, PPP, bundle, several variants, subscription or non-USD sale, any seller with a post, a default SKU, a SKU of a product with two alive categories, a second shipment row, a tracking link outside plain http(s), a collaborator with a direct affiliate; all the items of the first pass not listed above (mobile file list's variants, rich content and stamped PDFs; v2 transaction URL for Braintree and other processors; a cached offer-code discount; a cents offer code on a non-USD product; two variants of one category in v2; a default SKU or a SKU mixed with variants in v2; v2 `files` on product update).
 
+WS-17 mobile sales show (`nextjs/ws17-mobile-2`, lane c17n: `gumroad_test_c17n`/`gumroad_replay_c17n`, Redis 60 recording and 61 replay, container `gr-ruby-c17n`, `PARITY_ES_INDEX_SUFFIX=-c17n`/`-c17nr`; no external service). `GET /mobile/sales/:id` serves a plain sale (see workstreams.md); the spec file was re-recorded whole and only the new and renamed fixtures kept. Purchases index/search with rows were already served. Still handed back: the sale variants listed in workstreams.md.
