@@ -211,12 +211,53 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(response.parsed_body).to eq("success" => false, "message" => "Could not find review")
     end
 
-    it "hands a reply to a review to Rails", parity: true do
+    it "creates the first reply to a review and mails the reviewer", parity: true, parity_mail_jobs: true do
       create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
 
       put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller).merge(message: "Thanks")
 
       expect(response.parsed_body).to eq("success" => true)
+      expect(ProductReviewResponse.sole).to have_attributes(message: "Thanks", user_id: seller.id)
+    end
+
+    it "replaces an earlier reply without mailing the reviewer again", parity: true, parity_mail_jobs: true do
+      review = create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
+      ProductReviewResponse.create!(product_review: review, user: seller, message: "First")
+
+      put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller).merge(message: "Second")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(ProductReviewResponse.sole.message).to eq("Second")
+    end
+
+    it "refuses a reply with no message", parity: true, parity_mail_jobs: true do
+      create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
+
+      put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Message can't be blank")
+      expect(ProductReviewResponse.count).to eq(0)
+    end
+
+    it "refuses a blank message on top of an earlier reply and keeps the reply", parity: true, parity_mail_jobs: true do
+      review = create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
+      ProductReviewResponse.create!(product_review: review, user: seller, message: "First")
+
+      put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller).merge(message: "")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(ProductReviewResponse.sole.message).to eq("First")
+    end
+
+    it "hands a reply to the review of a gift sender's sale to Rails", parity: true do
+      create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
+      sale.update_attribute(:is_gift_sender_purchase, true)
+      create(:gift, link: product, gifter_purchase: sale)
+
+      put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller).merge(message: "Thanks")
+
+      expect(response).to have_http_status(:not_found)
     end
   end
 
@@ -273,7 +314,38 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(response.status).to be >= 200
     end
 
-    it "hands a ping to Rails", parity: true do
+    it "enqueues the ping of a sale", parity: true do
+      post "/mobile/sales/#{sale.external_id}/resend_ping", params: auth(seller)
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(PostToPingEndpointsWorker.jobs.map { _1["args"] }).to eq([[sale.id, nil]])
+    end
+
+    it "enqueues the ping of the giftee's purchase for a gift's sender", parity: true do
+      sale.update_attribute(:is_gift_sender_purchase, true)
+      giftee_sale = purchase_row(link: product, seller:, email: "giftee@example.com", purchase_state: "gift_receiver_purchase_successful")
+      giftee_sale.update_attribute(:is_gift_receiver_purchase, true)
+      create(:gift, link: product, gifter_purchase: sale, giftee_purchase: giftee_sale)
+
+      post "/mobile/sales/#{sale.external_id}/resend_ping", params: auth(seller)
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(PostToPingEndpointsWorker.jobs.map { _1["args"] }).to eq([[giftee_sale.id, nil]])
+    end
+
+    it "enqueues nothing for a gift whose giftee has not purchased", parity: true do
+      sale.update_attribute(:is_gift_sender_purchase, true)
+      create(:gift, link: product, gifter_purchase: sale)
+
+      post "/mobile/sales/#{sale.external_id}/resend_ping", params: auth(seller)
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(PostToPingEndpointsWorker.jobs.size).to eq(0)
+    end
+
+    it "hands a ping of a sale with URL parameters to Rails", parity: true do
+      PurchaseUrlParameter.create!(purchase: sale, params: { "discord_id" => "42" })
+
       post "/mobile/sales/#{sale.external_id}/resend_ping", params: auth(seller)
 
       expect(response.parsed_body).to eq("success" => true)

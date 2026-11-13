@@ -396,7 +396,12 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
             method: request.method,
             url: request.query ? `${request.path}?${request.query}` : request.path,
           });
-          expect(JSON.parse(handedBack[0]!.body || "{}")).toEqual(JSON.parse(request.body || "{}"));
+          // A form post (the embed form's HTML answer) is forwarded byte for byte; a JSON body is compared parsed.
+          if (request.headers["content-type"]?.startsWith("application/x-www-form-urlencoded")) {
+            expect(handedBack[0]!.body).toBe(request.body ?? "");
+          } else {
+            expect(JSON.parse(handedBack[0]!.body || "{}")).toEqual(JSON.parse(request.body || "{}"));
+          }
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
