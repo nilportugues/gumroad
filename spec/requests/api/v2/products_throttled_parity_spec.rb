@@ -734,10 +734,36 @@ describe "API v2 throttled routes", type: :request do
           expect(response.parsed_body["success"]).to be true
         end
 
-        it "hands a suggested price with cents back to Rails", parity: true do
-          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: "8.5" })
+        it "truncates a suggested price given with cents", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: "850.5" })
 
-          expect(response).to have_http_status(:ok)
+          expect(draft.reload.suggested_price_cents).to eq(850)
+        end
+
+        it "truncates a suggested price given as a float", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: 999.9 })
+
+          expect(draft.reload.suggested_price_cents).to eq(999)
+        end
+
+        it "reads a suggested price of text without digits as zero and refuses it", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: "abc" })
+
+          expect(message).to eq("The suggested price you entered was too low.")
+        end
+
+        it "reads the digits at the start of a suggested price with underscores", parity: true do
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: " 1_000__5x" })
+
+          expect(draft.reload.suggested_price_cents).to eq(1000)
+        end
+
+        it "clears a suggested price given as blank text", parity: true do
+          draft.update!(customizable_price: true, suggested_price_cents: 5000)
+
+          call(:put, draft_path, params: { customizable_price: true, suggested_price_cents: "  " })
+
+          expect(draft.reload.suggested_price_cents).to be_nil
         end
 
         it "hands a suggested price past the integer range back to Rails", parity: true do
@@ -812,8 +838,26 @@ describe "API v2 throttled routes", type: :request do
           expect(draft.reload.max_purchase_count).to be_nil
         end
 
-        it "hands a limit with a fraction back to Rails", parity: true do
+        it "truncates a limit given with a fraction", parity: true do
           call(:put, draft_path, params: { max_purchase_count: "2.5" })
+
+          expect(draft.reload.max_purchase_count).to eq(2)
+        end
+
+        it "truncates a limit given as a float", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: 7.9 })
+
+          expect(draft.reload.max_purchase_count).to eq(7)
+        end
+
+        it "reads a limit of text without digits as zero", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: "abc" })
+
+          expect(draft.reload.max_purchase_count).to eq(0)
+        end
+
+        it "hands a limit given as a boolean back to Rails", parity: true do
+          call(:put, draft_path, params: { max_purchase_count: true })
 
           expect(response).to have_http_status(:ok)
         end
