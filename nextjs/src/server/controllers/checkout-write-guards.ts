@@ -1,9 +1,9 @@
 // The guards of the writes behind the checkout dashboard and the Customers page: Checkout::DiscountsController#create, #update and
 // #destroy, Checkout::UpsellsController#create and #update, Purchases::PingsController#create and Purchases::VariantsController#update.
 //
-// Ported: the 404 of an unknown record and the Pundit refusals (answered as JSON), and the deletion of a plain offer code. Handed to
-// Rails whole, before any write: whatever else passes the guards. The writes run OfferCode and SaveUpsellService validations and
-// callbacks, send the ping webhook, or move a purchase to another option.
+// Ported: the 404 of an unknown record and the Pundit refusals (answered as JSON), and the creation, update and deletion of a plain
+// offer code. Handed to Rails whole, before any write: whatever else passes the guards. The writes run SaveUpsellService validations and
+// callbacks, send the ping webhook, move a purchase to another option, or save a code outside the plain shape.
 import { Prisma, type OfferCode } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
@@ -13,23 +13,29 @@ import { audiencePurchasePolicy } from "../policies/audience-purchase.ts";
 import { authorize } from "../policies/authorize.ts";
 import { checkoutOfferCodePolicy } from "../policies/checkout-offer-code.ts";
 import { checkoutUpsellPolicy } from "../policies/checkout-upsell.ts";
+import type { SellerContext } from "../policies/seller-context.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { createDiscount, updateDiscount } from "./checkout-discounts-write.ts";
 import { findUpsell } from "./checkout-upsells.ts";
 import { sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson, json, notFoundJson, UNPROCESSABLE_ENTITY } from "./seller-json.ts";
 
 // POST /checkout/discounts, POST /checkout/upsells
-function create(policy: typeof checkoutOfferCodePolicy.create, reason: string) {
+function create(policy: typeof checkoutOfferCodePolicy.create, reason: string, write?: typeof createDiscount) {
   return (input: MutationInput): Promise<ActionResult> =>
-    sellerJsonAction(input, policy, () => {
+    sellerJsonAction(input, policy, (context) => {
+      if (write) return write(input, context);
       throw new HandBackToRails(reason);
     });
 }
 
 // `OfferCode.find_by_external_id!(params[:id])`: any seller's code, deleted ones included; the policy compares the owner.
-function changeOfferCode(reason: string, write?: (input: MutationInput, row: OfferCode) => Promise<ActionResult>) {
+function changeOfferCode(
+  reason: string,
+  write?: (input: MutationInput, row: OfferCode, context: SellerContext) => Promise<ActionResult>,
+) {
   return (input: MutationInput): Promise<ActionResult> =>
     sellerJsonAction(
       input,
@@ -46,7 +52,7 @@ function changeOfferCode(reason: string, write?: (input: MutationInput, row: Off
         const row = castRow<OfferCode>("OfferCode", found);
         const denied = await authorizeJson(input, () => authorize(checkoutOfferCodePolicy.update, context, row));
         if (denied) return denied;
-        if (write) return write(input, row);
+        if (write) return write(input, row, context);
         throw new HandBackToRails(reason);
       },
     );
@@ -102,18 +108,15 @@ function changePurchase(reason: string) {
     );
 }
 
-const DISCOUNT_WRITE =
-  "an offer code runs its validations against live product defaults and reindexes through a Redis script";
-
 registerMutations(
   {
     method: "POST",
     pattern: "/checkout/discounts",
     json: true,
-    run: create(checkoutOfferCodePolicy.create, DISCOUNT_WRITE),
+    run: create(checkoutOfferCodePolicy.create, "", createDiscount),
   },
-  { method: "PATCH", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode(DISCOUNT_WRITE) },
-  { method: "PUT", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode(DISCOUNT_WRITE) },
+  { method: "PATCH", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode("", updateDiscount) },
+  { method: "PUT", pattern: "/checkout/discounts/:id", json: true, run: changeOfferCode("", updateDiscount) },
   {
     method: "DELETE",
     pattern: "/checkout/discounts/:id",
