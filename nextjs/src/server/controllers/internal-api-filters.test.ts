@@ -13,9 +13,12 @@ describe("plainJson", () => {
     });
   });
 
-  it.each(["1.0", "1e2", "0.00001", "1e15", "1.5e300", "-0.0"])("hands back %s, which Ruby would print differently", (n) => {
-    expect(() => plainJson(`{"n":${n}}`)).toThrow(/plain fraction/u);
-  });
+  it.each(["1.0", "1e2", "0.00001", "1e15", "1.5e300", "-0.0"])(
+    "hands back %s, which Ruby would print differently",
+    (n) => {
+      expect(() => plainJson(`{"n":${n}}`)).toThrow(/plain fraction/u);
+    },
+  );
 
   it("hands back an integer beyond 2^53", () => {
     expect(() => plainJson('{"n":9007199254740993}')).toThrow(/2\^53/u);

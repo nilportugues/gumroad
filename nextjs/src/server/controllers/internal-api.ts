@@ -178,7 +178,12 @@ export function plainJson(text: string): JsonValue {
         return value;
       }
       const magnitude = Math.abs(value);
-      if (!Number.isFinite(value) || Number.isInteger(value) || magnitude < MIN_PLAIN_FLOAT || magnitude >= MAX_PLAIN_FLOAT)
+      if (
+        !Number.isFinite(value) ||
+        Number.isInteger(value) ||
+        magnitude < MIN_PLAIN_FLOAT ||
+        magnitude >= MAX_PLAIN_FLOAT
+      )
         throw new HandBackToRails("a webhook number that is not an integer or a plain fraction");
       return value;
     }) as Parameters<typeof JSON.parse>[1]);
