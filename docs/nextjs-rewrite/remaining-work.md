@@ -11,7 +11,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 952 | 1008 | 94.4% |
 | Routes weighted by difficulty (counted routes, estimated weights) | 1798 | 1915 | 93.9% |
 | Same, registered in routes.json (upper bound) | 1798 | 1915 | 93.9% |
-| Rails Inertia pages with Node props (counted, string match) | 111 | 115 | 96.5% |
+| Rails Inertia pages with Node props (counted, string match) | 112 | 115 | 97.4% |
 | Sidekiq job classes running in Node (counted) | 0 | 0 | n/a |
 
 ## Method
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 182,010 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 182,067 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 329 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
@@ -369,7 +369,6 @@ None.
 ## Rails Inertia pages without Node props
 
 - `Checkout/Returns/Pending`
-- `Followers/FromEmbedForm`
 - `ProductBuildDemos/Show`
 - `Purchases/RefundRequest/Show`
 
@@ -403,7 +402,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 
 ## Frontend and pages
 
-- Inertia pages Rails renders: 115. With Node props: 111 (96.5%), counted by name; the 4 under "Rails Inertia pages without Node props" are the unported ones.
+- Inertia pages Rails renders: 115. With Node props: 112 (97.4%), counted by name; the 3 under "Rails Inertia pages without Node props" are the unported ones.
 - The React page components are not rewritten: they are reused unchanged from `app/javascript` through the Inertia compatibility layer, so there is no per-component port to count until WS-41. Porting a page means its props, route and guards, which is what the page count measures.
 
 ## Non-code items (unweighted, not in any percentage)
