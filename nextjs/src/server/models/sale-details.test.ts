@@ -106,7 +106,7 @@ describe("shipmentDetails", () => {
 
 describe("affiliateDetails", () => {
   const referred = (overrides: Partial<Purchase> = {}) =>
-    sale({ affiliate_id: 9, affiliate_credit_cents: 150, ...overrides });
+    sale({ affiliate_id: 9n, affiliate_credit_cents: 150, ...overrides });
 
   it("answers null for a sale without an affiliate", async () => {
     expect(await affiliateDetails(sale())).toBeNull();
