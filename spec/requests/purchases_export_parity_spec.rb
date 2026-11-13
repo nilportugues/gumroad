@@ -532,13 +532,221 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("Sent Abandoned Cart Email?")] }).to include("1", "0")
   end
 
-  it "hands a membership charge to Rails", parity: true do
-    membership = create(:membership_purchase, link: create(:membership_product, user: seller), email: "member@example.com")
-    membership.update_columns(seller_id: seller.id)
+  describe "subscription charges" do
+    let(:membership) { create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", recurrence_price_values: [{ "monthly": { enabled: true, price: 3 }, "yearly": { enabled: true, price: 30 } }, { "monthly": { enabled: true, price: 5 } }]) }
+    let(:first_tier) { membership.tiers.first }
+    let(:yearly) { membership.prices.find_by(recurrence: "yearly") || create(:price, link: membership, recurrence: "yearly", price_cents: 3000) }
 
-    export
+    # create(:subscription) only builds the subscription and its payment option, so no card is charged.
+    def subscribed(price: membership.default_price, **attributes)
+      create(:subscription, link: membership, user: nil, price:, **attributes)
+    end
 
-    expect(response).to have_http_status(:ok)
+    def charge(subscription, original: false, **attributes)
+      sell(of: membership, subscription:, is_original_subscription_purchase: original, **attributes).tap { |row| row.variant_attributes << first_tier }
+    end
+
+    def column(name) = csv.map { |row| row[csv.first.index(name)] }
+
+    it "writes the recurrence of the subscription's price, the recurring charge flag and the dates the subscription was cancelled and ended", parity: true do
+      monthly = subscribed
+      charge(monthly, original: true, price_cents: 300)
+      charge(monthly, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      annual = subscribed(price: yearly, user_requested_cancellation_at: Time.utc(2026, 5, 6, 7, 8, 9), cancelled_at: Time.utc(2027, 3, 4, 5, 6, 7))
+      charge(annual, original: true, price_cents: 3000)
+      charge(annual, price_cents: 3000, created_at: Time.utc(2027, 3, 4, 5, 6, 7))
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Recurrence")).to include("monthly", "yearly")
+      expect(column("Recurring Charge?")).to include("1", "0")
+    end
+
+    it "ends the subscription at the first of its ended, cancelled, failed and deactivated times", parity: true do
+      # Replays seed a time to the nearest hour of the recording, so these stay clear of midnight to keep their day.
+      ended = subscribed(ended_at: Time.utc(2026, 6, 1, 12, 0, 0), cancelled_at: Time.utc(2026, 5, 1, 9, 30, 3), failed_at: Time.utc(2026, 4, 1, 9, 30, 3), deactivated_at: Time.utc(2026, 7, 1, 9, 30, 3))
+      cancelled = subscribed(cancelled_at: Time.utc(2026, 5, 2, 9, 30, 1), failed_at: Time.utc(2026, 4, 2, 9, 30, 3), deactivated_at: Time.utc(2026, 7, 2, 9, 30, 3))
+      failed = subscribed(failed_at: Time.utc(2026, 4, 3, 15, 30, 0), deactivated_at: Time.utc(2026, 7, 3, 9, 30, 3))
+      deactivated = subscribed(deactivated_at: Time.utc(2026, 7, 4, 9, 30, 3))
+      live = subscribed
+      [ended, cancelled, failed, deactivated, live].each { |subscription| charge(subscription, original: true, price_cents: 300) }
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Subscription End Date")).to include("2026-06-01", "2026-05-02", "2026-04-03", "2026-07-04")
+    end
+
+    it "prices a tier from the recurrence of the subscription and writes nothing for a recurrence the tier has no price for", parity: true do
+      monthly = subscribed
+      charge(monthly, original: true, price_cents: 300)
+      annual = subscribed(price: yearly)
+      charge(annual, original: true, price_cents: 3000)
+      second_tier = membership.tiers.second
+      sell(of: membership, subscription: subscribed(price: yearly), is_original_subscription_purchase: true, price_cents: 500).variant_attributes << second_tier
+      deleted_price = membership.tiers.first.prices.find_by(recurrence: "monthly")
+      deleted_tier = create(:variant, variant_category: membership.tier_category, name: "Retired")
+      deleted_tier.save_recurring_prices!("monthly": { enabled: true, price: 7 })
+      deleted_tier.prices.update_all(deleted_at: Time.utc(2026, 2, 1))
+      sell(of: membership, subscription: subscribed, is_original_subscription_purchase: true, price_cents: 700).variant_attributes << deleted_tier
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(deleted_price).to be_present
+      expect(column("Variants Price ($)")).to include("3.0", "0.0")
+    end
+
+    it "prefers the price on the charge itself to the subscription's for the tier's price", parity: true do
+      row = charge(subscribed, original: true, price_cents: 3000)
+      row.update_columns(price_id: yearly.id)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "reads the review of the subscription's original purchase for each of its charges and leaves out a deleted review", parity: true do
+      monthly = subscribed
+      original = charge(monthly, original: true, price_cents: 300)
+      charge(monthly, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      ProductReview.new(purchase: original, link: membership, rating: 4, message: "Still worth it").save!(validate: false)
+      removed = subscribed
+      removed_original = charge(removed, original: true, price_cents: 300)
+      charge(removed, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      ProductReview.new(purchase: removed_original, link: membership, rating: 1, message: "Removed", deleted_at: Time.utc(2026, 3, 5)).save!(validate: false)
+      reviewed_charge = subscribed
+      charge(reviewed_charge, original: true, price_cents: 300)
+      later = charge(reviewed_charge, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      # ProductReview refuses a recurring charge, so the row an older import could have left is inserted whole.
+      ProductReview.insert_all!([{ purchase_id: later.id, link_id: membership.id, rating: 2, message: "Only on the charge", created_at: Time.utc(2026, 4, 5), updated_at: Time.utc(2026, 4, 5) }])
+      sell(price_cents: 500).tap { |row| ProductReview.new(purchase: row, link: product, rating: 3, message: "Gone", deleted_at: Time.utc(2026, 3, 5)).save!(validate: false) }
+      # The first original purchase of a subscription owns the review, not a later one.
+      renewed = subscribed
+      older = charge(renewed, original: true, price_cents: 300)
+      newer = charge(renewed, original: true, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      ProductReview.new(purchase: older, link: membership, rating: 5, message: "Older original").save!(validate: false)
+      ProductReview.new(purchase: newer, link: membership, rating: 2, message: "Newer original").save!(validate: false)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Review")).to include("Still worth it", "Older original")
+    end
+
+    it "reads the recurrence from the last payment option, else the newest live one, and nothing when its price is gone", parity: true do
+      deleted_last = subscribed
+      option = create(:payment_option, subscription: deleted_last, price: yearly)
+      deleted_last.update_columns(last_payment_option_id: option.id)
+      option.update_columns(deleted_at: Time.utc(2026, 2, 1))
+      unset_last = subscribed
+      create(:payment_option, subscription: unset_last, price: yearly)
+      create(:payment_option, subscription: unset_last, price: membership.default_price).update_columns(deleted_at: Time.utc(2026, 2, 1))
+      unset_last.update_columns(last_payment_option_id: nil)
+      missing_last = subscribed(price: yearly)
+      missing_last.update_columns(last_payment_option_id: 987_654_321)
+      priceless = subscribed
+      priceless.payment_options.update_all(price_id: 987_654_321)
+      [deleted_last, unset_last, missing_last, priceless].each { |subscription| charge(subscription, original: true, price_cents: 300) }
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Recurrence")).to include("yearly")
+    end
+
+    describe "of a licensed product" do
+      let(:licensed) { create(:product, user: seller, name: "Licensed club", is_recurring_billing: true, subscription_duration: :monthly, is_licensed: true) }
+      let(:subscription) { create(:subscription, link: licensed, user: nil) }
+
+      def licensed_charge(original: false, **attributes)
+        sell(of: licensed, subscription:, is_original_subscription_purchase: original, price_cents: 300, **attributes)
+      end
+
+      def archive(row) = row.update_columns(flags: row.flags | Purchase.flag_mapping["flags"][:is_archived_original_subscription_purchase])
+
+      it "reads the license key, its activations and whether it is enabled from the subscription's original purchase", parity: true do
+        original = licensed_charge(original: true)
+        License.create!(purchase: original, link: licensed, serial: "SUBS-AAAA-BBBB-CCCC", uses: 4)
+        licensed_charge(created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+        disabled = create(:subscription, link: licensed, user: nil)
+        disabled_original = sell(of: licensed, subscription: disabled, is_original_subscription_purchase: true, price_cents: 300)
+        License.create!(purchase: disabled_original, link: licensed, serial: "SUBS-DDDD-EEEE-FFFF", uses: 0, disabled_at: Time.utc(2026, 3, 5))
+        sell(of: licensed, subscription: disabled, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("License Key").count("SUBS-AAAA-BBBB-CCCC")).to eq(2)
+      end
+
+      it "skips an archived original purchase for the one that is live", parity: true do
+        archived = licensed_charge(original: true, created_at: Time.utc(2026, 2, 4, 5, 6, 7))
+        License.create!(purchase: archived, link: licensed, serial: "OLD-AAAA-BBBB-CCCC", uses: 9)
+        archive(archived)
+        live = licensed_charge(original: true)
+        License.create!(purchase: live, link: licensed, serial: "LIVE-AAAA-BBBB-CCCC", uses: 1)
+        licensed_charge(created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("License Key")).to include("LIVE-AAAA-BBBB-CCCC")
+      end
+
+      it "hands a subscription with two live original purchases to Rails", parity: true do
+        licensed_charge(original: true)
+        licensed_charge(original: true, created_at: Time.utc(2026, 3, 5, 5, 6, 7))
+        licensed_charge(created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    it "writes the recurrence and the price difference of a variant of a subscription product that is not a tiered membership", parity: true do
+      recurring = create(:product, user: seller, name: "Recurring", is_recurring_billing: true, subscription_duration: :monthly)
+      category = create(:variant_category, link: recurring, title: "Size")
+      large = create(:variant, variant_category: category, name: "Large", price_difference_cents: 150)
+      subscription = create(:subscription, link: recurring, user: nil)
+      sell(of: recurring, subscription:, is_original_subscription_purchase: true, price_cents: 650).variant_attributes << large
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Variants Price ($)")).to include("1.5")
+    end
+
+    it "writes a free trial membership that has not been charged", parity: true do
+      trial = subscribed(free_trial_ends_at: Time.utc(2026, 3, 11, 5, 6, 7))
+      charge(trial, original: true, price_cents: 0, state: "not_charged", is_free_trial_purchase: true)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a tier with two live prices for the subscription's recurrence to Rails", parity: true do
+      charge(subscribed, original: true, price_cents: 300)
+      duplicate = first_tier.prices.find_by(recurrence: "monthly").dup
+      duplicate.save!(validate: false)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands an installment plan's payment to Rails", parity: true do
+      plan_product = create(:product, :with_installment_plan, user: seller)
+      plan = create(:subscription, link: plan_product, user: nil, is_installment_plan: true)
+      sell(of: plan_product, subscription: plan, is_original_subscription_purchase: true, is_installment_payment: true, price_cents: 300)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
   end
 
   it "writes the PayPal transaction and fee columns of a PayPal sale", parity: true do
