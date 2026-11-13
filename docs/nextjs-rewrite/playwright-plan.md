@@ -45,7 +45,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [x] 3.10 Analytics and dashboard pages render with the seeded data (`dashboard-analytics.spec.ts`)
 - [x] 3.11 Payouts and payment settings pages render (render only, no live Stripe) (`payouts.spec.ts`)
 - [x] 3.12 Mobile viewport project runs the main buyer flow (`mobile-buyer.spec.ts`, `mobile` project)
-- [ ] 3.13 Dark mode: screenshots of discover, product and checkout
+- [x] 3.13 Dark mode: screenshots of discover, product and checkout (`dark-mode.spec.ts`; product and checkout are seller-themed and stay light, discover follows the scheme)
 
 ## Phase 4: traffic bot and replay
 
