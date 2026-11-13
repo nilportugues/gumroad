@@ -1234,7 +1234,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   FinalizeBuyerPresentmentPurchaseJob: {
     file: "app/sidekiq/finalize_buyer_presentment_purchase_job.rb",
@@ -1892,7 +1892,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   PerformDailyInstantPayoutsWorker: {
     file: "app/sidekiq/perform_daily_instant_payouts_worker.rb",
@@ -2007,7 +2007,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   ProductBuildUnpackJob: {
     file: "app/sidekiq/product_build_unpack_job.rb",
@@ -2812,7 +2812,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RetryStripeJpAddressResyncForSellerJob: {
     file: "app/sidekiq/retry_stripe_jp_address_resync_for_seller_job.rb",
@@ -3031,7 +3031,7 @@ export const JOB_REGISTRY = {
     customLockArgs: true,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendCommunityChatRecapNotificationsJob: {
     file: "app/sidekiq/send_community_chat_recap_notifications_job.rb",

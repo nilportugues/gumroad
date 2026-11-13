@@ -266,6 +266,8 @@ export function buildRegistry() {
   const problems: string[] = [];
   for (const [name, entry] of Object.entries(jobs)) {
     if (entry.aliasOf && !jobs[entry.aliasOf]) problems.push(`${name} aliases unknown ${entry.aliasOf}`);
+    // Ruby's alias is the same class, so a push under either name is the target's job.
+    if (entry.aliasOf && jobs[entry.aliasOf]) entry.runtime = jobs[entry.aliasOf]!.runtime;
     if (entry.customLockArgs && !LOCK_ARGS[name])
       problems.push(`${name} defines self.lock_args; port it to src/server/jobs/lock-args.ts`);
   }
@@ -308,7 +310,7 @@ export const SIDEKIQ_QUEUES = ${JSON.stringify(queues)} as const;
 export const CRON_SCHEDULE: readonly CronDefinition[] = ${JSON.stringify(schedule, null, 2)};
 `;
   const nodeOwned = Object.entries(jobs)
-    .filter(([, entry]) => entry.runtime === "node")
+    .filter(([, entry]) => entry.runtime === "node" && !entry.aliasOf)
     .map(([name]) => name);
   return { ts: await formatTs(ts), json: `${JSON.stringify(nodeOwned, null, 2)}\n` };
 }
