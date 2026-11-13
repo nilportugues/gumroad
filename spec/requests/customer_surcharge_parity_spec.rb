@@ -22,6 +22,13 @@ describe "Customer surcharge", type: :request do
     post "/customer_surcharge", params: body.to_json, headers: json_headers.merge("X-CSRF-Token" => csrf_token)
   end
 
+  def stub_dropped_connection(method, url)
+    stub_request(method, url).to_return do |request|
+      Parity::Recorder.current&.record_dropped_http(request)
+      raise Errno::ECONNRESET
+    end
+  end
+
   def line(item, price: 100, **extra)
     { permalink: item.unique_permalink, price:, quantity: 1 }.merge(extra)
   end
@@ -318,6 +325,15 @@ describe "Customer surcharge", type: :request do
       expect(response.parsed_body).to include("tax_cents" => 65, "has_vat_id_input" => false)
     end
 
+    it "falls back to the US state rate in the lookup table when the connection to TaxJar drops", parity: true do
+      create(:zip_tax_rate, combined_rate: 0.065, country: "US", state: "WA", zip_code: nil, is_seller_responsible: false)
+      stub_dropped_connection(:post, taxjar_url)
+
+      post_surcharge(products: [line(product, price: 1_000)], country: "US", postal_code: "98101")
+
+      expect(response.parsed_body).to include("tax_cents" => 65, "has_vat_id_input" => false)
+    end
+
     it "falls back to the Canadian province rate in the lookup table when TaxJar rejects the request", parity: true do
       create(:zip_tax_rate, combined_rate: 0.12, country: "CA", state: "BC", zip_code: nil, is_seller_responsible: false)
       stub_taxjar({ status: 400, error: "Bad Request", detail: "to_zip" }.to_json, status: 400)
@@ -377,6 +393,138 @@ describe "Customer surcharge", type: :request do
       post_surcharge(products: [line(product, price: 1_000)], country: "DE", postal_code: "10115", vat_id: "DE000")
 
       expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 190, "has_vat_id_input" => true)
+    end
+
+    describe "tax ids checked by IRAS, Revenu Quebec and taxid.pro" do
+      let(:iras_url) { "https://apisandbox.iras.gov.sg/iras/sb/GSTListing/SearchGSTRegistered" }
+      let(:qst_url) { "https://svcnab2b.revenuquebec.ca/2019/02/ValidationTVQ/" }
+      let(:taxid_url) { "https://v3.api.taxid.pro/validate" }
+      let(:json_type) { { "Content-Type" => "application/json" } }
+
+      def stub_iras(status: "Registered", return_code: "10")
+        stub_request(:post, iras_url).to_return(status: 200, body: { returnCode: return_code, data: { Status: status } }.to_json, headers: json_type)
+      end
+
+      def create_sg_rate
+        create(:zip_tax_rate, country: "SG", state: nil, zip_code: nil, combined_rate: 0.09, is_seller_responsible: false, applicable_years: [Time.current.year])
+      end
+
+      it "zeroes the tax of a Singapore buyer whose GST id IRAS lists as registered", parity: true do
+        create_sg_rate
+        stub_iras
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "SG", vat_id: "M90000001A")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+        expect(a_request(:post, iras_url).with(body: { clientID: IRAS_API_ID, regID: "M90000001A" }.to_json)).to have_been_made.once
+      end
+
+      it "taxes a Singapore buyer whose GST id IRAS does not list as registered", parity: true do
+        create_sg_rate
+        stub_iras(status: "De-Registered")
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "SG", vat_id: "M90000002B")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 90)
+      end
+
+      it "asks IRAS once for a GST id repeated across the lines of a cart", parity: true do
+        create_sg_rate
+        stub_iras
+
+        post_surcharge(products: [line(product, price: 1_000), line(other_product, price: 500)], country: "SG", vat_id: "M90000003C")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true)
+        expect(a_request(:post, iras_url)).to have_been_made.once
+      end
+
+      it "treats a dropped connection to IRAS as not registered", parity: true do
+        create_sg_rate
+        stub_dropped_connection(:post, iras_url)
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "SG", vat_id: "M90000004D")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 90)
+      end
+
+      it "treats an IRAS answer with another return code as not registered", parity: true do
+        create_sg_rate
+        stub_iras(return_code: "20")
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "SG", vat_id: "M90000005E")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 90)
+      end
+
+      it "zeroes the tax of a Quebec buyer whose QST id Revenu Quebec lists as registered", parity: true do
+        stub_request(:get, "#{qst_url}1000000001TQ0001").to_return(status: 200, body: { Resultat: { StatutSousDossierUsager: "R" } }.to_json, headers: json_type)
+
+        post_surcharge(products: [line(product, price: 2_000)], country: "CA", state: "QC", postal_code: "H2Y 1C6", vat_id: "1000000001TQ0001")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+      end
+
+      it "taxes a Quebec buyer whose QST id Revenu Quebec does not know", parity: true do
+        stub_request(:get, "#{qst_url}1000000002TQ0001").to_return(status: 404, body: "{}", headers: json_type)
+        stub_taxjar(taxjar_response(amount_to_collect: 2.99, rate: 0.14975, state: "QC", breakdown: { gst_tax_rate: 0.05, qst_tax_rate: 0.09975 }))
+
+        post_surcharge(products: [line(product, price: 2_000)], country: "CA", state: "QC", postal_code: "H2Y 1C6", vat_id: "1000000002TQ0001")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 299)
+      end
+
+      it "percent-encodes a QST id with reserved characters", parity: true do
+        stub_request(:get, %r{\A#{Regexp.escape(qst_url)}}).to_return(status: 200, body: { Resultat: { StatutSousDossierUsager: "A" } }.to_json, headers: json_type)
+        stub_taxjar(taxjar_response(amount_to_collect: 2.99, rate: 0.14975, state: "QC", breakdown: { gst_tax_rate: 0.05, qst_tax_rate: 0.09975 }))
+
+        post_surcharge(products: [line(product, price: 2_000)], country: "CA", state: "QC", postal_code: "H2Y 1C6", vat_id: "10 00/00?0003#1é")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false, "tax_cents" => 299)
+      end
+
+      it "zeroes the tax of a South African buyer whose tax id taxid.pro validates", parity: true do
+        stub_request(:get, "#{taxid_url}?country=ZA&tin=4000000001").to_return(status: 200, body: { is_valid: true }.to_json, headers: json_type)
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "ZA", vat_id: "4000000001")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+        expect(a_request(:get, "#{taxid_url}?country=ZA&tin=4000000001").with(headers: { "Authorization" => "Bearer #{TAX_ID_PRO_API_KEY}" })).to have_been_made.once
+      end
+
+      it "does not validate a South African tax id taxid.pro rejects, and asks once for two lines", parity: true do
+        stub_request(:get, "#{taxid_url}?country=ZA&tin=4000000002").to_return(status: 200, body: { is_valid: false }.to_json, headers: json_type)
+
+        post_surcharge(products: [line(product, price: 1_000), line(other_product, price: 500)], country: "ZA", vat_id: "4000000002")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false)
+        expect(a_request(:get, "#{taxid_url}?country=ZA&tin=4000000002")).to have_been_made.once
+      end
+
+      it "answers a taxid.pro 401 as an invalid id", parity: true do
+        stub_request(:get, "#{taxid_url}?country=ZA&tin=4000000003").to_return(status: 401, body: { is_valid: true }.to_json, headers: json_type)
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "ZA", vat_id: "4000000003")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false)
+      end
+
+      it "does not ask a vendor about a free line", parity: true do
+        create_sg_rate
+        stub_iras
+
+        post_surcharge(products: [line(product, price: 0)], country: "SG", vat_id: "M90000006F")
+
+        expect(response.parsed_body).to include("vat_id_valid" => false)
+        expect(a_request(:post, iras_url)).not_to have_been_made
+      end
+
+      it "hands an Australian ABN, which Vatstack checks, back to Rails", parity: true do
+        stub_request(:post, "https://api.vatstack.com/v1/validations").to_return(status: 200, body: { valid: true, active: true }.to_json, headers: json_type)
+
+        post_surcharge(products: [line(product, price: 1_000)], country: "AU", vat_id: "51824753556")
+
+        expect(response.parsed_body).to include("vat_id_valid" => true, "tax_cents" => 0)
+      end
     end
   end
 

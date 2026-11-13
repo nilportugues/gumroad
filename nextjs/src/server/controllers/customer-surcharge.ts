@@ -1,16 +1,16 @@
 // Port of app/controllers/customer_surcharge_controller.rb#calculate_all (POST /customer_surcharge) for the carts whose
 // answer needs no Rails-only state: no seller in the buyer-currency rollout, so the response carries no FX quote and no
 // direct-listed token. A US taxable state or a Canadian province is taxed through TaxJar (`tax/taxjar.ts`, cached in the
-// same Redis namespace as Rails); a VAT id is checked here only when its validator is local (Bahrain, Kenya, Nigeria,
-// Tanzania, Oman).
+// same Redis namespace as Rails); a VAT id is checked here when its validator is local (Bahrain, Kenya, Nigeria,
+// Tanzania, Oman) or IRAS, Revenu Quebec or taxid.pro (memoised in the Rails.cache key Ruby uses).
 //
 // Physical lines are served through their ShippingDestination (exact country, then ELSEWHERE). A preorder line
 // (nothing charged now), a membership line (charged like a one-time line) and an installment line (the first payment,
 // taxed on its own) are served too; only their `charge_canonical_total_cents` differs from the one-time arithmetic.
 //
 // Everything else hands back to Rails before anything is written (nothing here writes): a commission line (deposit
-// split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id checked by a vendor (VIES, Vatstack,
-// IRAS, Revenu Quebec, taxid.pro: Rails memoises them in memcached, which Node cannot read), a TaxJar answer outside the
+// split, completion surcharges, once-per-cart codes), a subscription renewal, a VAT id checked by Vatstack (ABN, MVA: the memo is a marshalled
+// HTTParty::Response) or VIES, or answered in a way Ruby raises on, a TaxJar answer outside the
 // 200/400/404/500/503 cases, a Payment Element or list-token request, a seller with
 // `buyer_currency_charging` on, a Singapore rate table whose `applicable_years` is not plain, a Spanish buyer the GeoIP database
 // places in the Canary Islands, a bundle with a component whose product row is gone, a missing `products` (ParameterMissing is rendered by the exceptions
@@ -56,6 +56,7 @@ import {
   EU_VAT_DESTINATION_COUNTRY_CODES,
 } from "../tax/sales-tax-countries.ts";
 import { calculateTaxForOrder, taxjarProductTaxCode, taxjarTaxCents } from "../tax/taxjar.ts";
+import { validateVendorTaxId } from "../tax/vendor-tax-id.ts";
 
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
@@ -288,11 +289,16 @@ export type TaxContext = {
   vatId?: string | null;
 };
 
-// SalesTaxCalculator#is_vat_id_valid?: the validators that need no vendor; a vendor's answer is Rails'.
-function vatIdValid(vatId: string, location: BuyerLocation, state: string | null): boolean {
+// SalesTaxCalculator#is_vat_id_valid?: the offline validators, and IRAS, Revenu Quebec and taxid.pro (`tax/vendor-tax-id.ts`);
+// Vatstack (ABN, MVA) and VIES are Rails'.
+async function vatIdValid(vatId: string, location: BuyerLocation, state: string | null): Promise<boolean> {
   const validator = regionalVatIdValidator(location.country, state);
-  if (validator.kind === "remote") return handBack(`for a VAT id checked by ${validator.service}`);
-  return validator.validate(vatId);
+  if (validator.kind === "local") return validator.validate(vatId);
+  const { service } = validator;
+  if (service !== "GstValidationService" && service !== "QstValidationService" && service !== "TaxIdValidationService")
+    return handBack(`for a VAT id checked by ${service}`);
+  const outcome = await validateVendorTaxId(service, vatId, location.country);
+  return outcome.kind === "valid" ? outcome.valid : handBack(`for a VAT id answered as ${outcome.reason}`);
 }
 
 // SalesTaxCalculator#calculate_with_taxjar. Null is Rails' `return` after a TaxJar client or server error.
@@ -336,7 +342,7 @@ export async function calculateSalesTax(
   if (priceCents === 0) return zeroTax(priceCents);
   if (sellerId !== null && (await hasBrazilianStripeConnectAccount(sellerId))) return zeroTax(priceCents);
   const vatId = blank(context.vatId) ? null : context.vatId!;
-  if (vatId !== null && vatIdValid(vatId, location, region.state)) return zeroBusinessVat(priceCents);
+  if (vatId !== null && (await vatIdValid(vatId, location, region.state))) return zeroBusinessVat(priceCents);
   if (region.isUsTaxableState || region.isCaTaxable) {
     const taxCents = await calculateWithTaxjar(link, priceCents, location, region.state, context);
     if (taxCents !== null) {

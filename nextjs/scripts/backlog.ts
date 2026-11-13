@@ -115,8 +115,8 @@ const EPICS: Epic[] = [
     id: "E06",
     title: "Sales tax and VAT (WS-22)",
     files: /tax|vat|zip-tax|geoip/u,
-    state: "partial (TaxJar via WebMock for the rate update job); validators not started",
-    blocker: "TaxJar, ZipTaxRate selection, GeoIP and VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back.",
+    state: "partial (TaxJar rate update job and the customer surcharge quote in Node; the offline tax-id validators and IRAS, Revenu Quebec and taxid.pro checks run against Ruby goldens; ABN, MVA and VIES hand back)",
+    blocker: "Vatstack (ABN, MVA: the memo is a marshalled HTTParty::Response), VIES through valvat, ZipTaxRate selection and GeoIP hand back.",
     scope: "Sales tax at checkout, surcharge preview, VAT id validation, tax forms and transaction reports.",
   },
   {
