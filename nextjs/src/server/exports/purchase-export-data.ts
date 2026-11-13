@@ -1,14 +1,17 @@
 // Port of Exports::PurchaseExportService#purchases_data and #purchase_data (app/services/exports/purchase_export_service.rb) for the sales
 // the port can prove: a sale of one variant or SKU at most, whose columns come from the purchase row, its buyer, its offer code, its
-// refunds, its custom fields, its gift, pre-order, tip, review, license, UTM link, affiliate, buyer-currency charge, order's cart and
-// PayPal or Connect charge. A sale that needs anything else (a gift's receiver, subscriptions, several variants, a GeoIP lookup or
-// a row Rails would raise on) throws HandBackToRails: the export is a read, so Rails serves the whole request and nothing is half done.
+// refunds, its custom fields, its gift, pre-order, tip, review, license, UTM link, affiliate, buyer-currency charge, order's cart,
+// PayPal or Connect charge, GeoIP lookup and subscription (installment plans included). A sale that needs anything else (a gift's
+// receiver, several variants, or a row Rails would raise on) throws HandBackToRails: the export is a read, so Rails serves the whole
+// request and nothing is half done.
 import { Prisma, type Purchase } from "@prisma/client";
 
 import type { CsvCell } from "../../lib/csv-safe.ts";
+import { defineFlags } from "../../lib/flags.ts";
 import { encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { geoIpLookup } from "../infra/geo-ip.ts";
 import { RubyFloat } from "../jobs/sidekiq/ruby-json.ts";
 import {
   COUNTRIES_THAT_COLLECT_TAX_ON_ALL_PRODUCTS,
@@ -76,6 +79,27 @@ type VariantRow = {
   flags: bigint;
 };
 
+// Purchase#is_recurring_subscription_charge; a gift receiver's purchase hands back before this matters.
+const isRecurringCharge = (purchase: Purchase, subscriptions: ReadonlyMap<string, unknown>): boolean =>
+  purchase.subscription_id !== null &&
+  subscriptions.has(String(purchase.subscription_id)) &&
+  !flagSet(purchase, "is_original_subscription_purchase");
+
+// What a sale reads from its subscription: Subscription#price's recurrence and the two dates the CSV prints.
+type SubscriptionInfo = { recurrence: string | null; cancellationDate: string | null; endDate: string | null };
+type SubscriptionRow = {
+  id: bigint;
+  user_requested_cancellation_at: Date | null;
+  cancelled_at: Date | null;
+  failed_at: Date | null;
+  ended_at: Date | null;
+  deactivated_at: Date | null;
+  last_payment_option_id: bigint | null;
+};
+
+// BasePrice's has_flags; `is_buy` is the scope of the prices that are not rentals.
+const PriceFlags = defineFlags("prices", { 1: "is_rental" }, { queryMode: "bit_operator" });
+
 // ProductsHelper#variants_displayable of the variants that are not the default SKU.
 function variantsDisplayable(variant: VariantRow | undefined): string {
   if (variant === undefined || BaseVariantFlags.isSet(variant.flags, "is_default_sku")) return "";
@@ -87,6 +111,10 @@ const dateOf = (value: Date) => `${value.getUTCFullYear()}-${pad(value.getUTCMon
 // Time#to_s of a UTC time on a server whose zone is UTC.
 const timeOf = (value: Date) =>
   `${dateOf(value)} ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}:${pad(value.getUTCSeconds())} +0000`;
+
+// ActiveSupport::TimeWithZone#to_s of a UTC time: Rails' time zone is unset in this app.
+const zonedTimeOf = (value: Date) =>
+  `${dateOf(value)} ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}:${pad(value.getUTCSeconds())} UTC`;
 
 // Hash#inspect of {name => value}, for the "Custom Fields" cell.
 function hashInspect(entries: Map<string, string | boolean | null>): string {
@@ -171,6 +199,79 @@ async function idsWithRows(
   return new Set(rows.map((row) => String(row.id)));
 }
 
+// purchase.subscription for the sales that hold one: Subscription#price (the last payment option's price, else the last live
+// payment option's), #user_requested_cancellation_at and #termination_date.
+async function subscriptionsOf(purchases: readonly Purchase[]): Promise<Map<string, SubscriptionInfo>> {
+  const ids = [
+    ...new Set(purchases.map((purchase) => purchase.subscription_id).filter((id): id is bigint => id !== null)),
+  ];
+  const infos = new Map<string, SubscriptionInfo>();
+  if (ids.length === 0) return infos;
+  const rows = await selectRows<SubscriptionRow>(
+    Prisma.sql`SELECT ${column("subscriptions", "id")}, ${column("subscriptions", "user_requested_cancellation_at")}, ${column("subscriptions", "cancelled_at")}, ${column("subscriptions", "failed_at")}, ${column("subscriptions", "ended_at")}, ${column("subscriptions", "deactivated_at")}, ${column("subscriptions", "last_payment_option_id")} FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} IN (${Prisma.join(ids)})`,
+  );
+  // A sale whose subscription row is gone raises in Rails (`true_original_purchase` on nil).
+  if (rows.length !== ids.length) throw new HandBackToRails("a sale whose subscription is missing");
+
+  const lastOptionIds = rows.map((row) => row.last_payment_option_id).filter((id): id is bigint => id !== null);
+  const optionPrice = new Map<string, bigint | null>();
+  if (lastOptionIds.length > 0)
+    for (const option of await selectRows<{ id: bigint; price_id: bigint | null }>(
+      Prisma.sql`SELECT ${column("payment_options", "id")}, ${column("payment_options", "price_id")} FROM ${table("payment_options")} WHERE ${column("payment_options", "id")} IN (${Prisma.join(lastOptionIds)})`,
+    ))
+      optionPrice.set(String(option.id), option.price_id);
+  // `last_payment_option || payment_options.alive.last`: a missing or unset last option falls back to the newest live one.
+  const fallbackIds = rows.filter((row) => !optionPrice.has(String(row.last_payment_option_id))).map((row) => row.id);
+  const fallbackPrice = new Map<string, bigint | null>();
+  if (fallbackIds.length > 0)
+    for (const option of await selectRows<{ subscription_id: bigint; price_id: bigint | null }>(
+      Prisma.sql`SELECT ${column("payment_options", "subscription_id")}, ${column("payment_options", "price_id")} FROM ${table("payment_options")} WHERE ${column("payment_options", "subscription_id")} IN (${Prisma.join(fallbackIds)}) AND ${column("payment_options", "deleted_at")} IS NULL ORDER BY ${column("payment_options", "id")}`,
+    ))
+      fallbackPrice.set(String(option.subscription_id), option.price_id);
+  const priceIdOf = (row: SubscriptionRow): bigint | null => {
+    if (optionPrice.has(String(row.last_payment_option_id)))
+      return optionPrice.get(String(row.last_payment_option_id))!;
+    // `payment_option.price` on nil raises in Rails.
+    if (!fallbackPrice.has(String(row.id))) throw new HandBackToRails("a subscription without a payment option");
+    return fallbackPrice.get(String(row.id))!;
+  };
+  const recurrences = await recurrencesOfPrices(rows.map(priceIdOf));
+  for (const row of rows) {
+    const priceId = priceIdOf(row);
+    const termination = row.ended_at ?? row.cancelled_at ?? row.failed_at ?? row.deactivated_at;
+    infos.set(String(row.id), {
+      recurrence: priceId === null ? null : (recurrences.get(String(priceId)) ?? null),
+      cancellationDate:
+        row.user_requested_cancellation_at === null ? null : zonedTimeOf(row.user_requested_cancellation_at),
+      endDate: termination === null ? null : dateOf(termination),
+    });
+  }
+  return infos;
+}
+
+// Price#recurrence by id; a price that is gone has none (`price&.recurrence`).
+async function recurrencesOfPrices(priceIds: readonly (bigint | null)[]): Promise<Map<string, string | null>> {
+  const ids = [...new Set(priceIds.filter((id): id is bigint => id !== null))];
+  const recurrences = new Map<string, string | null>();
+  if (ids.length === 0) return recurrences;
+  for (const row of await selectRows<{ id: bigint; recurrence: string | null }>(
+    Prisma.sql`SELECT ${column("prices", "id")}, ${column("prices", "recurrence")} FROM ${table("prices")} WHERE ${column("prices", "id")} IN (${Prisma.join(ids)})`,
+  ))
+    recurrences.set(String(row.id), row.recurrence);
+  return recurrences;
+}
+
+// Purchase#variant_extra_cost of a tier: its live buy price for the recurrence (`find_by` has no order, so one is proven; a rental price
+// is no buy price and is not read), else 0.
+async function tierPriceCents(variantId: bigint, recurrence: string | null): Promise<number> {
+  const rows = await selectRows<{ price_cents: number | null; flags: number }>(
+    Prisma.sql`SELECT ${column("prices", "price_cents")}, ${column("prices", "flags")} FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${variantId} AND ${column("prices", "deleted_at")} IS NULL AND ${column("prices", "recurrence")} <=> ${recurrence}`,
+  );
+  const buyRows = rows.filter((row) => !PriceFlags.isSet(row.flags, "is_rental"));
+  if (buyRows.length > 1) throw new HandBackToRails("a tier with several live prices for one recurrence");
+  return buyRows[0]?.price_cents ?? 0;
+}
+
 // The names `PurchaseExportService#custom_fields` collects (the purchases' own, then their product's), in purchase order.
 export type PurchaseExportData = { customFields: string[]; rows: PurchaseDataRow[] };
 
@@ -200,21 +301,35 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   const gifteeOf = new Map<string, bigint>(
     gifts.map((gift) => [String(gift.gifter_purchase_id), gift.giftee_purchase_id!]),
   );
+  const gifteeSubscription = new Map<string, bigint | null>();
+  let gifteeVariantHolders = new Set<string>();
   if (gifteeIds.length > 0) {
-    // The review and the license key are read from the giftee's purchase: it must be a plain sale of the same product.
-    const giftees = await selectRows<{ id: bigint; link_id: bigint | null; subscription_id: bigint | null }>(
-      Prisma.sql`SELECT ${column("purchases", "id")}, ${column("purchases", "link_id")}, ${column("purchases", "subscription_id")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} IN (${Prisma.join(gifteeIds)})`,
+    // The review and the license key are read from the giftee's purchase: it must be a sale of the same product, plain or the
+    // gift receiver of the sender's own subscription (the review is then its original purchase's, and the license is its own).
+    const giftees = await selectRows<{
+      id: bigint;
+      link_id: bigint | null;
+      subscription_id: bigint | null;
+      flags: bigint;
+    }>(
+      Prisma.sql`SELECT ${column("purchases", "id")}, ${column("purchases", "link_id")}, ${column("purchases", "subscription_id")}, ${column("purchases", "flags")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} IN (${Prisma.join(gifteeIds)})`,
     );
     const gifteeById = new Map(giftees.map((giftee) => [String(giftee.id), giftee]));
     for (const purchase of purchases) {
       if (!giftBySender.has(String(purchase.id))) continue;
       const giftee = gifteeById.get(String(gifteeOf.get(String(purchase.id))));
       if (giftee === undefined) throw new HandBackToRails("a gift whose receiver's purchase is missing");
-      if (giftee.link_id !== purchase.link_id || giftee.subscription_id !== null)
-        throw new HandBackToRails("a gift whose receiver's purchase is not a plain sale of the same product");
+      if (giftee.link_id !== purchase.link_id)
+        throw new HandBackToRails("a gift whose receiver's purchase is not a sale of the same product");
+      if (
+        giftee.subscription_id !== null &&
+        (giftee.subscription_id !== purchase.subscription_id ||
+          !PurchaseFlags.isSet(giftee.flags, "is_gift_receiver_purchase"))
+      )
+        throw new HandBackToRails("a gift whose receiver is on a subscription other than the sender's");
+      gifteeSubscription.set(String(purchase.id), giftee.subscription_id);
     }
-    if ((await idsWithRows("base_variants_purchases", "purchase_id", gifteeIds)).size > 0)
-      throw new HandBackToRails("a gift whose receiver's purchase holds a variant");
+    gifteeVariantHolders = await idsWithRows("base_variants_purchases", "purchase_id", gifteeIds);
   }
   // purchase.preorder.created_at for a pre-order's charge
   const preorderIds = [
@@ -244,8 +359,7 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   if (linkById.size !== linkIds.length) throw new HandBackToRails("a sale whose product is missing");
   const abandonedCartEmailSales = await salesWithAbandonedCartEmail(purchases, linkById);
 
-  // `variant_attributes` has no order of its own, so one variant per sale is proven. A tiered membership prices its variant from the
-  // subscription's recurrence, and its sale holds a subscription, which hands back below.
+  // `variant_attributes` has no order of its own, so one variant per sale is proven.
   const variantRows = await selectRows<VariantRow>(
     Prisma.sql`SELECT ${column("base_variants_purchases", "purchase_id")}, ${column("base_variants", "id")}, ${column("base_variants", "type")}, ${column("base_variants", "name")}, ${column("base_variants", "price_difference_cents")}, ${column("base_variants", "custom_sku")}, ${column("base_variants", "flags")} FROM ${table("base_variants_purchases")} INNER JOIN ${table("base_variants")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
   );
@@ -255,8 +369,30 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       throw new HandBackToRails("an export that holds a sale with several variants");
     variantByPurchase.set(String(variant.purchase_id), variant);
   }
-  if (variantRows.length > 0 && links.some((link) => LinkFlags.isSet(link.flags, "is_tiered_membership")))
-    throw new HandBackToRails("an export that holds a variant of a tiered membership");
+  const subscriptions = await subscriptionsOf(purchases);
+  // Purchase#price_for_recurrence: the sale's own price, else the subscription's.
+  const ownPriceIds = purchases.map((purchase) => purchase.price_id);
+  const ownRecurrences = await recurrencesOfPrices(ownPriceIds);
+  const variantExtraCents = new Map<string, number>();
+  for (const purchase of purchases) {
+    const variant = variantByPurchase.get(String(purchase.id));
+    if (
+      variant === undefined ||
+      !LinkFlags.isSet(linkById.get(String(purchase.link_id))!.flags, "is_tiered_membership")
+    )
+      continue;
+    if (variant.type !== "Variant") throw new HandBackToRails("a SKU of a tiered membership");
+    const ownRecurrence = purchase.price_id === null ? undefined : ownRecurrences.get(String(purchase.price_id));
+    const subscription =
+      purchase.subscription_id === null ? undefined : subscriptions.get(String(purchase.subscription_id));
+    variantExtraCents.set(
+      String(purchase.id),
+      await tierPriceCents(
+        variant.id,
+        ownRecurrence !== undefined ? ownRecurrence : (subscription?.recurrence ?? null),
+      ),
+    );
+  }
 
   // link.custom_fields has no order of its own, so only one field per product is proven.
   const productFields = await selectRows<{ link_id: bigint; name: string | null }>(
@@ -358,10 +494,34 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     tipCents.set(String(tip.purchase_id), tip.value_usd_cents ?? 0);
   }
 
-  // original_product_review: the sale's own review (a subscription hands back), the giftee's for a gift the buyer sent.
-  const lookupIds = [...purchaseIds, ...gifteeIds];
+  // The purchases a subscription's charges read from: Subscription#true_original_purchase (the first with the original flag) owns the
+  // review, and Subscription#original_purchase (one that is not archived, with no order of its own) owns the license.
+  const subscriptionIds = [...subscriptions.keys()];
+  const trueOriginalOf = new Map<string, bigint>();
+  const liveOriginalsOf = new Map<string, bigint[]>();
+  if (subscriptionIds.length > 0)
+    for (const row of await selectRows<{ id: bigint; subscription_id: bigint; flags: bigint }>(
+      Prisma.sql`SELECT ${column("purchases", "id")}, ${column("purchases", "subscription_id")}, ${column("purchases", "flags")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} IN (${Prisma.join(subscriptionIds)}) AND ${PurchaseFlags.condition("is_original_subscription_purchase")} ORDER BY ${column("purchases", "id")}`,
+    )) {
+      const key = String(row.subscription_id);
+      if (!trueOriginalOf.has(key)) trueOriginalOf.set(key, row.id);
+      if (!PurchaseFlags.isSet(row.flags, "is_archived_original_subscription_purchase"))
+        liveOriginalsOf.set(key, [...(liveOriginalsOf.get(key) ?? []), row.id]);
+    }
+  // Purchase#license of a recurring charge is its subscription's original purchase's.
+  const licenseOwnerOf = new Map<string, bigint>();
+  for (const purchase of purchases) {
+    if (!isRecurringCharge(purchase, subscriptions) || giftBySender.has(String(purchase.id))) continue;
+    const originals = liveOriginalsOf.get(String(purchase.subscription_id)) ?? [];
+    // `subscription.original_purchase.license` on nil raises; has_one :original_purchase has no order, so one is proven.
+    if (originals.length !== 1)
+      throw new HandBackToRails("a subscription charge without exactly one live original purchase");
+    licenseOwnerOf.set(String(purchase.id), originals[0]!);
+  }
+  const lookupIds = [...purchaseIds, ...gifteeIds, ...trueOriginalOf.values(), ...licenseOwnerOf.values()];
+  // alive_original_product_review
   const reviews = await selectRows<{ purchase_id: bigint; rating: number | null; message: string | null }>(
-    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")}, ${column("product_reviews", "message")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(lookupIds)})`,
+    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")}, ${column("product_reviews", "message")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(lookupIds)}) AND ${column("product_reviews", "deleted_at")} IS NULL`,
   );
   const reviewByPurchase = new Map(reviews.map((review) => [String(review.purchase_id), review]));
 
@@ -376,7 +536,13 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   // Purchase#variant_content_permits_license_key? reads the variants' rich content, which is not ported.
   for (const purchase of purchases) {
     const link = linkById.get(String(purchase.link_id))!;
-    if (LinkFlags.isSet(link.flags, "is_licensed") && variantByPurchase.has(String(purchase.id)))
+    if (!LinkFlags.isSet(link.flags, "is_licensed")) continue;
+    // A gift's key is read from the receiver's purchase, so its variants count with the sale's own.
+    const gifteeId = gifteeOf.get(String(purchase.id));
+    if (
+      variantByPurchase.has(String(purchase.id)) ||
+      (gifteeId !== undefined && gifteeVariantHolders.has(String(gifteeId)))
+    )
       throw new HandBackToRails("a licensed product's sale with a variant");
   }
 
@@ -434,6 +600,13 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     const key = String(purchase.id);
     // main_or_giftee_purchase
     const readKey = gifteeOf.has(key) ? String(gifteeOf.get(key)) : key;
+    const licenseKey = String(licenseOwnerOf.get(key) ?? readKey);
+    // true_original_purchase of the purchase the review is read from
+    const reviewSubscription = gifteeOf.has(key) ? gifteeSubscription.get(key) : purchase.subscription_id;
+    const reviewKey =
+      reviewSubscription !== null && reviewSubscription !== undefined
+        ? String(trueOriginalOf.get(String(reviewSubscription)))
+        : readKey;
     const answered = answersByPurchase.get(key) ?? [];
     const customFieldValues = new Map<string, string | boolean | null>();
     for (const answer of answered) {
@@ -458,8 +631,8 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         taxCountries,
         affiliateEmails,
         tipCents: tipCents.get(key),
-        review: reviewByPurchase.get(readKey),
-        license: licenseByPurchase.get(readKey),
+        review: reviewByPurchase.get(reviewKey),
+        license: licenseByPurchase.get(licenseKey),
         giftee: giftBySender.get(key),
         preorderTime: purchase.preorder_id === null ? undefined : preorderTimes.get(String(purchase.preorder_id)),
         upsold: upsold.has(key),
@@ -467,6 +640,9 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         connectAccountIds,
         presentments,
         abandonedCartEmailSales,
+        subscription:
+          purchase.subscription_id === null ? undefined : subscriptions.get(String(purchase.subscription_id)),
+        variantExtraCents: variantExtraCents.get(key),
       }),
       customFields: Object.fromEntries(customFieldValues) as Record<string, CsvCell>,
     });
@@ -501,11 +677,12 @@ function purchaseFields(
     connectAccountIds: ReadonlySet<string>;
     presentments: ReadonlyMap<string, Presentment>;
     abandonedCartEmailSales: ReadonlySet<string>;
+    subscription: SubscriptionInfo | undefined;
+    variantExtraCents: number | undefined;
   },
 ): Record<string, CsvCell> {
   for (const [name, reason] of [["is_gift_receiver_purchase", "a gift receiver"]] as const)
     if (flagSet(purchase, name)) throw new HandBackToRails(`an export that holds ${reason}`);
-  if (purchase.subscription_id !== null) throw new HandBackToRails("an export that holds a subscription charge");
   if (
     purchase.price_cents === null ||
     purchase.fee_cents === null ||
@@ -513,8 +690,6 @@ function purchaseFields(
     purchase.gumroad_tax_cents === null
   )
     throw new HandBackToRails("a sale with an amount that is missing");
-  if (purchase.state === null || purchase.country === null)
-    throw new HandBackToRails("a sale whose state or country comes from its IP address");
   if (purchase.created_at === null) throw new HandBackToRails("a sale without a creation time");
 
   const presentment = lookups.presentments.get(String(purchase.id));
@@ -522,8 +697,8 @@ function purchaseFields(
   const connect =
     purchase.merchant_account_id !== null && lookups.connectAccountIds.has(String(purchase.merchant_account_id));
   const priceDollars = dollars(purchase.price_cents);
-  // Purchase#variant_extra_cost_dollars: the price differences, nil counting as nothing.
-  const variantsPriceDollars = dollars(lookups.variant?.price_difference_cents ?? 0);
+  // Purchase#variant_extra_cost_dollars: a tier's price for the recurrence, else the price differences (nil counting as nothing).
+  const variantsPriceDollars = dollars(lookups.variantExtraCents ?? lookups.variant?.price_difference_cents ?? 0);
   // Purchase#has_tax_label?, #tax_label(include_tax_rate: false): the named tax of the rate's country, else "Sales tax".
   const hasTaxLabel =
     flagSet(purchase, "was_purchase_taxable") || purchase.gumroad_tax_cents > 0 || purchase.tax_cents > 0;
@@ -540,6 +715,11 @@ function purchaseFields(
     ].some((codes) => codes.has(taxCountry));
   const taxLabel = !hasTaxLabel ? "" : namedTax ? taxNameFor(taxCountry) : "Sales tax";
   const taxable = flagSet(purchase, "was_purchase_taxable");
+  // Purchase#state_or_from_ip_address and #country_or_from_ip_address: the sale's own value, else the one GeoIp.lookup finds for its IP
+  // address (no lookup when it has both, and an address the database lacks or Rails cannot parse is nil).
+  const fromIp = purchase.state === null || purchase.country === null ? geoIpLookup(purchase.ip_address) : null;
+  const state = purchase.state ?? fromIp?.regionName ?? null;
+  const country = purchase.country ?? fromIp?.countryName ?? null;
   const sku = lookups.variant?.type === "Sku" ? lookups.variant : undefined;
   const buyer = purchase.purchaser_id === null ? undefined : lookups.purchasers.get(String(purchase.purchaser_id));
   const refunded = flagSetColumn(purchase.stripe_refunded);
@@ -570,8 +750,8 @@ function purchaseFields(
     "Street Address": pseudoTransliterate(purchase.street_address),
     City: pseudoTransliterate(purchase.city),
     "Zip Code": zipCodeForExport(purchase.zip_code),
-    State: pseudoTransliterate(purchase.state),
-    Country: pseudoTransliterate(purchase.country),
+    State: pseudoTransliterate(state),
+    Country: pseudoTransliterate(country),
     Referrer: purchase.referrer,
     "Refunded?": refunded || partiallyRefunded ? 1 : 0,
     "Partial Refund ($)": partiallyRefunded
@@ -583,7 +763,9 @@ function purchaseFields(
     "Access Revoked?": flagSet(purchase, "is_access_revoked") ? 1 : 0,
     Variants: variantsDisplayable(lookups.variant),
     "Discount Code": offerCode,
-    "Recurring Charge?": 0,
+    // Purchase#is_recurring_subscription_charge: a gift receiver's purchase has handed back already.
+    "Recurring Charge?":
+      lookups.subscription !== undefined && !flagSet(purchase, "is_original_subscription_purchase") ? 1 : 0,
     "Free trial purchase?": flagSet(purchase, "is_free_trial_purchase") ? 1 : 0,
     "Pre-order authorization?": flagSet(purchase, "is_preorder_authorization") ? 1 : 0,
     "Product ID": link.unique_permalink,
@@ -600,14 +782,14 @@ function purchaseFields(
     // Sku#custom_name_or_external_id
     "SKU ID": sku === undefined ? null : (presence(sku.custom_sku) ?? encrypt(sku.id)),
     Quantity: purchase.quantity,
-    Recurrence: null,
+    Recurrence: lookups.subscription?.recurrence ?? null,
     Affiliate:
       purchase.affiliate_id === null ? null : (lookups.affiliateEmails.get(String(purchase.affiliate_id)) ?? null),
     "Affiliate commission ($)":
       purchase.affiliate_credit_cents === null ? null : dollars(purchase.affiliate_credit_cents),
     "Discover?": flagSet(purchase, "was_product_recommended") ? 1 : 0,
-    "Cancellation Date": null,
-    "Subscription End Date": null,
+    "Cancellation Date": lookups.subscription?.cancellationDate ?? null,
+    "Subscription End Date": lookups.subscription?.endDate ?? null,
     Rating: lookups.review?.rating ?? null,
     Review: lookups.review?.message ?? null,
     // Purchase#license_key: only a licensed product shows its serial.

@@ -488,6 +488,69 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("City")] }).to include("Munchen", "東京", "Sao Paulo")
   end
 
+  # spec/support/geoip_mocking.rb stubs GeoIp.lookup with a table of addresses, and the test environment has no lib/GeoIP2-City.mmdb.
+  # MaxMind's published test database, the one geo-ip.test.ts reads, stands in for it: the real GeoIp.lookup and Reader run.
+  describe "from the IP address" do
+    before do
+      stub_const("GEOIP", MaxMind::GeoIP2::Reader.new(database: Rails.root.join("nextjs/src/server/infra/__fixtures__/GeoLite2-City-Test.mmdb").to_s))
+      allow(GeoIp).to receive(:lookup).and_call_original
+    end
+
+    def column(name) = csv.map { |row| row[csv.first.index(name)] }
+
+    # `sell`'s own `state:` is the purchase state, so the address's state is written by column.
+    def sold_from(ip_address, state:, country:)
+      sell(ip_address:, country:).tap { |row| row.update_columns(state:) }
+    end
+
+    it "writes the state and country of the sale's IP address when the sale has neither", parity: true do
+      sold_from("2.125.160.216", state: nil, country: nil)
+      sold_from("216.160.83.56", state: nil, country: nil)
+      sold_from("175.16.199.0", state: nil, country: nil)
+      sold_from("2001:218::", state: nil, country: nil)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("State")).to include("WBK", "WA", "22")
+      expect(column("Country")).to include("United Kingdom", "United States", "China", "Japan")
+    end
+
+    it "writes the region code of a city and leaves the state blank for an address the database has no region for", parity: true do
+      sold_from("89.160.20.112", state: nil, country: nil)
+      sold_from("202.196.224.0", state: nil, country: nil)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("State")).to include("E")
+      expect(column("Country")).to include("Sweden", "Philippines")
+    end
+
+    it "reads from the IP address only the one of the state and the country that the sale lacks", parity: true do
+      sold_from("216.160.83.56", state: "CA", country: nil)
+      sold_from("216.160.83.56", state: nil, country: "Canada")
+      sold_from("216.160.83.56", state: "", country: "")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("State")).to include("CA", "WA")
+      expect(column("Country")).to include("United States", "Canada")
+    end
+
+    it "writes nothing for an address the database does not know, a blank one, or one that is no address", parity: true do
+      sold_from("10.0.0.1", state: nil, country: nil)
+      sold_from(nil, state: nil, country: nil)
+      sold_from("", state: nil, country: nil)
+      sold_from("not an address", state: nil, country: nil)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
   it "writes the buyer currency, the total charged in it and the refunds that returned it", parity: true do
     cad = sell(price_cents: 1000)
     charged_in(cad, "cad", 1350)
@@ -532,13 +595,335 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("Sent Abandoned Cart Email?")] }).to include("1", "0")
   end
 
-  it "hands a membership charge to Rails", parity: true do
-    membership = create(:membership_purchase, link: create(:membership_product, user: seller), email: "member@example.com")
-    membership.update_columns(seller_id: seller.id)
+  describe "subscription charges" do
+    let(:membership) { create(:membership_product_with_preset_tiered_pricing, user: seller, name: "Club", recurrence_price_values: [{ "monthly": { enabled: true, price: 3 }, "yearly": { enabled: true, price: 30 } }, { "monthly": { enabled: true, price: 5 } }]) }
+    let(:first_tier) { membership.tiers.first }
+    let(:yearly) { membership.prices.find_by(recurrence: "yearly") || create(:price, link: membership, recurrence: "yearly", price_cents: 3000) }
 
-    export
+    # create(:subscription) only builds the subscription and its payment option, so no card is charged.
+    def subscribed(price: membership.default_price, **attributes)
+      create(:subscription, link: membership, user: nil, price:, **attributes)
+    end
 
-    expect(response).to have_http_status(:ok)
+    def charge(subscription, original: false, **attributes)
+      sell(of: membership, subscription:, is_original_subscription_purchase: original, **attributes).tap { |row| row.variant_attributes << first_tier }
+    end
+
+    def column(name) = csv.map { |row| row[csv.first.index(name)] }
+
+    it "writes the recurrence of the subscription's price, the recurring charge flag and the dates the subscription was cancelled and ended", parity: true do
+      monthly = subscribed
+      charge(monthly, original: true, price_cents: 300)
+      charge(monthly, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      annual = subscribed(price: yearly, user_requested_cancellation_at: Time.utc(2026, 5, 6, 7, 8, 9), cancelled_at: Time.utc(2027, 3, 4, 5, 6, 7))
+      charge(annual, original: true, price_cents: 3000)
+      charge(annual, price_cents: 3000, created_at: Time.utc(2027, 3, 4, 5, 6, 7))
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Recurrence")).to include("monthly", "yearly")
+      expect(column("Recurring Charge?")).to include("1", "0")
+    end
+
+    it "ends the subscription at the first of its ended, cancelled, failed and deactivated times", parity: true do
+      # Replays seed a time to the nearest hour of the recording, so these stay clear of midnight to keep their day.
+      ended = subscribed(ended_at: Time.utc(2026, 6, 1, 12, 0, 0), cancelled_at: Time.utc(2026, 5, 1, 9, 30, 3), failed_at: Time.utc(2026, 4, 1, 9, 30, 3), deactivated_at: Time.utc(2026, 7, 1, 9, 30, 3))
+      cancelled = subscribed(cancelled_at: Time.utc(2026, 5, 2, 9, 30, 1), failed_at: Time.utc(2026, 4, 2, 9, 30, 3), deactivated_at: Time.utc(2026, 7, 2, 9, 30, 3))
+      failed = subscribed(failed_at: Time.utc(2026, 4, 3, 15, 30, 0), deactivated_at: Time.utc(2026, 7, 3, 9, 30, 3))
+      deactivated = subscribed(deactivated_at: Time.utc(2026, 7, 4, 9, 30, 3))
+      live = subscribed
+      [ended, cancelled, failed, deactivated, live].each { |subscription| charge(subscription, original: true, price_cents: 300) }
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Subscription End Date")).to include("2026-06-01", "2026-05-02", "2026-04-03", "2026-07-04")
+    end
+
+    it "prices a tier from the recurrence of the subscription and writes nothing for a recurrence the tier has no price for", parity: true do
+      monthly = subscribed
+      charge(monthly, original: true, price_cents: 300)
+      annual = subscribed(price: yearly)
+      charge(annual, original: true, price_cents: 3000)
+      second_tier = membership.tiers.second
+      sell(of: membership, subscription: subscribed(price: yearly), is_original_subscription_purchase: true, price_cents: 500).variant_attributes << second_tier
+      deleted_price = membership.tiers.first.prices.find_by(recurrence: "monthly")
+      deleted_tier = create(:variant, variant_category: membership.tier_category, name: "Retired")
+      deleted_tier.save_recurring_prices!("monthly": { enabled: true, price: 7 })
+      deleted_tier.prices.update_all(deleted_at: Time.utc(2026, 2, 1))
+      sell(of: membership, subscription: subscribed, is_original_subscription_purchase: true, price_cents: 700).variant_attributes << deleted_tier
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(deleted_price).to be_present
+      expect(column("Variants Price ($)")).to include("3.0", "0.0")
+    end
+
+    it "prefers the price on the charge itself to the subscription's for the tier's price", parity: true do
+      row = charge(subscribed, original: true, price_cents: 3000)
+      row.update_columns(price_id: yearly.id)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "reads the review of the subscription's original purchase for each of its charges and leaves out a deleted review", parity: true do
+      monthly = subscribed
+      original = charge(monthly, original: true, price_cents: 300)
+      charge(monthly, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      ProductReview.new(purchase: original, link: membership, rating: 4, message: "Still worth it").save!(validate: false)
+      removed = subscribed
+      removed_original = charge(removed, original: true, price_cents: 300)
+      charge(removed, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      ProductReview.new(purchase: removed_original, link: membership, rating: 1, message: "Removed", deleted_at: Time.utc(2026, 3, 5)).save!(validate: false)
+      reviewed_charge = subscribed
+      charge(reviewed_charge, original: true, price_cents: 300)
+      later = charge(reviewed_charge, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      # ProductReview refuses a recurring charge, so the row an older import could have left is inserted whole.
+      ProductReview.insert_all!([{ purchase_id: later.id, link_id: membership.id, rating: 2, message: "Only on the charge", created_at: Time.utc(2026, 4, 5), updated_at: Time.utc(2026, 4, 5) }])
+      sell(price_cents: 500).tap { |row| ProductReview.new(purchase: row, link: product, rating: 3, message: "Gone", deleted_at: Time.utc(2026, 3, 5)).save!(validate: false) }
+      # The first original purchase of a subscription owns the review, not a later one.
+      renewed = subscribed
+      older = charge(renewed, original: true, price_cents: 300)
+      newer = charge(renewed, original: true, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+      ProductReview.new(purchase: older, link: membership, rating: 5, message: "Older original").save!(validate: false)
+      ProductReview.new(purchase: newer, link: membership, rating: 2, message: "Newer original").save!(validate: false)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Review")).to include("Still worth it", "Older original")
+    end
+
+    it "reads the recurrence from the last payment option, else the newest live one, and nothing when its price is gone", parity: true do
+      deleted_last = subscribed
+      option = create(:payment_option, subscription: deleted_last, price: yearly)
+      deleted_last.update_columns(last_payment_option_id: option.id)
+      option.update_columns(deleted_at: Time.utc(2026, 2, 1))
+      unset_last = subscribed
+      create(:payment_option, subscription: unset_last, price: yearly)
+      create(:payment_option, subscription: unset_last, price: membership.default_price).update_columns(deleted_at: Time.utc(2026, 2, 1))
+      unset_last.update_columns(last_payment_option_id: nil)
+      missing_last = subscribed(price: yearly)
+      missing_last.update_columns(last_payment_option_id: 987_654_321)
+      priceless = subscribed
+      priceless.payment_options.update_all(price_id: 987_654_321)
+      [deleted_last, unset_last, missing_last, priceless].each { |subscription| charge(subscription, original: true, price_cents: 300) }
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Recurrence")).to include("yearly")
+    end
+
+    describe "of a licensed product" do
+      let(:licensed) { create(:product, user: seller, name: "Licensed club", is_recurring_billing: true, subscription_duration: :monthly, is_licensed: true) }
+      let(:subscription) { create(:subscription, link: licensed, user: nil) }
+
+      def licensed_charge(original: false, **attributes)
+        sell(of: licensed, subscription:, is_original_subscription_purchase: original, price_cents: 300, **attributes)
+      end
+
+      def archive(row) = row.update_columns(flags: row.flags | Purchase.flag_mapping["flags"][:is_archived_original_subscription_purchase])
+
+      it "reads the license key, its activations and whether it is enabled from the subscription's original purchase", parity: true do
+        original = licensed_charge(original: true)
+        License.create!(purchase: original, link: licensed, serial: "SUBS-AAAA-BBBB-CCCC", uses: 4)
+        licensed_charge(created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+        disabled = create(:subscription, link: licensed, user: nil)
+        disabled_original = sell(of: licensed, subscription: disabled, is_original_subscription_purchase: true, price_cents: 300)
+        License.create!(purchase: disabled_original, link: licensed, serial: "SUBS-DDDD-EEEE-FFFF", uses: 0, disabled_at: Time.utc(2026, 3, 5))
+        sell(of: licensed, subscription: disabled, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("License Key").count("SUBS-AAAA-BBBB-CCCC")).to eq(2)
+      end
+
+      it "skips an archived original purchase for the one that is live", parity: true do
+        archived = licensed_charge(original: true, created_at: Time.utc(2026, 2, 4, 5, 6, 7))
+        License.create!(purchase: archived, link: licensed, serial: "OLD-AAAA-BBBB-CCCC", uses: 9)
+        archive(archived)
+        live = licensed_charge(original: true)
+        License.create!(purchase: live, link: licensed, serial: "LIVE-AAAA-BBBB-CCCC", uses: 1)
+        licensed_charge(created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("License Key")).to include("LIVE-AAAA-BBBB-CCCC")
+      end
+
+      it "hands a subscription with two live original purchases to Rails", parity: true do
+        licensed_charge(original: true)
+        licensed_charge(original: true, created_at: Time.utc(2026, 3, 5, 5, 6, 7))
+        licensed_charge(created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    it "writes the recurrence and the price difference of a variant of a subscription product that is not a tiered membership", parity: true do
+      recurring = create(:product, user: seller, name: "Recurring", is_recurring_billing: true, subscription_duration: :monthly)
+      category = create(:variant_category, link: recurring, title: "Size")
+      large = create(:variant, variant_category: category, name: "Large", price_difference_cents: 150)
+      subscription = create(:subscription, link: recurring, user: nil)
+      sell(of: recurring, subscription:, is_original_subscription_purchase: true, price_cents: 650).variant_attributes << large
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Variants Price ($)")).to include("1.5")
+    end
+
+    it "writes a free trial membership that has not been charged", parity: true do
+      trial = subscribed(free_trial_ends_at: Time.utc(2026, 3, 11, 5, 6, 7))
+      charge(trial, original: true, price_cents: 0, state: "not_charged", is_free_trial_purchase: true)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a tier with two live prices for the subscription's recurrence to Rails", parity: true do
+      charge(subscribed, original: true, price_cents: 300)
+      duplicate = first_tier.prices.find_by(recurrence: "monthly").dup
+      duplicate.save!(validate: false)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    describe "of an installment plan" do
+      let(:plan_product) { create(:product, :with_installment_plan, user: seller, name: "Plan product") }
+
+      def paid(plan, original: false, **attributes)
+        sell(of: plan_product, subscription: plan, is_original_subscription_purchase: original, is_installment_payment: true, **attributes)
+      end
+
+      it "writes the payments of a plan that is still being paid as recurring charges of one subscription", parity: true do
+        plan = create(:subscription, link: plan_product, user: nil, is_installment_plan: true)
+        paid(plan, original: true, price_cents: 300)
+        paid(plan, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+        paid(plan, price_cents: 300, created_at: Time.utc(2026, 5, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("Recurring Charge?")).to include("0", "1")
+      end
+
+      it "writes the dates a plan was cancelled and ended", parity: true do
+        cancelled = create(:subscription, link: plan_product, user: nil, is_installment_plan: true, user_requested_cancellation_at: Time.utc(2026, 4, 1, 8, 9, 10), cancelled_at: Time.utc(2026, 4, 2, 8, 9, 10))
+        paid(cancelled, original: true, price_cents: 300)
+        finished = create(:subscription, link: plan_product, user: nil, is_installment_plan: true, ended_at: Time.utc(2026, 6, 1, 8, 9, 10))
+        paid(finished, original: true, price_cents: 300)
+        paid(finished, price_cents: 300, created_at: Time.utc(2026, 4, 4, 5, 6, 7))
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("Cancellation Date")).to include("2026-04-01 08:09:10 UTC")
+        expect(column("Subscription End Date")).to include("2026-04-02", "2026-06-01")
+      end
+
+      it "reads the recurrence from the payment option of the plan", parity: true do
+        monthly = create(:price, link: plan_product, recurrence: "monthly", price_cents: 300)
+        plan = create(:subscription, link: plan_product, user: nil, is_installment_plan: true, price: monthly)
+        paid(plan, original: true, price_cents: 300)
+
+        export
+
+        expect(response).to have_http_status(:ok)
+        expect(column("Recurrence")).to include("monthly")
+      end
+    end
+
+    it "prices a tier from its buy price and not from a rental price for the same recurrence", parity: true do
+      charge(subscribed, original: true, price_cents: 300)
+      rental = first_tier.prices.find_by(recurrence: "monthly").dup
+      rental.is_rental = true
+      rental.price_cents = 99
+      rental.save!(validate: false)
+      annual = subscribed(price: yearly)
+      charge(annual, original: true, price_cents: 3000)
+      first_tier.prices.find_by(recurrence: "yearly").update_column(:flags, 1)
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Variants Price ($)")).to include("3.0", "0.0")
+    end
+
+    it "writes a gifted membership's sender from the review of the subscription's original purchase", parity: true do
+      subscription = subscribed
+      sender = sell(of: membership, subscription:, is_original_subscription_purchase: true, is_gift_sender_purchase: true, price_cents: 300, email: "gifter@example.com")
+      receiver = sell(of: membership, subscription:, state: "gift_receiver_purchase_successful", is_gift_receiver_purchase: true, price_cents: 0, email: "giftee@example.com")
+      [sender, receiver].each { |row| row.variant_attributes << first_tier }
+      Gift.create!(link: membership, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+      # A review callback refuses a gift sender's purchase, so the rows are inserted.
+      ProductReview.insert_all!([{ purchase_id: sender.id, link_id: membership.id, rating: 4, message: "Sender note" }, { purchase_id: receiver.id, link_id: membership.id, rating: 2, message: "Receiver note" }])
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("Giftee Email")).to include("giftee@example.com")
+      expect(column("Review")).to include("Sender note")
+    end
+
+    it "hands a gifted membership whose receiver is on another subscription to Rails", parity: true do
+      sender = sell(of: membership, subscription: subscribed, is_original_subscription_purchase: true, is_gift_sender_purchase: true, price_cents: 300, email: "gifter@example.com")
+      receiver = sell(of: membership, subscription: subscribed, state: "gift_receiver_purchase_successful", is_gift_receiver_purchase: true, price_cents: 0, email: "giftee@example.com")
+      Gift.create!(link: membership, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    # Rails raises on these rows (a NoMethodError the request spec cannot record as a response), so Node leaves them to it.
+    it "hands a gifted membership whose receiver is not flagged as one to Rails", parity: true do
+      subscription = subscribed
+      sender = sell(of: membership, subscription:, is_original_subscription_purchase: true, is_gift_sender_purchase: true, price_cents: 300, email: "gifter@example.com")
+      receiver = sell(of: membership, subscription:, state: "gift_receiver_purchase_successful", price_cents: 0, email: "giftee@example.com")
+      Gift.create!(link: membership, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    describe "Rails cannot export" do
+      it "a sale whose subscription is gone" do
+        charge(subscribed, original: true, price_cents: 300).update_columns(subscription_id: 0)
+
+        expect { export }.to raise_error(NoMethodError, /true_original_purchase/)
+      end
+
+      it "a subscription without a payment option" do
+        subscription = subscribed
+        charge(subscription, original: true, price_cents: 300)
+        PaymentOption.where(subscription_id: subscription.id).delete_all
+        subscription.update_columns(last_payment_option_id: nil)
+
+        expect { export }.to raise_error(NoMethodError, /price/)
+      end
+
+      it "a SKU of a tiered membership" do
+        row = charge(subscribed, original: true, price_cents: 300)
+        row.variant_attributes.destroy_all
+        row.variant_attributes << create(:sku, link: membership, name: "Sized")
+
+        expect { export }.to raise_error(NoMethodError, /prices/)
+      end
+    end
   end
 
   it "writes the PayPal transaction and fee columns of a PayPal sale", parity: true do
@@ -628,6 +1013,35 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
     expect(csv.map { |row| row[csv.first.index("Giftee Email")] }).to include("giftee@example.com", "other-giftee@example.com")
     expect(csv.map { |row| row[csv.first.index("License Key")] }).to include("GIFT-AAAA-BBBB-CCCC")
+  end
+
+  it "writes the giftee's email of a gift of a product with variants and reads nothing of the license from them", parity: true do
+    category = create(:variant_category, link: product, title: "Size")
+    large = create(:variant, variant_category: category, name: "Large", price_difference_cents: 150)
+    sent = sell(price_cents: 650, email: "gifter@example.com", is_gift_sender_purchase: true)
+    received = sell(price_cents: 0, state: "gift_receiver_purchase_successful", email: "giftee@example.com", is_gift_receiver_purchase: true)
+    [sent, received].each { |row| row.variant_attributes << large }
+    Gift.create!(link: product, gifter_purchase: sent, giftee_purchase: received, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Variants")] }).to include("(Large)")
+  end
+
+  it "hands a gift of a licensed product whose receiver holds a variant to Rails", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed gift", is_licensed: true)
+    category = create(:variant_category, link: licensed, title: "Size")
+    large = create(:variant, variant_category: category, name: "Large")
+    sent = sell(of: licensed, price_cents: 700, email: "gifter@example.com", is_gift_sender_purchase: true)
+    received = sell(of: licensed, price_cents: 0, state: "gift_receiver_purchase_successful", email: "giftee@example.com", is_gift_receiver_purchase: true)
+    received.variant_attributes << large
+    Gift.create!(link: licensed, gifter_purchase: sent, giftee_purchase: received, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+    License.create!(purchase: received, link: licensed, serial: "GIFT-DDDD-EEEE-FFFF", uses: 1)
+
+    export
+
+    expect(response).to have_http_status(:ok)
   end
 
   it "flags a pre-order authorization and writes the authorization time on its charge", parity: true do
