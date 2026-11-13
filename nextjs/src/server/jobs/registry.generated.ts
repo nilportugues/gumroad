@@ -2053,7 +2053,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 2700,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "RecordOrderChargeOutcomeJob": {
     "file": "app/sidekiq/record_order_charge_outcome_job.rb",
@@ -3158,7 +3158,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendWorkflowInstallmentRescheduleJob": {
     "file": "app/sidekiq/send_workflow_installment_reschedule_job.rb",

@@ -288,6 +288,8 @@ import {
   sendWorkflowInstallmentRescheduleJob,
   updateInstallmentEventsCountCacheWorker,
 } from "./workflow-jobs.ts";
+import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
+import { sendWorkflowEmailsToPastCanceledMembersJob } from "./send-workflow-emails-to-past-canceled-members-job.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateTaxRatesJob: updateTaxRatesJob,
@@ -516,6 +518,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CustomDomainVerificationWorker: customDomainVerificationWorker,
   "Exports::AffiliateExportWorker": affiliateExportWorker,
   "Exports::AudienceExportWorker": audienceExportWorker,
+  ReconcilePendingPaypalRefundsJob: reconcilePendingPaypalRefundsJob,
+  SendWorkflowEmailsToPastCanceledMembersJob: sendWorkflowEmailsToPastCanceledMembersJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
