@@ -159,6 +159,21 @@ One JSON object per request/response pair (`RecordedExchange` in `e2e/support/re
 (`content-type`, `location`, `x-inertia`, `cache-control`, ...), the names of cookies set, and SHA-256 plus byte
 length of the request and response bodies. `.out/` is git-ignored.
 
+## Flaky tests and quarantine
+
+- **Retries**: `retries` is 1 locally and 2 when `CI` is set; `E2E_RETRIES=0` turns them off (use that when debugging a
+  failure, so the first failure is the only one you see). The bot project never retries because it records traffic.
+- **Trace**: `trace: "on-first-retry"`, so a spec that fails once leaves `e2e/.out/test-results/<spec>/trace.zip`
+  (open with `npx playwright show-trace <file>`), alongside the screenshot. A spec that fails and then passes is reported
+  as `flaky` in the list and the HTML report (`e2e/.out/report`); it does not fail the run, so read the summary line.
+- **Policy**: a spec reported flaky twice in a week is quarantined the same day, with an issue linked in its `reason`, and
+  fixed or deleted within two weeks. Do not raise retries or timeouts to hide it.
+- **Quarantine list**: `e2e/quarantine.json`, an array of `{ "file": "e2e/specs/x.spec.ts", "reason": "...", "since": "YYYY-MM-DD" }`.
+  Every field is required and `file` must be a spec under `e2e/specs/`; `e2e/support/quarantine.ts` throws on anything
+  else. `playwright.config.ts` removes the listed specs from the blocking `chromium` project (so `npm run e2e` and CI skip
+  them) and adds a `quarantine` project that runs only them, without retries and keeping traces:
+  `npx playwright test --project=quarantine`. To release a spec, delete its entry.
+
 ## Next step: replaying against a second server (not built yet)
 
 The JSONL is the input for differential testing. A replay tool should:
