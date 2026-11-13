@@ -50,12 +50,16 @@ vi.mock("../presenters/product-props.ts", () => ({ linkOptions }));
 vi.mock("../../lib/db.ts", () => ({ db }));
 vi.mock("../models/purchase-library-writes.ts", () => ({ setLibraryFlag, loadLibraryPurchase }));
 vi.mock("../models/purchase-product-updates.ts", () => ({ preloadProductUpdatesData }));
-vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
+vi.mock("../page-props/signed-in/presenters.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../page-props/signed-in/presenters.ts")>()),
+  avatarUrl: async () => "https://example.com/avatar.png",
+}));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
 vi.mock("../presenters/mobile-preview.ts", () => ({ mobilePreview }));
 vi.mock("../presenters/mobile-url-redirect.ts", () => ({ urlRedirectMobileData }));
 vi.mock("../presenters/mobile-serializers.ts", () => ({ purchaseJsonDataForMobile }));
-vi.mock("../presenters/mobile-serializer-reads.ts", () => ({
+vi.mock("../presenters/mobile-serializer-reads.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../presenters/mobile-serializer-reads.ts")>()),
   creatorAppPurchasesJson,
   thumbnailUrlsByProduct: async () => new Map([[2n, "https://example.com/thumb.png"]]),
 }));
