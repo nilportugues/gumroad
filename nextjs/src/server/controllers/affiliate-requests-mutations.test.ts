@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HandBackToRails, RoutingError } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, RoutingError } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -123,8 +123,13 @@ describe("POST /affiliate_requests", () => {
     await expect(call(run, body({ name: "Ada" }))).rejects.toBeInstanceOf(RoutingError);
   });
 
-  it("hands back a missing, empty or non-hash affiliate_request", async () => {
-    for (const value of [undefined, {}, "text", ["a"]])
+  it("answers a bad request for a missing, blank or empty affiliate_request", async () => {
+    for (const value of [undefined, null, "", {}])
+      await expect(call(run, body(value))).rejects.toBeInstanceOf(ParameterMissing);
+  });
+
+  it("hands back a scalar or list affiliate_request, which permit raises on", async () => {
+    for (const value of ["text", ["a"]])
       await expect(call(run, body(value))).rejects.toBeInstanceOf(HandBackToRails);
   });
 
