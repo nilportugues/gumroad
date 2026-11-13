@@ -24,7 +24,7 @@ test.describe("authentication", () => {
     await page.locator("input[type=password]").fill("not-the-password");
     await page.getByRole("button", { name: "Login", exact: true }).click();
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByText(/incorrect|invalid|couldn't find|wrong/i).first()).toBeVisible();
+    await expect(page.getByText(/account does not exist/i).first()).toBeVisible();
   });
 
   test("the seeded seller logs in through two-factor", async ({ page }) => {

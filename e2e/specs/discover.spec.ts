@@ -7,10 +7,11 @@ test.describe("discover", () => {
     await expect(page.getByRole("heading", { name: /Beautiful .* widget/ }).first()).toBeVisible();
   });
 
-  test("sorting tabs are reachable", async ({ page }) => {
+  test("a category page lists its products", async ({ page }) => {
     await page.goto("/discover");
-    await page.getByRole("link", { name: "Best Sellers" }).click();
-    await expect(page).toHaveURL(/sort=/);
+    await page.getByRole("menuitem", { name: "Design", exact: true }).click();
+    await expect(page).toHaveURL(/\/design/);
+    await expect(page.getByRole("heading", { name: /design widget/i }).first()).toBeVisible();
   });
 
   test("searching returns matching products", async ({ page }) => {

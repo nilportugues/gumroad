@@ -11,7 +11,7 @@ test.describe("seller emails and workflows", () => {
   test("a post is saved as a draft and listed", async ({ page }) => {
     const title = `E2E post ${uniqueSuffix()}`;
     await createPost(page, { title, body: "Hello from the e2e suite." });
-    await expect(page.getByText(/saved|draft/i).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/emails\/[^/]+\/edit/);
     await page.goto("/emails/drafts");
     await expect(page.getByText(title).first()).toBeVisible();
   });

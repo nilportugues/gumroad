@@ -27,11 +27,10 @@ test.describe("seller settings pages", () => {
 
   test("changing a setting persists", async ({ page }) => {
     await page.goto("/settings");
-    const name = page.locator("input[type=text]").first();
-    await name.fill("E2E Seller");
+    await page.getByLabel("Name", { exact: true }).fill("E2E Seller");
     await page.getByRole("button", { name: "Update settings" }).click();
     await expect(page.getByText(/updated/i).first()).toBeVisible();
     await page.reload();
-    await expect(page.locator("input[type=text]").first()).toHaveValue("E2E Seller");
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("E2E Seller");
   });
 });

@@ -15,7 +15,7 @@ export const createProduct = async (page: Page, { name, priceDollars }: { name: 
 };
 
 export const publishProduct = async (page: Page, permalink: string) => {
-  await page.goto(`/products/${permalink}/edit`);
+  await page.goto(`/products/${permalink}/edit/share`);
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByRole("button", { name: "Unpublish" })).toBeVisible({ timeout: 60_000 });
 };
@@ -35,7 +35,6 @@ export const createPost = async (page: Page, { title, body }: { title: string; b
 export const createWorkflow = async (page: Page, name: string) => {
   await page.goto("/workflows/new");
   await page.locator("input[type=text]").first().fill(name);
-  await page.getByRole("button", { name: /^Purchase/ }).click();
   await page.getByRole("button", { name: "Save and continue" }).click();
   await page.waitForURL(/\/workflows\/[^/]+\/emails/, { timeout: 60_000 });
 };
