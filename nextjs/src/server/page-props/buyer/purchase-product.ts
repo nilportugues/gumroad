@@ -2,7 +2,7 @@
 // which sellers open to answer a chargeback. Rails reifies the product from its PaperTrail version at the purchase's `created_at`,
 // then deep-merges PurchaseProductPresenter#product_props over ProductPresenter#product_props.
 //
-// Served for any visitor (the seller, the buyer or a stranger, signed in or not) and a product that has no version after the purchase (the live row is then the reified one), no
+// Served for a signed-out visitor and a product that has no version after the purchase (the live row is then the reified one), no
 // asset previews, no variants or SKUs and a purchase without a refund policy snapshot: the time-travelling parts of the presenter
 // then have nothing to differ on. The rest goes to Rails before the page renders.
 import { db } from "../../../lib/db.ts";
@@ -18,11 +18,9 @@ import { requireHtml } from "../../controllers/buyer-pages.ts";
 import { assertFlatQuery } from "../../controllers/rails-params.ts";
 import { parseQuery } from "../../controllers/rails-query.ts";
 import { LinkFlags } from "../../models/link.ts";
-import { loadSellerContext } from "../../policies/seller-context.ts";
 import { guidOf, sellerCustomDomainUrl, UNSUPPORTED_PRODUCT_PARAMS, viewerOf } from "../../presenters/product-page.ts";
 import { productProps } from "../../presenters/product-props.ts";
 import { findLink, findUserById } from "../../presenters/product-reads.ts";
-import { remoteIp } from "../audience/events.ts";
 import { NotPortedError } from "../not-ported.ts";
 import type { PageSpec } from "../pages.ts";
 import { sellerCustomStyles } from "../storefront/profile-pages.ts";
@@ -49,6 +47,7 @@ async function productFilters(chain: Chain): Promise<FilterOutcome> {
   // set_noindex_header
   chain.headers.set("x-robots-tag", "noindex");
 
+  if (railsLoggedInUser(chain.auth.context) !== null) throw new HandBackToRails("a signed-in visitor");
   const query = parseQuery(chain.request.queryString);
   for (const name of [...UNSUPPORTED_PRODUCT_PARAMS, "layout", "quantity", "code"])
     if (name in query) throw new HandBackToRails("a parameter the product presenter reads");
@@ -75,13 +74,12 @@ async function productFilters(chain: Chain): Promise<FilterOutcome> {
     hostWithPort: chain.request.hostWithPort,
     protocol: chain.request.protocol,
   };
-  const user = railsLoggedInUser(chain.auth.context);
   const viewer = viewerOf(
     query,
     null,
-    user,
-    user ? await loadSellerContext(chain.auth.context) : null,
-    remoteIp(chain.request.headers),
+    null,
+    null,
+    null,
     guidOf(chain.request.headers.get("cookie")),
     sellerCustomDomainUrl(false, chain.request.hostWithPort),
     config,

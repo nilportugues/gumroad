@@ -138,6 +138,7 @@ describe "Purchases controller guards", type: :request do
     end
 
     it "stores NULL for a missing value", parity: true do
+      free_purchase.update_columns(updated_at: 1.hour.ago)
       log_in(seller)
 
       send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", {})
@@ -147,6 +148,7 @@ describe "Purchases controller guards", type: :request do
     end
 
     it "stores NULL for an empty string", parity: true do
+      free_purchase.update_columns(updated_at: 1.hour.ago)
       log_in(seller)
 
       send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: "" })
@@ -156,6 +158,7 @@ describe "Purchases controller guards", type: :request do
     end
 
     it "stores NULL for a null value", parity: true do
+      free_purchase.update_columns(updated_at: 1.hour.ago)
       log_in(seller)
 
       send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: nil })
@@ -179,7 +182,7 @@ describe "Purchases controller guards", type: :request do
       ["an object of off values", { "value" => "off" }]
     ].each do |label, value|
       it "reads #{label} as true", parity: true do
-        free_purchase.update_columns(can_contact: false)
+        free_purchase.update_columns(can_contact: false, updated_at: 1.hour.ago)
         log_in(seller)
 
         send_json(:post, "/purchases/#{free_purchase.external_id}/change_can_contact", { can_contact: value })

@@ -17,7 +17,8 @@ describe("parseLocalTime", () => {
   it("refuses what strptime cannot read as a date and time", () => {
     for (const value of [undefined, null, "", 12345, 1.5, true, ["2031-06-15T09:30"], { at: "2031-06-15T09:30" }])
       expect(refusal(value)).toBe(INVALID);
-    for (const value of ["tomorrow at noon", "2031-06-15", "09:30", "2031/06/15T09:30"]) expect(refusal(value)).toBe(INVALID);
+    for (const value of ["tomorrow at noon", "2031-06-15", "09:30", "2031/06/15T09:30"])
+      expect(refusal(value)).toBe(INVALID);
   });
 
   it("hands back a string that has the separators but not the editor's spelling", () => {

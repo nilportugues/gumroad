@@ -77,7 +77,8 @@ const EPICS: Epic[] = [
     title: "Paid checkout (card purchase, order, charge)",
     files:
       /orders|purchase-(create|success|fees|response|license)|charge-|order-|free-order|checkout|customer-surcharge|purchase-sales-tax|stripe\/(payment|charge|setup)/u,
-    fallback: /purchase-pricing|merge-carts|models\/(charge|order|credit)\.ts|cart-items|stripe-(payment-intent|chargeable)/u,
+    fallback:
+      /purchase-pricing|merge-carts|models\/(charge|order|credit)\.ts|cart-items|stripe-(payment-intent|chargeable)/u,
     state: "in progress (WS-20; free orders done, paid shape recorded, post-charge half being ported)",
     blocker:
       "Rails order recorded for one happy path only; ambiguous outcomes (timeout after intent create, 3DS, late client confirmation) have no recording, and a Node failure between intent create and purchase update would leave a charged card.",

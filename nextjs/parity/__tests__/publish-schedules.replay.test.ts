@@ -100,9 +100,12 @@ function checkFixedTime(
   const [year, month, day, hour, minute] = local.split(/[-T:]/u).map(Number) as number[];
   const wall = Date.UTC(year!, month! - 1, day, hour, minute);
   const offsets = Array.from({ length: 113 }, (_, index) => (index - 56) * 15);
-  const instants = offsets.map((offset) => wall - offset * 60_000).filter((at) => wallClock(new Date(at), zone) === local);
+  const instants = offsets
+    .map((offset) => wall - offset * 60_000)
+    .filter((at) => wallClock(new Date(at), zone) === local);
   expect(instants).toHaveLength(1);
-  const inserted = (actual.db.product_publish_schedules as { inserted: { publish_at: string }[] }).inserted[0]!.publish_at;
+  const inserted = (actual.db.product_publish_schedules as { inserted: { publish_at: string }[] }).inserted[0]!
+    .publish_at;
   const hours = /^<now\+(\d+)h>$/u.exec(inserted)?.[1];
   expect(hours).toBeDefined();
   const expected = (instants[0]! - Date.now()) / 3_600_000;
@@ -114,7 +117,8 @@ function checkScheduledTime(
   actual: { response: { json?: unknown }; db: Record<string, unknown> },
 ) {
   const sent = JSON.parse(exchange.request.body ?? "{}") as Record<string, unknown>;
-  if (sent.parity_hours_ahead === undefined && typeof sent.parity_zone === "string") return checkFixedTime(sent, actual);
+  if (sent.parity_hours_ahead === undefined && typeof sent.parity_zone === "string")
+    return checkFixedTime(sent, actual);
   if (sent.parity_hours_ahead === undefined) return;
   const recorded = (exchange.response.json as { publish_schedule?: { label: string } } | undefined)?.publish_schedule;
   if (recorded === undefined) return;
