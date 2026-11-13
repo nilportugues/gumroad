@@ -19,14 +19,14 @@ const BY_ALPHA3 = new Map(COUNTRIES.map((country) => [country.alpha3, country]))
 const ACCENT_MAP = new Map<string, string>(Object.entries(COUNTRY_DATA.accent_map));
 
 // Compliance::Countries.mapping
-export const mapping = (): Array<[string, string]> => COUNTRIES.map((country) => [country.alpha2, country.common_name]);
+export const mapping = (): [string, string][] => COUNTRIES.map((country) => [country.alpha2, country.common_name]);
 
 // ISO3166::Country[alpha2] and ISO3166::Country.find_country_by_alpha3
 export const countryByAlpha2 = (alpha2: string): Country | null => BY_ALPHA2.get(alpha2.toUpperCase()) ?? null;
 export const countryByAlpha3 = (alpha3: string): Country | null => BY_ALPHA3.get(alpha3.toUpperCase()) ?? null;
 
 // ActiveSupport's `String#blank?`: `/\A[[:space:]]*\z/`, Unicode White_Space.
-const WHITE_SPACE_RANGES: ReadonlyArray<readonly [number, number]> = [
+const WHITE_SPACE_RANGES: readonly (readonly [number, number])[] = [
   [0x09, 0x0d],
   [0x20, 0x20],
   [0x85, 0x85],
@@ -38,11 +38,13 @@ const WHITE_SPACE_RANGES: ReadonlyArray<readonly [number, number]> = [
   [0x205f, 0x205f],
   [0x3000, 0x3000],
 ];
-const isWhiteSpace = (codePoint: number) => WHITE_SPACE_RANGES.some(([from, to]) => codePoint >= from && codePoint <= to);
-export const isBlank = (value: string | null | undefined): boolean => value == null || [...value].every((char) => isWhiteSpace(char.codePointAt(0)!));
+const isWhiteSpace = (codePoint: number) =>
+  WHITE_SPACE_RANGES.some(([from, to]) => codePoint >= from && codePoint <= to);
+export const isBlank = (value: string | null | undefined): boolean =>
+  value == null || [...value].every((char) => isWhiteSpace(char.codePointAt(0)!));
 
 // Unaccent.unaccent: each non-ASCII character through ACCENTMAP.
-const unaccent = (value: string): string => value.replace(/[^\x00-\x7f]/gu, (char) => ACCENT_MAP.get(char) ?? char);
+const unaccent = (value: string): string => value.replace(/\P{ASCII}/gu, (char) => ACCENT_MAP.get(char) ?? char);
 
 // ISO3166::Country.parse_value (CountryFinderMethods): drop "(", ")", "[]" and ",", unaccent, downcase.
 // Ruby lowercases each character on its own; JavaScript turns a word-final capital sigma into the final form.
@@ -59,7 +61,8 @@ function countriesByParsedName(): Map<string, Country> {
   }
   return nameIndex;
 }
-export const parsedNameIndex = (): ReadonlyMap<string, string> => new Map([...countriesByParsedName()].map(([name, country]) => [name, country.alpha2]));
+export const parsedNameIndex = (): ReadonlyMap<string, string> =>
+  new Map([...countriesByParsedName()].map(([name, country]) => [name, country.alpha2]));
 
 // Compliance::Countries.find_by_name
 export function findByName(countryName: string | null | undefined): Country | null {
@@ -68,7 +71,8 @@ export function findByName(countryName: string | null | undefined): Country | nu
 }
 
 // Compliance::Countries.find_by_name(name)&.alpha2
-export const alpha2ByName = (countryName: string | null | undefined): string | null => findByName(countryName)?.alpha2 ?? null;
+export const alpha2ByName = (countryName: string | null | undefined): string | null =>
+  findByName(countryName)?.alpha2 ?? null;
 
 // Compliance::Countries.historical_names
 export function historicalNames(countryName: string | null | undefined): string[] {
@@ -78,7 +82,9 @@ export function historicalNames(countryName: string | null | undefined): string[
 }
 
 const BLOCKED_COUNTRY_CODES: ReadonlySet<string> = new Set(COUNTRY_DATA.blocked_country_codes);
-const RISK_PHYSICAL_BLOCKED_COUNTRY_CODES: ReadonlySet<string> = new Set(COUNTRY_DATA.risk_physical_blocked_country_codes);
+const RISK_PHYSICAL_BLOCKED_COUNTRY_CODES: ReadonlySet<string> = new Set(
+  COUNTRY_DATA.risk_physical_blocked_country_codes,
+);
 export const isBlockedCountry = (alpha2: string): boolean => BLOCKED_COUNTRY_CODES.has(alpha2);
 export const isRiskPhysicalBlocked = (alpha2: string): boolean => RISK_PHYSICAL_BLOCKED_COUNTRY_CODES.has(alpha2);
 
@@ -88,4 +94,5 @@ export const COUNTRIES_SUPPORTED_BY_STRIPE_CONNECT: readonly string[] = COUNTRY_
 // ISO3166::Country.find_country_by_alpha3: the query is parsed like a name (so "i,nd" and "IND" both
 // find India), the code is compared in lower case.
 const BY_PARSED_ALPHA3 = new Map(COUNTRIES.map((country) => [country.alpha3.toLowerCase(), country]));
-export const findCountryByAlpha3 = (query: string | null | undefined): Country | null => BY_PARSED_ALPHA3.get(parseCountryName(query ?? "")) ?? null;
+export const findCountryByAlpha3 = (query: string | null | undefined): Country | null =>
+  BY_PARSED_ALPHA3.get(parseCountryName(query ?? "")) ?? null;

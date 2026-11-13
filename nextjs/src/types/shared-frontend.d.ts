@@ -1,8 +1,11 @@
 // Ambient types app/javascript compiles against (app/javascript/types/index.d.ts and the Vite
 // auto-import of `Routes`), minus its `process.env` override, which conflicts with @types/node.
+// A global script file: an `import` would turn it into a module and stop its declarations being ambient.
+/* eslint-disable @typescript-eslint/triple-slash-reference */
 /// <reference path="../../../app/javascript/types/assets.d.ts" />
 /// <reference path="../../../app/javascript/types/css.d.ts" />
 /// <reference path="../../../app/javascript/types/analytics.d.ts" />
+/* eslint-enable @typescript-eslint/triple-slash-reference */
 
 type Tuple<T, N extends number> = N extends N ? (number extends N ? T[] : $TupleOf<T, N, []>) : never;
 type $TupleOf<T, N extends number, R extends unknown[]> = R["length"] extends N ? R : $TupleOf<T, N, [T, ...R]>;
