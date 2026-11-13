@@ -1,6 +1,6 @@
-// UrlRedirectPresenter#posts for a purchase of a product without versions: Purchase.product_installments over every
-// purchase of the product the buyer's email maps to, and the view link of each post. A membership, a product that shows
-// every past post and equal sort keys among more than two posts are Rails'.
+// UrlRedirectPresenter#posts: Purchase.product_installments over every purchase of the product the buyer's email maps to
+// (a membership's charges and a purchased version's own posts included), and the view link of each post. A product that
+// shows every past post and equal sort keys among more than two posts are Rails'.
 import type { CustomDomain, Installment, Link, Purchase, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -31,10 +31,12 @@ const notRefundedOrChargedBack = (purchase: Purchase) =>
 
 const CERTIFICATE_LIFETIME_MS = 90 * 24 * 60 * 60 * 1000;
 
-// Purchase.for_displaying_installments (including test purchases) over the product's sales with this email.
-function displaysInstallments(purchase: Purchase): boolean {
+// Purchase.for_displaying_installments (including test purchases) over the product's sales with this email, less what
+// `can_access_content` drops: a deactivated membership of a product that blocks access after cancellation.
+function displaysInstallments(purchase: Purchase, deactivatedBlocked: Set<bigint>): boolean {
   if (!(purchase.purchase_state && [...ALL_SUCCESS_STATES, "test_successful"].includes(purchase.purchase_state)))
     return false;
+  if (purchase.subscription_id !== null && deactivatedBlocked.has(purchase.subscription_id)) return false;
   return notRefundedOrChargedBack(purchase) && !PurchaseFlags.isSet(purchase.flags, "is_gift_sender_purchase");
 }
 
@@ -66,13 +68,18 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     throw new HandBackToRails("a product that shows every past post");
   if (purchase.email === null || purchase.email === "")
     throw new HandBackToRails("posts of a purchase without an email");
-  if (purchase.subscription_id !== null) throw new HandBackToRails("posts of a membership purchase");
 
   const sales = await db.purchase.findMany({ where: { link_id: product.id, email: purchase.email } });
-  // can_access_content also drops a deactivated membership, which is left to Rails along with the page of one.
-  if (sales.some((sale) => sale.subscription_id !== null && displaysInstallments(sale)))
-    throw new HandBackToRails("posts of an address with a membership purchase");
-  const displayed = sales.filter(displaysInstallments);
+  const subscriptionIds = [...new Set(sales.flatMap((sale) => sale.subscription_id ?? []))];
+  const deactivated =
+    subscriptionIds.length === 0 || !LinkFlags.isSet(product.flags, "block_access_after_membership_cancellation")
+      ? []
+      : await db.subscription.findMany({
+          where: { id: { in: subscriptionIds }, deactivated_at: { not: null } },
+          select: { id: true },
+        });
+  const deactivatedBlocked = new Set(deactivated.map((row) => row.id));
+  const displayed = sales.filter((sale) => displaysInstallments(sale, deactivatedBlocked));
   if (displayed.length === 0) return [];
   if (!displayed.some((sale) => sale.id === purchase.id))
     throw new HandBackToRails("posts of a purchase not displayed");
@@ -120,6 +127,20 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
   for (const post of profilePosts.filter(aliveAndPublished).filter(profileOnly))
     listed.push({ post, sortKey: post.published_at!, group: 1 });
 
+  // profile_only_for_variants: over the versions of every displayed purchase.
+  const bought = await db.baseVariantsPurchase.findMany({
+    where: { purchase_id: { in: displayedIds.map(Number) } },
+    select: { base_variant_id: true },
+  });
+  const versionIds = bought.flatMap((row) => row.base_variant_id ?? []);
+  if (versionIds.length > 0) {
+    const versionPosts = await db.installment.findMany({
+      where: { base_variant_id: { in: versionIds }, installment_type: "variant" },
+    });
+    for (const post of versionPosts.filter(aliveAndPublished).filter(profileOnly))
+      listed.push({ post, sortKey: post.published_at!, group: 2 });
+  }
+
   // seller_with_sent_emails_for_purchases and profile_only_for_sellers, narrowed by the buyer filters.
   const records = displayed.map((sale) => new PurchaseRecord(sale, null));
   // Purchase.product_installments keeps a post when any of the purchases passes its filters.
@@ -143,13 +164,13 @@ export async function downloadPosts(purchase: Purchase | null, product: Link | n
     if (infos.length > 1) throw new HandBackToRails("a seller post with several email infos");
     if (!(await passes(post))) continue;
     const info = infos[0]!;
-    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH, group: 2 });
+    listed.push({ post, sortKey: info.sent_at ?? info.delivered_at ?? info.opened_at ?? EPOCH, group: 3 });
   }
   const sellerProfile = await db.installment.findMany({
     where: { seller_id: Number(purchase.seller_id), installment_type: "seller" },
   });
   for (const post of sellerProfile.filter(aliveAndPublished).filter(profileOnly)) {
-    if (await passes(post)) listed.push({ post, sortKey: post.published_at!, group: 3 });
+    if (await passes(post)) listed.push({ post, sortKey: post.published_at!, group: 4 });
   }
 
   // sort_by(...).reverse: Ruby's sort is not stable, so a tie is only known for two posts, which no algorithm swaps.

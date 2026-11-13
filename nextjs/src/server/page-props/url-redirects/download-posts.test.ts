@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => {
       customDomain: { findMany: vi.fn() },
       emailInfo: { findMany: vi.fn() },
       installment: { findMany: vi.fn() },
+      baseVariantsPurchase: { findMany: vi.fn() },
+      subscription: { findMany: vi.fn() },
     },
     passes: vi.fn(),
   };
@@ -79,6 +81,7 @@ function arrange({
   infos = [] as ReturnType<typeof info>[],
   posts = [] as Installment[],
   profile = [] as Installment[],
+  versionPosts = null as Installment[] | null,
   sellerPosts = [] as Installment[],
   sellerProfile = [] as Installment[],
   domains = [] as unknown[],
@@ -97,11 +100,10 @@ function arrange({
           ),
       ),
   );
-  mocks.db.installment.findMany
-    .mockResolvedValueOnce(posts)
-    .mockResolvedValueOnce(profile)
-    .mockResolvedValueOnce(sellerPosts)
-    .mockResolvedValueOnce(sellerProfile);
+  // Posts of the purchased versions are queried only while a displayed purchase has one.
+  mocks.db.baseVariantsPurchase.findMany.mockResolvedValue(versionPosts === null ? [] : [{ base_variant_id: 7 }]);
+  const queried = [posts, profile, ...(versionPosts === null ? [] : [versionPosts]), sellerPosts, sellerProfile];
+  for (const rows of queried) mocks.db.installment.findMany.mockResolvedValueOnce(rows);
   mocks.passes.mockResolvedValue(true);
 }
 
@@ -159,7 +161,6 @@ describe("downloadPosts", () => {
   });
 
   it.each([
-    ["a membership purchase", () => downloadPosts(purchase({ subscription_id: 9n }), product(), seller)],
     ["a product that shows every past post", () => downloadPosts(purchase(), product({ flags: 1n << 19n }), seller)],
     ["a purchase without an email", () => downloadPosts(purchase({ email: null }), product(), seller)],
   ])("hands back %s before querying posts", async (_, run) => {
@@ -217,10 +218,60 @@ describe("downloadPosts", () => {
     expect(String(entry!.view_url)).toContain(`purchase_id=${encodeURIComponent(encrypt(5n))}`);
   });
 
-  it("hands back an address with a displayed membership purchase of the product", async () => {
-    arrange({ sales: [purchase(), purchase({ id: 6n, subscription_id: 9n })] });
+  it("lists the posts emailed to either charge of a membership", async () => {
+    const charge = (id: bigint) => purchase({ id, subscription_id: 9n });
+    arrange({
+      sales: [charge(5n), charge(6n)],
+      infos: [info(1n, at(10)), info(2n, at(20), { purchase_id: 6n })],
+      posts: [post(1n), post(2n)],
+    });
 
-    await expect(downloadPosts(purchase(), product(), seller)).rejects.toBeInstanceOf(HandBackToRails);
+    const result = (await downloadPosts(charge(5n), product(), seller)) as Record<string, unknown>[];
+
+    expect(result.map((entry) => entry.name)).toEqual(["Post 2", "Post 1"]);
+    expect(mocks.db.subscription.findMany).not.toHaveBeenCalled();
+  });
+
+  it("lists nothing for a deactivated membership of a product that blocks access after cancellation", async () => {
+    const blocking = product({ flags: 1n << 9n });
+    arrange({ sales: [purchase({ subscription_id: 9n })], infos: [info(1n, at(10))], posts: [post(1n)] });
+    mocks.db.subscription.findMany.mockResolvedValue([{ id: 9n }]);
+
+    await expect(downloadPosts(purchase({ subscription_id: 9n }), blocking, seller)).resolves.toEqual([]);
+    expect(mocks.db.subscription.findMany).toHaveBeenCalledWith({
+      where: { id: { in: [9n] }, deactivated_at: { not: null } },
+      select: { id: true },
+    });
+  });
+
+  it("lists the posts of a deactivated membership while the product does not block access", async () => {
+    arrange({ sales: [purchase({ subscription_id: 9n })], infos: [info(1n, at(10))], posts: [post(1n)] });
+
+    await expect(downloadPosts(purchase({ subscription_id: 9n }), product(), seller)).resolves.toHaveLength(1);
+    expect(mocks.db.subscription.findMany).not.toHaveBeenCalled();
+  });
+
+  it("lists a profile-only post of a purchased version between the product and the seller posts", async () => {
+    arrange({
+      profile: [post(3n, { flags: SHOWN_ON_PROFILE, published_at: at(7) })],
+      versionPosts: [
+        post(4n, { flags: SHOWN_ON_PROFILE, published_at: at(9), base_variant_id: 7, installment_type: "variant" }),
+        post(5n, {
+          flags: SHOWN_ON_PROFILE | SEND_EMAILS,
+          published_at: at(10),
+          base_variant_id: 7,
+          installment_type: "variant",
+        }),
+        post(6n, { flags: SHOWN_ON_PROFILE, published_at: null, base_variant_id: 7, installment_type: "variant" }),
+      ],
+    });
+
+    const result = (await downloadPosts(purchase(), product(), seller)) as Record<string, unknown>[];
+
+    expect(result.map((entry) => entry.name)).toEqual(["Post 4", "Post 3"]);
+    expect(mocks.db.installment.findMany).toHaveBeenNthCalledWith(3, {
+      where: { base_variant_id: { in: [7] }, installment_type: "variant" },
+    });
   });
 
   it("lists the posts of an address whose other membership purchase is refunded", async () => {

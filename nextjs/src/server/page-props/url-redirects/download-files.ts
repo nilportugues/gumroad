@@ -123,7 +123,7 @@ export async function contentItems(loaded: Loaded, loggedInUser: User | null, em
     })) > 0
   )
     throw new HandBackToRails("a commission");
-  const files = await aliveProductFiles(loaded, embedded);
+  const files = await aliveProductFiles(loaded, embedded, { versions: true });
   await assertNothingUnproven(files);
   if (files.length === 0) return [];
 

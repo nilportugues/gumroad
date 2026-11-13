@@ -191,6 +191,189 @@ describe "Url redirect download page content", type: :request do
     end
   end
 
+  describe "versions" do
+    let(:category) { create(:variant_category, link: product, title: "Tier") }
+    let!(:basic) { create(:variant, variant_category: category, name: "Basic") }
+    let!(:premium) { create(:variant, variant_category: category, name: "Premium", price_difference_cents: 500) }
+
+    def buy(version)
+      purchase.variant_attributes << version
+    end
+
+    def version_file(version, name, position:)
+      document(name, position:).tap { |file| version.product_files << file }
+    end
+
+    def version_page(version, title, description, position:)
+      create(:rich_content, entity: version, title:, description:, position:)
+    end
+
+    def file_names(response)
+      inertia_props_of(response).dig("content", "content_items").map { |item| item["file_name"] }
+    end
+
+    it "lists only the files of the version the purchase bought", parity: true do
+      version_file(basic, "Basic guide", position: 1)
+      version_file(premium, "Premium extras", position: 2)
+      version_file(premium, "Premium guide", position: 1)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+      expect(file_names(response)).to eq(["Premium guide", "Premium extras"])
+      expect(inertia_props_of(response).dig("purchase", "variant_id")).to eq(premium.external_id)
+      expect(inertia_props_of(response).dig("content", "rich_content_pages")).to be_nil
+      expect(url_redirect.reload).to have_attributes(uses: 1, has_been_seen: true)
+    end
+
+    it "lists no files for a version that has none, whatever its sibling has", parity: true do
+      version_file(basic, "Basic guide", position: 1)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+      expect(file_names(response)).to eq([])
+    end
+
+    it "leaves out a deleted file of the version", parity: true do
+      version_file(premium, "Premium guide", position: 1)
+      version_file(premium, "Retired guide", position: 2).update_columns(deleted_at: Time.current)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(file_names(response)).to eq(["Premium guide"])
+    end
+
+    it "lists the pages of the version and the files they embed", parity: true do
+      version_file(basic, "Basic guide", position: 1)
+      guide = version_file(premium, "Premium guide", position: 1)
+      version_file(premium, "Not embedded", position: 2)
+      extras = version_file(premium, "Premium extras", position: 3)
+      version_page(basic, "Basic page", [page("For basic buyers")], position: 1)
+      version_page(premium, "Second", [embed(guide)], position: 2)
+      version_page(premium, "Welcome", [embed(extras), page("Hello")], position: 1)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+      pages = inertia_props_of(response).dig("content", "rich_content_pages")
+      expect(pages.map { |entry| entry["title"] }).to eq(%w[Welcome Second])
+      expect(pages.map { |entry| entry["variant_id"] }.uniq).to eq([premium.external_id])
+      # alive_rich_contents has no order: the files follow the pages as created, not by position.
+      expect(file_names(response)).to eq(["Premium guide", "Premium extras"])
+    end
+
+    it "lists every file of the version when its pages embed none", parity: true do
+      version_file(premium, "Premium guide", position: 1)
+      version_page(premium, "Welcome", [page("Hello")], position: 1)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(file_names(response)).to eq(["Premium guide"])
+    end
+
+    it "lists a post shown only on the profile for the version the purchase bought", parity: true do
+      create(:installment, link: product, seller:, installment_type: "variant", base_variant_id: premium.id, name: "Premium news", send_emails: false, shown_on_profile: true, published_at: 2.days.ago)
+      create(:installment, link: product, seller:, installment_type: "variant", base_variant_id: basic.id, name: "Basic news", send_emails: false, shown_on_profile: true, published_at: 1.day.ago)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Premium news"])
+    end
+
+    it "lists a post emailed to the purchase of a version", parity: true do
+      news = create(:installment, link: product, seller:, installment_type: "variant", base_variant_id: premium.id, name: "Emailed news", published_at: 3.days.ago)
+      create(:creator_contacting_customers_email_info_sent, installment: news, purchase:, sent_at: 2.days.ago)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Emailed news"])
+    end
+
+    it "answers the durations of the audio files of the version", parity: true do
+      theme = create(:listenable_audio, link: product, display_name: "Theme", position: 1).tap { |file| file.update_columns(duration: 31, size: 4_000) }
+      create(:listenable_audio, link: product, display_name: "Other", position: 2).update_columns(duration: 40, size: 4_000)
+      premium.product_files << theme
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token), headers: {
+        "X-Inertia" => "true",
+        "X-Inertia-Partial-Component" => "UrlRedirects/DownloadPage",
+        "X-Inertia-Partial-Data" => "audio_durations,latest_media_locations",
+      }
+
+      expect(response.parsed_body.dig("props", "audio_durations")).to eq(theme.external_id => 31)
+    end
+
+    it "hands a purchase of a SKU to Rails", parity: true do
+      purchase.variant_attributes << create(:sku, link: product)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
+    it "hands a purchase of several versions to Rails", parity: true do
+      version_file(basic, "Basic guide", position: 1)
+      buy(basic)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
+    it "hands a purchase of a deleted version to Rails", parity: true do
+      version_file(premium, "Premium guide", position: 1)
+      buy(premium)
+      premium.update_columns(deleted_at: Time.current)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
+    it "hands versions that share one set of pages to Rails", parity: true do
+      product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:has_same_rich_content_for_all_variants])
+      add_page("Shared", [page("For everyone")], position: 1)
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
+    it "hands the license key of a version to Rails", parity: true do
+      product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:is_licensed])
+      create(:license, link: product, purchase:, serial: "VERSION-KEY-0000-1111")
+      buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+  end
+
   describe "polls" do
     let(:poll_headers) do
       {
@@ -590,6 +773,57 @@ describe "Url redirect download page content", type: :request do
         expect(posts.map { |entry| entry["name"] }).to eq(["Big spenders again"])
         expect(posts.first["view_url"]).to include("purchase_id=#{CGI.escape(purchase.external_id)}")
         expect(earlier.id).to be < purchase.id
+      end
+    end
+
+    describe "of a membership" do
+      let(:membership_product) { create(:membership_product, user: seller, name: "Club", unique_permalink: "club") }
+      let(:membership) { create(:membership_purchase, link: membership_product, purchaser: buyer, email: "buyer@example.com", ip_address: "203.0.113.9") }
+      let(:membership_redirect) { create(:url_redirect, link: membership_product, purchase: membership) }
+
+      def membership_post(name, published_at: 3.days.ago, **attributes)
+        create(:installment, link: membership_product, seller:, installment_type: "product", name:, published_at:, **attributes)
+      end
+
+      it "lists the posts emailed to the membership", parity: true do
+        older = membership_post("Older member update", published_at: 5.days.ago)
+        newer = membership_post("Newer member update", published_at: 4.days.ago)
+        create(:creator_contacting_customers_email_info_sent, installment: older, purchase: membership, sent_at: 5.days.ago)
+        create(:creator_contacting_customers_email_info_sent, installment: newer, purchase: membership, sent_at: 3.days.ago)
+        log_in(buyer)
+
+        get url_redirect_download_page_path(membership_redirect.token)
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Newer member update", "Older member update"])
+        expect(inertia_props_of(response).dig("purchase", "membership")).to include("has_active_subscription" => true)
+      end
+
+      it "lists the posts of a deactivated membership while the product lets it keep its content", parity: true do
+        membership_post("Member update", send_emails: false, shown_on_profile: true)
+        membership.subscription.update_columns(deactivated_at: 1.day.ago, cancelled_at: 1.day.ago)
+        log_in(buyer)
+
+        get url_redirect_download_page_path(membership_redirect.token)
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Member update"])
+      end
+
+      it "leaves out the posts emailed to another membership of the address that lost its content", parity: true do
+        membership_product.update_columns(flags: membership_product.flags | Link.flag_mapping["flags"][:block_access_after_membership_cancellation])
+        lapsed = create(:membership_purchase, link: membership_product, purchaser: buyer, email: "buyer@example.com")
+        lapsed.subscription.update_columns(deactivated_at: 1.day.ago, cancelled_at: 1.day.ago)
+        kept = membership_post("Kept update", published_at: 5.days.ago)
+        lost = membership_post("Lost update", published_at: 4.days.ago)
+        create(:creator_contacting_customers_email_info_sent, installment: kept, purchase: membership, sent_at: 5.days.ago)
+        create(:creator_contacting_customers_email_info_sent, installment: lost, purchase: lapsed, sent_at: 3.days.ago)
+        log_in(buyer)
+
+        get url_redirect_download_page_path(membership_redirect.token)
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response).dig("content", "posts").map { |entry| entry["name"] }).to eq(["Kept update"])
       end
     end
 

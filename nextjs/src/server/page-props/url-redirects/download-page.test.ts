@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => {
     contentItems: vi.fn(),
     downloadPosts: vi.fn(),
     aliveProductFiles: vi.fn(),
+    contentProvider: vi.fn(),
     latestMediaLocations: vi.fn(),
   };
 });
@@ -44,7 +45,14 @@ vi.mock("./download-files.ts", async (importOriginal) => ({
   contentItems: mocks.contentItems,
 }));
 vi.mock("./download-posts.ts", () => ({ downloadPosts: mocks.downloadPosts }));
-vi.mock("../../controllers/url-redirects/files.ts", () => ({ aliveProductFiles: mocks.aliveProductFiles }));
+vi.mock("../../controllers/url-redirects/files.ts", () => ({
+  aliveProductFiles: mocks.aliveProductFiles,
+  contentProvider: mocks.contentProvider,
+}));
+vi.mock("../storefront/post.ts", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  setFaviconMetaTags: vi.fn(),
+}));
 vi.mock("./media-locations.ts", () => ({ latestMediaLocations: mocks.latestMediaLocations }));
 vi.mock("../../models/consumption-event.ts", () => ({ createEventBang: mocks.createEventBang }));
 vi.mock("../../auth/rails-session-config.ts", async () => {
@@ -52,7 +60,7 @@ vi.mock("../../auth/rails-session-config.ts", async () => {
   return { railsCookieSecrets: () => deriveRailsCookieSecrets("test-secret-key-base") };
 });
 
-const { downloadPageFilters, downloadPageProps, lastContentPageId, POLL_STATE_KEY } = await import(
+const { downloadPageFilters, downloadPageProps, lastContentPageId, POLL_STATE_KEY, setDownloadPageMeta } = await import(
   "./download-page.ts"
 );
 
@@ -98,6 +106,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.load.mockResolvedValue(loaded());
   mocks.contentItems.mockResolvedValue([]);
+  mocks.contentProvider.mockResolvedValue({ kind: "product" });
   mocks.downloadPosts.mockResolvedValue([]);
   mocks.db.richContent.findMany.mockResolvedValue([]);
   mocks.db.license.findMany.mockResolvedValue([]);
@@ -131,13 +140,9 @@ function licensed(rows: { serial: string | null }[]) {
   mocks.db.license.findMany.mockResolvedValue(rows);
 }
 
-function purchasedVariant({ files = false, deleted = false }: { files?: boolean; deleted?: boolean }) {
-  mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([{ base_variant_id: 7 }]);
-  mocks.db.baseVariant.findMany.mockResolvedValue([{ id: 7, deleted_at: deleted ? NOW : null }]);
-  mocks.db.variantCategory.findMany.mockResolvedValue([{ id: 1 }]);
-  mocks.db.baseVariantsProductFile.findMany.mockResolvedValue(files ? [{ product_file_id: 9 }] : []);
-  mocks.db.productFile.count.mockResolvedValue(files ? 1 : 0);
-}
+const VERSION_ID = 7;
+const purchasedVersion = () =>
+  mocks.contentProvider.mockResolvedValue({ kind: "variant", variant: { id: VERSION_ID } });
 
 describe("downloadPageFilters", () => {
   it("records the visit: a view event, the use count, the seen flag and the confirmed cookie", async () => {
@@ -195,8 +200,10 @@ describe("downloadPageFilters", () => {
       ["integrations", () => mocks.db.productIntegration.count.mockResolvedValue(1)],
       ["third-party analytics", () => mocks.db.thirdPartyAnalytic.count.mockResolvedValue(1)],
       ["posts", () => mocks.downloadPosts.mockRejectedValue(new HandBackToRails("posts that share a sort time"))],
-      ["a purchased variant with files", () => purchasedVariant({ files: true })],
-      ["a deleted purchased variant", () => purchasedVariant({ deleted: true })],
+      [
+        "a purchase the provider rules do not cover",
+        () => mocks.contentProvider.mockRejectedValue(new HandBackToRails("a purchase of a SKU")),
+      ],
       [
         "pages that share a position",
         () => mocks.db.richContent.findMany.mockResolvedValue([page(1n, 0), page(2n, 0)]),
@@ -229,16 +236,10 @@ describe("downloadPageFilters", () => {
     });
   });
 
-  it("renders a purchased variant that has no files and records the visit", async () => {
-    purchasedVariant({});
+  it("renders the page of a purchased version and records the visit", async () => {
+    purchasedVersion();
     await expect(downloadPageFilters(chain())).resolves.toEqual({ state: {} });
     expect(mocks.createEventBang).toHaveBeenCalledTimes(1);
-  });
-
-  it("ignores a deleted file attached to a purchased variant", async () => {
-    purchasedVariant({ files: true });
-    mocks.db.productFile.count.mockResolvedValue(0);
-    await expect(downloadPageFilters(chain())).resolves.toEqual({ state: {} });
   });
 
   describe("coffee product", () => {
@@ -296,6 +297,30 @@ describe("downloadPageFilters", () => {
       ]);
       expect(content.rich_content_pages?.[0]).toMatchObject({ variant_id: null, description: { type: "doc" } });
       expect(mocks.contentItems).toHaveBeenCalledWith(expect.anything(), null, [30n, 40n]);
+    });
+
+    it("lists the pages of the purchased version, with its id, and the files they embed", async () => {
+      purchasedVersion();
+      mocks.db.richContent.findMany.mockResolvedValue([page(1n, 1, [embed(30n)])]);
+
+      const { content } = await props();
+
+      expect(mocks.db.richContent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { entity_type: "BaseVariant", entity_id: 7n, deleted_at: null } }),
+      );
+      expect(content.rich_content_pages?.[0]).toMatchObject({ variant_id: encrypt(VERSION_ID) });
+      expect(mocks.contentItems).toHaveBeenCalledWith(expect.anything(), null, [30n]);
+    });
+
+    it("hands back the license key and the seller's view of the pages of a version", async () => {
+      purchasedVersion();
+      licensed([{ serial: "KEY-1" }]);
+      await expect(props()).rejects.toBeInstanceOf(HandBackToRails);
+
+      mocks.db.richContent.findMany.mockResolvedValue([page(1n, 1)]);
+      mocks.load.mockResolvedValue(loaded());
+      await expect(props({ id: 2n })).rejects.toBeInstanceOf(HandBackToRails);
+      await expect(props({ id: 9n })).resolves.toBeDefined();
     });
 
     it("lists no pages as null and every file", async () => {
@@ -390,6 +415,27 @@ describe("downloadPageFilters", () => {
       };
 
       expect(outcome.state[POLL_STATE_KEY]).toEqual({ latest_media_locations: {} });
+    });
+  });
+
+  describe("setDownloadPageMeta", () => {
+    const titleOf = async () => {
+      const set = vi.fn<(tags: { title?: string }) => void>();
+      await setDownloadPageMeta({ set } as never, "tok123", {} as never);
+      return set.mock.calls[0]![0].title;
+    };
+    beforeEach(() => mocks.load.mockResolvedValue(loaded({ product: { ...loaded().product, name: "Course" } })));
+
+    it("titles the page with the product, or with the version the purchase bought", async () => {
+      expect(await titleOf()).toBe("Course");
+
+      mocks.contentProvider.mockResolvedValue({ kind: "variant", variant: { id: 7, name: "Premium" } });
+      expect(await titleOf()).toBe("Premium");
+    });
+
+    it("falls back to the product while the version is still untitled", async () => {
+      mocks.contentProvider.mockResolvedValue({ kind: "variant", variant: { id: 7, name: "Untitled" } });
+      expect(await titleOf()).toBe("Course");
     });
   });
 

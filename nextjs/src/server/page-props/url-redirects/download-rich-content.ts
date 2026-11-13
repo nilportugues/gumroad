@@ -1,5 +1,5 @@
-// UrlRedirect#rich_content_json for a redirect whose rich content provider is the product itself (no variants,
-// no commission), and the node walks the download page reads from those pages.
+// UrlRedirect#rich_content_json for a redirect whose rich content provider is the product or the one version bought (no
+// commission), and the node walks the download page reads from those pages.
 import type { RichContent } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -18,9 +18,9 @@ const FILE_EMBED_CONTAINERS = ["fileEmbedGroup", ...COMMON_CONTAINERS];
 const nodesOf = (description: unknown): Node[] => (Array.isArray(description) ? (description as Node[]) : []);
 
 // `alive_rich_contents.sort_by(&:position)`: Array#sort_by is not stable, so equal positions are Rails'.
-export async function productRichPages(productId: bigint): Promise<RichContent[]> {
+async function alivePages(entityType: string, entityId: bigint): Promise<RichContent[]> {
   const pages = await db.richContent.findMany({
-    where: { entity_type: "Link", entity_id: productId, deleted_at: null },
+    where: { entity_type: entityType, entity_id: entityId, deleted_at: null },
     orderBy: { id: "asc" },
   });
   const positions = pages.map((page) => page.position);
@@ -28,7 +28,13 @@ export async function productRichPages(productId: bigint): Promise<RichContent[]
   return [...pages].sort((a, b) => a.position - b.position);
 }
 
-// RichContent#select_file_embed_ids, over the nodes of every page.
+export const productRichPages = (productId: bigint) => alivePages("Link", productId);
+
+// A polymorphic entity stores its base class, so a version's pages are BaseVariant's.
+export const variantRichPages = (variantId: number) => alivePages("BaseVariant", BigInt(variantId));
+
+// RichContent#select_file_embed_ids, over the nodes of every page. `alive_rich_contents` has no ORDER BY, so the pages are
+// walked as stored (by id), not by position.
 export function embeddedFileIds(pages: RichContent[]): bigint[] {
   const ids: bigint[] = [];
   const walk = (node: Node) => {
@@ -42,7 +48,8 @@ export function embeddedFileIds(pages: RichContent[]): bigint[] {
       for (const child of nodesOf(node.content)) walk(child);
     }
   };
-  for (const page of pages) for (const node of nodesOf(page.description)) walk(node);
+  for (const page of [...pages].sort((a, b) => (a.id < b.id ? -1 : 1)))
+    for (const node of nodesOf(page.description)) walk(node);
   return [...new Set(ids)];
 }
 
@@ -54,13 +61,13 @@ export function hasPostsNode(pages: RichContent[]): boolean {
   return pages.some((page) => nodesOf(page.description).some(contains));
 }
 
-// RichContents#rich_content_json for the product's pages, which the page props keep as-is.
-export function richContentPagesJson(pages: RichContent[]) {
+// RichContents#rich_content_json for the provider's pages, which the page props keep as-is. A version's pages carry its id.
+export function richContentPagesJson(pages: RichContent[], variantId: string | null = null) {
   return pages.map((page) => ({
     id: encrypt(page.id),
     page_id: encrypt(page.id),
     title: page.title,
-    variant_id: null,
+    variant_id: variantId,
     description: { type: "doc", content: page.description },
     updated_at: jsonTime(page.updated_at),
   }));

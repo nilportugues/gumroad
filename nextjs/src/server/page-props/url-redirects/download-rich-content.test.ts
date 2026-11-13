@@ -46,6 +46,12 @@ describe("productRichPages", () => {
 });
 
 describe("embeddedFileIds", () => {
+  it("walks the pages by id, not by position, as the unordered alive_rich_contents does", () => {
+    const pages = [page(2n, 1, [embed(5)]), page(1n, 2, [embed(3)])];
+
+    expect(embeddedFileIds(pages)).toEqual([3n, 5n]);
+  });
+
   it("reads embeds at the top level, in groups, lists and quotes, once each and in page order", () => {
     const pages = [
       page(1n, 1, [

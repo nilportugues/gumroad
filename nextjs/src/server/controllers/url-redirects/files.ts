@@ -1,11 +1,12 @@
 // What UrlRedirect asks of its product files: which are alive for the redirect, their signed locations and the transcoded video
-// bookkeeping a delivery triggers. Shapes the port does not prove (rich content, variants, stamped PDFs, preorders) hand the request
+// bookkeeping a delivery triggers. Shapes the port does not prove (SKUs, several or shared versions, stamped PDFs, preorders) hand the request
 // back to Rails before it writes anything.
-import { Prisma, type ProductFile } from "@prisma/client";
+import { Prisma, type BaseVariant, type ProductFile } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { signedDownloadUrlForS3KeyAndFilename } from "../../infra/signed-urls.ts";
+import { LinkFlags } from "../../models/link.ts";
 import {
   filenameWithExtension,
   isExternalLink,
@@ -29,33 +30,75 @@ const ownerExternalId = (loaded: Loaded) => (loaded.product?.user_id == null ? n
 
 export const fieldsOf = (file: ProductFile, loaded: Loaded) => s3Fields(file.url, ownerExternalId(loaded));
 
-// UrlRedirect#alive_product_files for the shapes that do not depend on variants: the product's own files in order. With
-// `embedded` (the file ids its rich content pages embed, in order) only those are listed, as Rails does once a page embeds one;
-// without it a product with rich content hands back.
-export async function aliveProductFiles(loaded: Loaded, embedded?: bigint[]): Promise<DeliveryFile[]> {
-  const { redirect, purchase, product } = loaded;
+// UrlRedirect#with_product_files and #rich_content_provider for a redirect without an installment: the one alive version
+// (Variant) a purchase bought, or the product. A purchase of a SKU, of several versions or of a deleted one picks its
+// provider by other rules; so does a product whose versions share one set of pages.
+export type ContentProvider = { kind: "product" } | { kind: "variant"; variant: BaseVariant };
+
+export async function contentProvider({
+  purchase,
+  product,
+}: Pick<Loaded, "purchase" | "product">): Promise<ContentProvider> {
+  if (!purchase || product === null) return { kind: "product" };
+  const links = await db.baseVariantsPurchase.findMany({ where: { purchase_id: Number(purchase.id) } });
+  if (links.length === 0) return { kind: "product" };
+  const variants = await db.baseVariant.findMany({
+    where: { id: { in: links.flatMap((link) => link.base_variant_id ?? []) } },
+  });
+  if (variants.length !== links.length || variants.some((variant) => variant.type !== "Variant"))
+    throw new HandBackToRails("a purchase of a SKU");
+  const [variant] = variants;
+  if (variants.length > 1 || variant === undefined) throw new HandBackToRails("a purchase of several versions");
+  if (variant.deleted_at !== null) throw new HandBackToRails("a purchase of a deleted version");
+  const category = await db.variantCategory.findUnique({ where: { id: variant.variant_category_id ?? 0 } });
+  if (category === null || category.link_id !== Number(product.id)) throw new HandBackToRails("an orphaned version");
+  if (LinkFlags.isSet(product.flags, "has_same_rich_content_for_all_variants"))
+    throw new HandBackToRails("versions that share one set of pages");
+  return { kind: "variant", variant };
+}
+
+// UrlRedirect#alive_product_files for the provider: its own files in order. With `embedded` (the file ids its rich content
+// pages embed, in order) only those are listed, as Rails does once a page embeds one; without it a provider with rich
+// content hands back. Only the download page proves a purchased version's files (`versions`); every other delivery hands it back.
+export async function aliveProductFiles(
+  loaded: Loaded,
+  embedded?: bigint[],
+  { versions = false }: { versions?: boolean } = {},
+): Promise<DeliveryFile[]> {
+  const { redirect, product } = loaded;
   if (redirect.preorder_id !== null) throw new HandBackToRails("a url redirect of a preorder");
   if (product === null) return [];
-  if (purchase) {
-    const purchased = await db.baseVariantsPurchase.count({ where: { purchase_id: Number(purchase.id) } });
-    if (purchased > 0) throw new HandBackToRails("a purchase of a variant");
-  }
-  if ((await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0)
+  const provider = await contentProvider(loaded);
+  if (provider.kind === "variant" && !versions) throw new HandBackToRails("a purchase of a version");
+  if (provider.kind === "product" && (await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0)
     throw new HandBackToRails("a product with variants");
-  if (
-    embedded === undefined &&
-    (await db.richContent.count({ where: { entity_type: "Link", entity_id: product.id, deleted_at: null } })) > 0
-  )
-    throw new HandBackToRails("a product with rich content");
+  if (embedded === undefined && (await hasRichPages(provider, product.id)))
+    throw new HandBackToRails("a provider with rich content");
   const listed = embedded ?? [];
+  const owned =
+    provider.kind === "variant" ? { id: { in: await variantFileIds(provider.variant.id) } } : { link_id: product.id };
   const found = await db.productFile.findMany({
-    where: { link_id: product.id, deleted_at: null, ...(listed.length > 0 ? { id: { in: listed } } : {}) },
+    where: { AND: [owned, { deleted_at: null }, ...(listed.length > 0 ? [{ id: { in: listed } }] : [])] },
     orderBy: [{ position: "asc" }, { id: "asc" }],
   });
   // FIELD(product_files.id, ids)
   const files = listed.length > 0 ? [...found].sort((a, b) => listed.indexOf(a.id) - listed.indexOf(b.id)) : found;
   if (files.some(mustBePdfStamped)) throw new HandBackToRails("a stamped PDF");
   return files.map((file) => ({ file, s3: fieldsOf(file, loaded) }));
+}
+
+// Joined on Int ids: base_variants_product_files.product_file_id is an INT, product_files.id a BIGINT.
+async function variantFileIds(variantId: number): Promise<bigint[]> {
+  const joins = await db.baseVariantsProductFile.findMany({ where: { base_variant_id: variantId } });
+  return joins.flatMap((join) => (join.product_file_id === null ? [] : [BigInt(join.product_file_id)]));
+}
+
+async function hasRichPages(provider: ContentProvider, productId: bigint): Promise<boolean> {
+  const where =
+    provider.kind === "variant"
+      ? { entity_type: "BaseVariant", entity_id: BigInt(provider.variant.id) }
+      : { entity_type: "Link", entity_id: productId };
+  return (await db.richContent.count({ where: { ...where, deleted_at: null } })) > 0;
 }
 
 // UrlRedirect#is_file_downloadable?
