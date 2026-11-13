@@ -373,7 +373,7 @@ describe "Settings passkeys when signed in", type: :request do
       expect(response).to have_http_status(:created)
     end
 
-    it "hands a nickname that is not text to Rails", parity: true do
+    it "saves an integer nickname as its digits", parity: true do
       add_passkey(attestation(request_challenge), nickname: 42)
 
       expect(response.parsed_body.dig("passkey", "nickname")).to eq("42")
@@ -434,7 +434,7 @@ describe "Settings passkeys when signed in", type: :request do
       expect(response.parsed_body["passkey"]["nickname"]).to eq(name)
     end
 
-    it "hands a name that is not text to Rails", parity: true do
+    it "saves an integer name as its digits", parity: true do
       send_json(:put, settings_passkey_path(credential.external_id), { nickname: 42 })
 
       expect(response.parsed_body["passkey"]["nickname"]).to eq("42")

@@ -139,12 +139,33 @@ describe.each([["PUT"], ["PATCH"]])("%s /settings/password", (method) => {
     expect(mocks.calls).toEqual([]);
   });
 
-  it("hands a current password that is not text to Rails", async () => {
-    await expect(call(method, { password: 123, new_password: "b" })).rejects.toBeInstanceOf(HandBackToRails);
+  it("compares an integer current password as its digits and refuses it when it does not match", async () => {
+    mocks.validPassword.mockResolvedValue(false);
+    expect(await call(method, { password: 12345, new_password: "b" })).toEqual(INCORRECT);
+    expect(mocks.validPassword).toHaveBeenCalledWith("$2a$04$hash", "12345");
+    expect(mocks.calls).toEqual([]);
   });
 
-  it("hands a user that is a non-blank string to Rails", async () => {
+  it("hands an integer current password that matches, and any other current password that is not text, to Rails", async () => {
+    await expect(call(method, { password: 123, new_password: "b" })).rejects.toBeInstanceOf(HandBackToRails);
+    mocks.validPassword.mockResolvedValue(false);
+    await expect(call(method, { password: 1.5, new_password: "b" })).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(call(method, { password: ["a"], new_password: "b" })).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("reads a user that is a string through String#[]: the substring password is the candidate, anything else is blank", async () => {
+    mocks.validPassword.mockResolvedValue(false);
+    expect(await call(method, "password")).toEqual(INCORRECT);
+    expect(mocks.validPassword).toHaveBeenCalledWith("$2a$04$hash", "password");
+    mocks.validPassword.mockClear();
+    expect(await call(method, "something else")).toEqual(INCORRECT);
+    expect(mocks.validPassword).not.toHaveBeenCalled();
+  });
+
+  it("hands a string user whose substring matches the stored password, and a user that is a number, to Rails", async () => {
     await expect(call(method, "password")).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(call(method, 5)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.calls).toEqual([]);
   });
 
   it("asks an unconfirmed OAuth account to confirm its email", async () => {

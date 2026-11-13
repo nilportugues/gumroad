@@ -110,12 +110,12 @@ describe("Purchases/RefundRequest/Show props", () => {
       "explains a partly refunded purchase",
       "explains a purchase outside the refund window",
       "explains a seller who offers no refunds",
+      "hands a renewal of a subscription to Rails, which takes its refund window from the original purchase",
       "renders the form for an eligible purchase",
       "shows a request of a disputed purchase",
       "shows a request of a refunded purchase",
       "shows an escalated request and its own deadline",
       "shows the request a buyer made",
-      "takes the refund window from the original purchase of a subscription",
     ]);
   });
 

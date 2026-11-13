@@ -77,6 +77,7 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "/sellers/brand_accounts": ["/ip:/sellers/brand_accounts:post"],
   "/sellers/brand_accounts.json": ["/ip:/sellers/brand_accounts.json:post"],
   "\\A/help/contact(?:\\.[^/]+)?\\z": ["help_center_contact/ip"],
+  "\\A/purchases/[^/]+/refund_request(?:\\.[^/]+)?\\z": ["purchase_refund_request/ip"],
   "\\A/oauth/device/code(?:\\.[^/]+)?\\z": ["oauth_device_code/ip"],
   "\\A/oauth/device(?:\\.[^/]+)?\\z": [
     "oauth_device_authorization_lookup/ip",

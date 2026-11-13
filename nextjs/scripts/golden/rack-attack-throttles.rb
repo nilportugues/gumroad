@@ -33,6 +33,8 @@ CASES = [
   { name: "stripe setup intents", method: "POST", path: "/stripe/setup_intents" },
   { name: "credit card", method: "PUT", path: "/settings/credit_card" },
   { name: "help contact", method: "POST", path: "/help/contact.xml" },
+  { name: "purchase refund request", method: "POST", path: "/purchases/abc/refund_request.json" },
+  { name: "purchase refund request with a nested id", method: "POST", path: "/purchases/a/b/refund_request" },
   { name: "oauth device code", method: "POST", path: "/oauth/device/code" },
   { name: "oauth device lookup", method: "GET", path: "/oauth/device" },
   { name: "oauth device decision", method: "POST", path: "/oauth/device.json" },

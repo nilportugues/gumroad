@@ -3,8 +3,9 @@
 // Ported: the owner-only authorization, the "confirm your email" refusal of an OAuth account, the "Incorrect password." refusal of a
 // missing or wrong current password, and the change itself: digest and save the new password (an OAuth account's first one drops its
 // provider), sign the other sessions out, and keep this browser signed in with the new salt (Devise's bypass_sign_in).
-// Handed to Rails whole, before any write: a `user` param that is neither a hash nor blank (Rails reads it through String#[]), a
-// current or new password that is not text, and a change made while impersonating.
+// Handed to Rails whole, before any write: a `user` param that is not a hash, blank or text, a current password that is not text or
+// an integer, a new password that is not text, and a change made while impersonating. A text `user` and an integer current password
+// are answered only when they fail to match the stored password; one that matches would change it, which no recording covers.
 import { authenticatableSalt, validPassword } from "../auth/devise-password.ts";
 import { WARDEN_SCOPE_SESSION_KEY, WARDEN_USER_KEY } from "../auth/warden.ts";
 import { findUserBang, isConfirmed, setPassword, Users, type UserRecord } from "../models/user.ts";
@@ -64,11 +65,21 @@ async function update(input: MutationInput): Promise<ActionResult> {
     return changePassword(input, user, params.new_password);
   }
 
-  if (!blank(params) && !isHash(params)) throw new HandBackToRails("a user param that is not a hash");
-  const password = isHash(params) ? params.password : undefined;
+  if (!blank(params) && !isHash(params) && typeof params !== "string")
+    throw new HandBackToRails("a user param that is not a hash");
+  // `"text"["password"]` is the substring when present and nil otherwise.
+  const password = isHash(params)
+    ? params.password
+    : typeof params === "string" && params.includes("password")
+      ? "password"
+      : undefined;
   if (blank(password)) return alert(FLASH_INCORRECT_PASSWORD);
-  if (typeof password !== "string") throw new HandBackToRails("a current password that is not text");
-  if (!(await validPassword(user.get("encrypted_password"), password))) return alert(FLASH_INCORRECT_PASSWORD);
+  // Devise interpolates the candidate into `"#{password}#{pepper}"`, so an integer is compared as its digits.
+  const candidate = typeof password === "number" && Number.isSafeInteger(password) ? String(password) : password;
+  if (typeof candidate !== "string") throw new HandBackToRails("a current password that is not text");
+  if (!(await validPassword(user.get("encrypted_password"), candidate))) return alert(FLASH_INCORRECT_PASSWORD);
+  if (typeof password !== "string" || !isHash(params))
+    throw new HandBackToRails("a current password that matches without being text in a hash");
   return changePassword(input, user, (params as Record<string, unknown>).new_password);
 }
 

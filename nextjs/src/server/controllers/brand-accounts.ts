@@ -75,7 +75,8 @@ async function create(input: MutationInput): Promise<ActionResult> {
     throw new HandBackToRails(`a ${name} that is not text`);
   };
   const { username, name } = attributes as Record<string, unknown>;
-  const usernameText = text(username, "username");
+  // `permit` drops a list under a scalar key, so the service sees no username and generates one.
+  const usernameText = Array.isArray(username) ? null : text(username, "username");
   const nameText = text(name, "name");
   const useExistingPayoutSetup = castBoolean((attributes as Record<string, unknown>).use_existing_payout_setup);
 

@@ -45,6 +45,8 @@ export function calculatedTrackingUrl(shipment: ShipmentRow): string | null {
   if (link === "" || link.length > TRACKING_LINK_MAX_LENGTH) return null;
   // A scheme other than http(s) (ftp://...) is not display-safe: `display_safe_tracking_link` answers nil.
   if (displaySafeTrackingLink(link) === false) return null;
+  // A space inside is not a URI: URI.parse raises and display_safe_tracking_link answers nil.
+  if (link.includes(" ")) return null;
   if (!PLAIN_LINK.test(link))
     throw new NotPortedError("a tracking link URI.parse may read differently", "Shipment#calculated_tracking_url");
   return link;
