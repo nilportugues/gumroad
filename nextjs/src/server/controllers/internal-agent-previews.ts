@@ -1,8 +1,8 @@
 // Api::Internal::AgentCustomHtmlPreviewsController. #show is a Redis read and runs here. #create answers the gates, every proposal the
 // controller refuses before it sanitizes anything, and a preview that renders when every step can be proven byte-equal: Ai::PageSanitizer,
 // Pages::Interpolator.interpolate_profile, Pages::ProfileData for a seller with nothing to list, and the sandboxed document. A page that
-// references prices (Pages::ProductPrices.build), a seller with products or posts, a proposal that clears the page
-// (Pages::DefaultProfileDocument) or a guarded undo is Rails', handed back before anything is staged.
+// references prices (Pages::ProductPrices.build), a seller with products, posts or an uploaded avatar (also for a proposal that clears
+// the page, which previews Pages::DefaultProfileDocument) or a guarded undo is Rails', handed back before anything is staged.
 import { db } from "../../lib/db.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
@@ -10,7 +10,7 @@ import { storageConfig } from "../infra/storage.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 
-import { stagePreview, type PreviewSeller as PreviewSellerRow } from "./agent-preview-render.ts";
+import { stageClearedPreview, stagePreview, type PreviewSeller as PreviewSellerRow } from "./agent-preview-render.ts";
 import { HandBackToRails, type ActionResult, type Rendered } from "./application-controller.ts";
 import { PREVIEW_CHANGED_MARKER, PREVIEW_CHANGED_MARKER_TEXT } from "./custom-html-document.ts";
 import { authorizeStoreAgent, guarded, handingBack } from "./internal-agent.ts";
@@ -133,6 +133,10 @@ async function previewUrl(seller: PreviewSellerRow, resulting: string, marked: s
   return json({ success: true, preview_url: await stagePreview(seller, resulting, marked) });
 }
 
+async function previewCleared(seller: PreviewSellerRow): Promise<ActionResult> {
+  return json({ success: true, preview_url: await stageClearedPreview(seller) });
+}
+
 // #resulting_custom_html up to the point a proposal needs the sanitizer
 async function previewProposal(input: MutationInput): Promise<ActionResult> {
   const { params } = input;
@@ -147,8 +151,7 @@ async function previewProposal(input: MutationInput): Promise<ActionResult> {
     if (Array.isArray(customHtml))
       throw new HandBackToRails("an array custom_html, which Rails' parameter munging may rewrite");
     if (customHtml !== null && typeof customHtml !== "string") return failure("custom_html must be a string.");
-    if (customHtml === null || RUBY_BLANK.test(customHtml))
-      throw new HandBackToRails("a proposal that clears the page");
+    if (customHtml === null || RUBY_BLANK.test(customHtml)) return previewCleared(seller);
     const tooLong = lengthError(customHtml);
     if (tooLong !== null) return failure(tooLong);
     return previewUrl(seller, customHtml, null);
