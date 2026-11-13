@@ -1,9 +1,12 @@
 // Port of ThirdPartyAnalyticsController#profile and #index (app/controllers/third_party_analytics_controller.rb): the seller's raw snippets
-// for the profile page and for a product's page, served on the third-party analytics host. #index with a `purchase_id` ($VALUE, $CURRENCY and
-// $ORDER substituted from the sale) is not ported and goes to Rails.
+// for the profile page and for a product's page, served on the third-party analytics host. #index with a `purchase_id` substitutes $VALUE,
+// $CURRENCY and $ORDER from the sale; a purchase_id outside [A-Za-z0-9_=-] or on a sale or product whose price or currency is
+// missing goes to Rails.
 import { Prisma } from "@prisma/client";
 
+import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { formatMoney } from "../page-props/audience/filters.ts";
 
 import { HandBackToRails, RoutingError, type ActionContext, type Rendered } from "./application-controller.ts";
 import { deleteCookieHeader } from "./signed-in-filters.ts";
@@ -51,6 +54,33 @@ export async function profile(username: string, action: ActionContext): Promise<
   };
 }
 
+const EXTERNAL_ID = /^[\w=-]+$/u;
+
+// `@product.sales.find_by_external_id(params[:purchase_id])`, then the placeholders `gsub!` replaces in the snippets. A blank purchase_id
+// is not `present?` and substitutes nothing.
+async function substitutePurchase(
+  snippets: string,
+  product: { id: bigint; price_currency_type: string | null },
+  purchaseId: string,
+): Promise<string> {
+  if (purchaseId === "") return snippets;
+  if (!EXTERNAL_ID.test(purchaseId)) throw new HandBackToRails("a purchase_id Node does not read");
+  const id = decrypt(purchaseId);
+  const [purchase] =
+    id === null
+      ? []
+      : await selectRows<{ displayed_price_cents: number | null }>(
+          Prisma.sql`SELECT ${column("purchases", "displayed_price_cents")} FROM ${table("purchases")} WHERE ${column("purchases", "link_id")} = ${product.id} AND ${column("purchases", "id")} = ${id} LIMIT 1`,
+        );
+  if (!purchase) throw new RoutingError("Not Found");
+  if (purchase.displayed_price_cents === null || product.price_currency_type === null)
+    throw new HandBackToRails("a sale or product without a price or currency");
+  return snippets
+    .replaceAll("$VALUE", () => formatMoney(Number(purchase.displayed_price_cents), product.price_currency_type))
+    .replaceAll("$CURRENCY", () => product.price_currency_type!.toUpperCase())
+    .replaceAll("$ORDER", () => purchaseId);
+}
+
 const UNSUPPORTED_QUERY = /^(?:id|location\[|purchase_id\[)/u;
 
 // #index: the product's alive snippets for the location, then the seller's universal ones, between the two overrides.
@@ -58,16 +88,17 @@ export async function index(linkId: string, url: URL, action: ActionContext): Pr
   // fetch_product reads `params[:id] || params[:link_id]`, and a list or hash in the query is not a string location.
   if ([...url.searchParams.keys()].some((key) => UNSUPPORTED_QUERY.test(key)))
     throw new HandBackToRails("a location or id the query gives as a list");
-  if ((url.searchParams.get("purchase_id") ?? "") !== "")
-    throw new HandBackToRails("a purchase_id");
-  const [product] = await selectRows<{ id: bigint; user_id: bigint }>(
-    Prisma.sql`SELECT ${Prisma.raw("`links`.`id`, `links`.`user_id`")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${linkId} AND ${column("links", "deleted_at")} IS NULL LIMIT 1`,
+  const [product] = await selectRows<{ id: bigint; user_id: bigint; price_currency_type: string | null }>(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.`id`, `links`.`user_id`, `links`.`price_currency_type`")} FROM ${table("links")} WHERE ${column("links", "unique_permalink")} = ${linkId} AND ${column("links", "deleted_at")} IS NULL LIMIT 1`,
   );
   if (!product) throw new RoutingError("Not Found");
 
   // `where(location: [params[:location], "all"])`: a missing location also matches the rows with none.
   const location = url.searchParams.get("location");
-  const locations = location === null ? Prisma.sql`(${column("third_party_analytics", "location")} = 'all' OR ${column("third_party_analytics", "location")} IS NULL)` : Prisma.sql`${column("third_party_analytics", "location")} IN (${location}, 'all')`;
+  const locations =
+    location === null
+      ? Prisma.sql`(${column("third_party_analytics", "location")} = 'all' OR ${column("third_party_analytics", "location")} IS NULL)`
+      : Prisma.sql`${column("third_party_analytics", "location")} IN (${location}, 'all')`;
   const snippetsOf = async (owner: Prisma.Sql) =>
     (
       await selectRows<{ analytics_code: string | null }>(
@@ -80,9 +111,10 @@ export async function index(linkId: string, url: URL, action: ActionContext): Pr
   const userSnippets = await snippetsOf(
     Prisma.sql`${column("third_party_analytics", "user_id")} = ${product.user_id} AND ${column("third_party_analytics", "link_id")} IS NULL`,
   );
+  const snippets = OVERRIDE_WINDOW_ACTIONS_CODE + productSnippets + userSnippets + OVERRIDE_ON_CLOSE_CODE;
   return {
     status: 200,
-    body: page(OVERRIDE_WINDOW_ACTIONS_CODE + productSnippets + userSnippets + OVERRIDE_ON_CLOSE_CODE),
+    body: page(await substitutePurchase(snippets, product, url.searchParams.get("purchase_id") ?? "")),
     contentType: "text/html; charset=utf-8",
     paramsRead: true,
     cookies: erasedCookies(action),
