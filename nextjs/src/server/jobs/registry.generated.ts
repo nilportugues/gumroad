@@ -85,7 +85,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   AlertOnStalledAbandonedCartEmailsJob: {
     file: "app/sidekiq/alert_on_stalled_abandoned_cart_emails_job.rb",
@@ -160,7 +160,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   AnalyzeFileWorker: {
     file: "app/sidekiq/analyze_file_worker.rb",
@@ -1341,7 +1341,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   GenerateCanadaSalesReportJob: {
     file: "app/sidekiq/generate_canada_sales_report_job.rb",

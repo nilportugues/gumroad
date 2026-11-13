@@ -5,9 +5,11 @@ import { activateIntegrationsWorker } from "./activate-integrations-worker.ts";
 import { alertOnBlockedEstablishedBuyersJob } from "./alert-on-blocked-established-buyers-job.ts";
 import { alertOnBlockedEstablishedSubscribersJob } from "./alert-on-blocked-established-subscribers-job.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
+import { alertOnStaleBlocksHoldingEstablishedBuyersJob } from "./alert-on-stale-blocks-holding-established-buyers-job.ts";
 import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
 import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
+import { alertSellersOfUndeliveredReceiptsJob } from "./alert-sellers-of-undelivered-receipts-job.ts";
 import { analyzeFileWorker } from "./analyze-file-worker.ts";
 import { annualPayoutExportWorker } from "./annual-payout-export-worker.ts";
 import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
@@ -85,6 +87,7 @@ import {
   sendStripeCurrencyBalancesReportJobRetriesExhausted,
 } from "./finance-report-jobs.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
+import { generateAvatarVariantJob } from "./generate-avatar-variant-job.ts";
 import {
   generateCommunityChatRecapJob,
   generateCommunityChatRecapJobRetriesExhausted,
@@ -600,6 +603,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Mcp::DeliverEventJob": mcpDeliverEventJob,
   "Exports::Sales::CreateAndEnqueueChunksWorker": createAndEnqueueChunksWorker,
   SendBundlesMarketingEmailJob: sendBundlesMarketingEmailJob,
+  GenerateAvatarVariantJob: generateAvatarVariantJob,
+  AlertOnStaleBlocksHoldingEstablishedBuyersJob: alertOnStaleBlocksHoldingEstablishedBuyersJob,
+  AlertSellersOfUndeliveredReceiptsJob: alertSellersOfUndeliveredReceiptsJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

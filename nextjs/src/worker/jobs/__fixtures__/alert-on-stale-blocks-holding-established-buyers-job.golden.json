@@ -1,0 +1,1393 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no blocks",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no blocks and a cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '5') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no blocks and a cursor of zero",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an active email block",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block past the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '1') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "email",
+                "Buyer2@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block at the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '1') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block before the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '7') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "two active email blocks before the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '7') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ],
+              [
+                2,
+                "email",
+                "Buyer2@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an email block before the cursor, none after, then none to start over",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '7') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an active email block and a cursor that is not a number",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "abc",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "abc",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block and an empty cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block and a cursor with trailing text",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '1') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "email",
+                "Buyer2@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "1x",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "1x",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block and a cursor of only spaces",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "  ",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "  ",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block and a cursor with leading spaces",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '2') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                3,
+                "email",
+                "Buyer3@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "  2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "  2",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block and a negative cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '-4') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "-4",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "-4",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active block of another type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an active block of another type before the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '7') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an active email-domain block",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email block set by a person",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email block that is not blocked yet",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email block that expired a second ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email block that expires now",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email block that expires a second from now",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-11-04T12:30:46.123000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an email block that expires in a day",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-11-05T12:30:45.123000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an expired email block before an active one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "email",
+                "Buyer2@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an email block set by a person before an active one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                "email",
+                "Buyer2@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "three active email blocks",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '0') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                "email",
+                "Buyer1@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ],
+              [
+                2,
+                "email",
+                "Buyer2@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ],
+              [
+                3,
+                "email",
+                "Buyer3@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an active email block with a gap in ids",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `platform_blocks`.* FROM `platform_blocks` WHERE `platform_blocks`.`blocked_at` IS NOT NULL AND (expires_at IS NULL OR expires_at > '2026-11-04 12:30:45.123000') AND `platform_blocks`.`object_type` = 'email' AND `platform_blocks`.`blocked_by` IS NULL AND `platform_blocks`.`object_value` IS NOT NULL AND (platform_blocks.id > '4') ORDER BY `platform_blocks`.`id` ASC LIMIT 5001",
+          "result": {
+            "fields": [
+              "id",
+              "object_type",
+              "object_value",
+              "blocked_at",
+              "expires_at",
+              "blocked_by",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                9,
+                "email",
+                "Buyer9@example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "4",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "stale_block_sweep:cursor": {
+          "type": "string",
+          "value": "4",
+          "expires": false
+        }
+      },
+      "job": "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
+      "args": [],
+      "hands_back": true
+    }
+  ]
+}
