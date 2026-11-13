@@ -8,8 +8,10 @@ import { Prisma } from "@prisma/client";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 
 import { ChargeFlags } from "./charge-record.ts";
-import { findPurchaseOrNil } from "./charge.ts";
+// Evaluated before merchant-account.ts: that module reaches subscription.ts through the mailers, which needs PURCHASES already defined.
+import "./purchase.ts";
 import { findMerchantAccountByProcessorMerchantId, isStripeConnectAccountRecord } from "./merchant-account.ts";
+import { findOneBy } from "./row-reads.ts";
 import { isBlank } from "./runtime/validators.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { type EventObject, isObject, railsIntegerCast } from "./stripe-event-values.ts";
@@ -21,6 +23,9 @@ const HANDLED_REFUND_EVENTS = ["refund.updated", "refund.failed"];
 const PAYMENT_INTENT_LIFECYCLE_EVENTS = ["payment_intent.processing", "payment_intent.succeeded"];
 const RADAR_EVENTS = ["radar.early_fraud_warning.created", "radar.early_fraud_warning.updated"];
 const CAPITAL_PAYMENT_EVENT = "capital.financing_transaction.created";
+
+// `Purchase.find_by(id:)`; a nil id still sends the statement.
+const findPurchaseById = (id: bigint | null) => findOneBy("Purchase", "id", id, true);
 
 const notPorted = (what: string) => new NotPortedError(what, SOURCE);
 
@@ -87,7 +92,7 @@ async function findByStripeEvent(
   }
   if (reference !== null) {
     const decoded = decrypt(reference);
-    if (await findPurchaseOrNil(decoded === null ? null : BigInt(decoded))) return { kind: "purchase" };
+    if (await findPurchaseById(decoded === null ? null : BigInt(decoded))) return { kind: "purchase" };
   }
   if (chargeId !== null) {
     const charge = asCharge(await lastBy("charges", "processor_transaction_id", chargeId));
@@ -96,7 +101,7 @@ async function findByStripeEvent(
   }
   if (!isBlank(intentId)) {
     const link = await lastBy("processor_payment_intents", "intent_id", intentId);
-    if (link && (await findPurchaseOrNil(BigInt(String(link.purchase_id))))) return { kind: "purchase" };
+    if (link && (await findPurchaseById(BigInt(String(link.purchase_id))))) return { kind: "purchase" };
   }
   return null;
 }
