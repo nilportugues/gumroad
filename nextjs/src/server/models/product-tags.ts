@@ -2,9 +2,11 @@
 // Api::V2::LinksController#update (`tags`) saves.
 //
 // `planTagChanges` runs before the first statement and throws NotPortedError for what the port does not follow: a name Tag's callbacks
-// or validations would change or refuse (anything but plain lowercase ASCII), a repeated name, and names that MySQL's collation lookup
-// resolves to a tag with another spelling or to the same tag as another name of the list. The writes then run in the order Rails takes
-// the `tags` counter-cache rows: by tag id, removals first.
+// would change (anything but ASCII without whitespace, which `tag!` lowercases), a name the validations judge in a shape no recording
+// holds, distinct spellings of one name, and names that MySQL's collation lookup resolves to a tag with another spelling or to the same
+// tag as another name of the list. A repeated name is followed: the second tagging fails the uniqueness validation. A name the
+// validations refuse (one character, or a comma) raises RecordInvalid from the save, which the action's transaction rolls back.
+// The writes run in the order Rails takes the `tags` counter-cache rows: by tag id, removals first.
 //
 // Rails-recorded proof: spec/requests/api/v2/products_throttled_parity_spec.rb ("the tags"), replayed by api-v2-throttled.replay.
 import { Prisma, type ProductTagging, type Tag } from "@prisma/client";
@@ -26,6 +28,8 @@ const TOO_LONG = "A tag is too long. Please try again with a shorter one, under 
 const INVALID_FORMAT = "A tag cannot start with hashes or contain commas.";
 // A name `clean_name` and `String#downcase` leave alone, that the validations accept: lowercase ASCII with single inner spaces.
 const PLAIN_TAG_NAME = /^[a-z0-9](?:[a-z0-9_-]| (?! ))*[a-z0-9]$/u;
+// Printable ASCII without a space: `clean_name` leaves it alone once lowercased.
+const UNSPACED_ASCII = /^[\u0021-\u007e]+$/u;
 
 const notPorted = (what: string): never => {
   throw new NotPortedError(what, "app/models/concerns/product/tags.rb");
@@ -138,28 +142,58 @@ async function currentTagNames(productId: number | bigint): Promise<string[]> {
 }
 
 // The work `save_tags!` does for `tagList`, in the order it does it. Reads only; throws NotPortedError for a list outside the shapes above.
-export async function planTagChanges(productId: number | bigint, tagList: string[]): Promise<Work[]> {
-  if (new Set(tagList).size !== tagList.length) notPorted("a tag list that repeats a name");
+// `plainOnly` is the creation's reading, whose recordings hold no refusal: only plain lowercase names, each once.
+export async function planTagChanges(
+  productId: number | bigint,
+  tagList: string[],
+  { plainOnly = false }: { plainOnly?: boolean } = {},
+): Promise<Work[]> {
+  if (plainOnly) {
+    if (new Set(tagList).size !== tagList.length) notPorted("a tag list that repeats a name");
+    for (const name of tagList)
+      if (!PLAIN_TAG_NAME.test(name) || name.length < MIN_TAG_LENGTH || name.length > MAX_TAG_LENGTH)
+        notPorted("a tag name that is not plain lowercase ASCII of 2 to 20 characters");
+  }
   const current = await currentTagNames(productId);
   const toRemove = current.filter((name) => !tagList.includes(name));
   const toAdd = tagList.filter((name) => !current.includes(name));
-  for (const name of [...toRemove, ...toAdd])
-    if (!PLAIN_TAG_NAME.test(name) || name.length < MIN_TAG_LENGTH || name.length > MAX_TAG_LENGTH)
-      notPorted("a tag name that is not plain lowercase ASCII of 2 to 20 characters");
+  // `tag!` downcases the name it is given.
+  const lowered = new Map<string, string>();
+  for (const name of toAdd) {
+    if (!UNSPACED_ASCII.test(name)) notPorted("a tag name that is not printable ASCII without spaces");
+    const lower = name.toLowerCase();
+    if (lowered.has(lower) && lowered.get(lower) !== name) notPorted("two spellings of one tag name");
+    lowered.set(lower, name);
+  }
+  for (const name of toRemove)
+    if (!PLAIN_TAG_NAME.test(name)) notPorted("a current tag that is not plain lowercase ASCII");
+  for (const lower of lowered.keys()) {
+    const validated = PLAIN_TAG_NAME.test(lower) && lower.length >= MIN_TAG_LENGTH && lower.length <= MAX_TAG_LENGTH;
+    // The two refusals a recording holds: a single character, and a comma inside a name that is neither too short nor too long.
+    const refused =
+      lower.length === 1 || (lower.includes(",") && lower.length > MIN_TAG_LENGTH && lower.length <= MAX_TAG_LENGTH);
+    if (!validated && !refused) notPorted("a tag name the validations judge in a shape no recording holds");
+  }
 
   const work: Work[] = [
     ...toRemove.map((name) => ({ name, action: "remove" as const, tagId: null })),
-    ...toAdd.map((name) => ({ name, action: "add" as const, tagId: null })),
+    ...toAdd.map((name) => ({ name: name.toLowerCase(), action: "add" as const, tagId: null })),
   ];
-  const seen = new Set<number>();
+  const seen = new Map<string, number>();
   for (const item of work) {
+    const key = `${item.action}:${item.name}`;
+    if (seen.has(key)) {
+      // A name repeated in the list: the same tag, and the second tagging fails to save.
+      item.tagId = seen.get(key)!;
+      continue;
+    }
     const rows = await tagsNamed(item.name);
     if (rows.length > 1) notPorted("a tag name that more than one tag row matches");
     const [row] = rows;
     if (row !== undefined) {
       if (row.name !== item.name) notPorted("a tag name that matches a tag spelled differently");
-      if (seen.has(row.id)) notPorted("two tag names that resolve to the same tag");
-      seen.add(row.id);
+      if ([...seen.values()].includes(row.id)) notPorted("two tag names that resolve to the same tag");
+      seen.set(key, row.id);
       item.tagId = row.id;
     }
   }
