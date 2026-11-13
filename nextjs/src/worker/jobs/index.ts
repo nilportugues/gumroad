@@ -152,6 +152,8 @@ import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-addres
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
+import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-update-emails-job.ts";
+import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
 import {
   alertOnStalledAbandonedCartEmailsJob,
   buildTaxRateCacheWorker,
@@ -315,6 +317,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RefreshCustomDomainRoutabilityWorker: refreshCustomDomainRoutabilityWorker,
   ProcessPaymentWorker: processPaymentWorker,
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
+  SendMembershipsPriceUpdateEmailsJob: sendMembershipsPriceUpdateEmailsJob,
+  SendRemindersForOutstandingUserComplianceInfoRequestsWorker: sendRemindersForOutstandingUserComplianceInfoRequestsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,

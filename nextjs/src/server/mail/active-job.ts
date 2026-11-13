@@ -28,12 +28,15 @@ export type ActiveJobArgument =
   | { readonly globalId: { readonly model: string; readonly id: number | bigint } }
   // A Ruby Date, as ISO 8601 `YYYY-MM-DD`.
   | { readonly date: string }
+  // An ActiveSupport::TimeWithZone in UTC (`Time.zone` is unset, so Rails names the zone Etc/UTC), as epoch milliseconds.
+  | { readonly timeWithZone: number }
   | { readonly symbolKeys: Readonly<Record<string, ActiveJobArgument>> }
   // Keyword arguments (a ruby2_keywords-flagged Hash), as `Mailer.method(key: value)` passes them.
   | { readonly keywords: Readonly<Record<string, ActiveJobArgument>> };
 
 export const record = (model: string, id: number | bigint): ActiveJobArgument => ({ globalId: { model, id } });
 export const rubyDate = (isoDate: string): ActiveJobArgument => ({ date: isoDate });
+export const timeWithZone = (epochMilliseconds: number): ActiveJobArgument => ({ timeWithZone: epochMilliseconds });
 export const symbolHash = (hash: Record<string, ActiveJobArgument>): ActiveJobArgument => ({ symbolKeys: hash });
 export const keywordArgs = (hash: Record<string, ActiveJobArgument>): ActiveJobArgument => ({ keywords: hash });
 
@@ -44,6 +47,12 @@ export function serializeArgument(argument: ActiveJobArgument): JsonValue {
   }
   if (Array.isArray(argument)) return argument.map(serializeArgument);
   if ("date" in argument) return { _aj_serialized: "ActiveJob::Serializers::DateSerializer", value: argument.date };
+  if ("timeWithZone" in argument)
+    return {
+      _aj_serialized: "ActiveJob::Serializers::TimeWithZoneSerializer",
+      value: new Date(argument.timeWithZone).toISOString().replace(/Z$/u, "000000Z"),
+      time_zone: "Etc/UTC",
+    };
   if ("globalId" in argument) return { _aj_globalid: `gid://${GLOBAL_ID_APP}/${argument.globalId.model}/${argument.globalId.id}` };
   const hash = "keywords" in argument ? argument.keywords : argument.symbolKeys;
   for (const key of Object.keys(hash)) if (key.startsWith("_aj_")) throw new Error(`reserved ActiveJob key ${key}`);
@@ -78,18 +87,35 @@ export function buildMailDeliveryItem(input: DeliverLaterInput, identity: MailJo
   const at = input.waitSeconds !== undefined ? identity.now + input.waitSeconds : undefined;
   const jobClass = input.jobClass ?? MAIL_DELIVERY_JOB;
   const extra = input.extraKeywords ?? {};
+  return activeJobItem(
+    jobClass,
+    queue,
+    [
+      input.mailer,
+      input.method,
+      "deliver_now",
+      { args: input.args.map(serializeArgument), ...Object.fromEntries(Object.entries(extra).map(([key, value]) => [key, serializeArgument(value)])), _aj_ruby2_keywords: ["args", ...Object.keys(extra)] },
+    ],
+    identity,
+    at,
+  );
+}
+
+// The Sidekiq hash the adapter pushes for an ActiveJob: the serialized job inside a JobWrapper item.
+function activeJobItem(
+  jobClass: string,
+  queue: string,
+  serializedArguments: JsonValue[],
+  identity: MailJobIdentity,
+  at: number | undefined,
+): SidekiqItem {
   const job: Record<string, JsonValue> = {
     job_class: jobClass,
     job_id: identity.jobId,
     provider_job_id: null,
     queue_name: queue,
     priority: null,
-    arguments: [
-      input.mailer,
-      input.method,
-      "deliver_now",
-      { args: input.args.map(serializeArgument), ...Object.fromEntries(Object.entries(extra).map(([key, value]) => [key, serializeArgument(value)])), _aj_ruby2_keywords: ["args", ...Object.keys(extra)] },
-    ],
+    arguments: serializedArguments,
     executions: 0,
     exception_executions: {},
     locale: "en",
@@ -177,4 +203,23 @@ export async function deliverLater(runtime: JobsRuntime, input: DeliverLaterInpu
   const item = buildMailDeliveryItem(input, { jobId: randomUUID(), jid: runtime.newJid(), now });
   await pushMailDeliveryItem(runtime, item, route);
   return String((item.args as Record<string, JsonValue>[])[0]!.job_id);
+}
+
+// `SomeJob.perform_later(*args)` for an ActiveJob that has no Node body, with plain String and Integer arguments. Rails runs it,
+// so the item always goes to Sidekiq. `jobId` is the ActiveJob job_id (SecureRandom.uuid).
+export async function performLater(
+  runtime: JobsRuntime,
+  input: { jobClass: string; queue: string; args: (string | number)[] },
+  jobId: string = randomUUID(),
+): Promise<string> {
+  const now = runtime.now();
+  const item = activeJobItem(
+    input.jobClass,
+    input.queue,
+    input.args.map(serializeArgument),
+    { jobId, jid: runtime.newJid(), now },
+    undefined,
+  );
+  await pushMailDeliveryItem(runtime, item, "ruby");
+  return jobId;
 }

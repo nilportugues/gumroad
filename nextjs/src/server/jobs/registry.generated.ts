@@ -2958,7 +2958,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendPaymentReminderWorker": {
     "file": "app/sidekiq/send_payment_reminder_worker.rb",
@@ -3047,7 +3047,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "SendRentalExpiresSoonEmailWorker": {
     "file": "app/sidekiq/send_rental_expires_soon_email_worker.rb",
