@@ -2183,7 +2183,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   ReconcileStripePayoutsPausesJob: {
     file: "app/sidekiq/reconcile_stripe_payouts_pauses_job.rb",
@@ -2198,7 +2198,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 1800,
-    runtime: "ruby",
+    runtime: "node",
   },
   RecordOrderChargeOutcomeJob: {
     file: "app/sidekiq/record_order_charge_outcome_job.rb",
@@ -3191,7 +3191,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendPreorderSellerSummaryWorker: {
     file: "app/sidekiq/send_preorder_seller_summary_worker.rb",
