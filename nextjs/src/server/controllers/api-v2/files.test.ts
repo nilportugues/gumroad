@@ -10,8 +10,7 @@ await import("./files.ts");
 
 const route = (pattern: string) => registeredApiV2Routes().find((r) => r.method === "POST" && r.pattern === pattern)!;
 const owner = { external_id: "abc123" };
-const call = async (pattern: string, params: Record<string, unknown>) =>
-  route(pattern).run({ params, owner } as never);
+const call = async (pattern: string, params: Record<string, unknown>) => route(pattern).run({ params, owner } as never);
 const refusal = async (pattern: string, params: Record<string, unknown>) => {
   const rendered = (await call(pattern, params)) as { status: number; body: string };
   return [rendered.status, JSON.parse(rendered.body).error];
