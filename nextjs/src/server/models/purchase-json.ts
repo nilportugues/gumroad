@@ -30,7 +30,6 @@ import {
 } from "./concerns/money-formatter.ts";
 import { instantInTimeZoneIso8601 } from "./concerns/rails-time-zone.ts";
 import { timeAgoInWords } from "./concerns/time-ago-in-words.ts";
-import { hasDirectAffiliateId } from "./json-direct-affiliate.ts";
 import { LinkFlags } from "./link.ts";
 import { isStripeConnectAccount, type MerchantAccountRow } from "./merchant-account.ts";
 import { type OfferCodeDisplay, offerCodeDisplays } from "./offer-code-display.ts";
@@ -68,6 +67,57 @@ const TERMINAL_FAILURE_STATUSES = ["failed", "canceled"];
 const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
 const BASE_VARIANT_IS_DEFAULT_SKU = 1;
 const PAYPAL_REFUND_WINDOW_MONTHS = 6;
+
+const COLLABORATOR_TYPE = "Collaborator";
+const DIRECT_AFFILIATE_TYPE = "DirectAffiliate";
+const MAX_SAFE_DIGITS = 15;
+
+// `direct_affiliate_id.present?` and `direct_affiliate_credit_cents.to_i` of json_data; a float, a list, a word or text that is not JSON
+// stays with Rails. The credit is read only when an id is recorded, which is stricter than Ruby needs.
+export function directAffiliateFields(purchase: Row): { id: string | null; creditCents: number } {
+  let id: string | null = null;
+  let creditCents = 0;
+  let readable = true;
+  try {
+    const parsed: unknown =
+      purchase.json_data == null || purchase.json_data === "" ? {} : JSON.parse(String(purchase.json_data));
+    const data = typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+    const rawId = data.direct_affiliate_id;
+    const blank = rawId == null || rawId === false || (typeof rawId === "string" && rawId.trim() === "");
+    if (!blank) {
+      if (typeof rawId === "number" && Number.isSafeInteger(rawId)) id = String(rawId);
+      else if (typeof rawId === "string" && /^\d+$/u.test(rawId) && rawId.length <= MAX_SAFE_DIGITS) id = rawId;
+      else readable = false;
+      const credit = data.direct_affiliate_credit_cents;
+      if (credit == null) creditCents = 0;
+      else if (typeof credit === "number" && Number.isSafeInteger(credit)) creditCents = credit;
+      else if (typeof credit === "string" && /^-?\d+$/u.test(credit) && credit.length <= MAX_SAFE_DIGITS)
+        creditCents = Number(credit);
+      else readable = false;
+    }
+  } catch {
+    readable = false;
+  }
+  if (!readable) throw notPorted("a direct affiliate that json_data records in a shape the port does not read");
+  return { id, creditCents };
+}
+
+// Purchase#own_affiliate_credit_cents: affiliate_credit_cents less the direct affiliate's part, when a collaborator sale credits one
+// (Purchase#credits_direct_affiliate?). `directAffiliate` is `DirectAffiliate.find_by(id: direct_affiliate_id)`.
+export function ownAffiliateCreditCents(
+  purchase: Row,
+  affiliate: Row | undefined,
+  directAffiliate: Row | undefined,
+): number {
+  const { id, creditCents } = directAffiliateFields(purchase);
+  const credits =
+    id !== null &&
+    affiliate !== undefined &&
+    affiliate.type === COLLABORATOR_TYPE &&
+    directAffiliate !== undefined &&
+    directAffiliate.type === DIRECT_AFFILIATE_TYPE;
+  return num(purchase.affiliate_credit_cents ?? 0) - (credits ? creditCents : 0);
+}
 
 async function rowsBy(
   tableName: string,
@@ -265,7 +315,7 @@ async function load(purchases: Row[]): Promise<Loaded> {
   const offerCodes = await offerCodeDisplays(purchases, (linkId) =>
     linkId == null ? null : (links.get(String(linkId))?.price_currency_type ?? null),
   );
-  // Purchase#affiliate, with the affiliate user's form_email and the credit it earned; a collaborator's credit is split with a direct affiliate
+  // Purchase#affiliate, with the affiliate user's form_email and the credit it earned (own_affiliate_credit_cents)
   const affiliateRows = byId(
     await rowsBy("affiliates", "id", [
       ...new Set(purchases.map((purchase) => purchase.affiliate_id).filter((id) => id != null)),
@@ -276,11 +326,15 @@ async function load(purchases: Row[]): Promise<Loaded> {
       ...new Set([...affiliateRows.values()].map((affiliate) => affiliate.affiliate_user_id)),
     ]),
   );
+  const directIds = [
+    ...new Set(
+      purchases.map((purchase) => (purchase.affiliate_id == null ? null : directAffiliateFields(purchase).id)),
+    ),
+  ].filter((id): id is string => id !== null);
+  const directAffiliates = byId(await rowsBy("affiliates", "id", directIds));
   const affiliates = new Map<string, { email: string | null; amount: string }>();
   for (const purchase of purchases) {
     if (purchase.affiliate_id == null) continue;
-    if (hasDirectAffiliateId(purchase.json_data ?? null))
-      throw notPorted("a collaborator sale with a direct affiliate");
     const affiliate = affiliateRows.get(String(purchase.affiliate_id));
     const user = affiliate === undefined ? undefined : affiliateUsers.get(String(affiliate.affiliate_user_id));
     if (user === undefined) throw notPorted("an affiliate whose user row is missing");
@@ -288,13 +342,15 @@ async function load(purchases: Row[]): Promise<Loaded> {
     const email = present(user.unconfirmed_email) ? user.unconfirmed_email : present(user.email) ? user.email : null;
     affiliates.set(String(purchase.id), {
       email,
-      amount: moneyFormatWithGemSymbol(num(purchase.affiliate_credit_cents ?? 0), "usd", { noCentsIfWhole: true }),
+      amount: moneyFormatWithGemSymbol(
+        ownAffiliateCreditCents(purchase, affiliate, directAffiliates.get(directAffiliateFields(purchase).id ?? "")),
+        "usd",
+        { noCentsIfWhole: true },
+      ),
     });
   }
 
   const customRows = await rowsBy("purchase_custom_fields", "purchase_id", ids);
-  if (customRows.some((field) => field.field_type === "fileUpload" || field.field_type === "file"))
-    throw notPorted("a file custom field");
   const customFields = new Map<string, Row[]>();
   for (const field of customRows)
     customFields.set(String(field.purchase_id), [...(customFields.get(String(field.purchase_id)) ?? []), field]);
@@ -740,6 +796,8 @@ async function one(
           },
         }),
   };
+  // `delete_if { |_, v| v.nil? }`
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
   for (const key of Object.keys(json)) if (json[key] === undefined || json[key] === null) delete json[key];
 
   json.card = {
