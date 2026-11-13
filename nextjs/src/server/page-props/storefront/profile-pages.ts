@@ -234,14 +234,11 @@ async function sectionsProps(seller: User, request: PresenterRequest, visitor: P
           return { ...base, text: data.text ?? null };
         case "SellerProfileSubscribeSection":
           return { ...base, button_label: data.button_label ?? null };
+        case "SellerProfilePostsSection":
+          return { ...base, posts: await visiblePosts(seller, (data.shown_posts ?? []) as number[]) };
         default:
-          return {
-            ...base,
-            posts: await visiblePosts(
-              seller,
-              section.type === "SellerProfilePostsSection" ? ((data.shown_posts ?? []) as number[]) : [],
-            ),
-          };
+          // A blank `type` instantiates the base class, which no branch of the presenter renders.
+          return base;
       }
     }),
   );
@@ -277,9 +274,11 @@ async function assertSectionsSupported(chain: Chain, seller: User): Promise<void
     where: { seller_id: seller.id, product_id: null },
     select: { type: true },
   });
-  if (sections.some((section) => section.type === null)) throw new HandBackToRails();
-  // STI: a `type` that names no SellerProfileSection subclass raises ActiveRecord::SubclassNotFound when the rows load.
-  const unknown = sections.find((section) => !SUPPORTED_SECTION_TYPES.includes(section.type!));
+  // STI: a `type` that names no SellerProfileSection subclass raises ActiveRecord::SubclassNotFound when the rows load;
+  // a blank one (the column is NOT NULL) loads as the base class.
+  // Whitespace-only is blank to Rails too, but no recording pins it.
+  if (sections.some((section) => section.type !== "" && section.type.trim() === "")) throw new HandBackToRails();
+  const unknown = sections.find((section) => section.type !== "" && !SUPPORTED_SECTION_TYPES.includes(section.type));
   if (unknown) throw new Error(`Invalid single-table inheritance type: ${unknown.type}`);
   const productsShown =
     sections.some((section) =>

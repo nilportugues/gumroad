@@ -334,6 +334,40 @@ describe "Storefront profile products", type: :request, elasticsearch_wait_for_r
     end
   end
 
+  describe "a section whose type is blank" do
+    # `type` is NOT NULL, so a blank one is the empty string; STI instantiates the base class for it, which no branch of
+    # the presenter renders, and the page serves the bare id, header and type.
+    before do
+      section = create(:seller_profile_rich_text_section, seller:, header: "Blank")
+      SellerProfileSection.where(id: section.id).update_all(type: "")
+      seller.seller_profile.json_data[:tabs] = [{ name: "Home", sections: [section.id] }]
+      seller.seller_profile.save!
+    end
+
+    it "serves the bare section on the page", parity: true do
+      get "/"
+
+      expect(response).to be_successful
+      expect(inertia_props["sections"].map { _1.slice("header", "type") }).to eq([{ "header" => "Blank", "type" => "" }])
+    end
+
+    it "serves the bare section on the Inertia visit", parity: true do
+      get "/", headers: { "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to be_successful
+    end
+
+    it "serves it beside a products section", parity: true do
+      product("Alpha ebook")
+      show_products_section([product("Beta course")])
+
+      get_profile
+
+      expect(response).to be_successful
+      expect(inertia_props["sections"].map { _1["type"] }).to eq(["", "SellerProfileProductsSection"])
+    end
+  end
+
   it "serves the seller's reputation summary while the flag is on", parity: true do
     Feature.activate_user(:seller_reputation_summary, seller)
     first = product("Alpha ebook", display_product_reviews: true)
