@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 942 | 978 | 96.3% |
-| Routes registered in routes.json (counted; upper bound, adds the 8 listed under "hands back") | 950 | 978 | 97.1% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1781 | 1857 | 95.9% |
-| Same, registered in routes.json (upper bound) | 1789 | 1857 | 96.3% |
+| Routes served natively (counted, static check) | 947 | 978 | 96.8% |
+| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 952 | 978 | 97.3% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1786 | 1857 | 96.2% |
+| Same, registered in routes.json (upper bound) | 1791 | 1857 | 96.4% |
 | Rails Inertia pages with Node props (counted, string match) | 112 | 114 | 98.2% |
 | Sidekiq job classes running in Node (counted) | 225 | 296 | 76.0% |
 
@@ -38,7 +38,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
 | WS-10 Settings and account | 180 | 166 | 5 | 9 | 92.2% | 291 | 267 | 91.8% |
 | WS-11 Help, pages, blog, profiles | 71 | 69 | 0 | 2 | 97.2% | 80 | 78 | 97.5% |
-| WS-12 Products and bundles | 141 | 136 | 3 | 2 | 96.5% | 207 | 202 | 97.6% |
+| WS-12 Products and bundles | 141 | 141 | 0 | 0 | 100.0% | 207 | 207 | 100.0% |
 | WS-13 Audience, emails, workflows | 53 | 53 | 0 | 0 | 100.0% | 106 | 106 | 100.0% |
 | WS-14 Discover and search | 4 | 4 | 0 | 0 | 100.0% | 5 | 5 | 100.0% |
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
@@ -49,7 +49,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-20 Checkout and orders | 71 | 58 | 0 | 13 | 81.7% | 222 | 179 | 80.6% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 942 | 8 | 28 | 96.3% | 1857 | 1781 | 95.9% |
+| **All** | 978 | 947 | 5 | 26 | 96.8% | 1857 | 1786 | 96.2% |
 
 ## Sensitivity to the weights
 
@@ -57,16 +57,16 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 942 | 978 | 96.3% |
-| Verb only: GET 1, other verbs 2 | 1375 | 1427 | 96.4% |
-| Rubric weights 1 to 4 (the headline) | 1781 | 1857 | 95.9% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2091 | 2194 | 95.3% |
+| Every route counts 1 (the plain route share) | 947 | 978 | 96.8% |
+| Verb only: GET 1, other verbs 2 | 1380 | 1427 | 96.7% |
+| Rubric weights 1 to 4 (the headline) | 1786 | 1857 | 96.2% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2096 | 2194 | 95.5% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 371 | 96.1% |
+| 1 | 386 | 376 | 97.4% |
 | 2 | 330 | 324 | 98.2% |
 | 3 | 237 | 226 | 95.4% |
 | 4 | 25 | 21 | 84.0% |
@@ -89,11 +89,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Admin::FlipperUiController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `Admin::SidekiqWebController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ApplicationController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
-| `GlobalAffiliates::ProductEligibilityController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
-| `ProductReviewVideos::StreamsController` | WS-12 Products and bundles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
-| `Products::AvailableOfferCodesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
-| `Products::BuildsController` | WS-12 Products and bundles | 2 | 1 | 1 | 0 | 1/2 (3) | 1 |
-| `Products::OtherRefundPoliciesController` | WS-12 Products and bundles | 1 | 0 | 1 | 0 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `AcmeChallengesController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Admin::BaseController` | WS-18 Admin | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
@@ -233,6 +228,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `FollowersController` | WS-13 Audience, emails, workflows | 7 | 7 | 0 | 0 | 2 (14) | 0 |
 | `ForeignWebhooksController` | WS-21 Payment processors | 8 | 8 | 0 | 0 | 4 (32) | 0 |
 | `GithubStarsController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `GlobalAffiliates::ProductEligibilityController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `GumclawController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `GumroadBlog::PostsController` | WS-11 Help, pages, blog, profiles | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `HealthcheckController` | WS-11 Help, pages, blog, profiles | 9 | 9 | 0 | 0 | 1 (9) | 0 |
@@ -275,14 +271,18 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `ProductFilesUtilityController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `ProductReviewResponsesController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 2 (4) | 0 |
 | `ProductReviewVideos::StreamingUrlsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `ProductReviewVideos::StreamsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `ProductReviewVideos::UploadContextsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `ProductReviewsController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
 | `Products::AffiliatedController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Products::ArchivedController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
+| `Products::AvailableOfferCodesController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Products::BuildsController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Products::CollabsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Products::MarketingAbandonedCartsController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `Products::MarketingActionsController` | WS-12 Products and bundles | 5 | 5 | 0 | 0 | 1/2 (8) | 0 |
 | `Products::MobileTrackingController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Products::OtherRefundPoliciesController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Products::RemainingCallAvailabilitiesController` | WS-12 Products and bundles | 7 | 7 | 0 | 0 | 1/2 (10) | 0 |
 | `Products::VariantsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Products::WaitlistEmailsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
@@ -353,9 +353,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 ## Routes that hand back (listed in routes.json, no Node code found)
 
-- `GET /products/:product_id/other_refund_policies` (`Products::OtherRefundPoliciesController#index`)
-- `GET /products/:product_id/available_offer_codes` (`Products::AvailableOfferCodesController#index`)
-- `GET /products/:product_id/builds` (`Products::BuildsController#index`)
 - `GET /users/auth/stripe_connect/callback` (`User::OmniauthCallbacksController#stripe_connect`)
 - `GET /users/auth/google_oauth2/callback` (`User::OmniauthCallbacksController#google_oauth2`)
 - `GET /users/auth/youtube/callback` (`User::OmniauthCallbacksController#youtube`)
@@ -367,9 +364,6 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 A diagnostic for the matcher: each is either a path the parser or the matcher missed (it would understate the native share) or a stale entry.
 
 - `GET|HEAD /api/health` (`null`)
-- `GET /product_review_videos/:p/stream.smil` (`nextjs_product_review_videos`)
-- `GET /d/:p/play/:p/*p` (`nextjs_product_build_player_files`)
-- `GET /global_affiliates/product_eligibility/*p` (`nextjs_global_affiliates_product_eligibility`)
 
 ## Rails Inertia pages without Node props
 
