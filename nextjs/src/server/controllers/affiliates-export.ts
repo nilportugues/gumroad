@@ -1,8 +1,6 @@
 // AffiliatesController#export (GET /affiliates/export, app/controllers/affiliates_controller.rb) and the synchronous half of
 // Exports::AffiliateExportService: up to SYNCHRONOUS_EXPORT_THRESHOLD live affiliates are streamed as a CSV, more are left to
 // Exports::AffiliateExportWorker and the seller is told to expect an email.
-//
-// A request that carries a Referer hands back: `redirect_back` follows it only for the same host, which is not judged here.
 import { Prisma } from "@prisma/client";
 
 import { encryptNumeric } from "../../lib/obfuscate-ids.ts";
@@ -21,7 +19,7 @@ import { authorize } from "../policies/authorize.ts";
 import { directAffiliatePolicy } from "../policies/direct-affiliate.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
-import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { allowedReferrer, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requireHtml } from "./users-controller.ts";
 
@@ -97,14 +95,17 @@ async function exportAffiliates(input: MutationInput): Promise<ActionResult> {
   const recipient = input.context.impersonatedUser ?? seller;
   const liveAffiliateCount = Number(count!.count);
   if (!runsSynchronously(liveAffiliateCount)) {
-    if (input.request.headers.get("referer"))
-      throw new HandBackToRails("a request with a Referer, which redirect_back may follow");
     await exportAffiliatesOrEnqueue({
       sellerId: BigInt(seller.id),
       recipientId: BigInt(recipient.id),
       liveAffiliateCount,
     });
-    return { status: FOUND, location: FALLBACK_LOCATION, flash: { warning: EMAIL_NOTICE } };
+    // redirect_back(fallback_location: affiliates_path)
+    return {
+      status: FOUND,
+      location: allowedReferrer(input.request) ?? FALLBACK_LOCATION,
+      flash: { warning: EMAIL_NOTICE },
+    };
   }
 
   const csv = affiliateExportCsv(await affiliateRows(BigInt(seller.id)));

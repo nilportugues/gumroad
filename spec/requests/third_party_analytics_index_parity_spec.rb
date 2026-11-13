@@ -5,7 +5,7 @@ require "spec_helper"
 # GET /:link_id on the third-party analytics host, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/rest-sweep-4.replay.test.ts. The page is the bare layout that carries the product's snippets for a location, then
 # the seller's universal ones; the controller opts out of CSP, skips the session and erases every cookie in the jar. A request that names a
-# purchase ($VALUE, $CURRENCY and $ORDER are substituted from the sale) is `hands a ...`.
+# purchase has $VALUE, $CURRENCY and $ORDER substituted from the sale; a purchase_id Node does not read is `hands a ...`.
 describe "Third-party analytics index", type: :request do
   let(:seller) { create(:user, username: "analyticsseller") }
   let(:product) { create(:product, user: seller) }
@@ -83,9 +83,76 @@ describe "Third-party analytics index", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands a request that names a purchase to Rails", parity: true do
+  def sale(of: product, displayed_price_cents: 1550)
+    build(:purchase, link: of, seller: of.user, price_cents: displayed_price_cents, displayed_price_cents:, purchase_state: "successful",
+                     email: "buyer#{SecureRandom.hex(3)}@example.com").tap { |purchase| purchase.save!(validate: false) }
+  end
+
+  it "fills in the value, currency and order of the sale in every snippet", parity: true do
+    snippet("product $VALUE $CURRENCY $ORDER $VALUE", link: product)
+    snippet("user $VALUE|$CURRENCY|$ORDER")
+    purchase = sale
+
+    get "/#{product.unique_permalink}", params: { purchase_id: purchase.external_id }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("product 15.50 USD #{purchase.external_id} 15.50", "user 15.50|USD|#{purchase.external_id}")
+  end
+
+  it "drops the cents of a whole price and groups the thousands", parity: true do
+    snippet("value $VALUE", link: product)
+
+    get "/#{product.unique_permalink}", params: { purchase_id: sale(displayed_price_cents: 500_000).external_id }
+
+    expect(response.body).to include("value 5,000")
+  end
+
+  it "groups the thousands of a price with cents", parity: true do
+    snippet("value $VALUE", link: product)
+
+    get "/#{product.unique_permalink}", params: { purchase_id: sale(displayed_price_cents: 123_456).external_id }
+
+    expect(response.body).to include("value 1,234.56")
+  end
+
+  it "formats the price in the currency of the product", parity: true do
+    jpy_product = create(:product, user: seller, price_currency_type: "jpy", price_cents: 500)
+    snippet("value $VALUE $CURRENCY", link: jpy_product)
+
+    get "/#{jpy_product.unique_permalink}", params: { purchase_id: sale(of: jpy_product, displayed_price_cents: 1250).external_id }
+
+    expect(response.body).to include("value 1,250 JPY")
+  end
+
+  it "keeps the placeholders when the purchase_id is blank", parity: true do
+    snippet("value $VALUE", link: product)
+
+    get "/#{product.unique_permalink}", params: { purchase_id: "" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("value $VALUE")
+  end
+
+  it "answers 404 for a purchase_id that is not a sale", parity: true do
     snippet("value $VALUE order $ORDER", link: product)
 
     get "/#{product.unique_permalink}", params: { purchase_id: "abc" }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "answers 404 for the sale of another product", parity: true do
+    snippet("value $VALUE", link: product)
+    other = sale(of: create(:product, user: seller))
+
+    get "/#{product.unique_permalink}", params: { purchase_id: other.external_id }
+
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it "hands a purchase_id with characters outside an external id to Rails", parity: true do
+    snippet("value $VALUE", link: product)
+
+    get "/#{product.unique_permalink}", params: { purchase_id: "ab c" }
   end
 end

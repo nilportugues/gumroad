@@ -4,8 +4,7 @@ require "spec_helper"
 
 # GET /affiliates/export, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/rest-sweep-2.replay.test.ts, which sends the last request of each example. Up to 500 live affiliates are
-# streamed as a CSV; more are left to Exports::AffiliateExportWorker. A request that carries a Referer on the asynchronous path is
-# `hands a ...` (`redirect_back` follows it only for the same host).
+# streamed as a CSV; more are left to Exports::AffiliateExportWorker and the redirect goes back to the Referer when it is on this host.
 describe "Affiliates export", type: :request do
   include Parity::AudienceSignedIn
 
@@ -138,13 +137,43 @@ describe "Affiliates export", type: :request do
       expect(flash[:warning]).to eq("You will receive an email with the data you've requested.")
     end
 
-    it "hands a request with a Referer to Rails", parity: true do
+    def export_with_referer(referer)
       log_in(seller)
 
-      get "/affiliates/export", headers: { "Referer" => "#{PROTOCOL}://#{DOMAIN}/affiliates?query=a" }
+      get "/affiliates/export", headers: { "Referer" => referer }
 
       expect(response).to have_http_status(:found)
+      expect(flash[:warning]).to eq("You will receive an email with the data you've requested.")
+    end
+
+    it "sends the seller back to a Referer on this host", parity: true do
+      export_with_referer("#{PROTOCOL}://#{DOMAIN}/affiliates?query=a")
+
       expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates?query=a")
+    end
+
+    it "sends the seller back to a Referer that is a path", parity: true do
+      export_with_referer("/dashboard?tab=1")
+
+      expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/dashboard?tab=1")
+    end
+
+    it "ignores a Referer on another host", parity: true do
+      export_with_referer("https://example.com/affiliates")
+
+      expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates")
+    end
+
+    it "ignores a Referer that is not a URI", parity: true do
+      export_with_referer("http://exa mple.com/")
+
+      expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates")
+    end
+
+    it "ignores a protocol-relative Referer", parity: true do
+      export_with_referer("//example.com/affiliates")
+
+      expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates")
     end
   end
 end
