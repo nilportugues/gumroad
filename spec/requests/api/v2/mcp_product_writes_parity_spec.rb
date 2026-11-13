@@ -4,7 +4,7 @@ require "spec_helper"
 
 # The create_draft_product and update_product tools of Mcp::Server through the full Rack stack, recorded for the Next.js port and replayed by
 # nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. Node saves a plain digital draft (a USD price above zero and a description with no markup)
-# and updates the name, description, price and permalink of a product with one buy price; every other call goes to Rails whole, in an example named
+# and updates the name, description, price, permalink, summary, additional details and receipt texts of a product with one buy price; every other call goes to Rails whole, in an example named
 # "hands ... back". `parity_timeline` records the order of the statements and jobs.
 describe "API v2 MCP product writes", type: :request, parity_timeline: true do
   let(:seller) { create(:user, username: "dude", name: "Dude") }
@@ -226,6 +226,10 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
 
     it "refuses a blank name", parity: true do
       update({ name: "  " })
+    end
+
+    it "keeps a name made of a zero width space, which is not blank", parity: true do
+      update({ name: "\u200b" })
     end
 
     it "refuses a negative price", parity: true do
@@ -471,6 +475,185 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       call_tool("update_product", { id: membership.external_id, price_cents: 50 })
     end
 
+    describe "summary, additional details and receipt texts" do
+      def json_data = product.reload.json_data
+
+      it "sets a summary", parity: true do
+        update({ summary: "Sketch every day" })
+
+        expect(json_data).to eq("custom_summary" => "Sketch every day")
+      end
+
+      it "keeps a summary as written, markup and accents included", parity: true do
+        update({ summary: "  Sketch <b>every</b> \"day\" / é 🎨 \\ \u2028 " })
+      end
+
+      it "keeps a summary that is only a zero width space", parity: true do
+        update({ summary: "\u200b" })
+      end
+
+      it "stores a summary with a NUL character", parity: true do
+        update({ summary: "a\u0000b" })
+      end
+
+      it "clears a summary with an empty string", parity: true do
+        product.update!(json_data: { "custom_summary" => "Sketch every day", "custom_receipt_text" => "Thanks" })
+        update({ summary: "" })
+
+        expect(json_data).to eq("custom_summary" => nil, "custom_receipt_text" => "Thanks")
+      end
+
+      it "records a cleared summary for a product that never had one", parity: true do
+        update({ summary: "" })
+      end
+
+      it "reads a summary of spaces and a no-break space as none", parity: true do
+        update({ summary: " \u00a0 \t" })
+      end
+
+      it "keeps a summary that does not change", parity: true do
+        product.update!(json_data: { "custom_summary" => "Sketch every day" })
+        update({ summary: "Sketch every day" })
+      end
+
+      it "keeps the other json_data keys and appends a new one last", parity: true do
+        product.update!(json_data: { "custom_summary" => "Old", "custom_attributes" => [{ "name" => "Pages", "value" => "40" }], "sections" => [1, 2] })
+        update({ summary: "New", custom_receipt_text: "Thanks" })
+
+        expect(json_data.keys).to eq(%w[custom_summary custom_attributes sections custom_receipt_text])
+      end
+
+      it "writes the four fields in Rails' order whatever order they are sent in", parity: true do
+        update({ custom_view_content_button_text: "Open", custom_receipt_text: "Thanks", additional_details: [{ name: "Pages", value: "40" }], summary: "Sketch" })
+
+        expect(json_data.keys).to eq(%w[custom_summary custom_attributes custom_receipt_text custom_view_content_button_text])
+      end
+
+      it "changes the name, the price and the summary together", parity: true do
+        update({ name: "Pen", price_cents: 450, summary: "Sketch" })
+      end
+
+      it "changes the summary of a published product", parity: true do
+        product.update_columns(purchase_disabled_at: nil)
+        update({ summary: "Sketch every day" })
+      end
+
+      it "changes the summary of a draft", parity: true do
+        product.update_columns(draft: true, purchase_disabled_at: Time.current)
+        update({ summary: "Sketch every day" })
+      end
+
+      it "replaces the additional details", parity: true do
+        product.update!(json_data: { "custom_attributes" => [{ "name" => "Old", "value" => "1" }] })
+        update({ additional_details: [{ name: "Pages", value: "40" }, { name: "Format", value: "PDF" }] })
+
+        expect(json_data["custom_attributes"]).to eq([{ "name" => "Pages", "value" => "40" }, { "name" => "Format", "value" => "PDF" }])
+      end
+
+      it "removes every additional detail with an empty list", parity: true do
+        product.update!(json_data: { "custom_attributes" => [{ "name" => "Old", "value" => "1" }] })
+        update({ additional_details: [] })
+
+        expect(json_data["custom_attributes"]).to eq([])
+      end
+
+      it "keeps a detail with a name and no value, and one whose value is only spaces", parity: true do
+        update({ additional_details: [{ name: "Pages" }, { name: "Format", value: "   " }, { name: " ", value: "" }] })
+      end
+
+      it "drops a row with neither a name nor a value and ignores other keys", parity: true do
+        update({ additional_details: [{}, { name: nil, value: nil }, { name: "", value: "  " }, { name: "Pages", value: "40", extra: 1 }] })
+      end
+
+      it "refuses a value with no name", parity: true do
+        update({ additional_details: [{ name: "Pages", value: "40" }, { name: " ", value: "40" }] })
+
+        expect(json_data).to eq({})
+      end
+
+      it "refuses a detail that is not an object", parity: true do
+        update({ additional_details: ["Pages: 40"] })
+      end
+
+      it "refuses a detail name that is not text", parity: true do
+        update({ additional_details: [{ name: 5, value: "40" }] })
+      end
+
+      it "refuses a detail value that is not text", parity: true do
+        update({ additional_details: [{ name: "Pages", value: ["40"] }] })
+      end
+
+      it "reports the first bad detail", parity: true do
+        update({ additional_details: [{ name: "A", value: 1 }, { name: "", value: "x" }, "B"] })
+      end
+
+      it "reports a blank name before a bad detail", parity: true do
+        update({ name: "  ", additional_details: ["x"] })
+      end
+
+      it "reports a price over the maximum before a bad detail", parity: true do
+        update({ price_cents: 2_147_483_648, additional_details: ["x"] })
+      end
+
+      it "reports a bad detail before a receipt text over the limit", parity: true do
+        update({ custom_receipt_text: "a" * 501, additional_details: ["x"] })
+      end
+
+      it "sets the receipt message and the button text", parity: true do
+        update({ custom_receipt_text: "Thanks for buying", custom_view_content_button_text: "Open the pack" })
+
+        expect(json_data).to eq("custom_receipt_text" => "Thanks for buying", "custom_view_content_button_text" => "Open the pack")
+      end
+
+      it "clears the receipt message and the button text with empty strings", parity: true do
+        product.update!(json_data: { "custom_receipt_text" => "Thanks", "custom_view_content_button_text" => "Open" })
+        update({ custom_receipt_text: "", custom_view_content_button_text: " " })
+
+        expect(json_data).to eq("custom_receipt_text" => nil, "custom_view_content_button_text" => nil)
+      end
+
+      it "accepts a receipt message of 500 characters and a button of 26", parity: true do
+        update({ custom_receipt_text: "a" * 500, custom_view_content_button_text: "b" * 26 })
+      end
+
+      it "counts characters, not bytes, against the limits", parity: true do
+        update({ custom_receipt_text: "é🎨" * 250, custom_view_content_button_text: "🎨" * 26 })
+      end
+
+      it "reports a receipt message over 500 characters as a tool error", parity: true do
+        update({ custom_receipt_text: "a" * 501 })
+
+        expect(json_data).to eq({})
+      end
+
+      it "reports a button text over 26 characters as a tool error", parity: true do
+        update({ custom_view_content_button_text: "b" * 28 })
+
+        expect(json_data).to eq({})
+      end
+
+      it "reports both texts over their limits", parity: true do
+        update({ name: "Pen", custom_receipt_text: "a" * 501, custom_view_content_button_text: "b" * 27 })
+
+        expect(product.reload.name).to eq("Pencil")
+      end
+
+      it "reads a receipt message of spaces the product already has as none", parity: true do
+        product.update!(json_data: { "custom_receipt_text" => "   ", "custom_view_content_button_text" => "\u00a0" })
+        update({ name: "Pen" })
+      end
+
+      it "hands a summary with a lone surrogate back to Rails", parity: true do
+        body = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_product","arguments":{"id":"pencilpk","summary":"a\\ud800b"}}}'
+        post "/muse/v1/mcp", params: body, headers: rpc.merge(auth("edit_products"))
+      end
+
+      it "hands a summary beside a discount code back to Rails", parity: true do
+        create(:offer_code, user: seller, products: [product], code: "tenoff", amount_cents: 10)
+        update({ summary: "Sketch" })
+      end
+    end
+
     it "reports the category, summary, additional details, tag and receipt texts the product already has", parity: true do
       design = create(:taxonomy, slug: "design")
       product.update!(taxonomy: create(:taxonomy, slug: "3d-assets", parent_id: design.id))
@@ -479,10 +662,6 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       product.save!
       product.save_tags!(["field-notes"])
       update({ price_cents: 450 })
-    end
-
-    it "hands a summary back to Rails", parity: true do
-      update({ summary: "Sketch every day" })
     end
 
     it "hands a category back to Rails", parity: true do
@@ -499,10 +678,6 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
 
     it "hands a pay what you want change back to Rails", parity: true do
       update({ pay_what_you_want: true })
-    end
-
-    it "hands a receipt message back to Rails", parity: true do
-      update({ custom_receipt_text: "Thanks", custom_view_content_button_text: "Open" })
     end
 
     it "hands a call without the edit scope back to Rails", parity: true do
