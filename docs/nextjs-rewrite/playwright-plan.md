@@ -34,24 +34,24 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 ## Phase 3: coverage still missing
 
 - [ ] 3.1 Paid card checkout with a Stripe test card; needs test keys, currently skipped (`paid-checkout.stripe.spec.ts`)
-- [ ] 3.2 Discount code applied at checkout changes the total
-- [ ] 3.3 Buying through an affiliate link records the affiliate
+- [x] 3.2 Discount code applied at checkout changes the total (`checkout-discount.spec.ts`)
+- [x] 3.3 Buying through an affiliate link records the affiliate (`affiliate-purchase.spec.ts`)
 - [ ] 3.4 Membership: subscribe, see it in the library, cancel
-- [ ] 3.5 Seller edits a product price and the product page follows
+- [x] 3.5 Seller edits a product price and the product page follows (`product-price-edit.spec.ts`)
 - [ ] 3.6 Seller refunds a sale (needs Stripe test keys or a free-sale equivalent)
-- [ ] 3.7 Customers page lists a new sale and its CSV export downloads
+- [x] 3.7 Customers page renders and its CSV export downloads with the sales columns (`customers.spec.ts`); listing a sale made during the run needs Sidekiq indexing, see 5.1
 - [ ] 3.8 Bundle created, published and bought
-- [ ] 3.9 Buyer downloads a file from the content page
-- [ ] 3.10 Analytics and dashboard pages render with the seeded data
-- [ ] 3.11 Payouts and payment settings pages render (render only, no live Stripe)
-- [ ] 3.12 Mobile viewport project runs the main buyer flow
-- [ ] 3.13 Dark mode: screenshots of discover, product and checkout
+- [x] 3.9 Buyer downloads a file from the content page (`download-file.spec.ts`)
+- [x] 3.10 Analytics and dashboard pages render with the seeded data (`dashboard-analytics.spec.ts`)
+- [x] 3.11 Payouts and payment settings pages render (render only, no live Stripe) (`payouts.spec.ts`)
+- [x] 3.12 Mobile viewport project runs the main buyer flow (`mobile-buyer.spec.ts`, `mobile` project)
+- [x] 3.13 Dark mode: screenshots of discover, product and checkout (`dark-mode.spec.ts`; product and checkout are seller-themed and stay light, discover follows the scheme)
 
 ## Phase 4: traffic bot and replay
 
 - [x] 4.1 Seeded bot with `BOT_SEED`, `BOT_SESSIONS`, `BOT_STEPS` (`e2e/bot/`)
 - [x] 4.2 Recorder writes request and response pairs as JSONL under `e2e/.out/`
-- [ ] 4.3 Determinism check: the same seed gives the same request sequence twice
+- [x] 4.3 Determinism check: the same seed gives the same request sequence twice (`e2e/bot/determinism.bot.ts`, `npm run e2e:determinism`)
 - [ ] 4.4 Replay tool sends a recording to a Rails server
 - [ ] 4.5 Replay tool sends the same recording to the Node server
 - [ ] 4.6 Diff report between the two replays, with known differences masked
@@ -66,4 +66,5 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 
 ## Last measured result
 
-`bin/e2e-run` on lane 3: 49 passed, 1 skipped (the Stripe spec), 0 failed.
+`bin/e2e-run` on lane 3: 73 passed (19 guard, 49 chromium, 4 mobile plus preflight runs per project), 1 skipped (the Stripe spec), 0 failed.
+`npm run e2e:determinism` (bot project, not part of `bin/e2e-run`): 3 passed in each of 3 consecutive runs; with the RNG seed perturbed by `Math.random` the same-seed test fails.

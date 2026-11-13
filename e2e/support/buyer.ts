@@ -1,5 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
+import { present } from "./assert";
+
 /** Opens a product by permalink. The app redirects to the seller's subdomain, which *.localhost resolves in Chromium. */
 export const openProduct = async (page: Page, permalink: string) => {
   await page.goto(`/l/${permalink}`);
@@ -13,7 +15,7 @@ export const openProduct = async (page: Page, permalink: string) => {
 export const startCheckout = async (page: Page, permalink: string) => {
   const href = await page.locator(`a[href*="/checkout?product=${permalink}"]`).first().getAttribute("href");
   expect(href, `no checkout link for ${permalink}`).toBeTruthy();
-  await page.goto(href!);
+  await page.goto(present(href, "the checkout link href"));
   await expect(page.getByRole("heading", { name: "Checkout" })).toBeVisible();
 };
 
@@ -24,9 +26,10 @@ export const completeFreeCheckout = async (page: Page, { email }: { email?: stri
   const submit = page.getByRole("button", { name: "Get", exact: true });
   await expect(submit).toBeEnabled();
   // Let the quote request that follows the email edit settle so the click is not swallowed by a re-render.
-  await page.waitForLoadState("networkidle");
+  // Bounded: a discounted checkout keeps a request in flight, so idle may never come.
+  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   await submit.click();
-  await page.waitForURL(/\/d\/[a-f0-9]+/, { timeout: 90_000 });
+  await page.waitForURL(/\/d\/[a-f0-9]+/u, { timeout: 90_000 });
 };
 
 export const buyFreeProduct = async (page: Page, permalink: string, opts: { email?: string } = {}) => {

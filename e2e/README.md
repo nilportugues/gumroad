@@ -87,7 +87,7 @@ Override the seller with `E2E_SELLER_EMAIL` / `E2E_SELLER_PASSWORD`.
 ## Running
 
 ```shell
-BASE_URL=http://localhost:3003 npm run e2e          # guard + specs
+BASE_URL=http://localhost:3003 npm run e2e          # guard + desktop specs + mobile project
 BASE_URL=http://localhost:3003 npm run e2e:bot      # traffic bot
 BASE_URL=http://localhost:3003 npx playwright test --project=chromium e2e/specs/discover.spec.ts
 ```
@@ -137,6 +137,10 @@ Page helpers are in `e2e/support/` (`auth.ts`, `seller.ts`, `buyer.ts`).
 ```shell
 BOT_SEED=42 BOT_SESSIONS=3 BOT_STEPS=20 BASE_URL=http://localhost:3003 npm run e2e:bot
 ```
+
+`npm run e2e:determinism` runs the bot twice with one seed and once with another, and checks that the navigation
+sequence (document requests per step, ids masked) is identical for the same seed and differs for another. It takes
+about 1.5 minutes. Background XHRs are excluded: they finish after the step that started them.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

@@ -11,7 +11,7 @@ test.describe("authentication", () => {
 
     await logOut(page);
     await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/u);
 
     await logIn(page, email, NEW_PASSWORD);
     await page.goto("/settings");
@@ -23,8 +23,8 @@ test.describe("authentication", () => {
     await page.locator("input[type=email]").fill(uniqueEmail("nobody"));
     await page.locator("input[type=password]").fill("not-the-password");
     await page.getByRole("button", { name: "Login", exact: true }).click();
-    await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByText(/account does not exist/i).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/login/u);
+    await expect(page.getByText(/account does not exist/iu).first()).toBeVisible();
   });
 
   test("the seeded seller logs in through two-factor", async ({ page }) => {

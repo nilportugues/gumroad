@@ -34,13 +34,13 @@ test.describe("BASE_URL guard", () => {
     "https://stripe.com",
   ]) {
     test(`refuses ${url}`, () => {
-      expect(() => resolveBaseUrl(url)).toThrow(/Refusing to run/);
+      expect(() => resolveBaseUrl(url)).toThrow(/Refusing to run/u);
     });
   }
 
   test("refuses non-http protocols and garbage", () => {
-    expect(() => resolveBaseUrl("ftp://localhost")).toThrow(/http or https/);
-    expect(() => resolveBaseUrl("not a url")).toThrow(/not a valid URL/);
+    expect(() => resolveBaseUrl("ftp://localhost")).toThrow(/http or https/u);
+    expect(() => resolveBaseUrl("not a url")).toThrow(/not a valid URL/u);
   });
 
   test("isSafeHost is case-insensitive", () => {

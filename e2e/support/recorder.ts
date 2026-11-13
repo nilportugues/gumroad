@@ -1,8 +1,7 @@
+import type { BrowserContext, Request, Response } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-
-import type { BrowserContext, Request, Response } from "@playwright/test";
 
 // Scripts run from the repo root (playwright.config.ts lives there).
 export const OUT_DIR = path.resolve(process.cwd(), "e2e", ".out");
@@ -13,7 +12,7 @@ const RESPONSE_HEADERS = ["content-type", "location", "cache-control", "x-inerti
 
 // Static assets and dev-only tooling add volume without telling Rails and the Node port apart.
 const SKIPPED_RESOURCE_TYPES = new Set(["image", "font", "stylesheet", "media", "script"]);
-const SKIPPED_PATH = /^\/(vite|vite-dev|vite-test|mini-profiler-resources|packs|rails\/active_storage)\b/;
+const SKIPPED_PATH = /^\/(vite|vite-dev|vite-test|mini-profiler-resources|packs|rails\/active_storage)\b/u;
 
 export type RecordedExchange = {
   ts: string;
@@ -38,7 +37,12 @@ export type RecordedExchange = {
 export const sha256 = (data: Buffer | string) => createHash("sha256").update(data).digest("hex");
 
 const pick = (headers: Record<string, string>, names: string[]) =>
-  Object.fromEntries(names.filter((name) => headers[name] !== undefined).map((name) => [name, headers[name]!]));
+  Object.fromEntries(
+    names.flatMap((name) => {
+      const value = headers[name];
+      return value === undefined ? [] : [[name, value]];
+    }),
+  );
 
 export type RecorderState = { session: string; step: number; actor: string; action: string };
 
@@ -59,7 +63,8 @@ export const attachRecorder = (
   const record = async (response: Response) => {
     const request: Request = response.request();
     const url = new URL(request.url());
-    if (!includeAssets && (SKIPPED_RESOURCE_TYPES.has(request.resourceType()) || SKIPPED_PATH.test(url.pathname))) return;
+    if (!includeAssets && (SKIPPED_RESOURCE_TYPES.has(request.resourceType()) || SKIPPED_PATH.test(url.pathname)))
+      return;
 
     const requestHeaders = await request.allHeaders().catch(() => ({}));
     const responseHeaders = await response.allHeaders().catch(() => ({}));
@@ -82,7 +87,7 @@ export const attachRecorder = (
       responseHeaders: pick(responseHeaders, RESPONSE_HEADERS),
       setCookieNames: (responseHeaders["set-cookie"] ?? "")
         .split("\n")
-        .map((cookie) => cookie.split("=")[0]!.trim())
+        .map((cookie) => (cookie.split("=")[0] ?? "").trim())
         .filter(Boolean),
       requestBodyHash: postData ? sha256(postData) : null,
       requestBodyBytes: postData?.length ?? 0,
