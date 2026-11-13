@@ -295,7 +295,11 @@ export function addAndValidateFilters(
 
 // ----- TimeZone#parse for the `to_be_published_at` the form sends
 
+// Date._parse finds nothing in text that has no digit and no day or month name, so TimeZone#parse returns nil.
+const DATE_WORD = /sun|mon|tue|wed|thu|fri|sat|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/iu;
+
 function parseLocalTime(timezone: string, text: string): Date | null {
+  if (!/\d/u.test(text) && !DATE_WORD.test(text)) return null;
   // An explicit offset (the API's ISO 8601 times) names the instant: the seller's zone only reads a time without one.
   const zoned = /^\s*(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:\d{2})\s*$/u.exec(text);
   if (zoned !== null) {
