@@ -303,13 +303,15 @@ export function parseRoutes(): Parsed {
 
 // ---- Node side ----
 
-const normalizeParams = (path: string) =>
+// Rails and routes.json spell the same route differently: the param name (`:id`, `:product_id`), a glob (`*url`) against a plain param, a
+// format suffix on the key (`.json`, `.smil`) that Rails leaves implicit. All collapse to one placeholder so the two sides meet.
+export const normalizeParams = (path: string) =>
   path
-    .replace(/\.(json|txt|xml)$/u, "")
+    .replace(/\.(json|txt|xml|smil)$/u, "")
     .replace(/\(\.:format\)$/u, "")
     .replace(/\.:format$/u, "")
     .replace(/:\w+(\([^)]*\))?/gu, ":p")
-    .replace(/\/\*\w+/gu, "/*p");
+    .replace(/\/\*\w+/gu, "/:p");
 
 // Path strings that interpolate a name (`${PAGES_PATH}/:slug`, `/${client}/v1/oauth2/authorize`): a constant of the same file with a plain
 // string value is substituted, any other interpolation matches one path segment.
@@ -368,9 +370,9 @@ function sourceLiterals(): Set<string> {
         else
           walkApp(full, [
             ...segments,
-            /^\[(\.\.\.)?(\w+)\]$/u.test(name) ? (name.startsWith("[...") ? "*p" : ":p") : name,
+            /^\[(\.\.\.)?(\w+)\]$/u.test(name) ? ":p" : name,
           ]);
-      } else if (name === "page.tsx" || name === "route.ts") found.add(`/${segments.join("/")}`);
+      } else if (name === "page.tsx" || name === "route.ts") found.add(normalizeParams(`/${segments.join("/")}`));
     }
   };
   walkApp(APP_DIR, []);
@@ -413,7 +415,7 @@ function registeredRoutes(): Registered[] {
     return {
       methods: entry.methods ?? (method ? [method[1]!] : ["GET"]),
       path: normalizeParams(
-        rest.replace(/^\/api(?=\/(?:v2|internal|mobile)\/)/u, "").replace(/\.(json|txt|xml)$/u, ""),
+        rest.replace(/^\/api(?=\/(?:v2|internal|mobile)\/)/u, "").replace(/\.(json|txt|xml|smil)$/u, ""),
       ),
       entry,
     };
@@ -804,7 +806,13 @@ function build(): string {
 
   const railsKeys = new Set(parsed.routes.map((route) => `${route.method} ${normalizeParams(route.path)}`));
   const orphans = registeredRoutes().filter(
-    (entry) => !entry.methods.some((method) => railsKeys.has(`${method === "PUT" ? "PATCH" : method} ${entry.path}`)),
+    // A glob key (`/d/:id/play/:grant/*path`) also stands for Rails' optional segment `(/*path)`, which normalizes onto the shorter path.
+    (entry) =>
+      !entry.methods.some((method) =>
+        [entry.path, entry.path.replace(/\/:p$/u, "")].some((path) =>
+          railsKeys.has(`${method === "PUT" ? "PATCH" : method} ${path}`),
+        ),
+      ),
   );
   out.push(
     "",
