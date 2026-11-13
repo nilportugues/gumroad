@@ -10,7 +10,7 @@ import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { assertFlatQuery } from "../../controllers/rails-params.ts";
 import { parseQuery, type Query } from "../../controllers/rails-query.ts";
 import { isFeatureEnabled, parseGateValues, readFeatureDoc, userActor } from "../../infra/flipper.ts";
-import { column, selectRows, table } from "../../models/sql.ts";
+import { table } from "../../models/sql.ts";
 import { autocompleteProps } from "../../presenters/discover/autocomplete.ts";
 import { anonymousKey, recentlyViewedProps } from "../../presenters/discover/recently-viewed.ts";
 import {
@@ -136,43 +136,6 @@ async function findTaxonomy(taxonomyParam: unknown): Promise<TaxonomyRow | null>
 
 export const showsNsfwProducts = (visitor: DiscoverVisitor) =>
   visitor ? bit(visitor.flags, SHOW_NSFW_PRODUCTS_FLAG) : null;
-
-// Whether the visitor has a curated-product seed (an alive cart product or a purchase): the product and wishlist pages,
-// which do not port the curated list, hand back on it. Discover itself uses curatedProducts().
-// `fetch_by` is `user.carts.alive.first` (lowest id) or the guest cart for the guid, so only that one cart seeds.
-export async function hasCuratedProductSources(visitor: DiscoverVisitor, guid: string | null): Promise<boolean> {
-  const cartId = visitor
-    ? (
-        await selectRows<{ id: bigint }>(
-          Prisma.sql`SELECT ${column("carts", "id")} FROM ${table("carts")} WHERE ${column("carts", "user_id")} = ${visitor.id} AND ${column("carts", "deleted_at")} IS NULL ORDER BY ${column("carts", "id")} ASC LIMIT 1`,
-        )
-      )[0]?.id
-    : guid
-      ? (
-          await selectRows<{ id: bigint }>(
-            Prisma.sql`SELECT ${column("carts", "id")} FROM ${table("carts")} WHERE ${column("carts", "browser_guid")} = ${guid} AND ${column("carts", "user_id")} IS NULL AND ${column("carts", "deleted_at")} IS NULL LIMIT 1`,
-          )
-        )[0]?.id
-      : undefined;
-  if (
-    cartId !== undefined &&
-    (
-      await selectRows(
-        Prisma.sql`SELECT 1 FROM ${table("cart_products")} WHERE ${column("cart_products", "cart_id")} = ${cartId} AND ${column("cart_products", "deleted_at")} IS NULL LIMIT 1`,
-      )
-    ).length > 0
-  )
-    return true;
-  if (!visitor) return false;
-  // purchased_products joins links, so a purchase whose product row is gone seeds nothing.
-  return (
-    (
-      await selectRows(
-        Prisma.sql`SELECT 1 FROM ${table("purchases")} INNER JOIN ${table("links")} ON ${column("links", "id")} = ${column("purchases", "link_id")} WHERE ${column("purchases", "purchaser_id")} = ${visitor.id} LIMIT 1`,
-      )
-    ).length > 0
-  );
-}
 
 // DiscoverController#show_curated_products?
 const showsCuratedProducts = (prepared: Pick<PreparedSearch, "params" | "taxonomy" | "curated">): boolean =>

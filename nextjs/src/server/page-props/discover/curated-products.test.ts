@@ -19,7 +19,7 @@ import { renderSql } from "../../models/runtime/quoting.ts";
 import { setSqlClient } from "../../models/sql.ts";
 import { NotPortedError } from "../not-ported.ts";
 
-import { associatedProductIds, curatedProducts, relatedProductIds } from "./curated-products.ts";
+import { associatedProductIds, curatedProducts, curatedTaxonomyIds, relatedProductIds } from "./curated-products.ts";
 
 const visitor = { id: 7n };
 const sent: string[] = [];
@@ -240,5 +240,24 @@ describe("curatedProducts", () => {
     }
     rows.counts = { a: counts };
     expect(await ids()).toEqual(Array.from({ length: 35 }, (_, index) => BigInt(105 + index)));
+  });
+});
+
+describe("curatedTaxonomyIds", () => {
+  it("lists the taxonomy of each curated product in curated order and skips products without one", async () => {
+    rows = { cart: 3n, cartProducts: [10n], counts: { a: { "20": 3, "21": 2, "22": 1 } } };
+    product(20n, { taxonomy_id: 5n });
+    product(21n, { taxonomy_id: null });
+    product(22n, { taxonomy_id: 4n });
+    expect(await curatedTaxonomyIds(visitor, null)).toEqual([5n, 4n]);
+  });
+
+  it("is empty for a visitor with no seeds", async () => {
+    expect(await curatedTaxonomyIds(visitor, null)).toEqual([]);
+  });
+
+  it("hands back a visitor seeded by 4 ids, so the page that asks for the navigation reaches Rails", async () => {
+    rows = { cart: 3n, cartProducts: [10n, 11n], purchased: [12n, 13n] };
+    await expect(curatedTaxonomyIds(visitor, null)).rejects.toBeInstanceOf(NotPortedError);
   });
 });

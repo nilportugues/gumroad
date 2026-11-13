@@ -816,17 +816,130 @@ describe "Product page", type: :request do
         expect(response.parsed_body["props"].keys).to include("autocomplete_results")
       end
 
-      it "hands a visitor with a cart to Rails", parity: true do
-        product = create(:product, user: seller)
-        visitor = create(:user)
-        create(:cart_product, cart: create(:cart, user: visitor), product: create(:product))
-        host! DOMAIN
-        log_in(visitor, token_path: "/help")
-        seller_host!
+      context "for a visitor with curated products" do
+        let(:product) { create(:product, user: seller, name: "Viewed") }
+        let(:other_seller) { create(:user, name: "Curated Seller") }
+        let(:visitor) { create(:user, name: "Curated Visitor") }
 
-        get "/l/#{product.unique_permalink}?layout=discover"
+        # Roots that outrank "3d" in the default order, so a curated "3d" or "writing" product moves it.
+        before do
+          design = Taxonomy.create!(slug: "design")
+          writing = Taxonomy.create!(slug: "writing")
+          TaxonomyStat.create!(taxonomy: design, recent_sales_count: 500)
+          TaxonomyStat.create!(taxonomy: writing, recent_sales_count: 400)
+        end
 
-        expect(response).to be_successful
+        def curated(name, slug)
+          create(:product, user: other_seller, name:, taxonomy: Taxonomy.find_by!(slug:))
+        end
+
+        def relate(seed, related)
+          CachedSalesRelatedProductsInfo.create!(product: seed, counts: related.transform_keys { _1.id.to_s })
+        end
+
+        def seed_product(name = "Seed") = create(:product, user: other_seller, name:)
+
+        def buy(seed)
+          build(:purchase, purchaser: visitor, link: seed, purchase_state: "successful").save!(validate: false)
+        end
+
+        def visit_signed_in
+          host! DOMAIN
+          log_in(visitor, token_path: "/help")
+          seller_host!
+          get "/l/#{product.unique_permalink}?layout=discover"
+        end
+
+        def nav_slugs = inertia_props_of(response)["taxonomies_for_nav"].map { _1["slug"] }
+
+        it "orders the navigation by the roots of a buyer's curated products", parity: true do
+          seed = seed_product
+          relate(seed, curated("Modeling pick", "3d-modeling") => 5, curated("Writing pick", "writing") => 3)
+          buy(seed)
+
+          visit_signed_in
+
+          expect(response).to be_successful
+          expect(nav_slugs.first(3)).to eq(%w[3d writing design])
+        end
+
+        it "orders the navigation by the cart of a signed-in visitor", parity: true do
+          seed = seed_product
+          relate(seed, curated("Writing pick", "writing") => 3)
+          create(:cart_product, cart: create(:cart, user: visitor), product: seed)
+
+          visit_signed_in
+
+          expect(response).to be_successful
+          expect(nav_slugs.first).to eq("writing")
+        end
+
+        it "orders the navigation by the cart of a guest", parity: true do
+          cookies[:_gumroad_guid] = "product-guest-guid"
+          seed = seed_product
+          relate(seed, curated("Writing pick", "writing") => 3)
+          create(:cart_product, cart: create(:cart, :guest, browser_guid: "product-guest-guid"), product: seed)
+
+          get "/l/#{product.unique_permalink}?layout=discover"
+
+          expect(response).to be_successful
+          expect(nav_slugs.first).to eq("writing")
+        end
+
+        it "sums the counts of three seeds and keeps the better seller's root first", parity: true do
+          first, second, third = Array.new(3) { |index| seed_product("Seed #{index}") }
+          writing = curated("Writing pick", "writing")
+          modeling = curated("Modeling pick", "3d-modeling")
+          relate(first, writing => 2, modeling => 1)
+          relate(second, modeling => 2)
+          relate(third, modeling => 1)
+          cart = create(:cart, user: visitor)
+          [first, second].each { create(:cart_product, cart:, product: _1) }
+          buy(third)
+
+          visit_signed_in
+
+          expect(response).to be_successful
+          expect(nav_slugs.first(2)).to eq(%w[3d writing])
+        end
+
+        it "leaves the navigation alone when the seeds have no related products", parity: true do
+          create(:cart_product, cart: create(:cart, user: visitor), product: seed_product)
+
+          visit_signed_in
+
+          expect(response).to be_successful
+          expect(nav_slugs.first).to eq("design")
+        end
+
+        it "leaves the navigation alone when the curated products have no category", parity: true do
+          seed = seed_product
+          relate(seed, create(:product, user: other_seller, name: "Uncategorized") => 3)
+          buy(seed)
+
+          visit_signed_in
+
+          expect(response).to be_successful
+          expect(nav_slugs.first).to eq("design")
+        end
+
+        it "hands a visitor with four products in the cart to Rails", parity: true do
+          cart = create(:cart, user: visitor)
+          Array.new(4) { |index| create(:cart_product, cart:, product: seed_product("Seed #{index}")) }
+
+          visit_signed_in
+
+          expect(response).to be_successful
+        end
+
+        it "hands a visitor with three purchases and a cart product to Rails", parity: true do
+          Array.new(3) { |index| buy(seed_product("Bought #{index}")) }
+          create(:cart_product, cart: create(:cart, user: visitor), product: seed_product("Carted"))
+
+          visit_signed_in
+
+          expect(response).to be_successful
+        end
       end
 
       it "renders a storefront seller's product without the catalogue", parity: true do

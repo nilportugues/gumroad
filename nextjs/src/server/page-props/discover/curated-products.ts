@@ -130,3 +130,10 @@ export async function curatedProducts(visitor: CuratedVisitor, guid: string | nu
   }
   return curated;
 }
+
+// The `taxonomies_for_nav` the product and wishlist pages' discover layouts send: DiscoverCuratedProducts#taxonomies_for_nav
+// orders the nav by the root taxonomies of the visitor's curated products, the same list the Discover page uses.
+export async function curatedTaxonomyIds(visitor: CuratedVisitor, guid: string | null): Promise<bigint[]> {
+  const curated = await curatedProducts(visitor, guid);
+  return curated.flatMap((row) => (row.taxonomy_id === null ? [] : [row.taxonomy_id as bigint]));
+}
