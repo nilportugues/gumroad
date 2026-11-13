@@ -174,6 +174,8 @@ import { refundAllForFraudWorker } from "./refund-all-for-fraud-worker.ts";
 import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
+import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-update-emails-job.ts";
+import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
 import {
   alertOnStalledAbandonedCartEmailsJob,
   buildTaxRateCacheWorker,
@@ -344,6 +346,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RefundAllForFraudWorker: refundAllForFraudWorker,
   BackfillPdfStampsJob: backfillPdfStampsJob,
   RetryFailedPaypalPayoutsWorker: retryFailedPaypalPayoutsWorker,
+  SendMembershipsPriceUpdateEmailsJob: sendMembershipsPriceUpdateEmailsJob,
+  SendRemindersForOutstandingUserComplianceInfoRequestsWorker: sendRemindersForOutstandingUserComplianceInfoRequestsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,

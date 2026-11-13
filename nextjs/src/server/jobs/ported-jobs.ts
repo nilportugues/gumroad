@@ -242,4 +242,6 @@ export const PORTED_JOBS: readonly string[] = [
   "RefundAllForFraudWorker",
   "BackfillPdfStampsJob",
   "RetryFailedPaypalPayoutsWorker",
+  "SendMembershipsPriceUpdateEmailsJob",
+  "SendRemindersForOutstandingUserComplianceInfoRequestsWorker",
 ];
