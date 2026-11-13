@@ -2,7 +2,7 @@
 //
 // Ported: #show (a rich text page's document, a custom HTML page's sandboxed wrapper), #landing_iframe_content and #landing_version.
 // Handed to Rails before any write:
-//   - a slug no page of the seller has: other Rails routes on the seller's host share the one-segment shape, and Rails 404s the rest;
+//   - a reserved slug no page can have: other Rails routes on the seller's host own it;
 //   - a rich text page's share card when the seller has an avatar or a generated subscribe preview (Active Storage URLs).
 import type { Page, User } from "@prisma/client";
 
@@ -38,6 +38,13 @@ import { userPageEmbedDocument, userPageWrapperDocument } from "./user-page-docu
 // The route constraint on /:slug (config/routes.rb), mirroring the model's slug format
 const PAGE_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const HTML = "text/html; charset=utf-8";
+// Page::RESERVED_SLUGS: the one-segment paths other routes on a seller's host own, which no page can take.
+const RESERVED_SLUGS = new Set(
+  `affiliate_requests affiliates braintree checkout coffee confirm confirm-redirect
+    consumption_analytics d edit follow integrations l landing library media_locations
+    p pages posts posts_paginated product_reviews products profile purchases r read s
+    save_to_library signup subscribe subscribe_preview updates wishlists zip`.split(/\s+/u),
+);
 const DEFAULT_BACKGROUND_COLOR = "#ffffff";
 
 // Not a seller's host: the Gumroad domain routes `/:username/...` to UsersController.
@@ -57,7 +64,12 @@ async function locate(input: MutationInput, slug: string): Promise<Located> {
     where: { pageable_type: "User", pageable_id: user.id, slug },
     orderBy: { id: "asc" },
   });
-  if (page === null) throw new HandBackToRails("a slug no page of the seller has");
+  if (page === null) {
+    if (RESERVED_SLUGS.has(slug))
+      throw new HandBackToRails("a reserved slug, which another route of the seller's host serves");
+    // set_page: `e404 unless @page`
+    throw new RoutingError("Not Found");
+  }
   return { user, page };
 }
 

@@ -125,9 +125,18 @@ describe("PUT /settings", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it.each([[undefined], [{}]])("hands a request without a user hash (%j) to Rails", async (user) => {
-    await expect(update.run(input(user))).rejects.toBeInstanceOf(HandBackToRails);
-  });
+  it.each<[Record<string, unknown> | undefined]>([[undefined], [{}]])(
+    "reports a request without a user hash (%j) and sends the seller back with the generic alert",
+    async (user) => {
+      expect(await update.run(input(user))).toEqual({
+        status: 302,
+        location: "/settings",
+        flash: { alert: "Something broke. We're looking into what happened. Sorry about this!" },
+      });
+      expect(mocks.notifyError).toHaveBeenCalledTimes(1);
+      expect(mocks.save).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ["a new email address", { email: "new@example.com" }],

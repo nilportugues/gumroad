@@ -95,7 +95,13 @@ describe("POST /add_purchase_to_library", () => {
     await expect(call({ ...VALID, password: "secret" })).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands a parameter that is not text to Rails", async () => {
-    await expect(call({ ...VALID, purchase_id: ["a"] })).rejects.toBeInstanceOf(HandBackToRails);
+  it("answers failure for a purchase id that is a list or a hash", async () => {
+    expect(await body({ ...VALID, purchase_id: ["a"] })).toEqual({ success: false });
+    expect(await body({ ...VALID, purchase_id: { a: "b" } })).toEqual({ success: false });
+    expect(selectRows).not.toHaveBeenCalled();
+  });
+
+  it("hands a purchase email that is not text to Rails", async () => {
+    await expect(call({ ...VALID, purchase_email: ["a"] })).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

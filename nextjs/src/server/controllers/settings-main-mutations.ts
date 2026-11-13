@@ -88,11 +88,11 @@ const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof RubyFloat);
 const redirect = (alert: string): ActionResult => ({ status: FOUND, location: MAIN_PATH, flash: { alert } });
 
-// `params.require(:user)`: a non-blank hash. Anything else raises inside the action's own rescue.
-function requireUser(params: Record<string, unknown>): Record<string, unknown> {
+// `params.require(:user).permit(...)`, which the action runs inside its own `rescue StandardError`: a blank value raises
+// ParameterMissing and any other non-hash raises NoMethodError on `permit`, both before the first write.
+function requireUser(params: Record<string, unknown>): Record<string, unknown> | null {
   const user = params.user;
-  if (!isHash(user) || Object.keys(user).length === 0) throw new HandBackToRails("a request without a user hash");
-  return user;
+  return isHash(user) && Object.keys(user).length > 0 ? user : null;
 }
 
 function assertUnchangedIdentity(seller: UserRecord, user: Record<string, unknown>): void {
@@ -316,6 +316,10 @@ async function update(input: MutationInput): Promise<ActionResult> {
   if (denied) return denied;
 
   const user = requireUser(paramsWithFloats(input));
+  if (user === null) {
+    notifyError(new Error("param is missing or the value is empty or invalid: user"));
+    return redirect(FLASH_SOMETHING_BROKE);
+  }
   const seller = await findUserBang(input.context.currentSeller!.id);
   assertUnchangedIdentity(seller, user);
 

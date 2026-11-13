@@ -10,16 +10,28 @@ describe("integerParam (Kernel#Integer with exception: false)", () => {
     ["+3", 3n],
     ["-4", -4n],
     ["99999999999999999999", 99999999999999999999n],
+    ["010", 8n],
+    ["-010", -8n],
+    ["0_7", 7n],
+    ["0x1A", 26n],
+    ["0b11", 3n],
+    ["0o17", 15n],
+    ["0d19", 19n],
+    ["1_000", 1000n],
+    [" 5\n", 5n],
   ])("reads %s", (value, expected) => {
     expect(integerParam(value)).toBe(expected);
   });
 
-  it.each([[undefined], [""], ["abc"], ["x1"]])("reads %s as nil", (value) => {
-    expect(integerParam(value)).toBeNull();
-  });
+  it.each([[undefined], [""], ["abc"], ["x1"], ["08"], ["1__0"], ["0x"], ["1.5"], ["-"], ["5abc"], ["- 1"], ["1_"]])(
+    "reads %s as nil",
+    (value) => {
+      expect(integerParam(value)).toBeNull();
+    },
+  );
 
-  it.each([["010"], ["0x1A"], ["1_000"], [" 5"], ["1.5"], ["-"], ["5abc"]])("hands back %s", (value) => {
-    expect(() => integerParam(value)).toThrow(HandBackToRails);
+  it("hands back text with a null byte", () => {
+    expect(() => integerParam("1\u00002")).toThrow(HandBackToRails);
   });
 
   it("hands back a list or hash", () => {

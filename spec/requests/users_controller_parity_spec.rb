@@ -403,7 +403,7 @@ describe "UsersController", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
 
-    it "hands a purchase id that is not text to Rails", parity: true do
+    it "answers failure for a purchase id that is a list", parity: true do
       add_to_library(purchase_id: ["a"], purchase_email: purchase.email)
 
       expect(response.parsed_body).to eq("success" => false)

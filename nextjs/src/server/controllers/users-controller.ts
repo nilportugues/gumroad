@@ -279,6 +279,9 @@ async function addPurchaseToLibrary(input: MutationInput): Promise<ActionResult>
   const userParams = input.params.user;
   if (!isHash(userParams)) return failure();
   const { purchase_id: purchaseId, purchase_email: purchaseEmail, password } = userParams;
+  // ObfuscateIds.decrypt reads `id.to_s`: the inspect string of a list or hash is not Base64, so the lookup finds no purchase and the
+  // answer is the same failure whatever the other fields hold.
+  if (Array.isArray(purchaseId) || isHash(purchaseId)) return failure();
   for (const value of [purchaseId, purchaseEmail, password]) {
     if (value !== undefined && value !== null && typeof value !== "string")
       throw new HandBackToRails("a parameter that is not text");

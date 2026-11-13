@@ -214,7 +214,7 @@ describe "Profile landing embed", type: :request do
       expect(JSON.parse(response.body)["products"].size).to eq(1)
     end
 
-    it "hands an offset with a leading zero to Rails", parity: true do
+    it "reads an offset with a leading zero as octal", parity: true do
       create(:product, user: seller, name: "Only")
 
       slice(offset: "010", limit: 10)
@@ -336,7 +336,7 @@ describe "Profile landing embed", type: :request do
       expect(embedded_products["products"].first["price"]).to include("€")
     end
 
-    it "hands a product with markup in its description to Rails", parity: true do
+    it "lists a product whose description has markup as text", parity: true do
       create(:product, user: seller).update_columns(description: "<p>Hello &amp; welcome</p>")
 
       expect(embedded_products["products"].first["description"]).to eq("Hello &amp; welcome")

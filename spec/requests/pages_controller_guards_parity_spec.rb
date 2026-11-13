@@ -173,13 +173,13 @@ describe "PagesController guards", type: :request do
       expect(response).to redirect_to(edit_page_path("my-landing"))
     end
 
-    it "hands the search fields of the profile to Rails", parity: true do
+    it "saves the search fields of the profile", parity: true do
       send_form(:patch, "/pages/profile", seo_title: "Home")
 
       expect(response).to redirect_to(edit_page_path("profile"))
     end
 
-    it "hands the removal of the profile takeover to Rails", parity: true do
+    it "removes the custom HTML of the profile takeover", parity: true do
       profile_takeover
 
       send_form(:patch, "/pages/profile", remove_custom_html: true)

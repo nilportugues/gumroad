@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   touch: vi.fn(),
   slice: vi.fn(),
+  findSellerProfile: vi.fn(),
+  saveProfile: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -46,8 +48,14 @@ vi.mock("../models/sql.ts", async () => {
   };
 });
 vi.mock("../models/runtime/transaction.ts", () => ({ transaction: (run: () => unknown) => run() }));
+vi.mock("../models/seller-profile.ts", () => ({
+  findSellerProfile: mocks.findSellerProfile,
+  SellerProfiles: { save: mocks.saveProfile },
+}));
 vi.mock("../models/user.ts", () => ({
-  Users: { load: (row: unknown) => row, touch: mocks.touch },
+  Users: { load: (row: unknown) => row, touch: mocks.touch, withLock: (_record: unknown, run: () => unknown) => run() },
+  findUserBang: async (id: unknown) => ({ id }),
+  setSellerProfileTarget: () => undefined,
   rubyStrip: (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, ""),
 }));
 
@@ -173,13 +181,73 @@ describe("PATCH /pages/:slug", () => {
     expect(await run(input({}, "profile"))).toEqual({ status: 302, location: "/pages" });
   });
 
-  it("hands the search fields of the profile to Rails", async () => {
-    await expect(run(input({ seo_title: "Home" }, "profile"))).rejects.toThrow(/seller profile/u);
+  describe("search fields of the profile", () => {
+    const profile = (errors: { attribute: string; message: string }[] = []) => ({
+      set: vi.fn(),
+      errors: { details: errors },
+    });
+
+    it("hands a seller with no profile row to Rails", async () => {
+      mocks.findSellerProfile.mockResolvedValue(null);
+      await expect(run(input({ seo_title: "Home" }, "profile"))).rejects.toThrow(/no profile row/u);
+    });
+
+    it("saves the squished fields on the locked row", async () => {
+      const row = profile();
+      mocks.findSellerProfile.mockResolvedValue(row);
+      mocks.saveProfile.mockResolvedValue(true);
+      expect(await run(input({ seo_title: "  Home  page ", seo_description: " " }, "profile"))).toEqual({
+        status: 303,
+        location: "/pages/profile/edit",
+        flash: { notice: "Changes saved!" },
+      });
+      expect(row.set).toHaveBeenCalledWith("seo_title", "Home page");
+      expect(row.set).toHaveBeenCalledWith("seo_description", null);
+    });
+
+    it("sends the first error of each field back to the editor", async () => {
+      mocks.findSellerProfile.mockResolvedValue(
+        profile([
+          { attribute: "seo_title", message: "is too long (maximum is 70 characters)" },
+          { attribute: "seo_title", message: "second" },
+        ]),
+      );
+      mocks.saveProfile.mockResolvedValue(false);
+      expect(await run(input({ seo_title: "t".repeat(71) }, "profile"))).toEqual(
+        withErrors("/pages/profile/edit", { seo_title: "is too long (maximum is 70 characters)" }),
+      );
+    });
   });
 
-  it("hands the removal of the custom HTML of the profile to Rails", async () => {
-    await expect(run(input({ remove_custom_html: true }, "profile"))).rejects.toThrow(/custom HTML of the profile/u);
-    await expect(run(input({ remove_custom_html: "false" }, "profile"))).rejects.toThrow(/custom HTML of the profile/u);
+  describe("removal of the custom HTML of the profile", () => {
+    const removal = input({ remove_custom_html: "1" }, "profile");
+
+    it("clears the HTML and touches the seller", async () => {
+      database({ root: { id: 5n, custom_html: "<main></main>", title: null, content: null } as never });
+      expect(await run(removal)).toEqual({
+        status: 303,
+        location: "/pages/profile/edit",
+        flash: { notice: "Custom page removed — your profile is back on the default template." },
+      });
+      expect(mocks.execute).toHaveBeenCalledTimes(1);
+      expect(mocks.touch).toHaveBeenCalledTimes(1);
+    });
+
+    it("writes nothing when there is no HTML to clear", async () => {
+      database({ root: { id: 5n, custom_html: null, title: null, content: null } as never });
+      expect(await run(removal)).toMatchObject({ status: 303 });
+      database();
+      expect(await run(removal)).toMatchObject({ status: 303 });
+      expect(mocks.execute).not.toHaveBeenCalled();
+    });
+
+    it("hands a page with a title or content of its own to Rails", async () => {
+      database({ root: { id: 5n, custom_html: "<main></main>", title: "Home", content: null } as never });
+      await expect(run(removal)).rejects.toThrow(/title or content/u);
+      database({ root: { id: 5n, custom_html: "<main></main>", title: null, content: "<p></p>" } as never });
+      await expect(run(removal)).rejects.toThrow(/title or content/u);
+      expect(mocks.execute).not.toHaveBeenCalled();
+    });
   });
 
   it("treats a false removal flag as absent", async () => {

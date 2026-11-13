@@ -1,6 +1,6 @@
 // Port of Pages::ProfileData.build (app/services/pages/profile_data.rb) for a seller whose posts and reputation summary are not listed:
 // the profile's tab names, the live products and the totals. A product is listed when it needs nothing the port cannot reproduce: no
-// thumbnail and no cover (their URLs are signed CDN ones), a USD buy-only price and a description that sanitizes to itself. A published
+// thumbnail and no cover (their URLs are signed CDN ones), a USD buy-only price and a description without control characters. A published
 // post (its URL on the store host) or the reputation summary (its cache signature) is Rails'.
 //
 // Rails.cache is not read or written: the payload is rebuilt each time. Ruby's cache key moves with the products, the visible posts,
@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { stripTags } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { LinkFlags } from "../models/link.ts";
 import { selectRows } from "../models/sql.ts";
@@ -80,14 +81,14 @@ function tabNames(jsonData: unknown): string[] {
   return names;
 }
 
-// ActionView::Base.full_sanitizer.sanitize(text).squish.truncate(DESCRIPTION_LIMIT). Text with markup, entities or control characters
-// would go through the HTML parser, which the port does not reimplement.
+// ActionView::Base.full_sanitizer.sanitize(text).squish.truncate(DESCRIPTION_LIMIT). Control characters are Rails': the libxml2 port
+// in html/ has no golden for them.
 function listedDescription(description: string | null): string {
   const text = description ?? "";
   // eslint-disable-next-line no-control-regex -- the control characters are the point
-  if (/[<>&\u0000-\u0008\u000e-\u001f\u007f]/u.test(text))
-    throw new NotPortedError("Pages::ProfileData sanitizing a product description with markup or control characters");
-  const squished = text.replace(SPACES, " ").replace(/^ | $/gu, "");
+  if (/[\u0000-\u0008\u000e-\u001f\u007f]/u.test(text))
+    throw new NotPortedError("Pages::ProfileData sanitizing a product description with control characters");
+  const squished = stripTags(text).replace(SPACES, " ").replace(/^ | $/gu, "");
   const characters = Array.from(squished);
   if (characters.length <= DESCRIPTION_LIMIT) return squished;
   return characters.slice(0, DESCRIPTION_LIMIT - TRUNCATION_OMISSION.length).join("") + TRUNCATION_OMISSION;
