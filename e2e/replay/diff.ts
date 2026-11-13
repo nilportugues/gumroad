@@ -1,7 +1,7 @@
 import { maskLocation, maskPath } from "./mask.ts";
 import type { ReplayedExchange } from "./replay.ts";
 
-export type Difference = { key: string; field: string; a: unknown; b: unknown };
+export type Difference = { key: string; request: string; field: string; a: unknown; b: unknown };
 
 export type DiffReport = {
   paired: number;
@@ -58,7 +58,13 @@ export const diffReplays = (a: ReplayedExchange[], b: ReplayedExchange[]): DiffR
     const rightFields = fields(other);
     for (const [field, value] of Object.entries(fields(exchange))) {
       if (value !== rightFields[field]) {
-        report.differences.push({ key, field, a: value, b: rightFields[field] });
+        report.differences.push({
+          key,
+          request: `${exchange.method} ${exchange.host}${exchange.path}`,
+          field,
+          a: value,
+          b: rightFields[field],
+        });
         report.byField[field] = (report.byField[field] ?? 0) + 1;
       }
     }
@@ -76,8 +82,26 @@ export const formatReport = (report: DiffReport) => {
   ];
   for (const [field, count] of Object.entries(report.byField).sort()) lines.push(`  ${field}: ${count}`);
   for (const d of report.differences)
-    lines.push(`DIFF ${d.key} [${d.field}] A=${JSON.stringify(d.a)} B=${JSON.stringify(d.b)}`);
+    lines.push(`DIFF ${d.key} ${d.request} [${d.field}] A=${JSON.stringify(d.a)} B=${JSON.stringify(d.b)}`);
   for (const key of report.onlyInA) lines.push(`ONLY-A ${key}`);
   for (const key of report.onlyInB) lines.push(`ONLY-B ${key}`);
+  return lines.join("\n");
+};
+
+const cell = (value: unknown) => `\`${String(JSON.stringify(value) ?? "undefined").replace(/\|/gu, "\\|")}\``;
+
+/** The report as a Markdown table, one row per difference with the request that produced it. */
+export const formatMarkdown = (report: DiffReport, labels: { a: string; b: string }) => {
+  const lines = [
+    `Paired ${report.paired}, skipped ${report.skipped}, only in ${labels.a} ${report.onlyInA.length}, only in ${labels.b} ${report.onlyInB.length}, differences ${report.differences.length}.`,
+    "",
+  ];
+  if (report.differences.length > 0) {
+    lines.push(`| Request | Field | ${labels.a} | ${labels.b} |`, "| --- | --- | --- | --- |");
+    for (const d of report.differences)
+      lines.push(`| \`${d.request}\` (${d.key}) | ${d.field} | ${cell(d.a)} | ${cell(d.b)} |`);
+  }
+  for (const key of report.onlyInA) lines.push(`- only in ${labels.a}: ${key}`);
+  for (const key of report.onlyInB) lines.push(`- only in ${labels.b}: ${key}`);
   return lines.join("\n");
 };

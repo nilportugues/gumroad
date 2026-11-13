@@ -23,6 +23,7 @@ import type { PageSpec } from "../pages.ts";
 import { invoiceFormPage } from "./invoice-form.ts";
 import { libraryProps, purchaseAnalyticsProps, receiptPurchases } from "./library.ts";
 import { purchaseProductPage } from "./purchase-product.ts";
+import { refundRequestPage } from "./refund-request-page.ts";
 import { reviewsProps } from "./reviews.ts";
 import { magicLinkProps } from "./subscriptions.ts";
 import { aliveFollowingWishlistsOf, aliveWishlistsOf, wishlistsLibraryProps } from "./wishlists.ts";
@@ -137,6 +138,8 @@ export const BUYER_PAGES: Record<string, PageSpec> = {
   },
   // Purchases::ProductController#show
   "/purchases/:purchase_id/product": purchaseProductPage,
+  // Purchases::RefundRequestsController#show
+  "/purchases/:purchase_id/refund_request": refundRequestPage,
   // Purchases::InvoicesController#new
   "/purchases/:purchase_id/invoice/new": invoiceFormPage,
   // Purchases::InvoicesController#confirm

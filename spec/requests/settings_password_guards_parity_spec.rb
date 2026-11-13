@@ -182,7 +182,7 @@ describe "Settings::PasswordController#update", type: :request do
     expect(seller.reload.provider).to be_nil
   end
 
-  it "hands a current password that is not text to Rails", parity: true do
+  it "refuses a current password that is a number", parity: true do
     log_in(seller)
 
     send_form(:patch, { user: { password: 12_345, new_password: } })
@@ -191,7 +191,7 @@ describe "Settings::PasswordController#update", type: :request do
     expect(flash[:alert]).to eq("Incorrect password.")
   end
 
-  it "hands a user parameter that is not a hash to Rails", parity: true do
+  it "refuses a user parameter that is a string", parity: true do
     log_in(seller)
 
     send_form(:patch, { user: "password" })

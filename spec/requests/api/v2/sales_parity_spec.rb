@@ -394,16 +394,20 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
         expect(response.parsed_body["sale"]["tracking_url"]).to be_nil
       end
 
-      it "hands back a link that is not http or https", parity: true do
+      it "prints no link for a link that is not http or https", parity: true do
         ship(tracking_url: "ftp://example.com/track")
 
         show(shipped)
+
+        expect(response.parsed_body["sale"]["tracking_url"]).to be_nil
       end
 
-      it "hands back a link with a space inside", parity: true do
+      it "prints no link for a link with a space inside", parity: true do
         ship(tracking_url: "https://example.com/track me")
 
         show(shipped)
+
+        expect(response.parsed_body["sale"]["tracking_url"]).to be_nil
       end
     end
   end

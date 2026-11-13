@@ -205,16 +205,16 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.customizable_price).to be true
   end
 
-  it "hands a price with cents back to Rails", parity: true do
+  it "reads a price given with cents as the cents before the point and refuses it under the minimum", parity: true do
     create_product({ name: "Notebook", price: "5.50" })
 
-    expect(response).to have_http_status(:ok)
+    expect(message).to eq("Sorry, a product must be at least $0.99.")
   end
 
-  it "hands a price that is null back to Rails", parity: true do
+  it "refuses a price that is null like a missing one", parity: true do
     create_product({ name: "Notebook", price: nil })
 
-    expect(response).to have_http_status(:ok)
+    expect(message).to eq("New products should be created with a price")
   end
 
   it "hands a custom permalink back to Rails", parity: true do
@@ -265,16 +265,16 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.max_purchase_count).to eq(0)
   end
 
-  it "hands a purchase limit given as a boolean back to Rails", parity: true do
+  it "reads a purchase limit given as false as zero", parity: true do
     create_product({ name: "Notebook", price: 500, max_purchase_count: false })
 
-    expect(response).to have_http_status(:ok)
+    expect(created.max_purchase_count).to eq(0)
   end
 
-  it "hands a purchase limit past the integer range back to Rails", parity: true do
+  it "clamps a purchase limit past the integer range to ten million", parity: true do
     create_product({ name: "Notebook", price: 500, max_purchase_count: 3_000_000_000 })
 
-    expect(response).to have_http_status(:ok)
+    expect(created.max_purchase_count).to eq(10_000_000)
   end
 
   it "creates a pay-what-you-want product with a suggested price", parity: true, parity_timeline: true do
@@ -315,10 +315,10 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.customizable_price).to be false
   end
 
-  it "hands a customizable price given as text back to Rails", parity: true do
+  it "reads a customizable price given as text", parity: true do
     create_product({ name: "Notebook", price: 500, customizable_price: "true" })
 
-    expect(response).to have_http_status(:ok)
+    expect(created.customizable_price).to be true
   end
 
   it "truncates a suggested price given with cents", parity: true do

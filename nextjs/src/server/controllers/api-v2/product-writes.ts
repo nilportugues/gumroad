@@ -365,11 +365,15 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   let priceCents: number | null = null;
   if (has(params, "price")) {
     const price = params.price;
-    if (typeof price === "number" && Number.isSafeInteger(price) && price >= 0) priceCents = price;
+    // `price_cents = nil` is the missing price: the model refuses it the same way.
+    if (price === null) priceCents = null;
+    else if (typeof price === "number" && Number.isSafeInteger(price) && price >= 0) priceCents = price;
     else if (typeof price === "string" && /^(?:0|[1-9]\d{0,15})$/u.test(price)) priceCents = Number(price);
+    else if (typeof price === "string" && DECIMAL_CENTS.test(price)) priceCents = Number(price.replace(/\..*$/u, ""));
     else throw new HandBackToRails("a price that is not a whole number of cents");
     // `price_cents=` raises LinkInvalid ahead of the first save.
-    if (priceCents > MAX_PRICE_CENTS) return errorWithCreatingObject("product", { errors: [PRICE_TOO_LARGE] });
+    if (priceCents !== null && priceCents > MAX_PRICE_CENTS)
+      return errorWithCreatingObject("product", { errors: [PRICE_TOO_LARGE] });
   }
 
   let description: string | null = null;
@@ -395,7 +399,7 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     taxonomyId = typeof value === "string" ? rubyToI(value) : BigInt(value as number);
   }
   const maxPurchaseCount = has(params, "max_purchase_count")
-    ? integerParam("max_purchase_count", params.max_purchase_count)
+    ? integerParam("max_purchase_count", params.max_purchase_count, { booleans: true, largePositive: true })
     : undefined;
   const suggestedPriceCents = has(params, "suggested_price_cents")
     ? integerParam("suggested_price_cents", params.suggested_price_cents)
@@ -539,6 +543,8 @@ const UPDATE_FLAG_PARAMS = [
   "should_show_sales_count",
   "quantity_enabled",
 ] as const;
+// A text price with a fraction and no sign, exponent or underscore.
+const DECIMAL_CENTS = /^(?:0|[1-9]\d{0,14})\.\d+$/u;
 // The range of an integer column; ActiveModel raises RangeError beyond it.
 const INT_RANGE = 2_147_483_647;
 const MAX_CUSTOM_RECEIPT_LENGTH = 10_000;
@@ -578,10 +584,8 @@ function booleanParam(key: string, value: unknown): boolean {
   throw new HandBackToRails(`a ${key} that is not true or false`);
 }
 
-// The creation records only a JSON boolean; the update also records the text.
 function customizablePriceParam(value: unknown): boolean {
-  if (typeof value !== "boolean") throw new HandBackToRails("a customizable_price that is not true or false");
-  return value;
+  return booleanParam("customizable_price", value);
 }
 
 // Link#published?
@@ -608,7 +612,13 @@ async function updateSimpleAttributes(input: ApiV2Input, product: Link) {
   // Everything up to the transaction only reads.
   let priceCents: number | undefined;
   if (has(params, "price")) {
-    const plan = await planBuyPriceWrite(product, params.price);
+    // ActiveModel's integer cast reads "3.50" as 3, the digits before the point.
+    const plan = await planBuyPriceWrite(
+      product,
+      typeof params.price === "string" && DECIMAL_CENTS.test(params.price)
+        ? params.price.replace(/\..*$/u, "")
+        : params.price,
+    );
     // `price_cents=` raises LinkInvalid while the attributes are assigned, before anything is saved.
     if ("tooLarge" in plan) return refuse(PRICE_TOO_LARGE);
     priceCents = plan.cents;

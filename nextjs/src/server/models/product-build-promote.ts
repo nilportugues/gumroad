@@ -3,7 +3,7 @@
 // old one leaves every page (swap_file_embed). The order is the `timeline` of the Rails recordings in
 // spec/requests/api/v2/product_builds_writes_parity_spec.rb; product-build-promote.test.ts pins it.
 //
-// Handed back, as NotPortedError before the first write (the plan is read under the lock, ahead of every write): a build that is already
+// Handed back, as NotPortedError before the first write (the plan is read under the lock, ahead of every write): a product with no pages, a build that is already
 // live (the restore branch), a product with versions (per-version pages and the `base_variants_product_files` joins), a page with a folder
 // or a product with a folder archive (generate_product_files_archives! would build or drop zip archives), a description the port does not
 // read, a description Rails would reject, a stored build that no longer validates, and a version page owner.
@@ -133,6 +133,8 @@ async function planPromotion(product: Link, buildId: bigint): Promise<Plan> {
     );
   }
   const pages = await alivePages(product.id);
+  // swap_file_embed creates a page holding the zip for a product that has none.
+  if (pages.length === 0) return handBack("a product with no pages");
   return { build: buildRow, previous, replacedFile, pageWrites: await planPages(product, pages, replacedFile) };
 }
 
