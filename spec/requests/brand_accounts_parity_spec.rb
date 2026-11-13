@@ -216,7 +216,7 @@ describe "Brand accounts", type: :request do
     expect(User.find_by!(username: "brandaccount").alive_user_compliance_info).to be_nil
   end
 
-  it "hands a username that is not text to Rails", parity: true do
+  it "creates the account with a generated username when the username is a list", parity: true do
     log_in(creator)
 
     create_brand_account(attributes.merge(username: ["brandaccount"]))
