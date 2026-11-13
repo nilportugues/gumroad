@@ -5,7 +5,8 @@ require "spec_helper"
 # Collaborators::IncomingsController: the incoming collaborations page and the guards of #accept, #decline and #destroy that Node
 # answers, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/collaborator-incomings.replay.test.ts, which sends the last request of each example. An example named
-# "hands a ..." records what Node passes to Rails whole (every write enqueues a mailer job).
+# "hands a ..." records what Node passes to Rails whole: the shape is not proven. The writes run in Node; `parity_mail_jobs` records the
+# mail enqueue and `parity_timeline` the order of statements and jobs.
 describe "Collaborators::IncomingsController", type: :request do
   include Parity::AudienceSignedIn
 
@@ -22,7 +23,13 @@ describe "Collaborators::IncomingsController", type: :request do
     switch_to(membership)
   end
 
+  # A slow recording would otherwise show the seed as `<now-5s>` where the replay's seed is `<now>`.
+  def age_rows
+    [Affiliate, Link, CollaboratorInvitation].each { _1.update_all(created_at: 2.hours.ago, updated_at: 2.hours.ago) }
+  end
+
   def send_form(method, path)
+    age_rows
     token = csrf_token
     public_send(method, path, params: { authenticity_token: token })
   end
@@ -114,7 +121,7 @@ describe "Collaborators::IncomingsController", type: :request do
     end
   end
 
-  describe "POST /collaborators/incomings/:id/accept" do
+  describe "POST /collaborators/incomings/:id/accept", parity_timeline: true, parity_mail_jobs: true do
     let(:path) { "/collaborators/incomings/#{pending.external_id}/accept" }
 
     it "sends a signed-out visitor to sign in", parity: true do
@@ -203,16 +210,17 @@ describe "Collaborators::IncomingsController", type: :request do
       expect(flash[:alert]).to eq("Your current role as Marketing cannot perform this action.")
     end
 
-    it "hands the invited seller's answer to Rails", parity: true do
+    it "accepts the invitation, destroys it and queues the mail to the inviter", parity: true do
       log_in(invitee)
 
       send_form(:post, path)
 
       expect(response).to redirect_to("/collaborators/incomings")
       expect(flash[:notice]).to eq("Invitation accepted")
+      expect(pending.reload.collaborator_invitation).to be_nil
     end
 
-    it "hands an admin member's answer to Rails", parity: true do
+    it "accepts the invitation for an admin team member", parity: true do
       as_team_member(:admin)
 
       send_form(:post, path)
@@ -221,7 +229,7 @@ describe "Collaborators::IncomingsController", type: :request do
     end
   end
 
-  describe "POST /collaborators/incomings/:id/decline" do
+  describe "POST /collaborators/incomings/:id/decline", parity_timeline: true, parity_mail_jobs: true do
     let(:path) { "/collaborators/incomings/#{pending.external_id}/decline" }
 
     it "sends a signed-out visitor to sign in", parity: true do
@@ -310,16 +318,31 @@ describe "Collaborators::IncomingsController", type: :request do
       expect(flash[:alert]).to eq("Your current role as Marketing cannot perform this action.")
     end
 
-    it "hands the invited seller's answer to Rails", parity: true do
+    it "declines the invitation, ends the collaboration and queues the mail to the inviter", parity: true do
       log_in(invitee)
 
       send_form(:post, path)
 
       expect(response).to redirect_to("/collaborators/incomings")
       expect(flash[:notice]).to eq("Invitation declined")
+      expect(pending.reload.deleted?).to eq(true)
     end
 
-    it "hands an admin member's answer to Rails", parity: true do
+    it "clears the collab flag on the products of a declined collaboration", parity: true do
+      first_product = create(:product, user: inviter, name: "First product")
+      second_product = create(:product, user: inviter, name: "Second product")
+      pending.product_affiliates.create!(product: first_product, affiliate_basis_points: 35_00)
+      pending.product_affiliates.create!(product: second_product, affiliate_basis_points: 40_00)
+      expect(first_product.reload.is_collab?).to eq(true)
+      log_in(invitee)
+
+      send_form(:post, path)
+
+      expect(first_product.reload.is_collab?).to eq(false)
+      expect(second_product.reload.is_collab?).to eq(false)
+    end
+
+    it "declines the invitation for an admin team member", parity: true do
       as_team_member(:admin)
 
       send_form(:post, path)
@@ -328,7 +351,7 @@ describe "Collaborators::IncomingsController", type: :request do
     end
   end
 
-  describe "DELETE /collaborators/incomings/:id" do
+  describe "DELETE /collaborators/incomings/:id", parity_timeline: true, parity_mail_jobs: true do
     let(:accepted_seller) { create(:user, username: "acceptedseller", name: "Accepted Seller") }
     let!(:accepted) { create(:collaborator, seller: accepted_seller, affiliate_user: invitee) }
     let(:path) { "/collaborators/incomings/#{accepted.external_id}" }
@@ -374,7 +397,7 @@ describe "Collaborators::IncomingsController", type: :request do
       expect(flash[:alert]).to eq("Your current role as Support cannot perform this action.")
     end
 
-    it "hands the invited seller's removal to Rails", parity: true do
+    it "removes the collaboration for the invited seller and mails the inviter", parity: true do
       log_in(invitee)
 
       send_form(:delete, path)
@@ -384,7 +407,7 @@ describe "Collaborators::IncomingsController", type: :request do
       expect(accepted.reload.deleted?).to eq(true)
     end
 
-    it "hands the inviting seller's removal to Rails", parity: true do
+    it "removes the collaboration for the inviting seller and mails the invited seller", parity: true do
       log_in(accepted_seller)
 
       send_form(:delete, path)
@@ -392,7 +415,29 @@ describe "Collaborators::IncomingsController", type: :request do
       expect(flash[:notice]).to eq("Collaborator removed")
     end
 
-    it "hands the removal of a collaboration with a pending invitation to Rails", parity: true do
+    it "removes a collaboration with products and clears their collab flag", parity: true do
+      product = create(:product, user: accepted_seller, name: "Shared product")
+      accepted.product_affiliates.create!(product:, affiliate_basis_points: 20_00)
+      log_in(invitee)
+
+      send_form(:delete, path)
+
+      expect(flash[:notice]).to eq("Collaborator removed")
+      expect(product.reload.is_collab?).to eq(false)
+    end
+
+    it "removes an accepted collaboration for an admin team member of the inviting seller", parity: true do
+      member = create(:user, name: "Admin Member")
+      membership = create(:team_membership, user: member, seller: accepted_seller, role: :admin)
+      log_in(member)
+      switch_to(membership)
+
+      send_form(:delete, path)
+
+      expect(flash[:notice]).to eq("Collaborator removed")
+    end
+
+    it "removes a collaboration whose invitation is still pending", parity: true do
       log_in(invitee)
 
       send_form(:delete, "/collaborators/incomings/#{pending.external_id}")

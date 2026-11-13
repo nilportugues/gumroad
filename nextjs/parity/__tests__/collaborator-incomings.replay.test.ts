@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -15,12 +16,14 @@ import { assertParity, httpTransport, replayFixtureExchange } from "../src/repla
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays spec/requests/collaborator_incomings_parity_spec.rb: the last exchange of each fixture is sent to `next dev` with
-// the incomings page and guard flags on; a stand-in Rails receives whatever Node hands back.
+// the incomings page and guard flags on; a stand-in Rails receives whatever Node hands back. The mails of the writes are compared like
+// any other job (`parity_mail_jobs` recorded them).
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const DIR = path.join("parity/fixtures/requests", "collaborator_incomings_parity_spec");
 const ROUTE_FLAGS = "nextjs_collaborator_incomings,nextjs_collaborator_incomings_guards";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+const SEED_SETTLE_MS = 1100;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const stripeKey = /^STRIPE_PUBLIC_KEY_TEST=(.+)$/mu.exec(envTest)?.[1];
@@ -35,6 +38,7 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    "jobs.*.at",
     "http",
     // insert_all leaves these to the database clock, which is not UTC on every machine.
     "db.dashboard_nav_promotions.inserted.*.created_at",
@@ -122,8 +126,11 @@ describe.skipIf(!url)("Collaborators::IncomingsController", () => {
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
+    // The rows are seeded as of this second: an UPDATE inside it would leave updated_at as it was, which Rails' recording never shows.
+    beforeRequest: () => new Promise<void>((resolve) => setTimeout(resolve, SEED_SETTLE_MS)),
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
+    jobs: redisJobsChannel(redis),
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],

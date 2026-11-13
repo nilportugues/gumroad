@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   hasInvitation: vi.fn(),
   guardRedirect: vi.fn(),
   allowed: vi.fn(),
+  endCollaboration: vi.fn(),
+  destroyCollaboration: vi.fn(),
+  destroyInvitation: vi.fn(),
+  deliver: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -17,6 +21,16 @@ vi.mock("./mutation.ts", () => ({
 vi.mock("../page-props/dashboard/collaborators.ts", () => ({
   findAliveCollaborator: mocks.findAliveCollaborator,
   hasCollaboratorInvitation: mocks.hasInvitation,
+}));
+vi.mock("./collaborator-destroy.ts", () => ({
+  endCollaboration: mocks.endCollaboration,
+  destroyCollaboration: mocks.destroyCollaboration,
+}));
+vi.mock("../models/collaborator-end.ts", () => ({
+  INVITATION_ACCEPTED_MAIL: "collaborator_invitation_accepted",
+  INVITATION_DECLINED_MAIL: "collaborator_invitation_declined",
+  destroyInvitationBang: mocks.destroyInvitation,
+  deliverCollaboratorMail: mocks.deliver,
 }));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../policies/collaborator.ts", () => ({
@@ -85,9 +99,37 @@ describe.each([
     mocks.allowed.mockReturnValue(false);
     await expect(call(run)).rejects.toThrow("not allowed");
   });
+});
 
-  it("hands the answer to Rails once the guards pass", async () => {
-    await expect(call(run)).rejects.toBeInstanceOf(HandBackToRails);
+describe("POST /collaborators/incomings/:id/accept", () => {
+  it("destroys the invitation, then mails the inviter", async () => {
+    const result = await call(find("POST", "/collaborators/incomings/:id/accept"));
+    expect(mocks.destroyInvitation).toHaveBeenCalledExactlyOnceWith(7);
+    expect(mocks.deliver).toHaveBeenCalledExactlyOnceWith("collaborator_invitation_accepted", 7);
+    expect(result).toEqual({
+      status: 303,
+      location: "/collaborators/incomings",
+      flash: { notice: "Invitation accepted" },
+    });
+  });
+});
+
+describe("POST /collaborators/incomings/:id/decline", () => {
+  it("hands the answer to Rails when ending the collaboration is refused before the write", async () => {
+    mocks.endCollaboration.mockRejectedValue(new HandBackToRails("a product that would fail its own validation"));
+    await expect(call(find("POST", "/collaborators/incomings/:id/decline"))).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.deliver).not.toHaveBeenCalled();
+  });
+
+  it("ends the collaboration, then mails the inviter", async () => {
+    const result = await call(find("POST", "/collaborators/incomings/:id/decline"));
+    expect(mocks.endCollaboration).toHaveBeenCalledExactlyOnceWith(7);
+    expect(mocks.deliver).toHaveBeenCalledExactlyOnceWith("collaborator_invitation_declined", 7);
+    expect(result).toEqual({
+      status: 303,
+      location: "/collaborators/incomings",
+      flash: { notice: "Invitation declined" },
+    });
   });
 });
 
@@ -99,9 +141,19 @@ describe("DELETE /collaborators/incomings/:id", () => {
     await expect(call(run)).rejects.toBeInstanceOf(RoutingError);
   });
 
-  it("does not look for an invitation", async () => {
-    await expect(call(run)).rejects.toBeInstanceOf(HandBackToRails);
+  it("removes the collaboration as the acting seller without looking for an invitation", async () => {
+    const result = await run({
+      routeParams: { id: "abc" },
+      params: {},
+      context: { currentSeller: { id: 4n } },
+    } as unknown as MutationInput);
     expect(mocks.hasInvitation).not.toHaveBeenCalled();
+    expect(mocks.destroyCollaboration).toHaveBeenCalledExactlyOnceWith(4n, 7);
+    expect(result).toEqual({
+      status: 303,
+      location: "/collaborators/incomings",
+      flash: { notice: "Collaborator removed" },
+    });
   });
 
   it("returns the sign-in redirect for a visitor who is signed out", async () => {
