@@ -47,8 +47,12 @@ describe("parseIso8601", () => {
     expect(parseIso8601(input)).toBeNull();
   });
 
-  it("hands back a year the SQL timestamp cannot hold", () => {
-    expect(() => parseIso8601("0999-01-01T00:00:00Z")).toThrow(NotPortedError);
+  it("reads year 999, which MySQL compares as written", () => {
+    expect(parseIso8601("0999-01-01T00:00:00Z")).toEqual({ sql: "0999-01-01 00:00:00.000000" });
+  });
+
+  it("hands back a year no recording covers", () => {
+    expect(() => parseIso8601("0099-01-01T00:00:00Z")).toThrow(NotPortedError);
     expect(() => parseIso8601("12020-01-01T00:00:00Z")).toThrow(NotPortedError);
   });
 });

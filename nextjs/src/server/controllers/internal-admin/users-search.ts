@@ -49,6 +49,9 @@ const HIGHEST_RISK = "highest";
 const PERCENT = 100;
 const RATE_DIGITS = 2;
 const SOCIAL_FUNNEL_OFFERED_EVENT = "social_connect_offered";
+// Ruby and JavaScript print a float in plain notation between these bounds and in exponent notation outside them.
+const MIN_PLAIN_FRACTION = 1e-4;
+const MAX_PLAIN_FRACTION = 1e15;
 
 // ActiveModel::Type::Boolean#cast
 function castBoolean(value: unknown): boolean | null {
@@ -63,7 +66,9 @@ function castBoolean(value: unknown): boolean | null {
 const ISO_TIMESTAMP =
   /^[ \t\r\n\f\v]*(-?\d+)-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d)(?:\.(\d+))?(Z|[+-]\d\d(?::?\d\d)?)?[ \t\r\n\f\v]*$/iu;
 const SECONDS_PER_DAY = 86_400;
-const MIN_SQL_YEAR = 1000;
+// The comparison literal is read as is by MySQL, which accepts a year below its DATETIME floor of 1000; only year 998 is recorded, so the
+// two-digit years Date.UTC maps to 19xx and everything below 100 stay with Rails.
+const MIN_SQL_YEAR = 100;
 const MAX_SQL_YEAR = 9999;
 const MICROSECOND_DIGITS = 6;
 
@@ -86,9 +91,10 @@ export function parseIso8601(value: unknown): { sql: string } | null {
     if (Math.abs(offset) >= SECONDS_PER_DAY) return null;
   }
   if (!/^\d{4}$/u.test(year!)) throw new NotPortedError("a year that is not four digits", SOURCE);
+  if (Number(year) < MIN_SQL_YEAR) throw new NotPortedError("a year outside 100-9999", SOURCE);
   const instant = new Date(Date.UTC(Number(year), mo - 1, d, h, mi, s) - offset * 1000);
   if (instant.getUTCFullYear() < MIN_SQL_YEAR || instant.getUTCFullYear() > MAX_SQL_YEAR)
-    throw new NotPortedError("a year outside 1000-9999", SOURCE);
+    throw new NotPortedError("a year outside 100-9999", SOURCE);
   const stamp = instant.toISOString().replace("T", " ").replace("Z", "").slice(0, 19);
   return { sql: `${stamp}.${fraction.slice(0, MICROSECOND_DIGITS).padEnd(MICROSECOND_DIGITS, "0")}` };
 }
@@ -162,8 +168,31 @@ function rubyInteger(raw: unknown): number | null {
     return raw;
   }
   if (typeof raw !== "string") return null;
+  // Only hexadecimal is recorded; binary, octal, a bare leading zero and underscores inside a prefixed number stay with Rails.
+  const hex = /^\s*([+-]?)0[xX]([0-9a-fA-F]+)\s*$/u.exec(raw);
+  if (hex !== null) return Number.parseInt(`${hex[1]}${hex[2]}`, 16);
   if (/^\s*[+-]?0[0-9xXbBoO_]/u.test(raw)) throw new NotPortedError("a limit in another base", SOURCE);
   return /^\s*[+-]?\d+(?:_\d+)*\s*$/u.test(raw) ? Number.parseInt(raw.replaceAll("_", ""), 10) : null;
+}
+
+// `signals` is JSON whose floats Node cannot tell from integers (1.0 and 1 parse alike), so only an object of plain fractions, which
+// both languages print the same way, is served; anything else stays with Rails.
+function fractionalSignals(raw: unknown): Record<string, number> {
+  const plain = typeof raw === "object" && raw !== null && !Array.isArray(raw);
+  const entries = plain ? Object.entries(raw) : [];
+  if (
+    !plain ||
+    entries.length === 0 ||
+    !entries.every(
+      ([, value]) =>
+        typeof value === "number" &&
+        !Number.isInteger(value) &&
+        Math.abs(value) >= MIN_PLAIN_FRACTION &&
+        Math.abs(value) < MAX_PLAIN_FRACTION,
+    )
+  )
+    throw new NotPortedError("a shadow evaluation with signals other than plain fractions", SOURCE);
+  return Object.fromEntries(entries) as Record<string, number>;
 }
 
 type RelatedUserRow = {
@@ -456,9 +485,8 @@ defineAdminRoute(
         where: { user_id: user.id },
         orderBy: [{ evaluated_on: "desc" }, { id: "desc" }],
       });
-      // `signals` is JSON whose floats Node cannot tell from integers.
-      if (shadow?.signals !== undefined && shadow.signals !== null)
-        throw new NotPortedError("a shadow evaluation with signals", SOURCE);
+      const signals =
+        shadow?.signals === undefined || shadow.signals === null ? null : fractionalSignals(shadow.signals);
       const connections = [];
       for (const row of verifications) {
         const shared = await db.socialConnectVerification.count({
@@ -494,7 +522,7 @@ defineAdminRoute(
               unpaid_balance_cents: Number(shadow.unpaid_balance_cents),
               would_have_released: shadow.would_have_released,
               hold_source: shadow.hold_source,
-              signals: null,
+              signals,
             };
       return jsonRendered(successPayload(user, { social_connections: connections, latest_shadow_evaluation: latest }));
     },

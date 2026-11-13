@@ -97,7 +97,7 @@ describe "Internal admin API user reads", type: :request do
       expect(response.parsed_body["purchases"].size).to eq(1)
     end
 
-    it "hands a purchase with an affiliate to Rails", parity: true do
+    it "reads a purchase that came through an affiliate", parity: true do
       affiliated = create_purchase(purchaser: user, created_at: 5.days.ago)
       affiliated.update_columns(affiliate_id: create(:direct_affiliate, seller:).id)
 
@@ -208,7 +208,7 @@ describe "Internal admin API user reads", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a timestamp in a year before 1000 to Rails", parity: true do
+    it "reads a timestamp in a year before 1000", parity: true do
       get "/internal/admin/users/purchases", params: { user_id: user.external_id, start_at: "0999-01-01T00:00:00Z" }, headers: headers
 
       expect(response).to have_http_status(:ok)
@@ -302,7 +302,7 @@ describe "Internal admin API user reads", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a limit written in another base to Rails", parity: true do
+    it "reads a limit written in hexadecimal", parity: true do
       get "/internal/admin/users/related", params: { user_id: user.external_id, limit: "0x10" }, headers: headers
 
       expect(response).to have_http_status(:ok)
@@ -375,7 +375,7 @@ describe "Internal admin API user reads", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a shadow evaluation with signals to Rails", parity: true do
+    it "reads a shadow evaluation with fractional signals", parity: true do
       create(:social_score_shadow_evaluation, user:, signals: { "followers" => 1.5 })
 
       get "/internal/admin/users/social_connections", params: { user_id: user.external_id }, headers: headers
