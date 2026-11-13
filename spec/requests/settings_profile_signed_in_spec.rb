@@ -476,7 +476,7 @@ describe "Profile settings when signed in", type: :request do
       expect(seller.reload.custom_html).to be_nil
     end
 
-    it "hands a request the Inertia client sends", parity: true do
+    it "redirects a request the Inertia client sends", parity: true do
       log_in(seller)
       token = csrf_token
 
