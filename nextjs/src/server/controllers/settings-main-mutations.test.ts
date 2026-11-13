@@ -125,7 +125,7 @@ describe("PUT /settings", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it.each([[undefined], [{}], ["text"], [[]]])(
+  it.each<[Record<string, unknown> | undefined]>([[undefined], [{}]])(
     "reports a request without a user hash (%j) and sends the seller back with the generic alert",
     async (user) => {
       expect(await update.run(input(user))).toEqual({

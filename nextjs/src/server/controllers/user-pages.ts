@@ -65,7 +65,8 @@ async function locate(input: MutationInput, slug: string): Promise<Located> {
     orderBy: { id: "asc" },
   });
   if (page === null) {
-    if (RESERVED_SLUGS.has(slug)) throw new HandBackToRails("a reserved slug, which another route of the seller's host serves");
+    if (RESERVED_SLUGS.has(slug))
+      throw new HandBackToRails("a reserved slug, which another route of the seller's host serves");
     // set_page: `e404 unless @page`
     throw new RoutingError("Not Found");
   }

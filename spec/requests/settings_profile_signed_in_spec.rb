@@ -466,7 +466,7 @@ describe "Profile settings when signed in", type: :request do
       expect(stored_tabs).to eq([{ "name" => "Home", "sections" => [section.id] }])
     end
 
-    it "hands a blank custom_html when the seller has a page", parity: true do
+    it "clears the page when custom_html is blank and the seller has one", parity: true do
       seller.update!(custom_html: "<p>hello</p>")
       log_in(seller)
 

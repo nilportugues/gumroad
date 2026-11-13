@@ -3,7 +3,7 @@
 //
 // Handed back to Rails whole, before the first write: anything that touches Active Storage (a `profile_picture_blob_id` key of any
 // value: attaching, purging, the signed-id lookup), an Inertia-format request (its redirect-and-flash answer is not ported for this
-// action), a blank `custom_html` on a seller who has a page (it edits the page), a rich text section (SaveContentUpsellsService), and a
+// action), a blank `custom_html` on a root page that has a title or content (it edits the page), a rich text section (SaveContentUpsellsService), and a
 // layout or section whose data breaks its JSON schema (JSON::Validator's messages are not reproduced; the transaction rolls back).
 import { Prisma } from "@prisma/client";
 import type { SellerProfileSection } from "@prisma/client";
@@ -19,7 +19,7 @@ import {
   type SellerProfileRecord,
   SellerProfiles,
 } from "../models/seller-profile.ts";
-import { castRow, column, selectRows, table } from "../models/sql.ts";
+import { castRow, column, execute, selectRows, table } from "../models/sql.ts";
 import { findUserBang, setFlag, setSellerProfileTarget, Users, type UserFlag } from "../models/user.ts";
 import { storedTabs, layoutVersion } from "../page-props/settings/profile.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -157,11 +157,18 @@ function readJsonData(profile: SellerProfileRecord): Record<string, unknown> {
   return { ...hashOf(profile.get("json_data")) };
 }
 
-async function pageExists(sellerId: unknown): Promise<boolean> {
-  const rows = await selectRows(
-    Prisma.sql`SELECT 1 AS present FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} LIMIT 1`,
+type RootPage = { id: bigint; custom_html: string | null; title: string | null; content: string | null };
+
+// `User#page`, the root page: `user.custom_html = ""` sets its HTML to nil. A page with a title or content of its own would go
+// through the sanitizer and content moderation when that save writes it.
+async function rootPageToClear(sellerId: unknown): Promise<RootPage | null> {
+  const [row] = await selectRows<RootPage>(
+    Prisma.sql`SELECT ${column("pages", "id")}, ${column("pages", "custom_html")}, ${column("pages", "title")}, ${column("pages", "content")} FROM ${table("pages")} WHERE ${column("pages", "pageable_type")} = 'User' AND ${column("pages", "pageable_id")} = ${sellerId} AND ${column("pages", "slug")} IS NULL LIMIT 1`,
   );
-  return rows.length > 0;
+  if (!row || row.custom_html === null) return null;
+  if (row.content !== null || !blank(row.title ?? ""))
+    throw new HandBackToRails("a blank custom_html on a root page that has a title or content");
+  return row;
 }
 
 // SaveService#upsert!
@@ -230,12 +237,12 @@ async function update(input: MutationInput): Promise<ActionResult> {
   if (currentSeller.confirmed_at === null) return respondError(UNCONFIRMED_MESSAGE);
 
   const customHtml = permitted.user?.custom_html;
+  let pageToClear: RootPage | null = null;
   if (customHtml !== undefined) {
     // `.present?` is false for nil, false and a blank string; true for anything else a scalar can be.
     if (!(customHtml === null || customHtml === false || (typeof customHtml === "string" && blank(customHtml))))
       return respondError(CUSTOM_HTML_MESSAGE);
-    if (await pageExists(currentSeller.id))
-      throw new HandBackToRails("a blank custom_html, which clears the seller's page");
+    pageToClear = await rootPageToClear(currentSeller.id);
   }
 
   if (permitted.tabs || permitted.sections) {
@@ -277,6 +284,10 @@ async function update(input: MutationInput): Promise<ActionResult> {
           if (key in permitted.user) setFlag(seller, flag, TRUE_VALUES.includes(permitted.user[key]));
         await Users.saveBang(seller);
       }
+      if (pageToClear)
+        await execute(
+          Prisma.sql`UPDATE ${table("pages")} SET ${column("pages", "custom_html")} = NULL, ${column("pages", "updated_at")} = ${new Date()} WHERE ${column("pages", "id")} = ${pageToClear.id}`,
+        );
       return respondSuccess();
     });
   } catch (error) {

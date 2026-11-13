@@ -93,10 +93,7 @@ async function removeProfileTakeover(input: MutationInput): Promise<ActionResult
 
 // `current_seller.with_locked_seller_profile { |profile| profile.update(seo_params) }` for a seller whose profile row exists; a first
 // save builds the row with its defaults, which is Rails'.
-async function saveProfileSearchFields(
-  input: MutationInput,
-  seo: ReturnType<typeof seoParams>,
-): Promise<ActionResult> {
+async function saveProfileSearchFields(input: MutationInput, seo: ReturnType<typeof seoParams>): Promise<ActionResult> {
   const seller = input.context.currentSeller!;
   if ((await findSellerProfile(seller.id)) === null)
     throw new HandBackToRails("a change to the search fields of a seller with no profile row");
