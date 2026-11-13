@@ -990,7 +990,7 @@ export const Links = defineModel<Link>({
       async run(link, ctx) {
         const user = await loadUser(link, ctx);
         if (user === null) throw new NoMethodError("undefined method 'bump_reputation_summary_version' for nil");
-        await bumpReputationSummaryVersion(user.id);
+        await bumpReputationSummaryVersion(user.id as number | bigint);
       },
     },
   ],
