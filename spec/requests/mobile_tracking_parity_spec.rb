@@ -17,6 +17,21 @@ describe "Mobile tracking page", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
+  # The test environment answers a 404 with DebugExceptions' HTML page whatever the request asks for (production's
+  # PublicExceptions would answer JSON for the first two), so each example pins that the port does not vary with Accept.
+  {
+    "an Accept of only application/json" => { "Accept" => "application/json" },
+    "an Accept of application/json then text/html" => { "Accept" => "application/json, text/html" },
+    "a wildcard Accept" => { "Accept" => "*/*" },
+    "an XHR asking for JSON" => { "Accept" => "application/json", "X-Requested-With" => "XMLHttpRequest" },
+  }.each do |description, headers|
+    it "answers 404 for an unknown product with #{description}", parity: true do
+      get("/links/nonexistent/in_app", headers:)
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
   it "answers 404 for a deleted product", parity: true do
     product.update_column(:deleted_at, Time.utc(2025, 2, 1))
 

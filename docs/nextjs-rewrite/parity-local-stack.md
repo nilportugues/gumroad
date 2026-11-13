@@ -48,6 +48,7 @@ Replays that count Rack::Attack buckets (`audience-mutations.replay`) also need 
 - The purchase factories charge a card through Stripe and fail with "We couldn't charge your card". Specs that only
   need the row build it: `build(:purchase, ..., purchase_state: "successful").save!(validate: false)`. A later
   `update!` on that row revalidates and fails the same way: use `update_attribute` / `update_columns`.
+- A 404 recorded in the test environment is DebugExceptions' page (`text/html`, `text/plain` for an XHR) whatever `Accept` says; production's `PublicExceptions` answers JSON for `application/json, text/html`. Node mirrors each by `RAILS_ENV`, so send the `Accept` the client really sends and do not work around it. See "404 content negotiation" in parity-debt.md.
 - A request spec with `has_http_status(:found)` on an Inertia write gets `303`; the fixture records what Rails says.
 - A hand-back example must be named `hands a ...` (`hands an ...` in the mobile and auth replays): the replay then
   asserts the request reached the Rails stand-in and wrote nothing, instead of comparing a response.

@@ -125,9 +125,10 @@ describe.skipIf(!url)("WS-12o ports", () => {
 
   const replayOptions = (file: string) => {
     const ignore = [...COMPARE.ignore];
-    // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
+    // Rails' debug page for a 404 is not recorded and sets the profiler cookie. Its content type is compared: the test
+    // environment answers text/html (text/plain for an XHR) whatever the Accept header says (parity-debt.md, "404 content negotiation").
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
-      ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
+      ignore.push("response.cookies", "response.body", "response.json");
     return replayOptionsFor({ ignore });
   };
 

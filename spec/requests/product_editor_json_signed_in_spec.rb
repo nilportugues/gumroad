@@ -251,6 +251,15 @@ describe "Product editor JSON endpoints", type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    # The test environment answers every 404 with DebugExceptions' HTML page; the replay pins that the port does not vary with Accept.
+    it "answers 404 for an unknown product when the Accept is only application/json", parity: true do
+      log_in(seller)
+
+      get product_other_refund_policies_path("nosuchprod", format: :json), headers: { "Accept" => "application/json" }
+
+      expect(response).to have_http_status(:not_found)
+    end
   end
 
   describe "available offer codes" do
