@@ -34,6 +34,14 @@ export default defineConfig({
       dependencies: ["preflight"],
       use: { ...devices["Desktop Chrome"] },
     },
+    // The buyer flows on a phone-sized viewport (touch, mobile user agent) in the same Chromium.
+    {
+      name: "mobile",
+      testDir: "./e2e/specs",
+      testMatch: /mobile-buyer\.spec\.ts/u,
+      dependencies: ["preflight"],
+      use: { ...devices["Pixel 7"] },
+    },
     {
       name: "bot",
       testDir: "./e2e/bot",
