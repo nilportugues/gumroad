@@ -116,6 +116,7 @@ import "@/server/controllers/product-build-player-files";
 import "@/server/controllers/product-files-utility";
 import "@/server/controllers/product-review-videos";
 import "@/server/controllers/asset-previews-thumbnails";
+import "@/server/controllers/products-publish-schedules";
 import "@/server/controllers/discover-search-suggestions";
 import "@/server/controllers/test-pings";
 import "@/server/controllers/products-affiliated-mutations";
