@@ -417,7 +417,7 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
         expect(response).to have_http_status(:unauthorized)
       end
 
-      it "hands the unsaved filters of an opened post to Rails", parity: true do
+      it "hands a count of the unsaved filters of an opened post to Rails", parity: true do
         seed_audience
         earlier = post_for(name: "Earlier")
         log_in(seller)

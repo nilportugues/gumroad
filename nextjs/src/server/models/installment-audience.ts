@@ -180,6 +180,7 @@ export async function behaviorAudience(post: InstallmentPost): Promise<BehaviorA
     (reference) => reference !== null,
   );
   if (references.length === 0) return { kind: "unfiltered" };
-  const owned = await Promise.all(references.map((reference) => sellerOwnsPost(post.row.seller_id, reference)));
+  const sellerId = post.row.seller_id ?? refuse("a post without a seller");
+  const owned = await Promise.all(references.map((reference) => sellerOwnsPost(sellerId, reference)));
   return owned.every(Boolean) ? { kind: "engagement" } : { kind: "withheld" };
 }
