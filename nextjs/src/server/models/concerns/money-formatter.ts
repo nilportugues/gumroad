@@ -160,7 +160,7 @@ export function formattedAmountInCurrency(
 }
 
 // StripeChargeProcessor.charge_subunit_to_unit
-const chargeSubunitToUnit = (currency: string): number =>
+export const chargeSubunitToUnit = (currency: string): number =>
   ZERO_DECIMAL_CHARGE_CURRENCIES.has(currency.toLowerCase()) ? 1 : subunitToUnit(currency);
 
 // StripeChargeProcessor.money_subunits_from_charge_amount: Stripe's charge units to Gumroad's storage scale.

@@ -25,6 +25,21 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     build(:purchase, link: of, seller:, purchase_state: state, **attributes).tap { |row| row.save!(validate: false) }
   end
 
+  def charged_in(row, currency, total_cents)
+    PurchasePresentment.new(purchase: row, processor: "stripe", presentment_currency: currency, presentment_price_cents: total_cents, presentment_total_cents: total_cents, presentment_gumroad_amount_cents: 0).save!(validate: false)
+  end
+
+  def refund(row, amount_cents, **attributes)
+    build(:refund, purchase: row, amount_cents:, total_transaction_cents: amount_cents, **attributes).tap { |record| record.save!(validate: false) }
+  end
+
+  def in_cart_of_order(row, buyer, emails: [], deleted: false)
+    order = Order.create!(purchaser: buyer)
+    OrderPurchase.create!(order:, purchase: row)
+    cart = create(:cart, :guest, order:, deleted_at: (Time.utc(2026, 3, 5) if deleted))
+    emails.each { |installment| SentAbandonedCartEmail.create!(cart:, installment:) }
+  end
+
   def index_sales
     index_model_records(Purchase)
     Purchase.__elasticsearch__.refresh_index!
@@ -36,7 +51,7 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     get "/purchases/export", params:, headers:
   end
 
-  def csv = CSV.parse(response.body)
+  def csv = CSV.parse(response.body.dup.force_encoding(Encoding::UTF_8))
 
   it "exports a sale as a row of the CSV followed by the totals", parity: true do
     sell(price_cents: 500, fee_cents: 100, referrer: "twitter.com")
@@ -459,17 +474,138 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a sale with a non-ASCII address to Rails", parity: true do
-    sell(street_address: "1 Marktstraße")
+  it "transliterates an address and keeps the original of one with a character Rails cannot transliterate", parity: true do
+    sell(street_address: "1 Marktstraße", city: "München", country: "Österreich").update_columns(state: "Baden-Württemberg")
+    sell(street_address: "東京都 1-2-3", city: "東京", country: "Japan").update_columns(state: "Tokyo")
+    sell(street_address: "Zürich?", city: "São Paulo", country: "Brasil").update_columns(state: "SP")
+    sell(street_address: "2 Rue de l'Église", city: "Cafe#{"\u0301"}", country: "France").update_columns(state: "Île-de-France")
+    sell(street_address: "🏠 1 Main", city: "Non#{"\u00A0"}breaking", country: "United States").update_columns(state: "CA")
+    sell(street_address: "Ångström väg 1", city: "Łódź", country: "Ελλάδα").update_columns(state: "Œuvre")
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("City")] }).to include("Munchen", "東京", "Sao Paulo")
+  end
+
+  it "writes the buyer currency, the total charged in it and the refunds that returned it", parity: true do
+    cad = sell(price_cents: 1000)
+    charged_in(cad, "cad", 1350)
+    refund(cad, 400, presentment_currency: "cad", presentment_amount_cents: 540)
+    refund(cad, 100, presentment_currency: "cad", presentment_amount_cents: 135)
+    charged_in(sell(price_cents: 1500), "jpy", 1500)
+    kwd = sell(price_cents: 4000)
+    charged_in(kwd, "KWD", 12_345)
+    refund(kwd, 1000, presentment_currency: "kwd", presentment_amount_cents: 3_086)
+    charged_in(sell(price_cents: 800), "eur", 1_099)
+    legacy = sell(price_cents: 900)
+    charged_in(legacy, "gbp", 777)
+    refund(legacy, 300)
+    failed = sell(price_cents: 1100)
+    charged_in(failed, "aud", 1_650)
+    refund(failed, 1100, presentment_currency: "aud", presentment_amount_cents: 1_650, status: "failed", balance_reversed_on_failure: true)
+    refund(sell(price_cents: 1200), 200, presentment_currency: "usd", presentment_amount_cents: 0)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Buyer Currency")] }).to include("CAD", "JPY", "KWD", "EUR", "GBP", "AUD")
+  end
+
+  it "flags a sale whose order's cart was sent an abandoned cart email by the seller", parity: true do
+    mine = create(:abandoned_cart_workflow, seller:, published_at: 1.day.ago).installments.first
+    others = create(:abandoned_cart_workflow, published_at: 1.day.ago).installments.first
+    buyer = create(:user, email: "cart-buyer@example.com")
+
+    in_cart_of_order(sell(price_cents: 500), buyer, emails: [mine])
+    in_cart_of_order(sell(price_cents: 600), buyer, emails: [others])
+    in_cart_of_order(sell(price_cents: 700), buyer, emails: [others, mine])
+    in_cart_of_order(sell(price_cents: 800), buyer, deleted: true, emails: [mine])
+    in_cart_of_order(sell(price_cents: 900), buyer)
+    orderless_cart = Order.create!(purchaser: buyer).tap { |order| OrderPurchase.create!(order:, purchase: sell(price_cents: 1000)) }
+    expect(orderless_cart.cart).to be_nil
+    sell(price_cents: 1100)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Sent Abandoned Cart Email?")] }).to include("1", "0")
+  end
+
+  it "hands a membership charge to Rails", parity: true do
+    membership = create(:membership_purchase, link: create(:membership_product, user: seller), email: "member@example.com")
+    membership.update_columns(seller_id: seller.id)
 
     export
 
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a membership charge to Rails", parity: true do
-    membership = create(:membership_purchase, link: create(:membership_product, user: seller), email: "member@example.com")
-    membership.update_columns(seller_id: seller.id)
+  it "writes the PayPal transaction and fee columns of a PayPal sale", parity: true do
+    sell(price_cents: 500, fee_cents: 100, paypal_order_id: "9AB12345CD678901E", stripe_transaction_id: "5TX123456789", processor_fee_cents: 35, processor_fee_cents_currency: "usd", card_type: CardType::PAYPAL, charge_processor_id: "paypal")
+    sell(price_cents: 700, paypal_order_id: "7ZZ00000000000001", stripe_transaction_id: "5TX987654321", processor_fee_cents: 1999, processor_fee_cents_currency: "eur", card_type: CardType::PAYPAL, charge_processor_id: "paypal")
+    sell(price_cents: 800, paypal_order_id: "7ZZ00000000000002", stripe_transaction_id: nil, processor_fee_cents: nil, processor_fee_cents_currency: nil, charge_processor_id: "paypal")
+    sell(price_cents: 900, stripe_transaction_id: "ch_not_paypal", processor_fee_cents: 50)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("PayPal Transaction ID")] }).to include("5TX123456789")
+  end
+
+  it "writes the Stripe transaction and fee columns of a sale charged on a seller's own Connect account only", parity: true do
+    connect = create(:merchant_account_stripe_connect, user: seller)
+    sell(price_cents: 500, fee_cents: 100, merchant_account: connect, stripe_transaction_id: "ch_connect_1", processor_fee_cents: 45, processor_fee_cents_currency: "usd", charge_processor_id: "stripe")
+    sell(price_cents: 600, merchant_account: connect, stripe_transaction_id: nil, processor_fee_cents: nil, processor_fee_cents_currency: "eur", charge_processor_id: "stripe")
+    managed = create(:merchant_account, user: seller)
+    sell(price_cents: 700, merchant_account: managed, stripe_transaction_id: "ch_own_account", processor_fee_cents: 60, charge_processor_id: "stripe")
+    gumroad = create(:merchant_account, user: nil)
+    sell(price_cents: 800, merchant_account: gumroad, stripe_transaction_id: "ch_gumroad", processor_fee_cents: 70, charge_processor_id: "stripe")
+    deleted = create(:merchant_account_stripe_connect, user: seller, deleted_at: Time.utc(2026, 3, 1))
+    sell(price_cents: 950, merchant_account: deleted, stripe_transaction_id: "ch_deleted_connect", processor_fee_cents: 90, charge_processor_id: "stripe")
+    sell(price_cents: 960, stripe_transaction_id: "ch_dangling", processor_fee_cents: 95).update_columns(merchant_account_id: 987_654)
+    paypal_account = create(:merchant_account_paypal, user: seller)
+    sell(price_cents: 900, merchant_account: paypal_account, stripe_transaction_id: "5TX_PAYPAL_CONNECT", processor_fee_cents: 80, charge_processor_id: "paypal")
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Stripe Transaction ID")] }).to include("ch_connect_1")
+  end
+
+  it "writes a checkbox or terms answer that is blank as nil and the other spellings of false as false", parity: true do
+    first = sell
+    first.purchase_custom_fields.create!(name: "Newsletter", value: true, field_type: "checkbox")
+    first.purchase_custom_fields.create!(name: "Updates", value: true, field_type: "checkbox").update_columns(value: nil)
+    first.purchase_custom_fields.create!(name: "Offers", value: true, field_type: "checkbox").update_columns(value: "")
+    first.purchase_custom_fields.create!(name: "Terms", value: true, field_type: "terms")
+    second = sell
+    second.purchase_custom_fields.create!(name: "Newsletter", value: true, field_type: "checkbox").update_columns(value: "off")
+    second.purchase_custom_fields.create!(name: "Updates", value: true, field_type: "checkbox").update_columns(value: "F")
+    second.purchase_custom_fields.create!(name: "Offers", value: true, field_type: "checkbox").update_columns(value: " ")
+    second.purchase_custom_fields.create!(name: "Terms", value: true, field_type: "terms").update_columns(value: nil)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.first.last(4)).to eq(%w[Newsletter Updates Offers Terms])
+  end
+
+  it "writes a custom field name and value of letters, marks, numbers, punctuation and symbols outside ASCII", parity: true do
+    answered = sell
+    answered.purchase_custom_fields.create!(name: "Größe", value: "Zoë Åström", field_type: "text")
+    answered.purchase_custom_fields.create!(name: "名前", value: "日本語 – “quoted” 5² €10 ¿Qué?", field_type: "long_text")
+    answered.purchase_custom_fields.create!(name: "Mood", value: "😀 ❤️ café#{"\u0301"}", field_type: "text")
+    sell.purchase_custom_fields.create!(name: "Größe", value: "Ünïcödé", field_type: "text")
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.first.last(3)).to eq(%w[Größe 名前 Mood])
+  end
+
+  it "hands a custom field value that Ruby escapes in its inspect to Rails", parity: true do
+    sell.purchase_custom_fields.create!(name: "Note", value: "zero#{"\u200B"}width", field_type: "text")
 
     export
 
