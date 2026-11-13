@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   selectRows: vi.fn(),
   findBundle: vi.fn(),
   isSet: vi.fn(),
+  updateBang: vi.fn(),
+  performAsync: vi.fn(),
   loggedIn: vi.fn(),
   format: vi.fn(),
 }));
@@ -19,9 +21,14 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
   decrypt: (id: string) => (id === "unknown" ? null : 5),
   encrypt: () => "ext",
 }));
-vi.mock("../models/link.ts", () => ({ LinkFlags: { isSet: mocks.isSet } }));
+vi.mock("../models/link.ts", () => ({
+  LinkFlags: { isSet: mocks.isSet, set: (flags: bigint) => flags },
+  Links: { load: (row: unknown) => row, updateBang: mocks.updateBang },
+}));
+vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync: mocks.performAsync }));
 vi.mock("../models/sql.ts", () => ({
   selectRows: mocks.selectRows,
+  castRow: (_model: string, row: unknown) => row,
   column: () => "",
   table: () => "",
   quoteName: (name: string) => name,
@@ -125,9 +132,16 @@ describe("Bundles::ContentController#update_purchases_content", () => {
     });
   });
 
-  it("hands a bundle with outdated purchases back to Rails", async () => {
+  // The queued job and redirect are replayed against Rails in parity/__tests__/bundle-content.replay.test.ts.
+  it("clears the flag and queues the update of the outdated purchases", async () => {
     mocks.isSet.mockReturnValue(true);
-    await expect(call(outdated)).rejects.toBeInstanceOf(HandBackToRails);
+    mocks.selectRows.mockResolvedValue([{ id: 5n }]);
+    expect(await call(outdated)).toMatchObject({
+      status: 303,
+      flash: { notice: "Queued an update to the content of all outdated purchases." },
+    });
+    expect(mocks.updateBang).toHaveBeenCalledOnce();
+    expect(mocks.performAsync).toHaveBeenCalledWith("UpdateBundlePurchasesContentJob", [5]);
   });
 });
 
