@@ -1,4 +1,4 @@
-// McpConnectorsController#index and #show: /mcp, /claude and /muse. The markup is app/views/mcp_connectors/*.html.erb, read from the
+// McpConnectorsController#index and #show: /mcp and the five connector pages. The markup is app/views/mcp_connectors/*.html.erb, read from the
 // files; the table below is every Ruby expression, condition and loop in them.
 import { button, homeHelpers, type LayoutContext } from "../erb/home-layout.ts";
 import { linkTo, SafeString } from "../erb/html.ts";
@@ -14,6 +14,7 @@ type McpClient = {
   label: string;
   pendingReview?: boolean;
   directoryUrl?: string;
+  directoryName?: string;
   listingNotice?: string;
   connectLabel?: string;
   setup: string;
@@ -36,6 +37,32 @@ const MCP_CLIENTS: Record<string, McpClient> = {
       "Open Gumroad in Claude’s connector directory and connect it. Or open Settings > Connectors in Claude, choose Add custom connector, and enter the URL below. If you cannot add connectors, ask your organization administrator.",
     availability:
       "Add Gumroad from Claude’s connector directory. On Team and Enterprise plans, your organization’s settings control which connectors you can add.",
+  },
+  cursor: {
+    label: "Cursor",
+    connectLabel: "Add Gumroad to Cursor",
+    setup:
+      "Add a remote MCP server in Cursor using the URL below. If Cursor asks you to sign in, approve the access in Gumroad.",
+    availability:
+      "Available today as a custom remote MCP server. There is no published Gumroad listing in Cursor’s directory yet.",
+  },
+  antigravity: {
+    label: "Google Antigravity",
+    connectLabel: "Add Gumroad to Antigravity",
+    setup:
+      "Add a remote MCP server in Antigravity using the URL below. If Antigravity asks you to sign in, approve the access in Gumroad.",
+    availability:
+      "Available today as a custom remote MCP server. There is no published Gumroad listing in Antigravity’s directory yet.",
+  },
+  chatgpt: {
+    label: "ChatGPT",
+    directoryUrl: "https://chatgpt.com/plugins/plugin_asdk_app_6adf8e8e7eac8191a9af1b87fdeedb45",
+    directoryName: "plugin directory",
+    listingNotice: "Listed in ChatGPT’s plugin directory.",
+    connectLabel: "Add Gumroad to ChatGPT",
+    setup:
+      "Open Gumroad in ChatGPT’s plugin directory and connect it. If you cannot add plugins, ask your workspace administrator.",
+    availability: "Add Gumroad from ChatGPT’s plugin directory.",
   },
 };
 const HELP_ARTICLE_PATH = "355-connect-ai-assistants-to-gumroad";
@@ -71,15 +98,17 @@ function mcpTable({ config }: LayoutContext, clientKey: string | null): ErbTable
     },
     loops: {
       "McpConnectorsController::CLIENTS.each do |key, client|": () => entries(),
+      "McpConnectorsController::CLIENTS.reject { |_key, client| client[:pending_review] }.each do |key, client|": () =>
+        entries().filter(({ client }) => client.pendingReview !== true),
       "McpConnectorsController::CLIENTS.except(@client_key).each do |key, client|": () =>
         entries(clientKey ?? undefined),
     },
     values: {
       "client[:label]": (scope) => clientOf(scope).label,
-      'client[:directory_url] ? "Available now in #{client[:label]}’s connector directory." : "Available now as a custom connector."':
+      'client[:directory_url] ? "Available now in #{client[:label]}’s #{client[:directory_name] || "connector directory"}." : "Available now as a custom connector."':
         (scope) =>
           clientOf(scope).directoryUrl
-            ? `Available now in ${clientOf(scope).label}’s connector directory.`
+            ? `Available now in ${clientOf(scope).label}’s ${clientOf(scope).directoryName ?? "connector directory"}.`
             : "Available now as a custom connector.",
       "client[:listing_notice]": (scope) => clientOf(scope).listingNotice ?? "",
       'link_to client[:pending_review] ? "Read the technical details" : "Set up Gumroad MCP", "/#{key}", class: "inline-flex min-h-11 items-center underline underline-offset-4"':
@@ -88,6 +117,16 @@ function mcpTable({ config }: LayoutContext, clientKey: string | null): ErbTable
             clientOf(scope).pendingReview ? "Read the technical details" : "Set up Gumroad MCP",
             `/${String(scope.key)}`,
           ),
+      'link_to "Gumroad MCP for #{client[:label]} connector page", "/#{key}", class: "block text-lg underline underline-offset-4"':
+        (scope) =>
+          linkTo(`Gumroad MCP for ${clientOf(scope).label} connector page`, `/${String(scope.key)}`, {
+            class: "block text-lg underline underline-offset-4",
+          }),
+      'link_to "Connecting AI assistants to your Gumroad store", McpConnectorsController::SETUP_GUIDE_URL, class: "block text-lg underline underline-offset-4"':
+        () =>
+          linkTo("Connecting AI assistants to your Gumroad store", SETUP_GUIDE_URL, {
+            class: "block text-lg underline underline-offset-4",
+          }),
       'link_to "Gumroad MCP for #{client[:label]}", "/#{key}", class: "inline-flex min-h-11 items-center underline underline-offset-4"':
         (scope) => link(`Gumroad MCP for ${clientOf(scope).label}`, `/${String(scope.key)}`),
       client_name: (scope) => String(scope.client_name),
@@ -113,11 +152,15 @@ function mcpTable({ config }: LayoutContext, clientKey: string | null): ErbTable
           ),
       '"#{PROTOCOL}://#{DOMAIN}/muse/v1/mcp"': () => `${origin}/muse/v1/mcp`,
       '"#{PROTOCOL}://#{DOMAIN}/#{@client_key}/v1/mcp"': () => `${origin}/${clientKey}/v1/mcp`,
-      'link_to "Gumroad in Claude’s connector directory", @client[:directory_url], class: "block text-lg underline underline-offset-4"':
+      'link_to "Gumroad in #{@client[:label]}’s #{@client[:directory_name] || "connector directory"}", @client[:directory_url], class: "block text-lg underline underline-offset-4"':
         () =>
-          linkTo("Gumroad in Claude’s connector directory", selected?.directoryUrl ?? "", {
-            class: "block text-lg underline underline-offset-4",
-          }),
+          linkTo(
+            `Gumroad in ${selected?.label ?? ""}’s ${selected?.directoryName ?? "connector directory"}`,
+            selected?.directoryUrl ?? "",
+            {
+              class: "block text-lg underline underline-offset-4",
+            },
+          ),
       'link_to "OAuth server metadata", "/.well-known/oauth-authorization-server", class: "block underline underline-offset-4"':
         () => linkTo("OAuth server metadata", "/.well-known/oauth-authorization-server", { class: BLOCK_LINK_CLASS }),
       'link_to "MCP discovery", "/.well-known/mcp.json", class: "block underline underline-offset-4"': () =>
