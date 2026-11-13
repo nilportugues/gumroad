@@ -1052,7 +1052,7 @@ describe "Settings mutations when signed in", type: :request do
         expect(response).to have_http_status(:bad_request)
       end
 
-      it "hands a removal of a member of the Gumroad account to Rails", parity: true do
+      it "removes a member of the Gumroad account who is not a team member", parity: true do
         seller.update_columns(email: ApplicationMailer::ADMIN_EMAIL)
         log_in(seller)
 
