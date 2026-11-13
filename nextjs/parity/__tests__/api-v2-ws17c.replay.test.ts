@@ -12,6 +12,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { compareExchange } from "../src/compare";
+import { shiftLiteralInstants } from "../src/date-drift";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { bulkIndex, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
 import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
@@ -178,6 +179,15 @@ const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
   ["-get-subscriptions-", "2026-11-12T11:00:00Z"],
   ["-reports-sales-totals-", "2026-11-10T16:45:00Z"],
   ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
+];
+
+// The recording masked these requests' literal 2099 instants as hours from its own clock (all at 2026-11-13T10:00Z); the request
+// is moved by the whole hours since then so the port's output keeps that distance from the replay's clock.
+const RECORDED_INSTANTS: [fragment: string, recordedAt: string][] = [
+  ["-create-discount-code-sets-the-validity-period", "2026-11-13T10:00:00Z"],
+  ["-create-discount-code-starts-a-code-that-only-has-an-end-date-now", "2026-11-13T10:00:00Z"],
+  ["-update-discount-code-sets-an-end-date-and-starts-the-code-from-its-creation", "2026-11-13T10:00:00Z"],
+  ["-update-discount-code-sets-both-ends-of-the-validity-period", "2026-11-13T10:00:00Z"],
 ];
 
 // A file attached to a new product must exist in the bucket. The recording uploaded its objects first; the replay uploads the ones the request
@@ -387,6 +397,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
   // The tool descriptions of tools/list carry fixed example dates, which must not move with the days since the recording.
   let driftDates = true;
   let seedClock: Date | undefined;
+  let instantsRecordedAt: Date | undefined;
   // Runs once the seeder has reset Redis, ahead of the request under test.
   let afterRedisReset: (() => Promise<void>) | undefined;
   const replayOptions = (random: string[] = []) => ({
@@ -406,7 +417,12 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
-    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    ) => {
+      const rewritten = reencryptCookies(request, loaded, SECRET_KEY_BASE, now);
+      return instantsRecordedAt && rewritten.body !== undefined
+        ? { ...rewritten, body: shiftLiteralInstants(rewritten.body, instantsRecordedAt, now) }
+        : rewritten;
+    },
     compare: { ignore: [...COMPARE.ignore, ...random] },
   });
 
@@ -423,6 +439,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     if (warmed.has(route)) return;
     warmed.add(route);
     seedClock = undefined;
+    instantsRecordedAt = undefined;
     afterRedisReset = undefined;
     await uploadNamedFiles(loadFixture(file).exchanges[index]!);
     await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
@@ -484,6 +501,8 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
         driftDates = !pinned && !name.includes("answers-a-tools-list-call");
         seedClock = pinned ? new Date(pinned[1]) : undefined;
+        const recordedInstants = RECORDED_INSTANTS.find(([fragment]) => name.includes(fragment));
+        instantsRecordedAt = recordedInstants ? new Date(recordedInstants[1]) : undefined;
         const paginates = name.includes("paginates-with-a-page-key");
         // License#generate_serial is random: both sides mint a key of the same shape, and the response carries the one saved.
         const rotates = name.includes("-rotate-gives-");
