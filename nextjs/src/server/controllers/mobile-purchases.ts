@@ -26,6 +26,7 @@ import { mobilePreview } from "../presenters/mobile-preview.ts";
 import {
   amountRefundedCentsByPurchase,
   creatorAppPurchasesJson,
+  subscriptionRecurrenceLabels,
   ratingByPurchase,
   thumbnailUrlsByProduct,
 } from "../presenters/mobile-serializer-reads.ts";
@@ -590,7 +591,8 @@ async function saleJson(sale: Purchase, input: MobileInput, auth: MobileAuth) {
   if (link === null) failNotPorted("a sale without a product");
   const offerCode = (await offerCodeDisplays([sale], () => link.price_currency_type)).get(String(sale.id)) ?? null;
   const { variants, sku } = await saleVariants(sale);
-  const saleDetails = { variants, sku, shipment, offerCode, affiliate };
+  const recurrenceLabel = (await subscriptionRecurrenceLabels([sale])).get(sale.subscription_id ?? 0n);
+  const saleDetails = { variants, sku, shipment, offerCode, affiliate, recurrenceLabel };
   const buyer = sale.purchaser_id === null ? null : await db.user.findUnique({ where: { id: sale.purchaser_id } });
   if (sale.purchaser_id !== null && buyer === null) failNotPorted("a sale whose purchaser row is missing");
 
