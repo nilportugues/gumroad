@@ -6,8 +6,7 @@ require "spec_helper"
 # FeatureAnnouncementCampaignsController#preview, StripeRestraintNoticesController#create and PurchasesController#reassign through
 # the whole stack, on the API host with a per-actor token. Recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/ws17e-admin-api.replay.test.ts. The "hands a ..." examples are requests the port leaves to Rails (a payout
-# schedule, a pause or resume that changes the user, a rendered mail, a notice, a reassignment): the replay asserts they reach the
-# stand-in Rails untouched and write nothing.
+# schedule, a rendered mail, a reassignment): the replay asserts they reach the stand-in Rails untouched and write nothing.
 describe "Internal admin API payout reads and the writes that stay in front of Rails", type: :request do
   let(:admin) { create(:admin_user, name: "Admin User", email: "admin@example.com") }
   let(:headers) { { "Authorization" => "Bearer per-actor-token", "Host" => API_DOMAIN } }
@@ -16,6 +15,9 @@ describe "Internal admin API payout reads and the writes that stay in front of R
   before do
     create(:admin_api_token, actor_user: admin, token_hash: AdminApiToken.hash_token("per-actor-token"))
   end
+
+  # A write that lands in the second the row was created leaves updated_at as it was, so the recording would depend on the clock.
+  def age_seller = seller.update_columns(updated_at: 1.hour.ago)
 
   describe "GET scheduled_payouts" do
     it "lists the scheduled payouts newest first with what the reviewer needs about each seller", parity: true do
@@ -186,18 +188,43 @@ describe "Internal admin API payout reads and the writes that stay in front of R
       expect(Comment.count).to eq(0)
     end
 
-    it "hands a pause to Rails", parity: true do
-      post "/internal/admin/payouts/pause", params: { user_id: seller.external_id, reason: "Review" }, headers:, as: :json
+    it "pauses payouts, files the reason as a comment and records the call", parity: true do
+      age_seller
+      expect { post "/internal/admin/payouts/pause", params: { user_id: seller.external_id, reason: "  Review  " }, headers:, as: :json }
+        .to change(AdminApiAuditLog, :count).by(1).and change { seller.comments.with_type_payouts_paused.count }.by(1)
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true, "user_id" => seller.external_id, "message" => "Payouts paused for #{seller.external_id}", "payouts_paused" => true)
+      expect(seller.reload).to have_attributes(payouts_paused_internally: true, payouts_paused_by: admin.id)
+      expect(seller.comments.with_type_payouts_paused.last).to have_attributes(content: "Review", author_id: admin.id)
     end
 
-    it "hands a pause to Rails when Stripe paused the payouts", parity: true do
+    it "pauses payouts without a comment when no reason is given", parity: true do
+      age_seller
+      post "/internal/admin/payouts/pause", params: { user_id: seller.external_id, reason: "   " }, headers:, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(seller.reload.payouts_paused_by).to eq(admin.id)
+      expect(Comment.count).to eq(0)
+    end
+
+    it "takes over a pause that Stripe put in place", parity: true do
       seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_STRIPE)
+      age_seller
+
+      post "/internal/admin/payouts/pause", params: { user_id: seller.external_id, reason: "Court order" }, headers:, as: :json
+
+      expect(response.parsed_body["message"]).to eq("Payouts paused for #{seller.external_id}")
+      expect(seller.reload.payouts_paused_by).to eq(admin.id)
+      expect(seller.comments.with_type_payouts_paused.count).to eq(1)
+    end
+
+    it "keeps the seller's own pause when an admin pauses too", parity: true do
+      seller.update!(payouts_paused_by_user: true)
+      age_seller
 
       post "/internal/admin/payouts/pause", params: { user_id: seller.external_id }, headers:, as: :json
 
-      expect(response).to have_http_status(:ok)
+      expect(seller.reload).to have_attributes(payouts_paused_by_user: true, payouts_paused_internally: true, payouts_paused_by: admin.id)
     end
   end
 
@@ -222,12 +249,36 @@ describe "Internal admin API payout reads and the writes that stay in front of R
       expect(response.parsed_body).to include("status" => "not_paused", "payouts_paused" => true)
     end
 
-    it "hands a resume of payouts an admin paused to Rails", parity: true do
+    it "resumes payouts an admin paused, notes it and records the call", parity: true do
       seller.update!(payouts_paused_internally: true, payouts_paused_by: admin.id)
+      age_seller
+
+      expect { post "/internal/admin/payouts/resume", params: { user_id: seller.external_id }, headers:, as: :json }
+        .to change(AdminApiAuditLog, :count).by(1).and change { seller.comments.with_type_payouts_resumed.count }.by(1)
+
+      expect(response.parsed_body).to eq("success" => true, "user_id" => seller.external_id, "message" => "Payouts resumed for #{seller.external_id}", "payouts_paused" => false)
+      expect(seller.reload).to have_attributes(payouts_paused_internally: false, payouts_paused_by: nil)
+      expect(seller.comments.with_type_payouts_resumed.last).to have_attributes(content: "Payouts resumed.", author_id: admin.id)
+      expect(Event.where(user_id: seller.id, event_name: "social_connect_hold_released", parent_referrer: "none", view_url: "payouts_resume").count).to eq(1)
+    end
+
+    it "resumes payouts Stripe paused", parity: true do
+      seller.update!(payouts_paused_internally: true, payouts_paused_by: User::PAYOUT_PAUSE_SOURCE_STRIPE)
+      age_seller
 
       post "/internal/admin/payouts/resume", params: { user_id: seller.external_id }, headers:, as: :json
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["message"]).to eq("Payouts resumed for #{seller.external_id}")
+      expect(seller.reload.payouts_paused_internally).to eq(false)
+    end
+
+    it "reports payouts the seller paused as still paused after it resumes the admin pause", parity: true do
+      seller.update!(payouts_paused_internally: true, payouts_paused_by: admin.id, payouts_paused_by_user: true)
+      age_seller
+
+      post "/internal/admin/payouts/resume", params: { user_id: seller.external_id }, headers:, as: :json
+
+      expect(response.parsed_body).to include("payouts_paused" => true)
     end
   end
 
@@ -360,13 +411,66 @@ describe "Internal admin API payout reads and the writes that stay in front of R
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a notice for a live account to Rails", parity: true do
-      create(:merchant_account, user: seller, charge_processor_merchant_id: "acct_1ABC")
-      allow(StripeRestraintNoticeEmailJob).to receive(:perform_async).and_return("jid")
+    context "when the notice is for real" do
+      let!(:merchant_account) { create(:merchant_account, user: seller, charge_processor_merchant_id: "acct_1ABC") }
+      let(:service) { StripeRestraintNoticeService.new(**valid.slice(:stripe_account_id, :firm_name, :firm_email, :notice_key), author_id: admin.id) }
 
-      notice(dry_run: false)
+      before { seller.update_columns(updated_at: 1.hour.ago) }
 
-      expect(response).to have_http_status(:ok)
+      it "files the notice comment, queues the email and records the call", parity: true do
+        expect { notice(dry_run: false) }.to change(AdminApiAuditLog, :count).by(1).and change { seller.comments.count }.by(1)
+
+        comment = seller.comments.last
+        expect(response.parsed_body).to eq(
+          "success" => true, "status" => "queued", "already_sent" => false, "delivery_status" => "pending", "accepted_at" => nil,
+          "user" => { "user_id" => seller.external_id, "email" => "seller@example.com", "name" => "Seller Name" },
+          "comment_id" => comment.external_id, "comment" => { "content" => comment.content, "created_at" => comment.created_at.iso8601 }
+        )
+        expect(comment).to have_attributes(comment_type: "note", author_id: admin.id, content: a_string_including("Smith & Jones LLP (counsel@example.com). Notice key: case-2026-001"))
+        expect(StripeRestraintNoticeEmailJob.jobs.size).to eq(1)
+        expect(StripeRestraintNoticeEmailJob.jobs.last["args"]).to eq([seller.id, comment.id, "Smith & Jones LLP", "counsel@example.com"])
+      end
+
+      it "queues the email again for a notice the mail service has not accepted", parity: true do
+        service.perform
+        StripeRestraintNoticeEmailJob.clear
+
+        expect { notice(dry_run: false) }.not_to change { seller.comments.count }
+
+        expect(response.parsed_body).to include("status" => "queued", "delivery_status" => "pending", "already_sent" => false)
+        expect(StripeRestraintNoticeEmailJob.jobs.size).to eq(1)
+      end
+
+      it "answers already_sent for a notice the mail service accepted and queues nothing", parity: true do
+        comment = service.perform.comment
+        accepted = seller.comments.create!(content: StripeRestraintNoticeEmailJob::ACCEPTED_CONTENT, comment_type: Comment::COMMENT_TYPE_NOTE, author_id: admin.id, idempotency_key: StripeRestraintNoticeService.accepted_key(comment))
+        StripeRestraintNoticeEmailJob.clear
+
+        notice(dry_run: false)
+
+        expect(response.parsed_body).to include("status" => "already_sent", "already_sent" => true, "delivery_status" => "accepted", "accepted_at" => accepted.created_at.iso8601)
+        expect(StripeRestraintNoticeEmailJob.jobs.size).to eq(0)
+      end
+
+      it "refuses a notice key that was used for a different notice", parity: true do
+        service.perform
+        StripeRestraintNoticeEmailJob.clear
+
+        notice(dry_run: false, firm_name: "Other LLP")
+
+        expect(response).to have_http_status(:conflict)
+        expect(response.parsed_body["message"]).to eq("notice_key was already used for a different notice")
+        expect(StripeRestraintNoticeEmailJob.jobs.size).to eq(0)
+      end
+
+      it "refuses an account whose owner has no email address", parity: true do
+        seller.update_columns(email: "")
+
+        notice(dry_run: false)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body["message"]).to eq("The Gumroad account for acct_1ABC has no email address")
+      end
     end
   end
 

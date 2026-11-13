@@ -1,13 +1,33 @@
-// Api::Internal::Admin::ScheduledPayoutsController#index, StrandedBuyersController#scan and the no-op branches of PayoutsController#pause
-// and #resume. A payout that would be paused or resumed, a pause that needs the payout schedule (#index) and a scan that finds
-// candidates (the declining-block lookups) go to Rails whole.
+// Api::Internal::Admin::ScheduledPayoutsController#index, StrandedBuyersController#scan and PayoutsController#pause/#resume.
+// A pause that needs the payout schedule (#index) and a scan that finds candidates (the declining-block lookups) go to Rails whole.
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
+import { rubyStrip } from "../../content-moderation/ruby.ts";
+import { Comments, COMMENT_TYPES } from "../../models/comment.ts";
 import { moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
-import { findUserBang, isFlagSet, NotPortedError, payoutsPausedBy } from "../../models/user.ts";
+import { recordSocialConnectHoldReleased } from "../../models/user-risk.ts";
+import {
+  findUserBang,
+  isFlagSet,
+  isPayoutsPaused,
+  NotPortedError,
+  payoutsPausedBy,
+  setFlag,
+  setJsonDataForAttr,
+  Users,
+} from "../../models/user.ts";
 import { rubyToI } from "../../page-props/payouts/payouts.ts";
 
-import { failure, halted, isBlank, jsonRendered, recordAdminWrite, timeJson, type AdminRequest } from "./base.ts";
+import {
+  failure,
+  halted,
+  isBlank,
+  jsonRendered,
+  paramToS,
+  recordAdminWrite,
+  timeJson,
+  type AdminRequest,
+} from "./base.ts";
 import { handBack } from "./hand-back.ts";
 import { defineAdminRoute } from "./registry.ts";
 import { findUserForWrite } from "./user-writes.ts";
@@ -30,6 +50,15 @@ const BLOCK_ERROR_CODES = ["blocked_browser_guid", "blocked_email_domain", "bloc
 const FAILURE_LOOKBACK_MS = 30 * 86_400_000;
 const PAUSE_SOURCES_SET_BY_SYSTEMS = ["stripe", "system"];
 const WRAPPER = { key: "payout" };
+
+// User#payouts_paused_by_source == PAYOUT_PAUSE_SOURCE_ADMIN: paused internally by anything but Stripe or the system.
+function isPausedByAdmin(record: Awaited<ReturnType<typeof findUserBang>>) {
+  const pausedBy = payoutsPausedBy(record);
+  return (
+    isFlagSet(record, "payouts_paused_internally") &&
+    !(typeof pausedBy === "string" && PAUSE_SOURCES_SET_BY_SYSTEMS.includes(pausedBy))
+  );
+}
 
 type ScheduledRow = {
   id: bigint;
@@ -284,13 +313,25 @@ defineAdminRoute(
           wrapper: WRAPPER,
         },
         async () => {
+          const reason = rubyStrip(paramToS(admin.params.reason, PAYOUTS_SOURCE));
           const record = await findUserBang(user.id);
-          const pausedBy = payoutsPausedBy(record);
-          // PAYOUT_PAUSE_SOURCE_ADMIN: paused internally by anything but Stripe or the system.
-          if (
-            isFlagSet(record, "payouts_paused_internally") &&
-            !(typeof pausedBy === "string" && PAUSE_SOURCES_SET_BY_SYSTEMS.includes(pausedBy))
-          )
+          // Locking reloads the row, so the check reads what a concurrent pause committed.
+          const alreadyPaused = await Users.withLock(record, async () => {
+            if (isPausedByAdmin(record)) return true;
+            setFlag(record, "payouts_paused_internally", true);
+            setJsonDataForAttr(record, "payouts_paused_by", Number(admin.admin.actor.id));
+            await Users.saveBang(record);
+            if (reason !== "")
+              await Comments.createBang({
+                commentable_id: user.id,
+                commentable_type: "User",
+                author_id: admin.admin.actor.id,
+                comment_type: COMMENT_TYPES.PAYOUTS_PAUSED,
+                content: reason,
+              } as never);
+            return false;
+          });
+          if (alreadyPaused)
             return jsonRendered({
               success: true,
               user_id: user.external_id,
@@ -298,7 +339,12 @@ defineAdminRoute(
               message: "Payouts are already paused by admin",
               payouts_paused: true,
             });
-          return handBack("a payout pause", PAYOUTS_SOURCE);
+          return jsonRendered({
+            success: true,
+            user_id: user.external_id,
+            message: `Payouts paused for ${user.external_id}`,
+            payouts_paused: true,
+          });
         },
       );
     },
@@ -319,13 +365,32 @@ defineAdminRoute(
         },
         async () => {
           const record = await findUserBang(user.id);
-          if (isFlagSet(record, "payouts_paused_internally")) return handBack("a payout resume", PAYOUTS_SOURCE);
+          if (!isFlagSet(record, "payouts_paused_internally"))
+            return jsonRendered({
+              success: true,
+              user_id: user.external_id,
+              status: "not_paused",
+              message: "Payouts are not paused by admin",
+              payouts_paused: isPayoutsPaused(record),
+            });
+          await Users.withLock(record, async () => {
+            setFlag(record, "payouts_paused_internally", false);
+            setJsonDataForAttr(record, "payouts_paused_by", null);
+            await Users.saveBang(record);
+            await Comments.createBang({
+              commentable_id: user.id,
+              commentable_type: "User",
+              author_id: admin.admin.actor.id,
+              comment_type: COMMENT_TYPES.PAYOUTS_RESUMED,
+              content: "Payouts resumed.",
+            } as never);
+          });
+          await recordSocialConnectHoldReleased(record, () => new Date(), "payouts_resume");
           return jsonRendered({
             success: true,
             user_id: user.external_id,
-            status: "not_paused",
-            message: "Payouts are not paused by admin",
-            payouts_paused: isFlagSet(record, "payouts_paused_by_user"),
+            message: `Payouts resumed for ${user.external_id}`,
+            payouts_paused: isPayoutsPaused(await findUserBang(user.id)),
           });
         },
       );

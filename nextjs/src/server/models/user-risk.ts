@@ -421,11 +421,14 @@ async function currentlyLinked(
   return !isBlank(value) && String(value) === String(verification.uid ?? "");
 }
 
-// SocialConnectFunnel.record_hold_released!(user, surface: "mark_compliant"), which rescues and
-// logs every StandardError, as SocialConnectFunnel.record! does for each event.
-async function recordSocialConnectHoldReleased(user: UserRecord, now: () => Date): Promise<void> {
+// SocialConnectFunnel.record_hold_released!, which rescues and logs every StandardError, as
+// SocialConnectFunnel.record! does for each event.
+export async function recordSocialConnectHoldReleased(
+  user: UserRecord,
+  now: () => Date,
+  surface = "mark_compliant",
+): Promise<void> {
   const userId = user.get("id");
-  const surface = "mark_compliant";
   const log = (error: unknown, what = "hold_released") =>
     console.error(
       `SocialConnectFunnel ${what} failed for user ${String(userId)}: ${(error as Error).name}: ${(error as Error).message}`,
