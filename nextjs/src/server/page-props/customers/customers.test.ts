@@ -758,6 +758,7 @@ describe("commissions and review videos", () => {
   const inProgressCompletion = (overrides: Record<string, unknown> = {}) => ({
     id: 11,
     purchase_state: "in_progress",
+    charge_processor_id: "stripe",
     stripe_transaction_id: null,
     processor_payment_intent_id: null,
     ...overrides,
@@ -783,6 +784,15 @@ describe("commissions and review videos", () => {
       purchases: [inProgressCompletion(overrides)],
     });
     await expect(commissionReadings([deposit])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("leaves an in-progress completion on another processor unfolded even with a reference", async () => {
+    answering({
+      [asDeposit]: [{ ...commission, completion_purchase_id: 11 }],
+      purchases: [inProgressCompletion({ charge_processor_id: "paypal", stripe_transaction_id: "paypal-order-1" })],
+    });
+
+    expect((await commissionReadings([deposit])).get("10")).toMatchObject({ completion: null });
   });
 
   it("hands back an in-progress completion that belongs to a charge", async () => {
