@@ -18,7 +18,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 - [x] 1.4 Support helpers: auth, buyer, seller, fixtures, recorder (`e2e/support/`)
 - [x] 1.5 One-command local environment: `bin/e2e-up`, `bin/e2e-run`, `bin/e2e-down` on lane 3
 - [x] 1.6 `e2e/README.md` with setup and preconditions
-- [ ] 1.7 Suite merged into `nextjs-rewrite` (branches `ws-e2e-1` and `ws-e2e-2` pushed, integration-8 verifying)
+- [x] 1.7 Suite merged into `nextjs-rewrite` (ws-e2e-1 and ws-e2e-2 landed via integration-8; e2e-3 to e2e-5 via integration-12 and integration-16)
 
 ## Phase 2: regression specs that exist
 
