@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
@@ -7,14 +7,17 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { unwrapActiveJob } from "../src/active-job";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { assertNonceMatchesCsp, maskVolatile } from "../src/erb-layout";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { withoutRailsOnly } from "../src/rails-only";
-import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { assertParity, httpTransport, replayFixtureExchange, type Transport } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the audience routes added in WS-13/15 (follow cancel and /:username/follow, imported customer unsubscribe, post re-send,
@@ -45,12 +48,14 @@ const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
 const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
   `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
+// A lane sets PARITY_ES_INDEX_SUFFIX so its replay does not recreate the index another lane is reading.
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "";
 // The sending limit counts the seller's audience in Elasticsearch: an empty audience_members index (no seller in these fixtures has one).
 async function resetAudienceIndex() {
   const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
-  await es.indices.delete({ index: "audience_members" }, { ignore: [404] });
+  await es.indices.delete({ index: `audience_members${ES_INDEX_SUFFIX}` }, { ignore: [404] });
   await es.indices.create({
-    index: "audience_members",
+    index: `audience_members${ES_INDEX_SUFFIX}`,
     body: { settings: { index: { number_of_shards: 1, number_of_replicas: 0 } } },
   });
   await es.close();
@@ -74,18 +79,20 @@ function redisJobs(redis: Redis): JobsChannel {
           at?: number;
         };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({
-          class: item.class,
-          args: item.args,
-          queue: item.queue,
-          ...(item.at === undefined ? {} : { at: item.at }),
-        });
+        jobs.push(
+          unwrapActiveJob({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          }),
+        );
       }
       // A job whose body stays in Ruby (Exports::AudienceExportWorker) goes straight to Sidekiq's list.
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
           const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
-          jobs.push({ class: item.class, args: item.args, queue: item.queue });
+          jobs.push(unwrapActiveJob({ class: item.class, args: item.args, queue: item.queue }));
         }
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
@@ -112,6 +119,7 @@ const COMPARE = {
     "db.workflows.updated.*.changes.updated_at",
     "db.installment_rules.updated.*.changes.updated_at",
     "db.followers.updated.*.changes.updated_at",
+    "db.imported_customers.updated.*.changes.updated_at",
     "db.comments.updated.*.changes.updated_at",
     // The row is the seed's: stamped with the replay's clock, where the recording's request came seconds after the factory.
     "db.audience_members.deleted.*.created_at",
@@ -146,9 +154,44 @@ function compareFor(file: string, name: string) {
       "db.workflow_installment_schedule_intents.inserted.*.dispatch_token",
       "jobs.*.args.*",
     );
+  // The row's time columns are seeded from the replay's clock while its details hold absolute dates, so the columns recomputed from
+  // the details read as changed (and the Elasticsearch update lists them). The flags, paid amounts and follower_created_at stay compared.
+  if (name.includes("keeps-the-audience-member"))
+    ignore.push(
+      ...["min_created_at", "max_created_at", "min_purchase_created_at", "max_purchase_created_at"].map(
+        (column) => `db.audience_members.updated.*.changes.${column}`,
+      ),
+      "jobs.*.args.1.fields",
+    );
   if (typeof body === "string" && body.startsWith(EXCEPTION_PAGE))
     ignore.push("response.headers.content-type", "response.json", "response.body", "response.cookies");
   return { ignore };
+}
+
+// The unsubscribe page is an ERB layout: its body is compared byte for byte once the per-request CSRF token and CSP nonce are masked
+// on both sides, and every nonce in the body must be allowed by the response's Content-Security-Policy.
+const ERB_PAGE_SPEC = "imported_customers_unsubscribe_spec";
+const maskingTransport =
+  (inner: Transport): Transport =>
+  async (request) => {
+    const response = await inner(request);
+    if (!(response.headers.get("content-type") ?? "").includes("html")) return response;
+    const raw = await response.text();
+    assertNonceMatchesCsp(raw, response.headers.get("content-security-policy"));
+    if (process.env.PARITY_DUMP_BODY) writeFileSync(process.env.PARITY_DUMP_BODY, maskVolatile(raw));
+    return new Response(maskVolatile(raw), { status: response.status, headers: response.headers });
+  };
+
+// The `flash` entry of the session a response set, or null when it set no session or no flash.
+function sessionFlash(
+  secretKeyBase: string | undefined,
+  sessionCookie: string | undefined,
+  cookies: Record<string, { value?: unknown }> | undefined,
+): unknown {
+  const raw = sessionCookie ? cookies?.[sessionCookie]?.value : undefined;
+  if (typeof raw !== "string" || !secretKeyBase) return null;
+  const session = readEncryptedCookie(deriveRailsCookieSecrets(secretKeyBase), sessionCookie!, raw, new Date(0));
+  return (session as { flash?: unknown } | null)?.flash ?? null;
 }
 
 const allCases = SPECS.flatMap((spec) => {
@@ -201,10 +244,13 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
     const railsPort = (rails.address() as { port: number }).port;
     const obfuscateKey = /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1];
     server = await startNextServer({
+      ...(ES_INDEX_SUFFIX ? { ES_INDEX_SUFFIX } : {}),
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      // The first re-send of "sends nothing the second time" is not replayed, only its limit: post 6 to purchase 1, as recorded.
+      RAILS_CACHE_TEST_SEED: JSON.stringify({ "post_email:6:1": true }),
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
@@ -213,6 +259,13 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
       SIDEKIQ_REDIS_HOST: redisHost,
       RACK_ATTACK_REDIS_HOST: redisHost,
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      // The unsubscribe link a re-sent post carries is signed with them.
+      ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")
+        ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")! }
+        : {}),
+      ...(testEnv("SECURE_EXTERNAL_ID__KEYS__1")
+        ? { SECURE_EXTERNAL_ID__KEYS__1: testEnv("SECURE_EXTERNAL_ID__KEYS__1")! }
+        : {}),
       ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
@@ -237,7 +290,9 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
           ),
         ),
     },
-    transport: httpTransport(server.baseUrl),
+    transport: file.includes(ERB_PAGE_SPEC)
+      ? maskingTransport(httpTransport(server.baseUrl))
+      : httpTransport(server.baseUrl),
     interceptHttp: false,
     jobs: redisJobs(redis),
     rewriteRequest: (
@@ -287,6 +342,10 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
     async (caseName, file, index) => {
       try {
         const fixture = loadFixture(file);
+        if (file.includes(ERB_PAGE_SPEC))
+          for (const exchange of fixture.exchanges)
+            if (typeof exchange.response.body === "string")
+              exchange.response.body = maskVolatile(exchange.response.body);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
@@ -304,6 +363,16 @@ describe.skipIf(!url)("audience routes added in WS-13 to WS-15", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
+        // The flash lives in the encrypted session cookie, which the comparison skips: read it out of both responses.
+        if (caseName.includes("workflow-emails-save")) {
+          const cookie = (cookies: Record<string, { value?: unknown }> | undefined) =>
+            sessionFlash(fixture.secretKeyBase, fixture.sessionCookie, cookies);
+          const recorded = cookie(fixture.exchanges[index]!.response.cookies as never);
+          // A redirect that saved something carries a notice; an empty read here would let both sides pass unseen.
+          if (fixture.exchanges[index]!.response.status === 303 && /preview|publishes|saves|creates/u.test(caseName))
+            expect(recorded).not.toBeNull();
+          expect(cookie(result.exchanges.at(-1)!.actual.response.cookies as never)).toEqual(recorded);
+        }
         if (caseName.includes("confirms-an-unconfirmed-follower")) {
           const inserted = (result.exchanges.at(-1)!.actual.db as Record<string, { inserted: { details: string }[] }>)
             .audience_members!.inserted;

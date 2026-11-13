@@ -4,8 +4,8 @@ require "spec_helper"
 
 # Saving the emails of a workflow (Workflows::EmailsController#update) the way the Inertia form does, recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/audience-next.replay.test.ts. Node answers the 404s and the policy
-# refusals and runs Workflow::SaveInstallmentsService for emails without files, previews or upsell cards in a workflow that
-# is not an abandoned cart; the other saves stay in Rails.
+# refusals and runs Workflow::SaveInstallmentsService for emails without files or upsell cards, previews included; the
+# other saves stay in Rails.
 describe "Workflow emails save when signed in", type: :request do
   include Parity::AudienceSignedIn
 
@@ -200,13 +200,107 @@ describe "Workflow emails save when signed in", type: :request do
     expect(response.status).to be_in([303, 302])
   end
 
-  it "hands a save that sends a preview email to Rails", parity: true do
+  it "sends the preview of a new email to a confirmed recipient", parity: true do
     log_in(seller)
 
     save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: "newemail1", send_preview_email: true)]) })
 
     expect(response).to have_http_status(:see_other)
     expect(flash[:notice]).to eq("A preview has been sent to your email.")
+    expect(workflow.installments.alive.count).to eq(1)
+  end
+
+  it "sends the preview of a kept email without recording a delivery", parity: true do
+    kept = add_email(workflow, name: "Kept", delay_seconds: 3600)
+
+    log_in(seller)
+    save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: kept.external_id, name: "Renamed", send_preview_email: true)]) })
+
+    expect(response).to have_http_status(:see_other)
+    expect(kept.reload.name).to eq("Renamed")
+    expect(EmailInfo.count).to eq(0)
+  end
+
+  describe "abandoned cart workflow" do
+    let(:workflow) { create(:abandoned_cart_workflow, seller:, name: "Cart flow", created_at: Time.utc(2025, 3, 4)) }
+    let(:email) { workflow.installments.alive.sole }
+
+    it "adds the product list placeholder to a message without it", parity: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: email.external_id, name: "Still there?", message: "<p>Come back</p>", time_period: "day", time_duration: 1)]) })
+
+      expect(response).to have_http_status(:see_other)
+      expect(email.reload).to have_attributes(name: "Still there?", message: "<p>Come back</p><product-list-placeholder></product-list-placeholder>")
+    end
+
+    it "keeps the placeholder a message already holds", parity: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: email.external_id, message: "<p>Back</p><product-list-placeholder></product-list-placeholder><p>Thanks</p>")]) })
+
+      expect(response).to have_http_status(:see_other)
+      expect(email.reload.message).to eq("<p>Back</p><product-list-placeholder></product-list-placeholder><p>Thanks</p>")
+    end
+
+    it "publishes the workflow without scheduling its email", parity: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id, { workflow: body[:workflow].merge(save_action_name: "save_and_publish", installments: [email_params(id: email.external_id)]) })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Workflow published!")
+      expect(workflow.reload.published_at).to be_present
+    end
+
+    it "answers with the error when the save holds two emails", parity: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: email.external_id), email_params(id: "newemail1")]) })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:alert]).to eq("An abandoned cart workflow can only have one email.")
+      expect(workflow.installments.alive.count).to eq(1)
+    end
+
+    it "answers with the error when the save holds no email", parity: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id)
+
+      expect(flash[:alert]).to eq("An abandoned cart workflow can only have one email.")
+      expect(email.reload.deleted_at).to be_nil
+    end
+
+    it "enqueues the preview email for the seller", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: email.external_id, message: "<p>Back</p>", send_preview_email: true)]) })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("A preview has been sent to your email.")
+    end
+
+    it "sends the preview but announces none when the flag is the text false", parity: true, parity_mail_jobs: true do
+      log_in(seller)
+
+      save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: email.external_id, send_preview_email: "false")]) })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+    end
+  end
+
+  it "answers with the error when the preview recipient has not confirmed their email", parity: true do
+    seller.update!(email: "new-address@example.com")
+    log_in(seller)
+    kept = add_email(workflow, name: "Kept", delay_seconds: 3600)
+
+    save_emails(workflow.external_id, { workflow: body[:workflow].merge(installments: [email_params(id: kept.external_id, name: "Renamed", send_preview_email: true)]) })
+
+    expect(response).to have_http_status(:see_other)
+    expect(flash[:alert]).to eq("You have to confirm your email address before you can do that.")
+    expect(kept.reload.name).to eq("Kept")
   end
 
   it "redirects a signed-out visitor to the login page", parity: true do

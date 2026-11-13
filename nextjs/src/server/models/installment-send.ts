@@ -179,6 +179,14 @@ export async function sendPostEmailDirect(post: InstallmentPost, recipient: Reci
   }
 }
 
+// Installment#send_preview_email for a post that is not an abandoned cart: PostEmailApi with `preview: true`, so nothing is
+// recorded. A provider failure surfaces as the provider's error, which the caller turns into its PreviewEmailError.
+export async function sendPostPreview(post: InstallmentPost, email: string, deps: PostEmailDeps): Promise<void> {
+  // `UrlRedirect.find_or_create_by!(installment: self, purchase: nil) if has_files?`
+  if (await post.hasFiles()) throw new PostEmailNotPortedError("a preview of a post with files (UrlRedirect)");
+  await processPostEmail({ post, recipients: [{ email }], preview: true }, deps);
+}
+
 // `generate_url_redirect_for_*(...) if has_files?`: Node does not create UrlRedirects.
 export async function refuseFiles(post: InstallmentPost, recipient: Recipient): Promise<void> {
   if (!(await post.hasFiles())) return;

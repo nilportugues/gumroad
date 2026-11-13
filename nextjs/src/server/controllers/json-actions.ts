@@ -71,7 +71,7 @@ export function jsonAction(
   options: ActionOptions,
   run: (input: MutationInput) => Promise<ActionResult>,
 ): Promise<Response> {
-  return processAction(incoming, options, async ({ request, context, peekState, chain }) => {
+  return processAction(incoming, options, async ({ request, context, peekState, takeRenderState, chain }) => {
     const config = domainConfig(process.env);
     const url = new URL(
       `${request.path}${request.queryString === "" ? "" : `?${request.queryString}`}`,
@@ -83,6 +83,7 @@ export function jsonAction(
       request,
       context,
       peekState,
+      takeRenderState,
       chain,
       url,
       urlOptions: defaultUrlOptions(url, config),

@@ -197,7 +197,11 @@ export type PostEmailTemplate = {
   sanitizedProductName: string | null;
 };
 
-async function renderTemplate(post: InstallmentPost, hasFiles: boolean): Promise<PostEmailTemplate> {
+async function renderTemplate(
+  post: InstallmentPost,
+  hasFiles: boolean,
+  deps: PostEmailDeps,
+): Promise<PostEmailTemplate> {
   const seller = await post.user();
   const profile = await post.sellerProfile(seller);
   // The profile's `seller` (custom_style_cache_name) is not loaded through the inverse.
@@ -205,7 +209,9 @@ async function renderTemplate(post: InstallmentPost, hasFiles: boolean): Promise
   const hasPostUrl = post.flag("shown_on_profile");
   const hasCommentButton = post.flag("shown_on_profile") && post.flag("allow_comments");
   const hasSellerUpdateReason = post.sellerOrProductOrVariantType;
-  const rendered = renderPostEmail({
+  // Nothing is sent when deliveries are off (Rails test), so the markup is unobservable and the production-only template is skipped.
+  const render = deps.deliver() ? renderPostEmail : (): RenderedPostEmail => ({ html: "", plaintext: "" });
+  const rendered = render({
     subject: await post.subject(),
     message: post.row.message,
     callToActionUrl: post.row.call_to_action_url,
@@ -616,6 +622,8 @@ export type ProcessArgs = {
   post: InstallmentPost;
   recipients: Recipient[];
   onWithheld?: (withheld: Recipient[]) => Promise<void>;
+  // Hands the mail over and records nothing: no email info, no delivered count, no push notification.
+  preview?: boolean;
 };
 
 async function afterHandoff(post: InstallmentPost, delivered: Recipient[], deps: PostEmailDeps): Promise<void> {
@@ -671,7 +679,7 @@ async function processSendgrid(args: ProcessArgs, deps: PostEmailDeps): Promise<
   if (recipients.length === 0) return;
   const hasFiles = await validateRecipients(post, recipients, SENDGRID_MAX_RECIPIENTS);
   if (hasFiles) throw new PostEmailNotPortedError("a post with files");
-  const template = await renderTemplate(post, hasFiles);
+  const template = await renderTemplate(post, hasFiles, deps);
   const seller = await post.seller();
   if (seller === null) throw new TypeError("undefined method 'username' for nil");
   const from = { email: creatorsFromEmailAddress(seller.username), name: fromEmailAddressName(seller.name) };
@@ -704,7 +712,7 @@ async function processSendgrid(args: ProcessArgs, deps: PostEmailDeps): Promise<
     );
     if (result.status < 200 || result.status > 299) throw new SendGridApiResponseError(result.body);
   });
-  await afterHandoff(post, delivered, deps);
+  if (!args.preview) await afterHandoff(post, delivered, deps);
 }
 
 async function processResend(args: ProcessArgs, deps: PostEmailDeps): Promise<void> {
@@ -712,7 +720,7 @@ async function processResend(args: ProcessArgs, deps: PostEmailDeps): Promise<vo
   if (recipients.length === 0) return;
   const hasFiles = await validateRecipients(post, recipients, RESEND_MAX_RECIPIENTS);
   if (hasFiles) throw new PostEmailNotPortedError("a post with files");
-  const template = await renderTemplate(post, hasFiles);
+  const template = await renderTemplate(post, hasFiles, deps);
   const emails = new Map<Recipient, Record<string, unknown>>();
   for (const recipient of recipients) emails.set(recipient, await resendEmail(post, recipient, template, deps));
   const delivered = await hold(post, recipients, args.onWithheld, deps, async (kept) => {
@@ -731,7 +739,7 @@ async function processResend(args: ProcessArgs, deps: PostEmailDeps): Promise<vo
     );
     if (result.status < 200 || result.status > 299) throw new ResendApiResponseError(result.body);
   });
-  await afterHandoff(post, delivered, deps);
+  if (!args.preview) await afterHandoff(post, delivered, deps);
 }
 
 // ----- PostEmailApi.process

@@ -11,7 +11,15 @@ const URI_ATTRIBUTES = new Set(["href", "src"]);
 const SAFE_URI = /^[A-Za-z0-9\-._~:/?#@!$'()*+,;=%]*(&amp;[A-Za-z0-9\-._~:/?#@!$'()*+,;=%]*)*$/u;
 const SAFE_ATTRIBUTE = /^[^"<>&\\\r\n\t]*$/u;
 // Characters libxml2 may entity-encode or normalize: carriage returns, C0/C1 controls, no-break and line separators.
-const UNSAFE_TEXT = new RegExp(String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u00a0\u2028\u2029\ufeff\u200b-\u200f]`, "u");
+const UNSAFE_TEXT = new RegExp(
+  String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u00a0\u2028\u2029\ufeff\u200b-\u200f]`,
+  "u",
+);
+
+// The abandoned cart email's marker (Installment::PRODUCT_LIST_PLACEHOLDER_TAG_NAME): an unknown element, so libxml2 takes
+// `<x />` as an empty element and writes it back as an open and close tag.
+const PLACEHOLDER = "product-list-placeholder";
+const PLACEHOLDER_CLOSE = `</${PLACEHOLDER}>`;
 
 const refuse = (what: string): never => {
   throw new NotPortedError(`a message Nokogiri would rewrite (${what})`, "save_content_upsells_service.rb");
@@ -35,7 +43,8 @@ function checkAttributes(source: string): void {
     const [whole, name, value] = match as unknown as [string, string, string];
     if (seen.has(name)) refuse("duplicate attribute");
     seen.add(name);
-    if (URI_ATTRIBUTES.has(name) ? !SAFE_URI.test(value) : !(SAFE_ATTRIBUTE.test(value) && !UNSAFE_TEXT.test(value))) refuse("attribute value");
+    if (URI_ATTRIBUTES.has(name) ? !SAFE_URI.test(value) : !(SAFE_ATTRIBUTE.test(value) && !UNSAFE_TEXT.test(value)))
+      refuse("attribute value");
     index += whole.length;
   }
 }
@@ -43,13 +52,23 @@ function checkAttributes(source: string): void {
 // Returns the string Nokogiri would serialize (the input) or throws.
 export function nokogiriRoundtrip(html: string | null): string {
   if (html === null) return "";
-  const tag = /<(\/?)([A-Za-z][A-Za-z0-9]*)((?:\s+[^<>]*?)?)\s*(\/?)>/gu;
+  const tag = /<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:\s+[^<>]*?)?)\s*(\/?)>/gu;
   const stack: string[] = [];
   let last = 0;
   for (let match = tag.exec(html); match !== null; match = tag.exec(html)) {
     checkText(html.slice(last, match.index));
     last = match.index + match[0].length;
     const [, closing, name, attributes, selfClosing] = match as unknown as [string, string, string, string, string];
+    if (name === PLACEHOLDER) {
+      if (attributes.trim() !== "" || closing === "/") refuse("placeholder spelling");
+      // Only the empty element: anything inside it would nest in libxml2's tree.
+      if (selfClosing !== "/" && !html.startsWith(PLACEHOLDER_CLOSE, last)) refuse("placeholder with content");
+      if (selfClosing !== "/") {
+        last += PLACEHOLDER_CLOSE.length;
+        tag.lastIndex = last;
+      }
+      continue;
+    }
     if (name !== name.toLowerCase() || selfClosing === "/") refuse("tag spelling");
     if (!INLINE.has(name) && !BLOCK.has(name) && !VOID.has(name)) refuse(`<${name}>`);
     if (closing === "/") {
@@ -62,12 +81,13 @@ export function nokogiriRoundtrip(html: string | null): string {
       continue;
     }
     // libxml2 closes a paragraph at a block and an anchor at another anchor.
-    if (BLOCK.has(name) && stack.some((open) => open === "p" || open.startsWith("h"))) refuse("block inside a paragraph");
+    if (BLOCK.has(name) && stack.some((open) => open === "p" || open.startsWith("h")))
+      refuse("block inside a paragraph");
     if (name === "a" && stack.includes("a")) refuse("nested anchors");
     stack.push(name);
   }
   checkText(html.slice(last));
   if (stack.length > 0) refuse("unclosed tags");
   if (/<!|<\?/u.test(html)) refuse("markup declaration");
-  return html;
+  return html.replace(/<product-list-placeholder\s*\/>/gu, `<${PLACEHOLDER}>${PLACEHOLDER_CLOSE}`);
 }

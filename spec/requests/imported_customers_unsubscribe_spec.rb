@@ -5,6 +5,8 @@ require "spec_helper"
 # The unsubscribe link of an imported customer (ImportedCustomersController#unsubscribe), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/audience-next.replay.test.ts.
 describe "Imported customer unsubscribe link", type: :request do
+  include Parity::AudienceSignedIn
+
   let(:seller) { create(:user, name: "Importing Seller") }
   let(:product) { create(:product, user: seller, unique_permalink: "unsubimp") }
 
@@ -20,16 +22,27 @@ describe "Imported customer unsubscribe link", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands a customer to unsubscribe to Rails", parity: true do
+  it "unsubscribes a customer and shows the confirmation", parity: true do
     customer = import("imported@example.com")
 
+    get unsubscribe_imported_customer_path(customer.external_id)
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to include("You will no longer receive emails.")
+    expect(customer.reload.deleted_at).to be_present
+  end
+
+  it "hands a signed-in visitor to Rails", parity: true do
+    customer = import("signedin@example.com")
+    log_in(seller)
+    host! DOMAIN
     get unsubscribe_imported_customer_path(customer.external_id)
 
     expect(response).to have_http_status(:ok)
     expect(customer.reload.deleted_at).to be_present
   end
 
-  it "hands a customer who unsubscribed before to Rails", parity: true do
+  it "subscribes a customer who unsubscribed before again", parity: true do
     customer = import("again@example.com", deleted_at: Time.utc(2025, 2, 5, 12))
 
     get unsubscribe_imported_customer_path(customer.external_id)

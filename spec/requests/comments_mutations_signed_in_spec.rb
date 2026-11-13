@@ -150,6 +150,133 @@ describe "Post comments mutations when signed in", type: :request do
       expect(response.parsed_body["comment"]).to include("depth" => 1)
     end
 
+    context "when the post is not shown on the profile" do
+      let(:hidden_post) { create(:audience_post, :published, seller:, shown_on_profile: false, name: "Followers only", message: "<p>Talk</p>").tap { _1.update!(allow_comments: true) } }
+      let(:comment_params) { { comment: { content: "Count me in" } } }
+
+      def comment_as_reader_on(post)
+        sign_in_on_main_domain(reader)
+        send_json(:post, "/posts/#{post.external_id}/comments", comment_params)
+      end
+
+      it "refuses a reader who has no tie to the seller", parity: true do
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(hidden_post.comments.count).to eq(0)
+      end
+
+      it "lets a confirmed follower comment on it", parity: true, parity_mail_jobs: true do
+        create(:active_follower, user: seller, email: reader.email)
+
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to be_successful
+        expect(response.parsed_body["comment"]).to include("depth" => 0, "is_editable" => true)
+      end
+
+      it "lets a direct affiliate comment on it", parity: true, parity_mail_jobs: true do
+        create(:direct_affiliate, seller:, affiliate_user: reader)
+
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to be_successful
+        expect(hidden_post.comments.count).to eq(1)
+      end
+
+      it "lets a follower who is also a direct affiliate comment on it", parity: true, parity_mail_jobs: true do
+        create(:active_follower, user: seller, email: reader.email)
+        create(:direct_affiliate, seller:, affiliate_user: reader)
+
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to be_successful
+      end
+
+      it "refuses a follower a post sent to the seller's customers", parity: true do
+        create(:active_follower, user: seller, email: reader.email)
+        customers_post = create(:seller_post, :published, seller:, name: "Customers only").tap { _1.update!(allow_comments: true) }
+
+        comment_as_reader_on(customers_post)
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(customers_post.comments.count).to eq(0)
+      end
+
+      it "lets a follower comment on a post sent to followers", parity: true, parity_mail_jobs: true do
+        create(:active_follower, user: seller, email: reader.email)
+        followers_post = create(:follower_post, :published, seller:, name: "For followers").tap { _1.update!(allow_comments: true) }
+
+        comment_as_reader_on(followers_post)
+
+        expect(response).to be_successful
+        expect(followers_post.comments.count).to eq(1)
+      end
+
+      it "refuses an affiliate a post sent to followers", parity: true do
+        create(:direct_affiliate, seller:, affiliate_user: reader)
+        followers_post = create(:follower_post, :published, seller:, name: "For followers").tap { _1.update!(allow_comments: true) }
+
+        comment_as_reader_on(followers_post)
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "lets an affiliate comment on a post sent to affiliates", parity: true, parity_mail_jobs: true do
+        create(:direct_affiliate, seller:, affiliate_user: reader)
+        affiliates_post = create(:affiliate_post, :published, seller:, name: "For affiliates").tap { _1.update!(allow_comments: true) }
+
+        comment_as_reader_on(affiliates_post)
+
+        expect(response).to be_successful
+      end
+
+      it "refuses a follower a post sent to affiliates", parity: true do
+        create(:active_follower, user: seller, email: reader.email)
+        affiliates_post = create(:affiliate_post, :published, seller:, name: "For affiliates").tap { _1.update!(allow_comments: true) }
+
+        comment_as_reader_on(affiliates_post)
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "refuses a follower a post that belongs to a workflow", parity: true do
+        create(:active_follower, user: seller, email: reader.email)
+        workflow = create(:audience_workflow, seller:)
+        hidden_post.update!(workflow:)
+
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "hands a follower who has not confirmed their address to Rails", parity: true do
+        create(:follower, user: seller, email: reader.email)
+
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it "hands a follower of a post with an audience filter to Rails", parity: true do
+        create(:active_follower, user: seller, email: reader.email)
+        followers_post = create(:follower_post, :published, seller:, name: "For recent followers").tap { _1.update!(allow_comments: true) }
+        followers_post.update!(created_before: Time.utc(2030, 1, 1))
+
+        comment_as_reader_on(followers_post)
+
+        expect(response).to be_successful
+      end
+
+      it "hands a collaborator of the seller to Rails", parity: true do
+        create(:collaborator, seller:, affiliate_user: reader)
+
+        comment_as_reader_on(hidden_post)
+
+        expect(response).to have_http_status(:unauthorized)
+      end
+    end
+
     it "hands a request with a purchase id to Rails", parity: true do
       sign_in_on_main_domain(reader)
 

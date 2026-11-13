@@ -123,7 +123,7 @@ describe "Followers mutations when signed in", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a follower who is also a customer to Rails", parity: true do
+    it "keeps the audience member of a follower who is also a customer", parity: true do
       follower = follow("buyer@example.com")
       member = AudienceMember.find_by!(seller:, email: "buyer@example.com")
       member.update!(details: member.details.merge("purchases" => [{ "id" => 1, "product_id" => 1, "price_cents" => 100, "created_at" => "2025-01-01T12:00:00.000Z" }]))
@@ -131,7 +131,19 @@ describe "Followers mutations when signed in", type: :request do
 
       remove(follower)
 
-      expect(AudienceMember.find_by(seller:, email: "buyer@example.com")).to have_attributes(follower: false, customer: true)
+      expect(follower.reload.deleted_at).to be_present
+      expect(AudienceMember.find_by(seller:, email: "buyer@example.com")).to have_attributes(follower: false, customer: true, follower_created_at: nil, min_paid_cents: 100)
+    end
+
+    it "keeps the audience member of a follower who is also an affiliate", parity: true do
+      follower = follow("partner@example.com")
+      member = AudienceMember.find_by!(seller:, email: "partner@example.com")
+      member.update!(details: member.details.merge("affiliates" => [{ "id" => 1, "product_id" => 1, "created_at" => "2025-01-03T12:00:00.000Z" }]))
+      log_in(seller)
+
+      remove(follower)
+
+      expect(AudienceMember.find_by(seller:, email: "partner@example.com")).to have_attributes(follower: false, affiliate: true, min_affiliate_created_at: Time.utc(2025, 1, 3, 12))
     end
 
     it "hands a follower of a seller with a newsletter cutover to Rails", parity: true do
