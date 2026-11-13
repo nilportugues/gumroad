@@ -1393,4 +1393,168 @@ describe "Product page", type: :request do
       expect(inertia_props_of(response)["posts"].map { _1["name"] }).to eq(["Newer post", "Older post"])
     end
   end
+
+  describe "file summaries" do
+    let(:product) { create(:product, user: seller, name: "Summarised") }
+
+    before { host! seller.subdomain }
+
+    def summaries
+      get "/l/#{product.unique_permalink}"
+      expect(response).to be_successful
+      page = JSON.parse(CGI.unescapeHTML(response.body[/\sdata-page="([^"]*)"/, 1]))
+      page["props"]["product"]["file_summaries"]
+    end
+
+    def embed(file) = { "type" => "fileEmbed", "attrs" => { "id" => file.external_id, "uid" => SecureRandom.uuid } }
+
+    def with_files(link, *factories_and_sizes)
+      factories_and_sizes.map { |name, size| create(name, link:, size:) }
+    end
+
+    it "has no summary for a product without files", parity: true do
+      expect(summaries).to eq("product" => nil, "options" => {})
+    end
+
+    it "sums the size and lists the formats of files of several kinds", parity: true do
+      with_files(product, [:readable_document, 50], [:listenable_audio, 310], [:streamable_video, 502], [:non_readable_document, 7], [:epub_product_file, 11])
+      product_file = create(:product_file, link: product, size: 1000)
+      product_file.update_columns(filetype: "zip")
+
+      expect(summaries["product"]).to include("count" => 6, "total_size" => 1880)
+    end
+
+    it "leaves the total size out when a file has no size", parity: true do
+      with_files(product, [:readable_document, 50], [:listenable_audio, nil])
+
+      expect(summaries["product"]).to include("count" => 2, "total_size" => nil)
+    end
+
+    it "skips external links and deleted files", parity: true do
+      with_files(product, [:readable_document, 50], [:external_link, nil])
+      create(:streamable_video, link: product, size: 900, deleted_at: Time.current)
+
+      expect(summaries["product"]).to include("count" => 1, "total_size" => 50)
+    end
+
+    it "has no summary for a product with only external links", parity: true do
+      with_files(product, [:external_link, nil])
+
+      expect(summaries).to eq("product" => nil, "options" => {})
+    end
+
+    it "counts the files of a stream-only rental", parity: true do
+      with_files(product, [:streamable_video, 4096])
+      product.update!(purchase_type: :rent_only, rental_price_cents: 300)
+
+      expect(summaries["product"]).to include("count" => 1, "total_size" => 4096)
+    end
+
+    it "lists a file with a blank type as no format", parity: true do
+      file = create(:product_file, link: product, size: 5)
+      file.update_columns(filetype: "")
+
+      expect(summaries["product"]).to include("count" => 1, "formats" => [])
+    end
+
+    it "counts only the files a page embeds", parity: true do
+      pdf, audio, = with_files(product, [:readable_document, 50], [:listenable_audio, 310], [:streamable_video, 502])
+      create(:rich_content, entity: product, description: [embed(pdf), embed(audio)])
+      create(:rich_content, entity: product, description: [embed(audio)])
+
+      expect(summaries["product"]).to include("count" => 2, "total_size" => 360)
+    end
+
+    it "has no summary when no embedded file is one of the product's", parity: true do
+      other = create(:readable_document, link: create(:product, user: seller), size: 9)
+      with_files(product, [:readable_document, 50])
+      # The validation refuses a foreign embed; stored data from before it can still hold one.
+      create(:rich_content, entity: product, description: []).update_columns(description: [embed(other)])
+
+      expect(summaries["product"]).to be_nil
+    end
+
+    it "ignores the pages that were deleted", parity: true do
+      pdf, = with_files(product, [:readable_document, 50], [:listenable_audio, 310])
+      create(:rich_content, entity: product, description: [embed(pdf)], deleted_at: Time.current)
+
+      expect(summaries["product"]).to include("count" => 2, "total_size" => 360)
+    end
+
+    it "has no summary for a physical product", parity: true do
+      with_files(product, [:readable_document, 50])
+      product.update_attribute(:is_physical, true)
+
+      expect(summaries).to eq("product" => nil, "options" => {})
+    end
+
+    it "has no summary for a bundle", parity: true do
+      with_files(product, [:readable_document, 50])
+      product.update_attribute(:is_bundle, true)
+
+      expect(summaries).to eq("product" => nil, "options" => {})
+    end
+
+    describe "with versions" do
+      let(:category) { create(:variant_category, link: product, title: "Tier") }
+      let!(:small) { create(:variant, variant_category: category, name: "Small", created_at: Time.utc(2025, 1, 1)) }
+      let!(:large) { create(:variant, variant_category: category, name: "Large", created_at: Time.utc(2025, 1, 2)) }
+
+      it "gives every version the product's summary when they share one set of pages", parity: true do
+        with_files(product, [:readable_document, 50], [:listenable_audio, 310])
+        product.update!(has_same_rich_content_for_all_variants: true)
+
+        expect(summaries["options"].keys).to eq([small.external_id, large.external_id])
+        expect(summaries["options"].values.uniq).to eq([summaries["product"]])
+      end
+
+      it "summarises the files of each version that has its own pages", parity: true do
+        pdf, audio, video = with_files(product, [:readable_document, 50], [:listenable_audio, 310], [:streamable_video, 502])
+        small.product_files << pdf
+        small.product_files << audio
+        large.product_files << video
+        create(:rich_content, entity: small, description: [embed(pdf)])
+        create(:rich_content, entity: large, description: [embed(video)])
+
+        result = summaries
+        expect(result["product"]).to be_nil
+        expect(result["options"].keys).to eq([small.external_id, large.external_id])
+      end
+
+      it "leaves out a version with no files", parity: true do
+        pdf, = with_files(product, [:readable_document, 50])
+        small.product_files << pdf
+
+        expect(summaries["options"].keys).to eq([small.external_id])
+      end
+
+      it "lists every file of a version whose pages embed none", parity: true do
+        pdf, audio, = with_files(product, [:readable_document, 50], [:listenable_audio, 310])
+        large.product_files << pdf
+        large.product_files << audio
+        create(:rich_content, entity: large, description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Hello" }] }])
+
+        expect(summaries["options"][large.external_id]).to include("count" => 2, "total_size" => 360)
+      end
+
+      it "falls back to the versions' pages when only they hold content", parity: true do
+        pdf, = with_files(product, [:readable_document, 50])
+        small.product_files << pdf
+        product.update!(has_same_rich_content_for_all_variants: true)
+        create(:rich_content, entity: small, description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Version page" }] }])
+
+        expect(summaries["product"]).to be_nil
+        expect(summaries["options"].keys).to eq([small.external_id])
+      end
+
+      it "keeps the product's pages when both the product and a version have content", parity: true do
+        with_files(product, [:readable_document, 50])
+        product.update!(has_same_rich_content_for_all_variants: true)
+        create(:rich_content, entity: product, description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Product page" }] }])
+        create(:rich_content, entity: small, description: [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Version page" }] }])
+
+        expect(summaries["product"]).to include("count" => 1)
+      end
+    end
+  end
 end
