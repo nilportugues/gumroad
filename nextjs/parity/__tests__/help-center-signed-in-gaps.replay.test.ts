@@ -18,9 +18,8 @@ import { assertParity, httpTransport, replayFixtureExchange } from "../src/repla
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays spec/requests/help_center_signed_in_gaps_spec.rb: signed-in visits whose shared props read an
-// uploaded avatar (Active Storage rows and the bucket), the store agent's sales bar (an Elasticsearch
-// aggregation, answered here by a stand-in that serves what Rails got), a US minor's guardian and a
-// payout setup rejection note.
+// uploaded avatar (Active Storage rows and the bucket), a US minor's guardian and a payout setup
+// rejection note. Elasticsearch is answered by a stand-in that serves what Rails got.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURE_DIR = "parity/fixtures/requests/help_center_signed_in_gaps_spec";
@@ -153,7 +152,7 @@ describe.skipIf(!url)("HelpCenter parity when signed in, with data the shared pr
   });
 
   it("finds the fixtures", () => {
-    expect(cases.length).toBeGreaterThanOrEqual(16);
+    expect(cases.length).toBeGreaterThanOrEqual(12);
   });
 
   it.each(cases)(

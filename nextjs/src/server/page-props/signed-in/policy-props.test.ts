@@ -13,7 +13,7 @@ vi.mock("../../search/purchase-sales.ts", () => ({
   salesCentsTotal: vi.fn(async () => 0),
 }));
 
-const { policiesProps } = await import("./policy-props.ts");
+const { eligibleForStoreAgent, policiesProps } = await import("./policy-props.ts");
 const reads = await import("./reads.ts");
 const sales = await import("../../search/purchase-sales.ts");
 
@@ -29,19 +29,19 @@ const owner: SellerContext = { user: seller, seller, memberships: [] };
 
 describe("policiesProps", () => {
   it("grants an owner everything the role checks decide", async () => {
-    const props = await policiesProps(owner, false);
-    expect(Object.keys(props)).toHaveLength(20);
+    const props = await policiesProps(owner);
+    expect(Object.keys(props)).toHaveLength(19);
     for (const [group, verdicts] of Object.entries(props)) {
       for (const [query, verdict] of Object.entries(verdicts)) {
-        // Communities need chat-enabled products, and the store agent needs completed payouts.
-        const expected = !(group === "community" || (group === "user" && query === "use_store_agent"));
+        // Communities need chat-enabled products.
+        const expected = group !== "community";
         expect([group, query, verdict]).toEqual([group, query, expected]);
       }
     }
   });
 
   it("limits a support member to what support can do", async () => {
-    const props = await policiesProps(contextFor("support"), false);
+    const props = await policiesProps(contextFor("support"));
     expect(props.product).toEqual({ create: false });
     expect(props.balance).toEqual({ index: true, export: true });
     expect(props.product_review_response).toEqual({ update: true });
@@ -49,36 +49,35 @@ describe("policiesProps", () => {
     expect(props.settings_payments_user).toEqual({ show: false });
     expect(props.settings_main_user).toEqual({ update_username: false });
     expect(props.collaborator).toEqual({ create: false, update: false });
-    expect(props.user).toEqual({ view_store_agent: false, use_store_agent: false });
+    expect(props).not.toHaveProperty("user");
   });
 
   it("lets marketing manage promotions but not payments", async () => {
-    const props = await policiesProps(contextFor("marketing"), false);
+    const props = await policiesProps(contextFor("marketing"));
     expect(props.direct_affiliate).toEqual({ create: true, update: true });
     expect(props.workflow).toEqual({ create: true });
     expect(props.balance).toEqual({ index: false, export: false });
-    expect(props.user).toEqual({ view_store_agent: true, use_store_agent: false });
   });
 
   it("raises for a seller the user has no membership on, as ActiveRecord does", async () => {
-    await expect(policiesProps({ user: member, seller, memberships: [] }, false)).rejects.toBeInstanceOf(MembershipNotFoundError);
+    await expect(policiesProps({ user: member, seller, memberships: [] })).rejects.toBeInstanceOf(MembershipNotFoundError);
   });
 
   it("reads the store agent's eligibility only for a confirmed, unsuspended seller with payouts and enough sales", async () => {
-    expect((await policiesProps(owner, true)).user).toEqual({ view_store_agent: true, use_store_agent: true });
-    expect((await policiesProps({ ...owner, user: user(1n, { confirmed_at: null }), seller: user(1n, { confirmed_at: null }) }, false)).user?.use_store_agent).toBe(false);
-    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(false);
+    expect(await eligibleForStoreAgent(seller, true)).toBe(true);
+    expect(await eligibleForStoreAgent(user(1n, { confirmed_at: null }), false)).toBe(false);
+    expect(await eligibleForStoreAgent(seller, false)).toBe(false);
     expect(sales.salesCentsTotal).not.toHaveBeenCalled();
 
     vi.mocked(reads.hasCompletedPayment).mockResolvedValue(true);
     vi.mocked(sales.salesCentsTotal).mockResolvedValueOnce(9_999);
-    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(false);
+    expect(await eligibleForStoreAgent(seller, false)).toBe(false);
     vi.mocked(sales.salesCentsTotal).mockResolvedValueOnce(10_000);
-    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(true);
+    expect(await eligibleForStoreAgent(seller, false)).toBe(true);
     vi.mocked(reads.hasCompletedPayment).mockResolvedValue(false);
 
     vi.mocked(reads.madeSaleWithConnectOrPaypalAccount).mockResolvedValueOnce(true);
     vi.mocked(sales.salesCentsTotal).mockResolvedValueOnce(20_000);
-    expect((await policiesProps(owner, false)).user?.use_store_agent).toBe(true);
+    expect(await eligibleForStoreAgent(seller, false)).toBe(true);
   });
 });

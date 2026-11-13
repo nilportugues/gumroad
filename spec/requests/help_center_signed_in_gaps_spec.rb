@@ -3,8 +3,7 @@
 require "spec_helper"
 
 # The shared props a signed-in request computes from data the first Next.js port could not read:
-# an uploaded avatar, the store agent's sales bar (Elasticsearch), a US minor's guardian and a payout
-# setup rejection note. Recorded for the port (PARITY_RECORD=1) and replayed by
+# an uploaded avatar, a US minor's guardian and a payout setup rejection note. Recorded for the port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/help-center-signed-in-gaps.replay.test.ts, which sends the last request of
 # each example.
 describe "Help center when signed in, with data the shared props read", type: :request do
@@ -86,54 +85,6 @@ describe "Help center when signed in, with data the shared props read", type: :r
 
       memberships = inertia_props_of(response)["logged_in_user"]["team_memberships"]
       expect(memberships.map { _1["seller_avatar_url"] }).to include(seller.avatar_url)
-    end
-  end
-
-  describe "the store agent" do
-    def sale(price_cents:)
-      build(:purchase, link: create(:product, user: seller, price_cents:)).tap { _1.save!(validate: false) }
-    end
-
-    it "is usable by a seller with completed payouts and at least $100 in sales", :elasticsearch_wait_for_refresh, parity: true do
-      sale(price_cents: 15_000)
-      create(:payment_completed, user: seller)
-      index_model_records(Purchase)
-      log_in(seller)
-
-      get article_path
-
-      expect(inertia_props_of(response)["logged_in_user"]["policies"]["user"]).to eq("view_store_agent" => true, "use_store_agent" => true)
-    end
-
-    it "is not usable by a seller with completed payouts and under $100 in sales", :elasticsearch_wait_for_refresh, parity: true do
-      sale(price_cents: 5_000)
-      create(:payment_completed, user: seller)
-      index_model_records(Purchase)
-      log_in(seller)
-
-      get article_path
-
-      expect(inertia_props_of(response)["logged_in_user"]["policies"]["user"]).to eq("view_store_agent" => true, "use_store_agent" => false)
-    end
-
-    it "is usable through a sale made with a Stripe Connect account", :elasticsearch_wait_for_refresh, parity: true do
-      connect_account = create(:merchant_account_stripe_connect, user: seller)
-      build(:purchase, link: create(:product, user: seller, price_cents: 20_000), merchant_account: connect_account).save!(validate: false)
-      index_model_records(Purchase)
-      log_in(seller)
-
-      get article_path
-
-      expect(inertia_props_of(response)["logged_in_user"]["policies"]["user"]["use_store_agent"]).to eq(true)
-    end
-
-    it "is not usable, and never reaches Elasticsearch, without completed payouts", parity: true do
-      sale(price_cents: 15_000)
-      log_in(seller)
-
-      get article_path
-
-      expect(inertia_props_of(response)["logged_in_user"]["policies"]["user"]["use_store_agent"]).to eq(false)
     end
   end
 

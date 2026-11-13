@@ -269,8 +269,6 @@ export async function earnedNavItems(user: Pick<User, "id">, sellerId: bigint): 
     )
   )
     items.push("community");
-  if (await has("ai_conversations", Prisma.sql`${col("ai_conversations", "seller_id")} = ${sellerId}`))
-    items.push("agent");
   if (await has("purchases", Prisma.sql`${col("purchases", "purchaser_id")} = ${user.id}`)) items.push("library");
   return items;
 }
