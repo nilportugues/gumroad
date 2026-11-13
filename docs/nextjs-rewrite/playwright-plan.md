@@ -35,7 +35,7 @@ A task with a spec file names it. One task is one point, so the percentage is a 
 
 - [ ] 3.1 Paid card checkout with a Stripe test card; needs test keys, currently skipped (`paid-checkout.stripe.spec.ts`)
 - [x] 3.2 Discount code applied at checkout changes the total (`checkout-discount.spec.ts`)
-- [ ] 3.3 Buying through an affiliate link records the affiliate
+- [x] 3.3 Buying through an affiliate link records the affiliate (`affiliate-purchase.spec.ts`)
 - [ ] 3.4 Membership: subscribe, see it in the library, cancel
 - [ ] 3.5 Seller edits a product price and the product page follows
 - [ ] 3.6 Seller refunds a sale (needs Stripe test keys or a free-sale equivalent)
