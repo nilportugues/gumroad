@@ -166,9 +166,12 @@ import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeba
 import { reindexUserElasticsearchDataWorker } from "./reindex-user-elasticsearch-data-worker.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
+import { backfillPdfStampsJob } from "./backfill-pdf-stamps-job.ts";
+import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
 import { refundAllForFraudWorker } from "./refund-all-for-fraud-worker.ts";
+import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
@@ -296,7 +299,6 @@ import {
 } from "./generate-subscribe-preview-job.ts";
 import { productBuildUnpackJob } from "./product-build-unpack-job.ts";
 import { stampPdfForPurchaseJob } from "./stamp-pdf-for-purchase-job.ts";
-import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
 import { deliverFilesReadyNotificationJob } from "./deliver-files-ready-notification-job.ts";
 import { customDomainVerificationWorker } from "./custom-domain-verification-worker.ts";
 import { affiliateExportWorker, audienceExportWorker } from "./user-export-workers.ts";
@@ -339,8 +341,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RetryStripeJpAddressResyncsJob: retryStripeJpAddressResyncsJob,
   RetryStripeRejectedPayoutSetupsJob: retryStripeRejectedPayoutSetupsJob,
   StripeCreateMerchantAccountsWorker: stripeCreateMerchantAccountsWorker,
-
   RefundAllForFraudWorker: refundAllForFraudWorker,
+  BackfillPdfStampsJob: backfillPdfStampsJob,
+  RetryFailedPaypalPayoutsWorker: retryFailedPaypalPayoutsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,
