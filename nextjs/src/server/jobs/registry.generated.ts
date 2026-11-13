@@ -3013,7 +3013,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendChargeReceiptJob: {
     file: "app/sidekiq/send_charge_receipt_job.rb",

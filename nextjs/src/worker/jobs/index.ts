@@ -252,6 +252,7 @@ import {
 } from "./search-reindex-jobs.ts";
 import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
+import { sendBundlesMarketingEmailJob } from "./send-bundles-marketing-email-job.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
@@ -598,6 +599,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   RecordUtmLinkVisitJob: recordUtmLinkVisitJob,
   "Mcp::DeliverEventJob": mcpDeliverEventJob,
   "Exports::Sales::CreateAndEnqueueChunksWorker": createAndEnqueueChunksWorker,
+  SendBundlesMarketingEmailJob: sendBundlesMarketingEmailJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

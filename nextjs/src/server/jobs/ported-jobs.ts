@@ -265,4 +265,5 @@ export const PORTED_JOBS: readonly string[] = [
   "RecordUtmLinkVisitJob",
   "Mcp::DeliverEventJob",
   "Exports::Sales::CreateAndEnqueueChunksWorker",
+  "SendBundlesMarketingEmailJob",
 ];
