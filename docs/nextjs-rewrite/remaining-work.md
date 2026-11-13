@@ -7,12 +7,12 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 947 | 978 | 96.8% |
-| Routes registered in routes.json (counted; upper bound, adds the 5 listed under "hands back") | 952 | 978 | 97.3% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1786 | 1857 | 96.2% |
-| Same, registered in routes.json (upper bound) | 1791 | 1857 | 96.4% |
+| Routes served natively (counted, static check) | 964 | 978 | 98.6% |
+| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 964 | 978 | 98.6% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1815 | 1857 | 97.7% |
+| Same, registered in routes.json (upper bound) | 1815 | 1857 | 97.7% |
 | Rails Inertia pages with Node props (counted, string match) | 112 | 114 | 98.2% |
-| Sidekiq job classes running in Node (counted) | 225 | 296 | 76.0% |
+| Sidekiq job classes running in Node (counted) | 245 | 296 | 82.8% |
 
 ## Method
 
@@ -28,15 +28,15 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 174,034 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
-- 328 distinct rollout flags gate the routes in routes.json; none is enabled in production.
+- Code volume cross-check (counted, not a completion measure): Node has 182,813 non-test lines under `src/server` and `src/worker`; Rails has 197,057 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- 332 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
 
 | Workstream | Routes | Native | Hands back | Not registered | Native % | Weight | Native weight | Weighted % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Redirect-only routes (no controller) | 42 | 42 | 0 | 0 | 100.0% | 42 | 42 | 100.0% |
-| WS-10 Settings and account | 180 | 166 | 5 | 9 | 92.2% | 291 | 267 | 91.8% |
+| WS-10 Settings and account | 180 | 178 | 0 | 2 | 98.9% | 291 | 285 | 97.9% |
 | WS-11 Help, pages, blog, profiles | 71 | 69 | 0 | 2 | 97.2% | 80 | 78 | 97.5% |
 | WS-12 Products and bundles | 141 | 141 | 0 | 0 | 100.0% | 207 | 207 | 100.0% |
 | WS-13 Audience, emails, workflows | 53 | 53 | 0 | 0 | 100.0% | 106 | 106 | 100.0% |
@@ -44,12 +44,12 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
 | WS-16 Library and content delivery | 39 | 39 | 0 | 0 | 100.0% | 51 | 51 | 100.0% |
 | WS-17 Public and mobile API | 199 | 199 | 0 | 0 | 100.0% | 359 | 359 | 100.0% |
-| WS-18 Admin | 86 | 84 | 0 | 2 | 97.7% | 254 | 252 | 99.2% |
+| WS-18 Admin | 86 | 86 | 0 | 0 | 100.0% | 254 | 254 | 100.0% |
 | WS-19 AI, MCP and moderation | 36 | 36 | 0 | 0 | 100.0% | 108 | 108 | 100.0% |
-| WS-20 Checkout and orders | 71 | 58 | 0 | 13 | 81.7% | 222 | 179 | 80.6% |
+| WS-20 Checkout and orders | 71 | 61 | 0 | 10 | 85.9% | 222 | 188 | 84.7% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 978 | 947 | 5 | 26 | 96.8% | 1857 | 1786 | 96.2% |
+| **All** | 978 | 964 | 0 | 14 | 98.6% | 1857 | 1815 | 97.7% |
 
 ## Sensitivity to the weights
 
@@ -57,18 +57,18 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 947 | 978 | 96.8% |
-| Verb only: GET 1, other verbs 2 | 1380 | 1427 | 96.7% |
-| Rubric weights 1 to 4 (the headline) | 1786 | 1857 | 96.2% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2096 | 2194 | 95.5% |
+| Every route counts 1 (the plain route share) | 964 | 978 | 98.6% |
+| Verb only: GET 1, other verbs 2 | 1406 | 1427 | 98.5% |
+| Rubric weights 1 to 4 (the headline) | 1815 | 1857 | 97.7% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2128 | 2194 | 97.0% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 386 | 376 | 97.4% |
-| 2 | 330 | 324 | 98.2% |
-| 3 | 237 | 226 | 95.4% |
+| 1 | 386 | 384 | 99.5% |
+| 2 | 330 | 330 | 100.0% |
+| 3 | 237 | 229 | 96.6% |
 | 4 | 25 | 21 | 84.0% |
 
 ## By controller
@@ -77,21 +77,19 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 | Controller | Workstream | Routes | Native | Hands back | Not registered | Weight | Remaining weight |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `User::OmniauthCallbacksController` | WS-10 Settings and account | 30 | 18 | 5 | 7 | 1/2 (45) | 18 |
 | `OrdersController` | WS-20 Checkout and orders | 5 | 1 | 0 | 4 | 4 (20) | 16 |
-| `PaypalController` | WS-20 Checkout and orders | 4 | 0 | 0 | 4 | 3 (12) | 12 |
 | `BraintreeController` | WS-20 Checkout and orders | 2 | 0 | 0 | 2 | 3 (6) | 6 |
-| `CheckoutController` | WS-20 Checkout and orders | 2 | 1 | 0 | 1 | 3 (6) | 3 |
+| `PaypalController` | WS-20 Checkout and orders | 4 | 2 | 0 | 2 | 3 (12) | 6 |
 | `Checkout::ReturnsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
 | `Integrations::GoogleCalendarController` | WS-10 Settings and account | 3 | 2 | 0 | 1 | 3 (9) | 3 |
 | `Integrations::ZoomController` | WS-10 Settings and account | 2 | 1 | 0 | 1 | 3 (6) | 3 |
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
-| `Admin::FlipperUiController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
-| `Admin::SidekiqWebController` | WS-18 Admin | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `ApplicationController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `TestController` | WS-11 Help, pages, blog, profiles | 1 | 0 | 0 | 1 | 1 (1) | 1 |
 | `AcmeChallengesController` | WS-11 Help, pages, blog, profiles | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `Admin::BaseController` | WS-18 Admin | 3 | 3 | 0 | 0 | 1/2 (4) | 0 |
+| `Admin::FlipperUiController` | WS-18 Admin | 1 | 1 | 0 | 0 | 1 (1) | 0 |
+| `Admin::SidekiqWebController` | WS-18 Admin | 1 | 1 | 0 | 0 | 1 (1) | 0 |
 | `AffiliateRedirectController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1 (2) | 0 |
 | `AffiliateRequestsController` | WS-12 Products and bundles | 7 | 7 | 0 | 0 | 1/2 (10) | 0 |
 | `AffiliateRequests::OnboardingFormController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
@@ -196,6 +194,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Bundles::ProductController` | WS-12 Products and bundles | 3 | 3 | 0 | 0 | 1/2 (5) | 0 |
 | `Bundles::ShareController` | WS-12 Products and bundles | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
 | `CallsController` | WS-12 Products and bundles | 1 | 1 | 0 | 0 | 2 (2) | 0 |
+| `CheckoutController` | WS-20 Checkout and orders | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `Checkout::DiscountsController` | WS-20 Checkout and orders | 6 | 6 | 0 | 0 | 3 (18) | 0 |
 | `Checkout::FormController` | WS-20 Checkout and orders | 2 | 2 | 0 | 0 | 3 (6) | 0 |
 | `Checkout::UpsellsController` | WS-20 Checkout and orders | 7 | 7 | 0 | 0 | 3 (21) | 0 |
@@ -337,6 +336,7 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `UrlRedirectsController` | WS-16 Library and content delivery | 23 | 23 | 0 | 0 | 1/2 (27) | 0 |
 | `UserPagesController` | WS-10 Settings and account | 3 | 3 | 0 | 0 | 1 (3) | 0 |
 | `User::InvalidateActiveSessionsController` | WS-10 Settings and account | 1 | 1 | 0 | 0 | 2 (2) | 0 |
+| `User::OmniauthCallbacksController` | WS-10 Settings and account | 30 | 30 | 0 | 0 | 1/2 (45) | 0 |
 | `User::PasswordsController` | WS-10 Settings and account | 5 | 5 | 0 | 0 | 1/2 (8) | 0 |
 | `UsersController` | WS-10 Settings and account | 18 | 18 | 0 | 0 | 1/2 (20) | 0 |
 | `Users::FeatureAnnouncementsController` | WS-10 Settings and account | 2 | 2 | 0 | 0 | 1/2 (3) | 0 |
@@ -353,17 +353,13 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 
 ## Routes that hand back (listed in routes.json, no Node code found)
 
-- `GET /users/auth/stripe_connect/callback` (`User::OmniauthCallbacksController#stripe_connect`)
-- `GET /users/auth/google_oauth2/callback` (`User::OmniauthCallbacksController#google_oauth2`)
-- `GET /users/auth/youtube/callback` (`User::OmniauthCallbacksController#youtube`)
-- `GET /users/auth/instagram/callback` (`User::OmniauthCallbacksController#instagram`)
-- `GET /users/auth/tiktok/callback` (`User::OmniauthCallbacksController#tiktok`)
+None.
 
 ## routes.json entries that match no parsed Rails route
 
 A diagnostic for the matcher: each is either a path the parser or the matcher missed (it would understate the native share) or a stale entry.
 
-- `GET|HEAD /api/health` (`null`)
+None.
 
 ## Rails Inertia pages without Node props
 
@@ -375,25 +371,27 @@ A diagnostic for the matcher: each is either a path the parser or the matcher mi
 Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 2026-11-10; not recomputed by the script and not in any percentage.
 
 - WS-20 `POST /customer_surcharge`: VAT ids (vendor validation), US taxable states and Canadian provinces (TaxJar), commission and renewal lines, Payment Element requests and buyer-currency sellers (Stripe FX) hand back.
-- WS-20 `GET /offer_codes/compute_discount`: a malformed query hands back. `PurchasesController` actions other than `revoke_access`/`undo_revoke_access`, `change_can_contact` and `resend_receipt` (`refund`, `update`, `confirm`, preorder and subscription charges) hand back; `change_can_contact` hands back only the shapes listed in workstreams.md (WS-18 purchases 2). Checkout is the empty-cart page only: there is no purchase path in Node.
+- WS-20 `GET /offer_codes/compute_discount`: a malformed query hands back. `PurchasesController` actions other than `revoke_access`/`undo_revoke_access` (`change_can_contact`, `refund`, `update`, `resend_receipt`, `confirm`, preorder and subscription charges) hand back. Checkout is the empty-cart page only: there is no purchase path in Node.
 - WS-20 `POST /orders`: one free line of a plain one-time USD product runs in Node; every paid order hands back whole before its first write. Rails' order for a tokenized card purchase is recorded (`orders_paid_purchase_parity_spec.rb`, Stripe answered by VCR cassettes) and `Purchase#calculate_fees` is ported with a golden, but the Stripe calls (payment method read, payment intent create and confirm, charge read), the balance and the post-charge jobs are not, so nothing serves it. Detail in parity-debt.md, "paid purchase".
+- WS-20 cart save (`nextjs_checkout_cart_save`): `PATCH` and `PUT /checkout` run in Node for plain lines (a cart created or updated by account or browser guid, lines created, updated or soft deleted, the three alert redirects). Handed back whole before any write: a line with an affiliate, an accepted offer (upsell or cross-sell), a call start time or installments, a product or variant that is not found, a quantity or price that is not a plain non-negative whole number, url parameters that are not strings, a new line without a referrer, discount codes outside the cart schema, a request with no guid cookie, and a browser with two live carts. Flash text of the alert redirects is not compared by the replay (it lives in the encrypted session).
+- WS-20 PayPal billing agreements (`nextjs_paypal_billing_agreements`): `POST /paypal/billing_agreement_token` and `POST /paypal/billing_agreement` run in Node on the Gumroad host and render what PayPal answered, including the null Rails renders for a refusal or an answer without a token or id. Handed back whole before any call: a PayPal call that fails below HTTP (socket, OAuth token), a `billing_agreement_token_id` that is missing or not text, and an answer with a fractional number. The seller-domain and custom-domain copies stay in Rails. `connect`, `disconnect` and both Braintree token routes are not registered.
 - WS-23 payout guards (`nextjs_payouts_guards`): `POST /settings/stripe/disconnect`, `POST /instant_payouts`, `GET /payouts/taxes/:year/:form_type/download`, `POST /payouts/taxes/:year/transaction_report` and `GET /oauth_completions/stripe` answer sign-in, the tax center switch, Pundit refusals, a missing tax form or Stripe account and a missing OAuth session; a disconnect, an instant payout, a tax form that exists, a report that is available and an OAuth session with Stripe data hand back whole (the last has no recorded example: a request spec cannot seed `session[:stripe_connect_data]`).
 - WS-20 write guards (`nextjs_checkout_write_guards`): discount create, update and destroy run in Node for a plain code (`assertPlainCode`/`assertPlainProducts`; a code with an upsell, exclusions, options, ownership products, customer limits, a duration, tiers, a per-cart rule or a cancellation role, a change of products or of universal, a deleted code, the default discount of a product, a product with options or a membership, and a request that carries listing params hand back before any write); upsells create/update, `POST /purchases/:purchase_id/pings` and `PATCH /purchases/:purchase_id/variants/:variant_id` answer the 404 and Pundit refusal; every request that passes hands back whole.
 - WS-21 processor calls (Stripe, Braintree, PayPal) hand back everywhere except the webhook receivers (`nextjs_foreign_webhooks`: Stripe, Stripe Connect, PayPal, SendGrid, Resend and the two SNS endpoints, recorded in `foreign_webhooks_parity_spec`; a delivery with a fractional or unsafe number, a JSON body Rails would munge or reject, a Stripe timestamp written as hex and an SNS notification Ruby would raise on hand back whole); job guards and refund/dispute reads are ported besides.
 - WS-22 tax: TaxJar, `ZipTaxRate` selection, GeoIP and the VAT validators (VIES, Vatstack, IRAS, Revenu Quebec) hand back.
 - WS-23 payouts page: compliant daily-frequency sellers, US sellers with a seasoned account (Stripe instant eligibility), large sellers with a cached balance blob and PayPal Connect hand back; there is no payout execution in Node.
-- WS-12 product page: uploaded image and oEmbed covers already run in Node (uploaded videos, a product with sections of its own and `wanted=true` hand back); `wanted` with another value and a `purchase_id`/`purchase_email_digest` pair that names no purchase of the product run in Node, a pair that matches one (a review-reminder link) hands back; `recommended_by=search|discover` is served (the `DiscoverSearch` click is written) and a storefront seller's page renders the catalogue below the product. The editor serves plain digital products only; `LinksController#update/publish/index/search/card/price_check/release_preorder`, thumbnails, asset previews, variants, builds, marketing actions, waitlist and call availabilities are not ported.
+- WS-12 product page: products with asset previews, a product with sections of its own, uploaded and oEmbed covers and the `wanted` and `purchase_id` params hand back; `recommended_by=search|discover` is served (the `DiscoverSearch` click is written) and a storefront seller's page renders the catalogue below the product. The editor serves plain digital products only; `LinksController#update/publish/index/search/card/price_check/release_preorder`, thumbnails, asset previews, variants, builds, marketing actions, waitlist and call availabilities are not ported.
 - WS-11 profiles: custom HTML pages, a nested visitor param other than the list and hash forms of `tags` and the list of `filetypes`, and a repeated nested key (Rack::Attack's parser refuses it) hand back; tiered-membership cards, unknown section types (the 500 Rails raises) and wishlist owners without a username (external id subdomain) run in Node. `GET /features.md` runs in Node for a cookie-less request; the other `home#*` ERB pages, the `/js/gumroad*` embeds and `POST /custom_domain/verify` are not ported.
-- WS-14 discover: the root page's random `recommended_products` and curated lists seeded by 4 or more cart or purchased products hand back (fewer run in Node; the Black Friday page runs in Node: the hero and `BlackFridayStatsService` figures are computed fresh, without Rails' 10-minute cache); one recommended-wishlists example is handed back by the replay (E6). The product and wishlist pages with `layout=discover` hand back only from 4 or more distinct cart or purchased products.
+- WS-14 discover: the root page's random `recommended_products`, curated lists for visitors with cart products or purchases and the Black Friday page hand back; one recommended-wishlists example is handed back by the replay (E6).
 - WS-15 customers page: a commission completion in progress that holds a processor reference, and review videos with an unprocessed thumbnail variant, hand back.
 - WS-16 content delivery: `stream`, `read`, `play` and `captions.vtt` past the access gate hand back; download pages that list files, rich content, posts, integrations, licenses or polls hand back; signed-URL bytes: the S3 presign of the test environment's minio and the CloudFront signature are reproduced byte for byte from Rails' fixtures (`signed-urls-fixtures.test.ts`), the Cloudflare `verify` token and the production bucket, key and distribution choice are not.
-- WS-17 mobile and v2: mobile purchases show/archive/unarchive/delete of a purchase with a preorder, subscription, refund, review, post, variants, rich content, stamped PDF or media location, a sale with variants, an offer code, an affiliate, a refund, a review, a PPP discount, an upsell, a shipment, or a membership, preorder, gift, bundle or commission, and the mobile writes except `POST /mobile/subscriptions/:id/cancel` and the archive, unarchive and delete of a plain purchase hand back; v2 `GET /v2/payouts/upcoming`, `include_transactions` and card or European bank destinations hand back; v2 licenses are not served in Node.
+- WS-17 mobile and v2: mobile purchases index/search (with rows) and show/archive/unarchive/delete of a purchase with a preorder, subscription, refund, review, post, variants, rich content, stamped PDF or media location, sales show and the mobile writes except `POST /mobile/subscriptions/:id/cancel` and the archive, unarchive and delete of a plain purchase hand back; v2 `GET /v2/payouts/upcoming`, `include_transactions` and card or European bank destinations hand back; v2 licenses are not served in Node.
 - WS-17 store agent previews: `POST /internal/agent/custom_html_preview` answers its gates and every proposal refused before sanitizing (including the snippet matcher's counts); a preview that renders (`Ai::PageSanitizer`, `Pages::Interpolator`, `Pages::ProfileData`, `Pages::DefaultProfileDocument`), a cleared page and a guarded undo hand back. `GET /internal/agent/custom_html_previews/:token` runs whole. The throttled `Api::V2::LinksController` create/update/comps/preview_custom_html, `Api::V2::MediaController#create` and `POST /internal/ai_product_details_generations` stay in Rails with Rack::Attack.
 - WS-10 settings writes: a float or huge integer in a snippet `id` hands back; password, team invitations (the Gumroad account's team and mailboxes only Mail can parse), passkey registration, login/signup POSTs and OAuth callbacks are only partly ported (see the not registered rows). The authenticator app endpoints run whole in Node. Sign in with Apple creates and links accounts in Node except for guest purchases to attach and adopting an unconfirmed account; the Google and Twitter callbacks run in Node (Google from the code exchange to the sign-in, with its own guest-purchase attach and picture), the YouTube, Instagram and TikTok connect callbacks run in Node whatever code, redirect URI or XHR header they carry, a new passkey registers in Node when its attestation is the `none` format with an ES256 key, and the Stripe Connect callback that creates or links accounts still hands back.
-- WS-19 MCP: the tool bodies other than `get_account`, `list_payouts`, `get_customers`, `get_sales_totals`, `list_sales`, `list_products`, `get_product`, `list_files`, `get_analytics`, `get_subscriptions`, `publish_product`/`unpublish_product`, `create_draft_product` (digital drafts), `update_product` (name, description, price), `create_discount_code` and `update_discount_code` and `expire_discount_code` (plain codes) hand back, so do `add_cover`, `add_file`, the bundle tools, OAuth client registration and `ProductFileIngest`; the moderation logic exists but is wired to no route.
+- WS-19 MCP: the tool bodies other than `get_account`, `list_payouts`, `get_customers`, `get_sales_totals`, `list_sales`, `list_products`, `get_product`, `list_files`, `get_analytics`, `get_subscriptions`, `publish_product`/`unpublish_product`, `create_draft_product` (digital drafts), `update_product` (name, description, price, permalink), `create_discount_code` and `update_discount_code` and `expire_discount_code` (plain codes) hand back, so do `add_cover`, `add_file`, the bundle tools, memberships in `create_draft_product` and `ProductFileIngest`; the moderation logic exists but is wired to no route.
 - WS-13 receipt mailer: the first receipt of a membership and of its free trial (a dollar product that renews at the same price) is served; renewal receipts, fixed-length, installment-plan and gifted memberships, a renewal that costs more or less than the first charge, and a gift receiver with a price, a hidden recipient or a physical product hand back; posts and workflow emails with files that have thumbnails throw `NotPortedError`.
 - WS-15 purchases export (`nextjs_purchases_export`, `GET|POST /purchases/export`): signed-out requests, the mobile `access_token` form, an `in_seller_time_zone` that is not a plain word or a seller zone ActiveSupport does not map, `variant_ids`, dates that are not `YYYY-MM-DD` and any result holding a sale with several variants, a variant of a tiered membership or of a licensed product, a gift, pre-order, subscription charge, cart, buyer-currency or PayPal charge, a seller's own Stripe Connect account, a GeoIP-derived state or country, a non-ASCII address or a product with several custom fields hand back whole. Plain sales and sales with one variant or SKU, tax, an affiliate, a tip, a review, a license key, a UTM link or an upsell run in Node.
-- WS-12 `GET /bundles/create_from_email` (`nextjs_bundles_create_from_email`): the policy refusal, a bundle type the marketing email never sends and a price under the currency minimum answer in Node; the draft bundle itself (Link, Price and bundle product rows, the Elasticsearch document) is created in Node; a link with no whole-number price, a free bundle, a product with SKUs and a `products` value that is not a list of text hand back.
+- WS-12 `GET /bundles/create_from_email` (`nextjs_bundles_create_from_email`): the policy refusal, a bundle type the marketing email never sends and a price under the currency minimum answer in Node; creating the bundle (Link, Price and bundle product rows) and a link with no whole-number price hand back.
 - WS-11 third-party analytics host: `GET /profile/:username` (`nextjs_third_party_analytics_profile`) and `GET /:link_id` (`nextjs_third_party_analytics_index`; a request with a `purchase_id` stays in Rails) run in Node. `GET /users/confirmation/new` (Devise's view inside the application layout) and `GET /_/test/outgoing_traffic` (a probe that reads one S3 object to prove the Rails process has outbound traffic) stay in Rails.
 - WS-30 jobs: most Node jobs hand individual runs back to Ruby, so the job count above is an upper bound on finished jobs.
 
