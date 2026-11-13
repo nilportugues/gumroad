@@ -681,14 +681,17 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands a sale of a default SKU to Rails", parity: true do
+      it "serves a sale of a default SKU", parity: true do
         physical = create(:physical_product, user: seller, skus_enabled: true)
         sold = purchase_row(link: physical, seller:, purchase_state: "successful")
-        sold.variant_attributes << create(:sku, link: physical, name: "Default", is_default_sku: true)
+        default_sku = create(:sku, link: physical, name: "Default", is_default_sku: true)
+        sold.variant_attributes << default_sku
 
         show(sold)
 
-        expect(response).to have_http_status(:ok)
+        purchase = response.parsed_body["purchase"]
+        expect(purchase["sku_id"]).to eq(default_sku.external_id)
+        expect(purchase["variants"]).to eq("Version" => { "is_sku" => true, "title" => "Version", "selected_variant" => { "id" => default_sku.external_id, "name" => "Default" } })
       end
 
       it "serves a sale with a shipment that has not shipped", parity: true do
@@ -717,14 +720,16 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(purchase["tracking_url"]).to eq("http://wwwapps.ups.com/WebTracking/processInputRequest?TypeOfInquiryNumber=T&InquiryNumber1=1Z999")
       end
 
-      it "hands a sale with a tracking link that is not http or https to Rails", parity: true do
+      it "serves a sale with a tracking link that is not http or https", parity: true do
         physical = create(:physical_product, user: seller)
         sold = purchase_row(:physical_purchase, link: physical, seller:, purchase_state: "successful")
         Shipment.new(purchase: sold, tracking_url: "ftp://example.com/track").save!(validate: false)
 
         show(sold)
 
-        expect(response).to have_http_status(:ok)
+        purchase = response.parsed_body["purchase"]
+        expect(purchase["shipped"]).to eq(false)
+        expect(purchase["tracking_url"]).to be_nil
       end
 
       it "serves a sale with an affiliate and the credit it earned", parity: true do

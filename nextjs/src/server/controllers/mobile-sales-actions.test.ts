@@ -139,8 +139,39 @@ describe("POST /mobile/sales/:id/resend_ping", () => {
     expect(performAsync).not.toHaveBeenCalled();
   });
 
-  it("hands a sale with URL parameters to Rails before enqueuing", async () => {
-    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ one: 1 }]);
+  it("passes the URL parameters of the sale to the job as url_params", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ params: '{"discord_id": "42"}' }]);
+    expect(body(await run("POST", action, {}))).toEqual({ success: true });
+    expect(performAsync).toHaveBeenCalledExactlyOnceWith("PostToPingEndpointsWorker", [5, { discord_id: "42" }], {
+      delaySeconds: 10,
+    });
+  });
+
+  it("reads URL parameters the driver already parsed", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ params: { plan: "pro" } }]);
+    await run("POST", action, {});
+    expect(performAsync).toHaveBeenCalledExactlyOnceWith("PostToPingEndpointsWorker", [5, { plan: "pro" }], {
+      delaySeconds: 10,
+    });
+  });
+
+  it("looks the URL parameters up under the giftee's purchase for a gift's sender", async () => {
+    selectRows
+      .mockResolvedValueOnce([sale({ flags: PurchaseFlags.set(0n, "is_gift_sender_purchase", true) })])
+      .mockResolvedValueOnce([{ giftee_purchase_id: 6n }])
+      .mockResolvedValueOnce([{ params: '{"a": "b"}' }]);
+    await run("POST", action, {});
+    expect(performAsync).toHaveBeenCalledExactlyOnceWith("PostToPingEndpointsWorker", [6, { a: "b" }], {
+      delaySeconds: 10,
+    });
+  });
+
+  it("hands several URL parameter rows and values that are not text to Rails before enqueuing", async () => {
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ params: "{}" }, { params: "{}" }]);
+    await handedBack(run("POST", action, {}));
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ params: '{"n": 1}' }]);
+    await handedBack(run("POST", action, {}));
+    selectRows.mockResolvedValueOnce([sale()]).mockResolvedValueOnce([{ params: '["a"]' }]);
     await handedBack(run("POST", action, {}));
     expect(performAsync).not.toHaveBeenCalled();
   });

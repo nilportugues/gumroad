@@ -1,6 +1,7 @@
 // Shipment#calculated_tracking_url: the stored link, or the carrier's tracking form with the number appended, when it is a link the
 // sale JSON shows. Whether Ruby's URI.parse accepts an arbitrary string is not ported: a link outside the plain http(s) form is not
-// answered (NotPortedError), so only a link both parsers read the same way, or one that is blank, comes out here.
+// answered (NotPortedError), so only a link both parsers read the same way, one that is blank, or one whose scheme is not http(s) comes out here.
+import { displaySafeTrackingLink } from "./shipment.ts";
 import { NotPortedError } from "./user.ts";
 
 const CARRIER_TRACKING_URL_MAPPING: Record<string, string> = {
@@ -42,6 +43,8 @@ export function calculatedTrackingUrl(shipment: ShipmentRow): string | null {
     );
   const link = raw.replace(RUBY_STRIP, "");
   if (link === "" || link.length > TRACKING_LINK_MAX_LENGTH) return null;
+  // A scheme other than http(s) (ftp://...) is not display-safe: `display_safe_tracking_link` answers nil.
+  if (displaySafeTrackingLink(link) === false) return null;
   if (!PLAIN_LINK.test(link))
     throw new NotPortedError("a tracking link URI.parse may read differently", "Shipment#calculated_tracking_url");
   return link;

@@ -34,14 +34,38 @@ const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 type Day = Record<string, any>;
 
-// Date.parse of a bare ISO date; any other shape (or an impossible date) is Ruby's to read.
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+const DAY_MONTH_YEAR = /^(\d{1,2}) ([A-Z][a-z]+) (\d{4})$/u;
+const pad = (value: number, width: number) => String(value).padStart(width, "0");
+
+// Date.parse of a bare ISO date or of `1 March 2026` (day, full month name, year); any other shape (or an impossible date) is Ruby's
+// to read. Answers the date as ISO.
 function parseDate(value: unknown): string {
-  const match = typeof value === "string" ? ISO_DATE.exec(value) : null;
-  if (!match) throw new HandBackToRails("a date Node does not parse");
-  const probe = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  if (probe.getUTCMonth() !== Number(match[2]) - 1 || probe.getUTCDate() !== Number(match[3]))
+  const text = typeof value === "string" ? value : "";
+  const iso = ISO_DATE.exec(text);
+  const written = DAY_MONTH_YEAR.exec(text);
+  const month = written === null ? undefined : MONTH_NAMES.indexOf(written[2]!) + 1;
+  if (!iso && (!written || month === 0)) throw new HandBackToRails("a date Node does not parse");
+  const [year, monthNumber, day] = iso
+    ? [Number(iso[1]), Number(iso[2]), Number(iso[3])]
+    : [Number(written![3]), month!, Number(written![1])];
+  const probe = new Date(Date.UTC(year, monthNumber - 1, day));
+  if (probe.getUTCMonth() !== monthNumber - 1 || probe.getUTCDate() !== day)
     throw new HandBackToRails("an impossible date");
-  return value as string;
+  return iso ? text : `${pad(year, 4)}-${pad(monthNumber, 2)}-${pad(day, 2)}`;
 }
 
 // AnalyticsController#set_date_range

@@ -59,8 +59,15 @@ describe("skuDetails", () => {
     expect((await skuDetails(sku({ custom_sku: "  " }))).sku.id).toBe("enc5");
   });
 
-  it("hands back a default SKU and a product with two categories", async () => {
-    await expect(skuDetails(sku({ flags: 1 }))).rejects.toThrow("a default SKU");
+  it("prints a default SKU like any other, since sku_title ignores the flag", async () => {
+    selectRows.mockResolvedValue([]);
+    expect(await skuDetails(sku({ flags: 1, name: "Default" }))).toEqual({
+      variants: { Version: { is_sku: true, title: "Version", selected_variant: { id: "enc5", name: "Default" } } },
+      sku: { id: "enc5", externalId: "enc5" },
+    });
+  });
+
+  it("hands back a product with two categories", async () => {
     selectRows.mockResolvedValue([{ title: "Size" }, { title: "Color" }]);
     await expect(skuDetails(sku())).rejects.toThrow("several categories");
   });
@@ -95,11 +102,18 @@ describe("shipmentDetails", () => {
     expect(await shipmentDetails(sale())).toMatchObject({ shipped: false, tracking_url: null });
   });
 
+  it("leaves the tracking link out when its scheme is not http or https", async () => {
+    selectRows.mockResolvedValue([
+      { shipped_at: null, tracking_url: "ftp://example.com/track", tracking_number: null, carrier: null },
+    ]);
+    expect(await shipmentDetails(sale())).toMatchObject({ shipped: false, tracking_url: null });
+  });
+
   it("hands back several shipments and a link URI.parse may read differently", async () => {
     const row = { shipped_at: null, tracking_url: null, tracking_number: null, carrier: null };
     selectRows.mockResolvedValue([row, row]);
     await expect(shipmentDetails(sale())).rejects.toThrow("several shipments");
-    selectRows.mockResolvedValue([{ ...row, tracking_url: "ftp://example.com/track" }]);
+    selectRows.mockResolvedValue([{ ...row, tracking_url: "http://[::1]/track" }]);
     await expect(shipmentDetails(sale())).rejects.toThrow("URI.parse");
   });
 });

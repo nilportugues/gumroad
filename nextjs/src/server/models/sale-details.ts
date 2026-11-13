@@ -11,7 +11,6 @@ import { column, selectRows, table } from "./sql.ts";
 import { NotPortedError } from "./user.ts";
 
 const RUBY_REF = "Purchase#json_data_for_mobile";
-const BASE_VARIANT_IS_DEFAULT_SKU = 1;
 const blank = (value: string | null) => value === null || value.trim() === "";
 
 export type SkuRow = {
@@ -24,7 +23,6 @@ export type SkuRow = {
 
 // Purchase#variant_details_hash and the sku_id keys of a purchase whose only variant is a SKU.
 export async function skuDetails(sku: SkuRow) {
-  if ((sku.flags & BASE_VARIANT_IS_DEFAULT_SKU) !== 0) throw new NotPortedError("a default SKU", RUBY_REF);
   // Link#sku_title joins the alive categories in an order only MySQL knows, so a second one is Rails'.
   const categories = await selectRows<{ title: string | null }>(
     Prisma.sql`SELECT ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${sku.link_id} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 2`,
