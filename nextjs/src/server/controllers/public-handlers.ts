@@ -361,7 +361,7 @@ const HANDLERS: Record<string, Handler> = {
     run: (request, _url, action) => computeDiscount(request, railsLoggedInUser(action.context)),
   },
   url_redirects: { run: (_request, _url, action) => urlRedirectsAction(action) },
-  discord_oauth_redirect: { run: (request) => discordHandlers.discord_oauth_redirect(request) },
+  discord_oauth_redirect: { run: (request, _url, action) => discordHandlers.discord_oauth_redirect(request, action) },
   discord_join_server: { run: (request, _url, action) => discordHandlers.discord_join_server(request, action) },
   discord_leave_server: { run: (request, _url, action) => discordHandlers.discord_leave_server(request, action) },
 };
