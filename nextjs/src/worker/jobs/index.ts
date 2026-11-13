@@ -44,6 +44,8 @@ import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-r
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-seller-job.ts";
 import { alertOnBlockedEstablishedBuyersJob } from "./alert-on-blocked-established-buyers-job.ts";
+import { alertOnBlockedEstablishedSubscribersJob } from "./alert-on-blocked-established-subscribers-job.ts";
+import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
@@ -432,6 +434,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   ActivateIntegrationsWorker: activateIntegrationsWorker,
   GenerateProductFilesArchivesJob: generateProductFilesArchivesJob,
   AlertOnBlockedEstablishedBuyersJob: alertOnBlockedEstablishedBuyersJob,
+  AlertOnBlockedEstablishedSubscribersJob: alertOnBlockedEstablishedSubscribersJob,
+  RequeueTransientlyFailedPayoutsJob: requeueTransientlyFailedPayoutsJob,
   WarmSellerReputationSummaryJob: warmSellerReputationSummaryJob,
   FightDisputeJob: fightDisputeJob,
   PayoutUsersWorker: payoutUsersWorker,

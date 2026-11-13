@@ -49,7 +49,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "AlertOnNegativeDestinationBalancesJob": {
     "file": "app/sidekiq/alert_on_negative_destination_balances_job.rb",
@@ -2590,7 +2590,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ResendConfirmationEmailJob": {
     "file": "app/sidekiq/resend_confirmation_email_job.rb",
