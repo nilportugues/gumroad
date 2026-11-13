@@ -45,6 +45,14 @@ export async function findByPurchaseOrCharge(purchase: Purchase | null, charge: 
   return { kind: "purchase", purchase: purchase! };
 }
 
+// `charge.order.email`: `Order#purchase_as_orderable&.email`, the order's first purchase in a success state (by `purchases.id`).
+export async function orderableEmail(charge: Charge): Promise<string | null> {
+  const [row] = await selectRows<{ email: string | null }>(
+    Prisma.sql`SELECT ${column(PURCHASES, "email")} FROM ${table(PURCHASES)} INNER JOIN ${table("order_purchases")} ON ${column(PURCHASES, "id")} = ${column("order_purchases", "purchase_id")} WHERE ${column("order_purchases", "order_id")} = ${charge.order_id} AND ${column(PURCHASES, "purchase_state")} IN ${inList(ALL_SUCCESS_STATES_INCLUDING_TEST)} ORDER BY ${column(PURCHASES, "id")} ASC LIMIT 1`,
+  );
+  return row?.email ?? null;
+}
+
 function chargeSuccessfulPurchases(charge: Charge, options: { first: boolean }): Promise<Purchase[]> {
   const base = Prisma.sql`SELECT ${Prisma.raw(`${quoteName(PURCHASES)}.*`)} FROM ${table(PURCHASES)} INNER JOIN ${table("charge_purchases")} ON ${column(PURCHASES, "id")} = ${column("charge_purchases", "purchase_id")} WHERE ${column("charge_purchases", "charge_id")} = ${charge.id} AND ${column(PURCHASES, "purchase_state")} IN ${inList(ALL_SUCCESS_STATES_INCLUDING_TEST)}`;
   const sql = options.first ? Prisma.sql`${base} ORDER BY ${column(PURCHASES, "id")} ASC LIMIT 1` : base;

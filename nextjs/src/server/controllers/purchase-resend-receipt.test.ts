@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findByPurchaseOrCharge, performAsync } = vi.hoisted(() => ({
+const { findByPurchaseOrCharge, orderableEmail, performAsync, deliverLater, findOneBy } = vi.hoisted(() => ({
   findByPurchaseOrCharge: vi.fn(),
+  orderableEmail: vi.fn(),
   performAsync: vi.fn(),
+  deliverLater: vi.fn(),
+  findOneBy: vi.fn(),
 }));
 
-vi.mock("../models/charge.ts", () => ({ findByPurchaseOrCharge }));
-vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync }));
+vi.mock("../models/charge.ts", () => ({ findByPurchaseOrCharge, orderableEmail }));
+vi.mock("../models/concerns/job-runtime.ts", () => ({ performAsync, currentJobsRuntime: () => "runtime" }));
+vi.mock("../models/row-reads.ts", () => ({ findOneBy }));
+vi.mock("../mail/active-job.ts", () => ({ deliverLater }));
+vi.mock("../mail/delivery.ts", () => ({ mailRoute: () => "ruby" }));
 
 const { resendReceipt } = await import("./purchase-resend-receipt.ts");
 const { PurchaseFlags } = await import("../search/flags.ts");
@@ -24,7 +30,10 @@ const WEB = { rescueEnqueueError: true };
 
 beforeEach(() => {
   findByPurchaseOrCharge.mockReset().mockImplementation((row: unknown) => ({ kind: "purchase", purchase: row }));
+  orderableEmail.mockReset().mockResolvedValue("buyer@example.com");
   performAsync.mockReset().mockResolvedValue("jid");
+  deliverLater.mockReset().mockResolvedValue("job-id");
+  findOneBy.mockReset().mockResolvedValue(null);
 });
 
 describe("resendReceipt", () => {
@@ -40,13 +49,48 @@ describe("resendReceipt", () => {
     expect(performAsync).not.toHaveBeenCalled();
   });
 
-  it("hands back the receipt of a charge, a preorder authorization and a gift sender before enqueuing", async () => {
-    findByPurchaseOrCharge.mockResolvedValueOnce({ kind: "charge", charge: {} });
-    await expect(resendReceipt(purchase(), WEB)).rejects.toBeInstanceOf(HandBackToRails);
+  it("checks the email of the order's first purchase for the receipt of a charge", async () => {
+    findByPurchaseOrCharge.mockResolvedValue({ kind: "charge", charge: { order_id: 3n } });
+    orderableEmail.mockResolvedValueOnce(null);
+    expect(await resendReceipt(purchase(), WEB)).toBe("missing");
+    expect(performAsync).not.toHaveBeenCalled();
+
+    expect(await resendReceipt(purchase({ email: "" }), WEB)).toBe("sent");
+    expect(performAsync).toHaveBeenCalledWith("SendPurchaseReceiptJob", [5, true]);
+  });
+
+  it("enqueues the giftee's receipt after the sender's", async () => {
+    findOneBy.mockResolvedValueOnce({ giftee_purchase_id: 9n }).mockResolvedValueOnce({ id: 9n });
+    expect(await resendReceipt(purchase({}, ["is_gift_sender_purchase"]), WEB)).toBe("sent");
+    expect(performAsync.mock.calls).toEqual([
+      ["SendPurchaseReceiptJob", [5, true]],
+      ["SendPurchaseReceiptJob", [9, true]],
+    ]);
+  });
+
+  it("enqueues only the sender's receipt when the gift or its giftee purchase is missing", async () => {
+    expect(await resendReceipt(purchase({}, ["is_gift_sender_purchase"]), WEB)).toBe("sent");
+    findOneBy.mockResolvedValueOnce({ giftee_purchase_id: 9n }).mockResolvedValueOnce(null);
+    expect(await resendReceipt(purchase({}, ["is_gift_sender_purchase"]), WEB)).toBe("sent");
+    expect(performAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("delivers the preorder receipt through ActiveJob instead of enqueuing a receipt job", async () => {
+    findOneBy.mockResolvedValueOnce({ id: 7n });
+    expect(await resendReceipt(purchase({ preorder_id: 7n }, ["is_preorder_authorization"]), WEB)).toBe("sent");
+    expect(deliverLater).toHaveBeenCalledWith(
+      "runtime",
+      { mailer: "CustomerMailer", method: "preorder_receipt", args: [7], queue: "critical", waitSeconds: 3 },
+      "ruby",
+    );
+    expect(performAsync).not.toHaveBeenCalled();
+  });
+
+  it("hands back a preorder authorization whose preorder is gone before enqueuing", async () => {
     await expect(resendReceipt(purchase({}, ["is_preorder_authorization"]), WEB)).rejects.toBeInstanceOf(
       HandBackToRails,
     );
-    await expect(resendReceipt(purchase({}, ["is_gift_sender_purchase"]), WEB)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(deliverLater).not.toHaveBeenCalled();
     expect(performAsync).not.toHaveBeenCalled();
   });
 

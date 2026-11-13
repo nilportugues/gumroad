@@ -300,21 +300,69 @@ describe "Purchases controller guards", type: :request do
       expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
     end
 
-    it "hands the receipt of a preorder authorization to Rails", parity: true do
+    it "enqueues the preorder receipt mail of a preorder authorization", parity: true, parity_mail_jobs: true do
       preordered, = preorder_purchase
       preordered.update_attribute(:is_preorder_authorization, true)
 
       send_json(:post, "/purchases/#{preordered.external_id}/resend_receipt")
 
       expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
     end
 
-    it "hands the receipt of a gift sender to Rails", parity: true do
+    it "enqueues the receipts of a gift sender and of its giftee", parity: true do
+      purchase.update_attribute(:is_gift_sender_purchase, true)
+      giftee_purchase = build(:purchase, link: product, seller:, email: "giftee@example.com", purchase_state: "gift_receiver_purchase_successful").tap { _1.save!(validate: false) }
+      giftee_purchase.update_attribute(:is_gift_receiver_purchase, true)
+      create(:gift, link: product, gifter_purchase: purchase, giftee_purchase:)
+
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(2)
+    end
+
+    it "enqueues only the sender's receipt when the gift has no giftee purchase", parity: true do
+      purchase.update_attribute(:is_gift_sender_purchase, true)
+      create(:gift, link: product, gifter_purchase: purchase)
+
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    end
+
+    it "enqueues only the sender's receipt when there is no gift", parity: true do
       purchase.update_attribute(:is_gift_sender_purchase, true)
 
       send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
 
       expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    end
+
+    it "enqueues the receipt of a purchase whose charge belongs to an order", parity: true do
+      order = create(:order)
+      order.purchases << purchase
+      create(:charge, order:, seller:, purchases: [purchase])
+
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:no_content)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(1)
+    end
+
+    it "answers 404 when the first purchase of the order has no email, whatever the email of this one", parity: true do
+      order = create(:order)
+      first = build(:purchase, link: product, seller:, email: "", purchase_state: "successful").tap { _1.save!(validate: false) }
+      order.purchases << first
+      order.purchases << purchase
+      create(:charge, order:, seller:, purchases: [first, purchase])
+
+      send_json(:post, "/purchases/#{purchase.external_id}/resend_receipt")
+
+      expect(response).to have_http_status(:not_found)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
     end
   end
 
