@@ -158,8 +158,8 @@ describe("POST /v2/direct_uploads", () => {
     );
   });
 
-  it("hands back an empty blob and a boolean byte_size", async () => {
-    await expect(call("/v2/direct_uploads", { blob: {} })).rejects.toThrow("empty blob");
+  it("refuses an empty blob and hands back a boolean byte_size", async () => {
+    expect(await create({ blob: {} })).toEqual([400, "param is missing or the value is empty or invalid: blob"]);
     await expect(call("/v2/direct_uploads", { blob: { ...blob, byte_size: true } })).rejects.toThrow("byte_size");
   });
 });
