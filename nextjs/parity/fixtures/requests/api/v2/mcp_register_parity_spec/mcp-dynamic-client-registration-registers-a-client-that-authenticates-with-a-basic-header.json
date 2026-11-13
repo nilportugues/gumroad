@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/api/v2/mcp_register_parity_spec.rb",
-  "example": "MCP dynamic client registration hands a valid registration to Rails",
+  "example": "MCP dynamic client registration registers a client that authenticates with a basic header",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-12",
   "exchanges": [
     {
       "seed": {
@@ -52,12 +52,11 @@
         "path": "/claude/v1/oauth2/register",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
-          "cf-connecting-ip": "203.0.113.55",
           "content-type": "application/json",
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "{\"redirect_uris\":[\"https://client.example.com/callback\"],\"client_name\":\"Example\"}"
+        "body": "{\"redirect_uris\":[\"https://client.example.com/callback\"],\"token_endpoint_auth_method\":\"client_secret_basic\"}"
       },
       "response": {
         "status": 201,
@@ -75,13 +74,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "WgHmEVFjGVauzjgvSFrzLDQfInQFY0TLGrCK1kuSyhTm_yuXdXJ-uxYQ1d5PdHa-dXA6p0Sc7BzE0bq6OB6R3Q",
+            "value": "l-e4HdCxk9_SR8Hr_fyHee5hxLN0Kad0bIximDTcyTKIelI1nT1wuhhx1QLtlKhvNkZkCGD4IkQsfQNWhaNIwQ",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "dAjrCvfP7/4FfswfvfD1OHoTYBWBjmGbEKG2zJVI5hv03qBUDHFPZvBgKMqUB41SH+jj/iPvXVYi6fR+fRNIL+tzNu8DI4AmeZLwWyhO6O91LSnS4+rBSwjKJmnxncpNZjlSF+42POrDC3r/ybDZKyviivgj6C+V0x+tVi0XvyxzzBhxohMcwKZiN/SNTIIMrsQoOx0aU3uZYv7hybhoVzxRDci9fksBAI3NvYN8WyJxAuI28kdNZ3Q9PP4XoXANHVSVZ3IKI7uN/G+crw7fwtQJoz/W0B7Z5dL5EQw2KguSW2vDv6jmGvmLc1iUHaba1fHbzKvFhKKO6GhQgZuGy+NkdN4AyU37WGf3mkUgW5KguzE45CIZyQdaIWENL/Ll8Kzx--KlhpRhSUZ+aXrB/G--x8Adktb9GAVEPrNU5zRsNw==",
+            "value": "Z2XrktGUBVQuxPKQglK4I+pEgUt5FLzNzzSyEqTtJ3/IdDb2vbrYq25Ettfj1hfWwI42xUbTJy82xRXiK6hSiN8c/hzRbHrTWOwZ+J2BvympcLP3LiuqZsviHQE+5T4+Ab5wLzG6qluisXyLgGeQ1lgK0WuWFTMLyq0OE3AL1onemb6NVmI6jV37rps8b5FQ2eME+VKvFA3tdyD1bxjAw+fkqzGo9zyTJSyF+X/miVxsLKNjbsimWwB0wmVVlwTMYWaYrphjHeshvG02TBkKecA/Gu06niUEGwIqPAvwIIGqYkL+WKnGUG5tRqpXn8ULyK7I2QfLX58PuPgjtcvIVWSXUwiUQtCcE+pjTQP8r7Fk2CRep4SkWyeLU1WnrNXVxEZp--kANuZdCuL2ba0GqM--KoXw7EsE+D7mDGjXa8DVGg==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -98,8 +97,8 @@
           }
         },
         "json": {
-          "client_id": "cCQ-7q6iw-2htMPB1_Ic1fMVPOBInvbj3AiW0hf18mI",
-          "client_id_issued_at": 1794412571,
+          "client_id": "JFg9MMh9eE7SzVBWdthhHnp71xYWuLpesPOVKJPSViw",
+          "client_id_issued_at": 1794522199,
           "redirect_uris": [
             "https://client.example.com/callback"
           ],
@@ -110,8 +109,9 @@
           "response_types": [
             "code"
           ],
-          "token_endpoint_auth_method": "none",
-          "scope": "view_public view_profile view_sales edit_products view_payouts account"
+          "token_endpoint_auth_method": "client_secret_basic",
+          "scope": "view_public view_profile view_sales edit_products view_payouts account",
+          "client_secret": "Puj91Cl_lDRKcCOak9Am6CZOTVqElHSZ3jl1HyYLZyM"
         }
       },
       "db": {
@@ -119,9 +119,9 @@
           "inserted": [
             {
               "id": 1,
-              "name": "MCP Example",
-              "uid": "cCQ-7q6iw-2htMPB1_Ic1fMVPOBInvbj3AiW0hf18mI",
-              "secret": "xfFA_s-kufitjKL3GN8n3xVZwQ8MhxN0VIqovdVLcZs",
+              "name": "MCP MCP client",
+              "uid": "JFg9MMh9eE7SzVBWdthhHnp71xYWuLpesPOVKJPSViw",
+              "secret": "Puj91Cl_lDRKcCOak9Am6CZOTVqElHSZ3jl1HyYLZyM",
               "redirect_uri": "https://client.example.com/callback",
               "created_at": "<now>",
               "updated_at": "<now>",
@@ -130,7 +130,7 @@
               "affiliate_basis_points": null,
               "deleted_at": null,
               "scopes": "view_public view_profile view_sales edit_products view_payouts account",
-              "confidential": 0,
+              "confidential": 1,
               "device_authorization_enabled": 0,
               "is_first_party_agent_app": 0,
               "mcp_dynamic_client": 1

@@ -159,7 +159,7 @@ const EPICS: Epic[] = [
     id: "E11",
     title: "MCP and AI (WS-19)",
     files: /mcp|ai-|agent|moderation|llm/u,
-    state: "in progress (read tools done; write tools, OAuth client registration, ProductFileIngest left)",
+    state: "in progress (read tools done; OAuth client registration and permalink changes done; memberships in create_draft_product, add_cover, add_file, bundle tools, ProductFileIngest left)",
     blocker: "get_subscriptions churn breakdown (Ruby Float vs Node cached payload).",
     scope: "create_draft_product, update_product, add_cover, add_file, bundle and discount-code tools, client registration.",
   },

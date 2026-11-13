@@ -35,6 +35,7 @@ import {
 } from "./concerns/rails-validations.ts";
 import { rubyJsonGenerate, rubyJsonParse } from "./concerns/serialized-columns.ts";
 import LINK_DATA from "./link-data.generated.json" with { type: "json" };
+import { redirectRenamedPermalinks } from "./link-permalink-redirects.ts";
 import { freshScope, PRODUCT_CACHED_VALUES, ProductCachedValues } from "./product-cached-value.ts";
 import { defineModel, type Callback, type CallbackContext } from "./runtime/define-model.ts";
 import type { ModelRecord, Row } from "./runtime/record.ts";
@@ -88,6 +89,7 @@ const ATTRIBUTE_TO_SEARCH_FIELDS: Record<string, string[]> = {
 };
 // The columns an update may change; Rails' own callbacks also write updated_at and json_data. `flags` is ported for PORTED_FLAG_BITS only.
 const PORTED_CHANGES = [
+  "custom_permalink",
   "banned_at",
   "purchase_disabled_at",
   "flags",
@@ -377,6 +379,14 @@ export function productSections(link: LinkRecord): number[] {
   return Array.isArray(value) ? value.map(Number) : [];
 }
 
+// claiming_custom_permalink?: the seller row is locked and the other products are read FOR UPDATE.
+const claimingCustomPermalink = (link: LinkRecord) =>
+  !isBlank(link.get("custom_permalink")) && link.attributeChanged("custom_permalink");
+const TAKEN_PERMALINK = "is already used by another one of your products";
+const FORCE_PRODUCT_ID_TIMESTAMP_KEY = "force_product_id_timestamp";
+// @staged_renamed_custom_permalinks: staged per save, redirected once the outer transaction commits.
+const stagedPermalinks = new WeakMap<object, string[]>();
+
 const refuseUnportedSave: Callback<Link> = {
   name: "(guard) refuse unported changes",
   run(link) {
@@ -423,16 +433,27 @@ const beforeValidation: Callback<Link>[] = [
     // set_unique_permalink is a no-op (the guard refuses a nil permalink). serialize_permalink_checks?
     // only asks will_save_change_to_* questions, which a ported update always answers false.
     name: "lock_seller_for_permalink_checks",
-    run(link) {
+    async run(link) {
       if (link.get("user_id") == null) return;
       if (link.attributeChanged("deleted_at") && link.get("deleted_at") == null) return;
-      if (!isBlank(link.get("custom_permalink"))) link.attributeChanged("custom_permalink");
+      if (claimingCustomPermalink(link))
+        await selectRows(
+          Prisma.sql`SELECT ${column("users", "id")} FROM ${table("users")} WHERE ${column("users", "id")} = ${link.get("user_id")} LIMIT 1 FOR UPDATE`,
+        );
     },
   },
   {
+    // `user.links.deleted.find_by(custom_permalink:)&.update(custom_permalink: nil)`. A deleted product that has no permalink is
+    // assigned nil again, which changes nothing; one that holds the slug is released with its own callbacks, which are not ported.
     name: "release_custom_permalink_if_possible",
     if: (link) => link.attributeChanged("custom_permalink"),
-    run: () => undefined,
+    async run(link) {
+      const [deleted] = await selectRows(
+        Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${link.get("user_id")} AND ${column("links", "deleted_at")} IS NOT NULL AND ${eq("links", "custom_permalink", link.get("custom_permalink"))} LIMIT 1`,
+      );
+      if (deleted && link.get("custom_permalink") != null)
+        throw new NotPortedError("Link#release_custom_permalink_if_possible", "app/models/link.rb:2200");
+    },
   },
 ];
 
@@ -552,11 +573,19 @@ const validations: Callback<Link>[] = [
     async run(link, ctx) {
       if ((await loadUser(link, ctx)) === null) throw new NoMethodError("undefined method 'links' for nil");
       const custom = link.get("custom_permalink");
+      const claiming = claimingCustomPermalink(link);
+      // validate_claimed_custom_permalink_is_free: a locking read sees a claim that committed after this save's snapshot.
+      if (claiming && !link.errors.added("custom_permalink", "taken")) {
+        const claimed = await exists(
+          Prisma.sql`SELECT /*+ INDEX(links index_links_on_user_id) */ 1 AS one FROM ${table("links")} WHERE ${column("links", "user_id")} = ${link.get("user_id")} AND ${column("links", "id")} != ${link.get("id")} AND ${eq("links", "custom_permalink", custom)} LIMIT 1 FOR UPDATE`,
+        );
+        if (claimed) link.errors.add("custom_permalink", "taken", { message: TAKEN_PERMALINK });
+      }
       if (link.get("unique_permalink") === custom) return;
       const duplicate = await exists(
-        Prisma.sql`SELECT /*+ INDEX(links index_links_on_user_id) */ 1 AS one FROM ${table("links")} WHERE ${column("links", "user_id")} = ${link.get("user_id")} AND ${column("links", "id")} != ${link.get("id")} AND ${column("links", "deleted_at")} IS NULL AND ${eq("links", "unique_permalink", custom)} LIMIT 1`,
+        Prisma.sql`SELECT /*+ INDEX(links index_links_on_user_id) */ 1 AS one FROM ${table("links")} WHERE ${column("links", "user_id")} = ${link.get("user_id")} AND ${column("links", "id")} != ${link.get("id")} AND ${column("links", "deleted_at")} IS NULL AND ${eq("links", "unique_permalink", custom)} LIMIT 1${claiming ? Prisma.sql` FOR UPDATE` : Prisma.empty}`,
       );
-      if (duplicate) link.errors.add("custom_permalink", "is already used by another one of your products");
+      if (duplicate) link.errors.add("custom_permalink", TAKEN_PERMALINK);
     },
   },
   {
@@ -573,7 +602,16 @@ const validations: Callback<Link>[] = [
         link.errors.add("base", "Sorry, you cannot limit the number of purchases to that amount.");
     },
   },
-  // custom_permalink_of_licensed_product only runs when custom_permalink or is_licensed change.
+  {
+    // custom_permalink_of_licensed_product: with no cutover timestamp in Redis it passes; with one it compares licensed products of other sellers.
+    name: "custom_permalink_of_licensed_product",
+    if: (link) => link.attributeChanged("custom_permalink") && isFlagSet(link, "is_licensed"),
+    async run(link) {
+      if (isBlank(link.get("custom_permalink"))) return;
+      if ((await collaborators.redis().get(FORCE_PRODUCT_ID_TIMESTAMP_KEY)) == null) return;
+      throw new NotPortedError("Link#custom_permalink_of_licensed_product", "app/models/link.rb:1940");
+    },
+  },
   {
     name: "free_trial_only_enabled_if_recurring_billing",
     run(link) {
@@ -958,6 +996,15 @@ export const Links = defineModel<Link>({
   ],
   afterSave: [
     {
+      name: "stage_renamed_custom_permalink",
+      if: (link) => link.savedChangeTo("custom_permalink"),
+      run(link) {
+        const outgoing = link.attributeBeforeLastSave("custom_permalink");
+        if (isBlank(outgoing)) return;
+        stagedPermalinks.set(link, [...(stagedPermalinks.get(link) ?? []), outgoing!]);
+      },
+    },
+    {
       // Product::Prices#set_customizable_price, writing with update_column.
       name: "set_customizable_price",
       async run(link, ctx) {
@@ -979,7 +1026,26 @@ export const Links = defineModel<Link>({
       },
     },
   ],
+  afterRollback: [
+    {
+      name: "discard_renamed_custom_permalinks",
+      run: (link) => void stagedPermalinks.delete(link),
+    },
+  ],
   afterCommit: [
+    {
+      name: "redirect_renamed_custom_permalinks",
+      async run(link) {
+        const slugs = stagedPermalinks.get(link);
+        stagedPermalinks.delete(link);
+        if (!slugs?.length) return;
+        await redirectRenamedPermalinks(
+          slugs,
+          { id: link.get("id"), sellerId: link.get("user_id"), deleted: link.get("deleted_at") != null },
+          new Date(),
+        );
+      },
+    },
     {
       // indexnow_submission_needed?
       name: "submit_to_indexnow",

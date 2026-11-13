@@ -309,13 +309,13 @@ describe("get_customers", () => {
           email: "c@example.com",
           free_at: "2026-01-01T00:00:00Z",
           converted_at: "2026-01-02T12:00:00Z",
-          days_to_convert: 1.5,
+          days_to_convert: new FloatValue(1.5),
         },
       ],
     });
   });
 
-  it("hands back a conversion whose days to convert is a whole number, which Ruby writes as 2.0", async () => {
+  it("writes a conversion that took whole days as a Ruby Float", async () => {
     const customers = customerReader({
       conversion: vi.fn().mockResolvedValue([
         {
@@ -326,9 +326,9 @@ describe("get_customers", () => {
       ]),
     });
 
-    await expect(
-      toolBody("get_customers", { breakdown: "conversion" }, customerContext("account", customers)),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+    const body = await toolBody("get_customers", { breakdown: "conversion" }, customerContext("account", customers));
+
+    expect(toolText(body!)).toContain('      "days_to_convert": 2.0\n');
   });
 
   it("refuses a start date after the end date", async () => {
@@ -347,10 +347,30 @@ describe("get_customers", () => {
     ).rejects.toMatchObject({ message: "start_date must be a date like 2026-10-31", code: -32602 });
   });
 
-  it("hands back a date in another ISO 8601 form", async () => {
+  it("reads the date of a YYYYMMDD argument and of one written with a time", async () => {
+    for (const [value, until] of [
+      ["20261031", "2026-11-01 00:00:00"],
+      ["2026-10-31T23:59:59Z", "2026-11-01 00:00:00"],
+      ["2026-10-31t10:00+02:00", "2026-11-01 00:00:00"],
+    ] as const) {
+      const customers = customerReader();
+      await toolBody("get_customers", { end_date: value }, customerContext("account", customers));
+      expect(customers.spend).toHaveBeenCalledWith(expect.objectContaining({ until }));
+    }
+  });
+
+  it("refuses a YYYYMMDD date that is not on the calendar", async () => {
     await expect(
-      toolBody("get_customers", { end_date: "20261031" }, customerContext("account", customerReader())),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+      toolBody("get_customers", { start_date: "20260231" }, customerContext("account", customerReader())),
+    ).rejects.toMatchObject({ message: "start_date must be a date like 2026-10-31", code: -32602 });
+  });
+
+  it("hands back a date in a form it does not read", async () => {
+    for (const value of ["2026-W44-6", "2026-304", "2026-10-31 10:00:00", "2026-10-31T", " 2026-10-31"]) {
+      await expect(
+        toolBody("get_customers", { end_date: value }, customerContext("account", customerReader())),
+      ).rejects.toBeInstanceOf(HandBackToRails);
+    }
   });
 
   it("hands back a query that ran out of time", async () => {

@@ -107,6 +107,32 @@ describe "API v2 MCP and Notion", type: :request do
       call_tool("get_customers", { breakdown: "conversion" })
     end
 
+    it "writes a conversion that took whole days as a float", parity: true do
+      sell(product, email: "dee@example.com", price_cents: 0, at: [2026, 4, 1, 0])
+      sell(product, email: "dee@example.com", price_cents: 900, at: [2026, 4, 3, 0])
+      call_tool("get_customers", { breakdown: "conversion", start_date: "2026-04-01" })
+    end
+
+    it "reads a customers date range written with a time", parity: true do
+      call_tool("get_customers", { email: "ada@example.com", start_date: "2026-03-02T10:00:00Z", end_date: "2026-03-04T23:00:00+02:00" })
+    end
+
+    it "reads a customers date range written without dashes", parity: true do
+      call_tool("get_customers", { email: "ada@example.com", start_date: "20260302", end_date: "20260304" })
+    end
+
+    it "refuses a date written without dashes that is not on the calendar", parity: true do
+      call_tool("get_customers", { start_date: "20260231" })
+    end
+
+    it "hands back a customers date written as an ISO week", parity: true do
+      call_tool("get_customers", { start_date: "2026-W10-1" })
+    end
+
+    it "reads a sales totals range written without dashes and with a time", parity: true do
+      call_tool("get_sales_totals", { start_date: "20260301", end_date: "2026-03-31T05:00Z" })
+    end
+
     it "reports sales totals by product", parity: true do
       call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31" })
     end

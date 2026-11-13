@@ -4,7 +4,7 @@ require "spec_helper"
 
 # The create_draft_product and update_product tools of Mcp::Server through the full Rack stack, recorded for the Next.js port and replayed by
 # nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. Node saves a plain digital draft (a USD price above zero and a description with no markup)
-# and updates the name, description and price of a product with one buy price; every other call goes to Rails whole, in an example named
+# and updates the name, description, price and permalink of a product with one buy price; every other call goes to Rails whole, in an example named
 # "hands ... back". `parity_timeline` records the order of the statements and jobs.
 describe "API v2 MCP product writes", type: :request, parity_timeline: true do
   let(:seller) { create(:user, username: "dude", name: "Dude") }
@@ -231,8 +231,208 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       expect(other.reload.name).not_to eq("Pen")
     end
 
-    it "hands a permalink change back to Rails", parity: true do
-      update({ permalink: "pen" })
+    describe "permalink" do
+      def redirects = ProductPermalinkRedirect.order(:id).pluck(:permalink, :product_id, :seller_id)
+
+      it "sets a custom permalink", parity: true do
+        update({ permalink: "pen" })
+
+        expect(product.reload.custom_permalink).to eq("pen")
+        expect(redirects).to eq([])
+      end
+
+      it "sets a custom permalink with letters, digits, dashes and underscores", parity: true do
+        update({ permalink: "My_Pen-2" })
+
+        expect(product.reload.custom_permalink).to eq("My_Pen-2")
+      end
+
+      it "redirects the outgoing permalink when it is replaced", parity: true do
+        product.update_columns(custom_permalink: "oldpen")
+        update({ permalink: "pen" })
+
+        expect(redirects).to eq([["oldpen", product.id, seller.id]])
+        expect(LegacyPermalink.pluck(:permalink, :product_id)).to eq([["oldpen", product.id]])
+      end
+
+      it "redirects the outgoing permalink when it is cleared with an empty string", parity: true do
+        product.update_columns(custom_permalink: "oldpen")
+        update({ permalink: "" })
+
+        expect(product.reload.custom_permalink).to be_nil
+        expect(redirects).to eq([["oldpen", product.id, seller.id]])
+      end
+
+      it "clears nothing when there is no custom permalink", parity: true do
+        update({ permalink: "" })
+
+        expect(product.reload.custom_permalink).to be_nil
+      end
+
+      it "keeps a permalink that does not change", parity: true do
+        product.update_columns(custom_permalink: "pen")
+        update({ permalink: "pen" })
+
+        expect(redirects).to eq([])
+      end
+
+      it "redirects the old spelling when only the case changes", parity: true do
+        product.update_columns(custom_permalink: "pen")
+        update({ permalink: "PEN" })
+
+        expect(product.reload.custom_permalink).to eq("PEN")
+        expect(redirects).to eq([["pen", product.id, seller.id]])
+        expect(LegacyPermalink.count).to eq(0)
+      end
+
+      it "repoints a redirect the seller already had for the outgoing permalink", parity: true do
+        other = create(:product, user: seller, unique_permalink: "otherpk")
+        product.update_columns(custom_permalink: "oldpen")
+        ProductPermalinkRedirect.create!(permalink: "oldpen", product_id: other.id, seller_id: seller.id)
+        update({ permalink: "pen" })
+
+        expect(redirects).to eq([["oldpen", product.id, seller.id]])
+      end
+
+      it "keeps a redirect that already points at the product", parity: true do
+        product.update_columns(custom_permalink: "oldpen")
+        ProductPermalinkRedirect.create!(permalink: "oldpen", product_id: product.id, seller_id: seller.id)
+        update({ permalink: "pen" })
+
+        expect(redirects.size).to eq(1)
+      end
+
+      it "records no legacy permalink when one already exists for the outgoing permalink", parity: true do
+        other = create(:product, user: create(:user), unique_permalink: "otherpk")
+        product.update_columns(custom_permalink: "oldpen")
+        LegacyPermalink.create!(permalink: "oldpen", product_id: other.id)
+        update({ permalink: "pen" })
+
+        expect(LegacyPermalink.pluck(:permalink, :product_id)).to eq([["oldpen", other.id]])
+      end
+
+      it "records no legacy permalink when another seller's live product answers on the outgoing permalink", parity: true do
+        create(:product, user: create(:user), unique_permalink: "otherpk", custom_permalink: "oldpen")
+        product.update_columns(custom_permalink: "oldpen")
+        update({ permalink: "pen" })
+
+        expect(redirects).to eq([["oldpen", product.id, seller.id]])
+        expect(LegacyPermalink.count).to eq(0)
+      end
+
+      it "records no redirect when a legacy permalink of the seller's own products maps the outgoing permalink", parity: true do
+        other = create(:product, user: seller, unique_permalink: "otherpk")
+        product.update_columns(custom_permalink: "oldpen")
+        LegacyPermalink.create!(permalink: "oldpen", product_id: other.id)
+        update({ permalink: "pen" })
+
+        expect(redirects).to eq([])
+      end
+
+      it "queues an IndexNow submission for a published product", parity: true do
+        product.update_columns(purchase_disabled_at: nil)
+        update({ permalink: "pen" })
+
+        expect(SubmitToIndexnowJob.jobs.size).to eq(1)
+      end
+
+      it "sets the permalink, the name and the price together", parity: true do
+        update({ permalink: "pen", name: "Pen", price_cents: 450 })
+      end
+
+      it "accepts the permalink of another seller's product", parity: true do
+        create(:product, user: create(:user), unique_permalink: "otherpk", custom_permalink: "pen")
+        update({ permalink: "pen" })
+
+        expect(product.reload.custom_permalink).to eq("pen")
+      end
+
+      it "accepts the unique permalink of another seller's product", parity: true do
+        create(:product, user: create(:user), unique_permalink: "pen")
+        update({ permalink: "pen" })
+
+        expect(product.reload.custom_permalink).to eq("pen")
+      end
+
+      it "accepts the permalink of a licensed product when no cutover is set", parity: true do
+        product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:is_licensed])
+        update({ permalink: "pen" })
+
+        expect(product.reload.custom_permalink).to eq("pen")
+      end
+
+      it "refuses a permalink with a space", parity: true do
+        update({ permalink: "my pen" })
+
+        expect(product.reload.custom_permalink).to be_nil
+      end
+
+      it "refuses a permalink with a trailing newline", parity: true do
+        update({ permalink: "pen\n" })
+
+        expect(product.reload.custom_permalink).to be_nil
+      end
+
+      it "refuses a permalink with a character outside the allowed ones", parity: true do
+        update({ permalink: "pén" })
+      end
+
+      it "refuses a permalink over 255 characters", parity: true do
+        update({ permalink: "a" * 256 })
+      end
+
+      it "accepts a permalink of 255 characters", parity: true do
+        update({ permalink: "a" * 255 })
+      end
+
+      it "refuses a permalink another product of the seller already uses", parity: true do
+        create(:product, user: seller, unique_permalink: "otherpk", custom_permalink: "pen")
+        update({ permalink: "pen" })
+
+        expect(product.reload.custom_permalink).to be_nil
+      end
+
+      it "refuses the same permalink in another case", parity: true do
+        create(:product, user: seller, unique_permalink: "otherpk", custom_permalink: "pen")
+        update({ permalink: "PEN" })
+      end
+
+      it "refuses the unique permalink of another product of the seller", parity: true do
+        create(:product, user: seller, unique_permalink: "pen")
+        update({ permalink: "pen" })
+      end
+
+      it "refuses a permalink with the other errors of the same call", parity: true do
+        create(:product, user: seller, unique_permalink: "otherpk", custom_permalink: "pen")
+        update({ permalink: "pen", name: "x" * 256 })
+      end
+
+      it "refuses a blank permalink", parity: true do
+        update({ permalink: "   " })
+      end
+
+      it "hands a permalink another product of the seller deleted back to Rails", parity: true do
+        create(:product, user: seller, unique_permalink: "otherpk", custom_permalink: "pen", deleted_at: 1.day.ago)
+        update({ permalink: "pen" })
+      end
+
+      it "clears the permalink while a deleted product has none", parity: true do
+        create(:product, user: seller, unique_permalink: "otherpk", deleted_at: 1.day.ago)
+        product.update_columns(custom_permalink: "oldpen")
+        update({ permalink: "" })
+      end
+
+      it "refuses a permalink that is not text", parity: true do
+        update({ permalink: 5 })
+      end
+
+      it "hands a licensed product back to Rails when a cutover is set", parity: true do
+        $redis.set(RedisKey.force_product_id_timestamp, 1.day.ago.iso8601)
+        product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:is_licensed])
+        update({ permalink: "pen" })
+      ensure
+        $redis.del(RedisKey.force_product_id_timestamp)
+      end
     end
 
     it "hands a rename of a published product back to Rails", parity: true do
@@ -282,10 +482,6 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
     it "hands a change to the products of a bundle back to Rails", parity: true do
       bundle = create(:product, :bundle, user: seller, name: "Desk set", unique_permalink: "deskset")
       call_tool("update_bundle", { id: bundle.external_id, product_ids: ["pencilpk"] })
-    end
-
-    it "hands a registration of an OAuth client back to Rails", parity: true do
-      post "/muse/v1/oauth2/register", params: { redirect_uris: ["https://client.example.com/callback"] }.to_json, headers: rpc
     end
   end
 end
