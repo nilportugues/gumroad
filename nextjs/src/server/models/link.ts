@@ -104,7 +104,12 @@ const PORTED_CHANGES = [
   "content_updated_at",
 ];
 // The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index, :custom_summary`, and the inferred taxonomy values.
-const PORTED_JSON_DATA_KEYS = ["sections", "main_section_index", "custom_summary", "inferred_taxonomy_attribute_values"];
+const PORTED_JSON_DATA_KEYS = [
+  "sections",
+  "main_section_index",
+  "custom_summary",
+  "inferred_taxonomy_attribute_values",
+];
 const ARCHIVED_BIT = 1n << 4n;
 // Flag N is bit N - 1: archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase (set by a publish).
 const IS_ADULT_BIT = 1n << 15n;
@@ -112,13 +117,16 @@ const DISPLAY_PRODUCT_REVIEWS_BIT = 1n << 16n;
 const SHOULD_SHOW_SALES_COUNT_BIT = 1n << 21n;
 const TRANSCODE_VIDEOS_ON_PURCHASE_BIT = 1n << 23n;
 const QUANTITY_ENABLED_BIT = 1n << 13n;
+// is_collab: only Collaborator and ProductAffiliate callbacks write it, and no Link callback or search field reads it.
+const IS_COLLAB_BIT = 1n << 27n;
 const PORTED_FLAG_BITS =
   QUANTITY_ENABLED_BIT |
   ARCHIVED_BIT |
   IS_ADULT_BIT |
   DISPLAY_PRODUCT_REVIEWS_BIT |
   SHOULD_SHOW_SALES_COUNT_BIT |
-  TRANSCODE_VIDEOS_ON_PURCHASE_BIT;
+  TRANSCODE_VIDEOS_ON_PURCHASE_BIT |
+  IS_COLLAB_BIT;
 const SEARCH_FLAG_BITS: Record<string, bigint> = {
   archived: ARCHIVED_BIT,
   is_adult: IS_ADULT_BIT,
@@ -385,7 +393,7 @@ const refuseUnportedSave: Callback<Link> = {
         throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
       if (link.attributeChanged("flags") && (flagsDiff(link) & ~PORTED_FLAG_BITS) !== 0n)
         throw new NotPortedError(
-          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase",
+          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count, transcode_videos_on_purchase and is_collab",
           "app/models/link.rb",
         );
       if (link.get("unique_permalink") == null)

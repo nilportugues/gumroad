@@ -47,15 +47,6 @@ describe "Collaborators::MainController guards", type: :request do
       expect(response).to redirect_to(dashboard_url)
       expect(flash[:alert]).to eq("Your current role as Marketing cannot perform this action.")
     end
-
-    it "hands an invitation of a collaborator to Rails", parity: true do
-      other = create(:user, name: "Invited Partner")
-      log_in(seller)
-
-      send_inertia(:post, collaborators_path, { collaborator: { email: other.email, apply_to_all_products: true, percent_commission: 30 } })
-
-      expect(response).to be_redirect
-    end
   end
 
   describe "PATCH /collaborators/:id" do
@@ -130,23 +121,6 @@ describe "Collaborators::MainController guards", type: :request do
       send_inertia(:delete, collaborator_path(collaboration.external_id))
 
       expect(response).to redirect_to(dashboard_url)
-    end
-
-    it "hands a removal by the seller to Rails", parity: true do
-      log_in(seller)
-
-      send_inertia(:delete, collaborator_path(collaboration.external_id))
-
-      expect(response).to redirect_to(collaborators_path)
-      expect(collaboration.reload).to be_deleted
-    end
-
-    it "hands a removal by the collaborator to Rails", parity: true do
-      log_in(collaborator_user)
-
-      send_inertia(:delete, collaborator_path(collaboration.external_id))
-
-      expect(response).to redirect_to(collaborators_path)
     end
   end
 end
