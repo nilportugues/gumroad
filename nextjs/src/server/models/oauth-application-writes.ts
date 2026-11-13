@@ -171,6 +171,21 @@ export async function insertApplication(
   });
 }
 
+// Mcp::OauthClientRegistration#create!: no owner, the secret stored as drawn (Doorkeeper hashes none).
+export async function insertDynamicClient(
+  attrs: { name: string; redirectUri: string; scopes: string; confidential: boolean },
+  now: () => Date,
+): Promise<{ uid: string; secret: string; createdAt: Date }> {
+  const a = "oauth_applications";
+  const createdAt = wholeSeconds(now());
+  const uid = generateUniqueToken();
+  const secret = generateUniqueToken();
+  await execute(
+    Prisma.sql`INSERT INTO ${table(a)} (${column(a, "name")}, ${column(a, "uid")}, ${column(a, "secret")}, ${column(a, "redirect_uri")}, ${column(a, "created_at")}, ${column(a, "updated_at")}, ${column(a, "owner_id")}, ${column(a, "owner_type")}, ${column(a, "scopes")}, ${column(a, "confidential")}, ${column(a, "mcp_dynamic_client")}) VALUES (${attrs.name}, ${uid}, ${secret}, ${attrs.redirectUri}, ${createdAt}, ${createdAt}, NULL, 'User', ${attrs.scopes}, ${attrs.confidential ? 1 : 0}, 1)`,
+  );
+  return { uid, secret, createdAt };
+}
+
 export async function updateApplication(
   id: number,
   changes: { name?: string; redirect_uri?: string },

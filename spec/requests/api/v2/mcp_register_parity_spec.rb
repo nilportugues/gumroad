@@ -157,18 +157,81 @@ describe "MCP dynamic client registration", type: :request do
     expect(Rack::Attack.cache.store.keys("rack::attack:*:oauth_dynamic_registration/ip:203.0.113.55").size).to eq(1)
   end
 
-  it "hands a valid registration to Rails", parity: true do
-    register({ redirect_uris: [redirect_uri], client_name: "Example" }, extra_headers: counted_headers)
-
+  # The client id and secret are random: the replay masks them and asserts their shape, and the row they land in.
+  def registered(body = {}, extra_headers: headers)
+    register({ redirect_uris: [redirect_uri] }.merge(body), extra_headers:)
     expect(response).to have_http_status(:created)
-    expect(response.parsed_body).to include("client_id" => be_present, "redirect_uris" => [redirect_uri])
+    response.parsed_body
   end
 
-  it "hands a confidential registration to Rails", parity: true do
-    register({ redirect_uris: [redirect_uri], token_endpoint_auth_method: "client_secret_post", scope: "view_public account" })
+  it "registers a public client and counts it in the per-IP throttle", parity: true do
+    body = registered({ client_name: "Example" }, extra_headers: counted_headers)
+
+    expect(body).to include("redirect_uris" => [redirect_uri], "token_endpoint_auth_method" => "none", "scope" => Mcp::OauthClientRegistration::MCP_SCOPES.join(" "))
+    expect(body).not_to have_key("client_secret")
+    expect(Rack::Attack.cache.store.keys("rack::attack:*:oauth_dynamic_registration/ip:203.0.113.55").size).to eq(1)
+  end
+
+  it "registers a confidential client and returns its secret", parity: true do
+    body = registered({ token_endpoint_auth_method: "client_secret_post", scope: "view_public account" })
+
+    expect(body).to include("client_secret" => be_present, "scope" => "view_public account", "token_endpoint_auth_method" => "client_secret_post")
+  end
+
+  it "registers a client that authenticates with a basic header", parity: true do
+    expect(registered({ token_endpoint_auth_method: "client_secret_basic" })).to include("client_secret" => be_present)
+  end
+
+  it "gives the client the scopes it asked for in the order it asked, dropping the ones it cannot have", parity: true do
+    expect(registered({ scope: "account  edit_emails\tview_public view_public" })["scope"]).to eq("account view_public")
+  end
+
+  it "names the client after the connector and strips the name it sent", parity: true do
+    registered({ client_name: "  Example client \n" })
+  end
+
+  it "names a client without a name", parity: true do
+    registered({ client_name: "   " })
+  end
+
+  it "names a client whose name is only a no-break space", parity: true do
+    registered({ client_name: " 　" })
+  end
+
+  it "shortens a long client name to 80 characters", parity: true do
+    registered({ client_name: "é" * 100 })
+  end
+
+  it "keeps a name of exactly 80 characters", parity: true do
+    registered({ client_name: "n" * 76 })
+  end
+
+  it "joins several redirect URIs, dropping duplicates and blanks", parity: true do
+    other = "http://localhost:8080/callback"
+    body = registered({ redirect_uris: [redirect_uri, " #{other} ", "", redirect_uri, "http://127.0.0.1/cb"] })
+
+    expect(body["redirect_uris"]).to eq([redirect_uri, other, "http://127.0.0.1/cb"])
+  end
+
+  it "registers the singular redirect_uri", parity: true do
+    register({ redirect_uri: redirect_uri })
 
     expect(response).to have_http_status(:created)
-    expect(response.parsed_body).to include("client_secret" => be_present, "scope" => "view_public account")
+    expect(response.parsed_body["redirect_uris"]).to eq([redirect_uri])
+  end
+
+  it "keeps the query of a redirect URI", parity: true do
+    registered({ redirect_uris: ["#{redirect_uri}?tenant=1&a=b"] })
+  end
+
+  it "registers a client for the muse connector", parity: true do
+    register({ redirect_uris: [redirect_uri] }, client: "muse")
+
+    expect(response).to have_http_status(:created)
+  end
+
+  it "registers a client whose redirect URIs fill the 255 characters", parity: true do
+    registered({ redirect_uris: ["https://client.example.com/#{"a" * 100}", "https://client.example.com/#{"b" * 100}"] })
   end
 
   it "answers 429 past the per-IP limit", parity: true do

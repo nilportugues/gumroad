@@ -486,6 +486,9 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const paginates = name.includes("paginates-with-a-page-key");
         // License#generate_serial is random: both sides mint a key of the same shape, and the response carries the one saved.
         const rotates = name.includes("-rotate-gives-");
+        // The client id and secret are SecureRandom.urlsafe_base64(32): the replay holds both to that shape and to each other.
+        const registersClient = Object.keys(expected.db ?? {}).includes("oauth_applications");
+        if (registersClient) handedBack.length = 0;
         const createsUtmLink =
           (Object.keys(expected.db ?? {}).includes("utm_links") && name.includes("-creates-")) ||
           name.includes("-ignores-a-utm-parameter");
@@ -496,7 +499,15 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const options = replayOptions(
           validity
             ? VALIDITY_FIELDS
-            : rotates
+            : registersClient
+              ? [
+                  "response.json.client_id",
+                  "response.json.client_secret",
+                  "response.json.client_id_issued_at",
+                  "db.oauth_applications.inserted.*.uid",
+                  "db.oauth_applications.inserted.*.secret",
+                ]
+              : rotates
               ? ["response.json.purchase.license_key", "db.licenses.updated.*.changes.serial"]
               : createsUtmLink
                 ? [
@@ -557,6 +568,20 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
             ["", "/2", "/3", "/4", "/5"].map((tier) => `oauth_dynamic_registration/ip${tier}:203.0.113.55`).sort(),
           );
           expect(Object.values(counters)).toEqual([1, 1, 1, 1, 1]);
+        }
+        if (registersClient) {
+          expect(handedBack).toHaveLength(0);
+          const actual = result.exchanges[0]!.actual;
+          const body = actual.response.json as Record<string, unknown>;
+          const row = (actual.db as { oauth_applications: { inserted: Record<string, unknown>[] } }).oauth_applications
+            .inserted[0]!;
+          const token = /^[A-Za-z0-9_-]{43}$/u;
+          expect(row.uid).toMatch(token);
+          expect(row.secret).toMatch(token);
+          expect(body.client_id).toBe(row.uid);
+          if (row.confidential === 1) expect(body.client_secret).toBe(row.secret);
+          else expect(body).not.toHaveProperty("client_secret");
+          expect(Math.abs(Number(body.client_id_issued_at) - Date.now() / 1000)).toBeLessThan(60);
         }
         if (iftttSales) {
           expect(handedBack).toHaveLength(0);

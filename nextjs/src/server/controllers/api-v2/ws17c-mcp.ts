@@ -1,6 +1,6 @@
 // Api::V2::McpController (the /muse, /claude and /chatgpt connector paths and the `.well-known` documents) and
 // Api::V2::NotionUnfurlUrlsController. The JSON-RPC envelope and tools/list are ported (../../mcp/server.ts); a tool call runs here only for the bodies in mcp/tool-bodies.ts,
-// dynamic client registration answers its refusals here and hands the row it would insert (random client id and secret) to Rails, and the product preview of the Notion unfurl stays in Rails.
+// dynamic client registration runs here (the refusals and the row with its random client id and secret), and the product preview of the Notion unfurl stays in Rails.
 import { randomUUID } from "node:crypto";
 
 import { isFeatureEnabled } from "../../infra/flipper.ts";
@@ -8,6 +8,7 @@ import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from ".
 import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
 import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
 import { type PaperTrailRequest, withPaperTrailRequest } from "../../models/concerns/paper-trail.ts";
+import { insertDynamicClient } from "../../models/oauth-application-writes.ts";
 import { isInvalidUriError, rubyUriParseParts } from "../../models/concerns/ruby-uri.ts";
 import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
@@ -238,18 +239,37 @@ function stringParam(params: Record<string, unknown>, name: string): string {
   return value;
 }
 
-function validateRegistration(params: Record<string, unknown>): void {
+const NAME_MAX = 80;
+const OMISSION = "...";
+// Characters whose blank? answer in Ruby is not the Unicode White_Space property, so a name holding one goes to Rails.
+const AMBIGUOUS_BLANK = /[\u180e\u200b-\u200d\u2060\ufeff]/u;
+
+type Registration = { redirectUris: string[]; name: string; method: string; scopes: string };
+
+// `"MCP #{name}".truncate(NAME_MAX)`: Ruby counts characters, ActiveSupport keeps room for the omission.
+function clientName(params: Record<string, unknown>): string {
+  const raw = stringParam(params, "client_name");
+  if (raw.includes("\0") || AMBIGUOUS_BLANK.test(raw) || /\p{Surrogate}/u.test(raw))
+    throw new HandBackToRails("a client name Ruby and JavaScript read differently");
+  const stripped = rubyStrip(raw);
+  const name = Array.from(`MCP ${/^\p{White_Space}*$/u.test(stripped) ? "MCP client" : stripped}`);
+  return name.length > NAME_MAX ? name.slice(0, NAME_MAX - OMISSION.length).join("") + OMISSION : name.join("");
+}
+
+function validateRegistration(params: Record<string, unknown>): Registration {
   const uris = redirectUris(params);
   if (uris.length === 0) throw new RegistrationError("redirect_uris is required");
   for (const uri of uris) validateRedirectUri(uri);
   if ([...uris.join("\n")].length > REDIRECT_URIS_MAX_LENGTH)
     throw new RegistrationError(`redirect_uris must be at most ${REDIRECT_URIS_MAX_LENGTH} characters combined`);
   // OauthApplication.new evaluates its arguments in order: the name, the redirect URI, `confidential?`, then the scopes.
-  stringParam(params, "client_name");
-  const method = stringParam(params, "token_endpoint_auth_method");
-  if (present(method) && !TOKEN_ENDPOINT_AUTH_METHODS.includes(method)) throw new RegistrationError("unsupported token_endpoint_auth_method");
+  const name = clientName(params);
+  const given = stringParam(params, "token_endpoint_auth_method");
+  if (present(given) && !TOKEN_ENDPOINT_AUTH_METHODS.includes(given)) throw new RegistrationError("unsupported token_endpoint_auth_method");
   const requested = stringParam(params, "scope").split(/[ \t\n\v\f\r]+/u).filter((scope) => scope !== "");
-  if (requested.length > 0 && !requested.some((scope) => MCP_SCOPES.includes(scope))) throw new RegistrationError("no supported scopes requested");
+  const chosen = requested.length > 0 ? [...new Set(requested.filter((scope) => MCP_SCOPES.includes(scope)))] : MCP_SCOPES;
+  if (requested.length > 0 && chosen.length === 0) throw new RegistrationError("no supported scopes requested");
+  return { redirectUris: uris, name, method: present(given) ? given : "none", scopes: chosen.join(" ") };
 }
 
 // Api::V2::McpController#register.
@@ -265,12 +285,30 @@ export async function register(call: ApiCall): Promise<ActionResult> {
     throw new HandBackToRails("a registration body that is not JSON");
   }
   const params = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  let registration: Registration;
   try {
-    validateRegistration(params);
+    registration = validateRegistration(params);
   } catch (error) {
     if (error instanceof RegistrationError) return invalid(error.message);
     throw error;
   }
-  // The row it inserts carries a random client id and secret.
-  throw new HandBackToRails("a valid dynamic client registration");
+  // Every refusal and hand-back is above this line: from here on the row is written and the answer cannot fail.
+  const confidential = registration.method !== "none";
+  const created = await insertDynamicClient(
+    { name: registration.name, redirectUri: registration.redirectUris.join("\n"), scopes: registration.scopes, confidential },
+    () => new Date(),
+  );
+  return renderJson(
+    {
+      client_id: created.uid,
+      client_id_issued_at: Math.floor(created.createdAt.getTime() / 1000),
+      redirect_uris: registration.redirectUris,
+      grant_types: ["authorization_code", "refresh_token"],
+      response_types: ["code"],
+      token_endpoint_auth_method: registration.method,
+      scope: registration.scopes,
+      ...(confidential ? { client_secret: created.secret } : {}),
+    },
+    201,
+  );
 }

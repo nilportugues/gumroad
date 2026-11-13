@@ -7,6 +7,7 @@ import { Prisma } from "@prisma/client";
 import type { OauthAccessToken, ProductFile, User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
+import { getRedis } from "../infra/redis.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { hasApplicableOfferCodes, validityPeriodOf } from "../controllers/api-v2/offer-codes.ts";
@@ -803,6 +804,7 @@ export const readProducts: ProductsReader = {
 };
 
 const IS_RECURRING_BILLING_BIT = 2n;
+const IS_LICENSED_BIT = 7n;
 const IS_TIERED_MEMBERSHIP_BIT = 19n;
 const BUY_ONLY = 0;
 const IS_BUNDLE_BIT = 26n;
@@ -1214,23 +1216,52 @@ async function createDraftProduct(args: Hash, context: ToolContext): Promise<Has
   };
 }
 
+class PermalinkChangedDuringLock extends Error {}
+const FORCE_PRODUCT_ID_TIMESTAMP_KEY = "force_product_id_timestamp";
+
+// The two branches of a permalink claim whose callbacks are not ported, found before the first write: a deleted product of the seller
+// that holds the slug (it is released with its own save), and a licensed product while a product-id cutover is set.
+async function assertPermalinkReleasable(
+  product: { id: bigint; user_id: number | bigint | null; flags: bigint },
+  permalink: string | null,
+): Promise<void> {
+  if (permalink === null) return;
+  const [deleted] = await selectRows(
+    Prisma.sql`SELECT id FROM links WHERE user_id = ${product.user_id} AND deleted_at IS NOT NULL AND custom_permalink = ${permalink} LIMIT 1`,
+  );
+  if (deleted) throw new HandBackToRails("a permalink a deleted product of the seller holds");
+  if (flagOn(product.flags, IS_LICENSED_BIT) && (await getRedis("main").get(FORCE_PRODUCT_ID_TIMESTAMP_KEY)) !== null)
+    throw new HandBackToRails("a licensed product's permalink while a product-id cutover is set");
+}
+
 const isBlankText = (value: string) => /^[\s\u0085\u180e\u200b-\u200d\u2060\ufeff]*$/u.test(value);
 
-// tool_update_product for name, description and price_cents on a product with one buy price. A permalink change (it locks the seller and
-// redirects the old slug), a description Node cannot sanitize like SaveContentUpsellsService, a rename of a published product
-// (content moderation), a product beside discount codes (the warning lists the ones the new price breaks) and a product whose price is
-// not one buy price go to Rails whole, before the first write.
+// tool_update_product for name, description, price_cents and permalink on a product with one buy price. A permalink that a deleted product of
+// the seller holds, or that a licensed product claims while a product-id cutover is set, a description Node cannot sanitize like
+// SaveContentUpsellsService, a rename of a published product (content moderation), a product beside discount codes (the warning lists the
+// ones the new price breaks) and a product whose price is not one buy price go to Rails whole, before the first write.
 async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   const found = await findProduct(args, context);
   const changes = ["name", "description", "price_cents", "permalink"].filter((key) => key in args);
   if (changes.length === 0)
     throw new ToolRpcError("Pass at least one of name, description, price_cents, or permalink", INVALID_PARAMS);
-  if (changes.includes("permalink")) throw new HandBackToRails("a permalink change");
+  // An empty permalink is how the editor clears a custom URL; a blank one is neither that nor a value.
+  let permalink: string | null | undefined;
+  if (changes.includes("permalink")) {
+    const given = args.permalink as string;
+    if (given === "") permalink = null;
+    else if (isBlankText(given))
+      throw new ToolRpcError("permalink must not be blank. Send an empty string to go back to the default URL.", INVALID_PARAMS);
+    else permalink = given;
+  }
   // The payload is built from the product as it stands: a tiered membership or a competing price goes to Rails here.
   productPayload(found, context.user, "update_product");
   const product = await db.link.findUniqueOrThrow({ where: { id: found.id } });
 
   const attributes: Partial<typeof product> = {};
+  // Seller row before product row, and only when the slug is a new one: the order the editor and the v2 API lock in.
+  const claimsPermalink = permalink != null && permalink !== product.custom_permalink;
+  if (permalink !== undefined && permalink !== product.custom_permalink) await assertPermalinkReleasable(product, permalink);
   if ("name" in args) {
     const rawName = args.name as string;
     if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
@@ -1257,11 +1288,20 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   const record = Links.load(product);
   try {
     await transaction(async () => {
+      // Link#lock_for_permalink_claim!
+      if (claimsPermalink)
+        await selectRows(Prisma.sql`SELECT id FROM users WHERE id = ${product.user_id} LIMIT 1 FOR UPDATE`);
       await Links.lockBang(record);
+      if (permalink != null && !claimsPermalink && permalink !== record.get("custom_permalink")) throw new PermalinkChangedDuringLock();
       if (priceCents !== undefined) await writeBuyPrice(product, priceCents, context.now);
+      if (permalink !== undefined) attributes.custom_permalink = permalink;
       await Links.updateBang(record, attributes, { now: context.now });
     });
   } catch (caught) {
+    if (caught instanceof PermalinkChangedDuringLock)
+      throw new ToolError(
+        "This product's URL changed while the update was waiting. Nothing was saved; try the update again.",
+      );
     if (!(caught instanceof RecordInvalid)) throw caught;
     throw new ToolError(toSentence(record.errors.fullMessages()));
   }
