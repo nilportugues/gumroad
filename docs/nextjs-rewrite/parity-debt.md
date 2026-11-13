@@ -30,7 +30,7 @@ node scripts/parity-debt.ts --json          # same, machine-readable
 `scripts/parity-debt.ts` parses the specs without Ruby (describe/context nesting from indentation) and matches
 each example's full description against the `example` field of the recorded fixtures of the same spec. It
 reports `unresolved` for descriptions it cannot resolve (interpolation with no matching fixture, or examples
-inside `shared_examples`); a `describe provider do` over a loop variable counts as an interpolation, which is what left 15 social-connect examples unresolved while their 45 fixtures existed (all 15 match now); the run at this branch has 0 unresolved. It should print `0 without a fixture` when
+inside `shared_examples`); a `describe provider do` over a loop variable counts as an interpolation, which is what left 15 social-connect examples unresolved while their 45 fixtures existed (all 15 match now); the run at this branch has 0 unresolved. The 3 that showed as unresolved in `admin_impersonate_parity_spec` (the `{ "/admin/features" => ..., "/admin/sidekiq" => ... }.each` loop, 6 recorded fixtures) were a parser fault, not missing recordings: the `describe "GET /admin/redirect_to_stripe_dashboard"` sibling stayed on the indent stack because the `}.each do` line matches no group and the `end` lines never popped, so the loop's name read `... GET /admin/redirect_to_stripe_dashboard GET #{...} ...` and matched no fixture. `end` now pops its own indent. It should print `0 without a fixture` when
 section 1 is done. Interpolated descriptions (`#{role}`, `#{path}`) are matched as patterns, so a loop that
 records only some of its iterations would not be flagged: could not determine whether any does.
 
