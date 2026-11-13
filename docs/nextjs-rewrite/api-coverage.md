@@ -15,7 +15,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 
 | Namespace | Routes | Native | Hands back | Not registered | Unresolved |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 146 | 138 | 0 | 8 | 0 |
+| API v2 (`/v2` on the API host, `/api/v2` on the Gumroad domain) | 146 | 139 | 0 | 7 | 0 |
 | Mobile API (`/mobile` on the API host) | 59 | 59 | 0 | 0 | 0 |
 | Internal API, API host (`/internal`, includes `/internal/admin`) | 85 | 78 | 4 | 0 | 3 |
 | Internal API, Gumroad domain (`/internal`, JSON for the React Router pages) | 15 | 15 | 0 | 0 | 0 |
@@ -169,7 +169,7 @@ It compares the `api/v2`, `mobile` and `internal` routes of `config/routes.rb` w
 | `GET /v2/partner/categories` | `Api::V2::Partner::CategoriesController#index` | not registered | - | n |
 | `POST /v2/partner/migrations` | `Api::V2::Partner::MigrationsController#create` | not registered | - | n |
 | `POST /v2/partner/sellers` | `Api::V2::Partner::SellersController#create` | not registered | - | n |
-| `GET /v2/partner/migrations/:id` | `Api::V2::Partner::MigrationsController#show` | not registered | - | n |
+| `GET /v2/partner/migrations/:id` | `Api::V2::Partner::MigrationsController#show` | native | `nextjs_api_v2_products` | y |
 
 ## Mobile API (`/mobile` on the API host)
 
