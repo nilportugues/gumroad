@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Removes what bin/e2e-up created, for dev lane 3 only: the Rails server and container, the
+# gumroad_development_lane3 database, Redis dbs 8 and 9, the *_lane3 Elasticsearch indices and the lane3_ DynamoDB
+# table. Shared containers keep running. Safe to run repeatedly.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-common.sh"
+
+if e2e_container_running; then
+  e2e_write_env
+  e2e_log "stopping Rails"
+  e2e_exec '[ -f tmp/pids/server-lane3.pid ] && kill $(cat tmp/pids/server-lane3.pid) 2>/dev/null; true'
+  e2e_log "deleting the lane3_ DynamoDB table"
+  e2e_runner 'name = EmailEngagementDynamoStore.table_name; abort("refusing #{name}") unless name.start_with?("lane3_"); begin; EmailEngagementDynamoStore.send(:client).delete_table(table_name: name); rescue Aws::DynamoDB::Errors::ResourceNotFoundException; end' ||
+    e2e_log "warning: could not delete the DynamoDB table"
+else
+  e2e_log "warning: $E2E_CONTAINER is not running; the DynamoDB table (lane3_*) is left alone"
+fi
+
+e2e_log "dropping gumroad_development_lane3"
+docker exec "$E2E_DB_CONTAINER" mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS gumroad_development_lane3' 2>/dev/null
+
+e2e_log "flushing Redis dbs 8 and 9"
+for db in 8 9; do docker exec "$E2E_REDIS_CONTAINER" sh -c "valkey-cli -n $db flushdb 2>/dev/null || redis-cli -n $db flushdb" >/dev/null; done
+
+e2e_log "deleting *_lane3 Elasticsearch indices"
+for index in products purchases installments audience_members confirmed_follower_events product_page_views; do
+  docker exec "$E2E_ES_CONTAINER" curl -s -o /dev/null -XDELETE "http://localhost:9200/${index}_lane3"
+done
+
+if e2e_container_exists; then
+  e2e_log "removing $E2E_CONTAINER"
+  docker rm -f "$E2E_CONTAINER" >/dev/null
+fi
+e2e_log "lane 3 e2e environment removed"

@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Brings up a seeded, running dev lane 3 app on http://localhost:3003 for the Playwright suite (e2e/README.md).
+# Idempotent: every step checks before it acts. `bin/e2e-down` removes what this creates.
+#
+#   bin/e2e-up            reuse the database as it is (seeds run once; a second suite run sees the first run's records)
+#   bin/e2e-up --reseed   first wipe lane 3's data (database, Redis dbs 8 and 9, *_lane3 indices, lane3_ table), then
+#                         run the normal flow so the seeds load into an empty database. Keeps the container, gems,
+#                         node_modules and the Vite build, so it is much faster than bin/e2e-down && bin/e2e-up.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/e2e-common.sh"
+
+reseed=0
+for arg in "$@"; do
+  case "$arg" in
+    --reseed) reseed=1 ;;
+    *) e2e_die "unknown argument $arg (only --reseed is supported)" ;;
+  esac
+done
+
+for tool in docker git tar; do command -v "$tool" >/dev/null || e2e_die "$tool is required"; done
+
+# 1. Shared services: verify, start only if stopped, never recreate.
+for c in "$E2E_DB_CONTAINER" "$E2E_REDIS_CONTAINER" "$E2E_ES_CONTAINER" "$E2E_DYNAMO_CONTAINER"; do
+  docker container inspect "$c" >/dev/null 2>&1 || e2e_die "shared container $c does not exist (start the shared stack first)"
+  [[ "$(docker container inspect -f '{{.State.Running}}' "$c")" == true ]] || { e2e_log "starting stopped $c"; docker start "$c" >/dev/null; }
+done
+docker network inspect "$E2E_NETWORK" >/dev/null 2>&1 || e2e_die "docker network $E2E_NETWORK not found"
+mem_kb="$(awk '/MemAvailable/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+[[ "$mem_kb" -eq 0 || "$mem_kb" -gt 4000000 ]] || e2e_log "warning: only $((mem_kb / 1024)) MB available; the npm install and Vite build need several GB"
+
+# 2. The lane container. Only 127.0.0.1:3003 is published.
+if ! e2e_container_exists; then
+  e2e_log "creating $E2E_CONTAINER from $E2E_IMAGE"
+  docker run -d --name "$E2E_CONTAINER" --label gumroad.e2e=lane3 --network "$E2E_NETWORK" \
+    -p "127.0.0.1:$E2E_PORT:$E2E_PORT" -v "$E2E_BUNDLE_VOLUME:/bundle" "$E2E_IMAGE" sleep infinity >/dev/null
+elif ! e2e_container_running; then
+  docker start "$E2E_CONTAINER" >/dev/null
+fi
+docker exec "$E2E_CONTAINER" mkdir -p "$E2E_APP_DIR"
+
+# 3. System libraries (only when the image lacks them) and a container-local Node matching .node-version.
+if ! docker exec "$E2E_CONTAINER" sh -c 'dpkg -s libmagickwand-dev libvips-dev default-libmysqlclient-dev libyaml-dev libpq-dev xz-utils socat ffmpeg >/dev/null 2>&1'; then
+  e2e_log "installing system packages in the container"
+  docker exec "$E2E_CONTAINER" sh -c 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq default-libmysqlclient-dev libvips-dev libmagickwand-dev libpq-dev libyaml-dev xz-utils socat ffmpeg curl >/tmp/apt.log 2>&1' ||
+    e2e_die "apt-get failed in the container (see /tmp/apt.log inside it)"
+fi
+node_version="$(tr -d '[:space:]v' <"$E2E_ROOT/.node-version")"
+if ! docker exec "$E2E_CONTAINER" sh -c "$E2E_NODE_DIR/bin/node -v 2>/dev/null | grep -qx v$node_version"; then
+  e2e_log "installing Node $node_version in the container"
+  docker exec "$E2E_CONTAINER" sh -c "
+    arch=\$(uname -m); case \$arch in x86_64) arch=x64;; aarch64) arch=arm64;; esac
+    mkdir -p $E2E_NODE_DIR && curl -fsSL https://nodejs.org/dist/v$node_version/node-v$node_version-linux-\$arch.tar.xz | tar -xJ -C $E2E_NODE_DIR --strip-components=1" ||
+    e2e_die "could not install Node $node_version"
+fi
+
+# 4. Code, then the container-local npm install. The host node_modules (darwin bindings) is never used.
+e2e_sync_code
+e2e_write_env
+lock_stamp="$(cd "$E2E_ROOT" && sha256sum package-lock.json | cut -d' ' -f1)"
+if [[ "$(e2e_exec 'cat node_modules/.e2e-lock 2>/dev/null' || true)" != "$lock_stamp" ]]; then
+  e2e_log "npm ci in the container (container-local, dies with it)"
+  e2e_exec "npm ci --no-audit --no-fund && echo $lock_stamp > node_modules/.e2e-lock"
+fi
+
+# 5. Gems come from the shared gr_bundle volume; fail rather than mutate it.
+# CI has a fresh volume, so it sets E2E_BUNDLE_INSTALL=1 to fill it (BUNDLE_GEMS__CONTRIBSYS__COM comes from the host environment).
+if ! e2e_exec 'bundle check >/dev/null'; then
+  [[ "${E2E_BUNDLE_INSTALL:-0}" == 1 ]] || e2e_die "gr_bundle lacks this checkout's gems; run bundle install once in a container that mounts it, or set E2E_BUNDLE_INSTALL=1"
+  e2e_log "bundle install into the gr_bundle volume"
+  docker exec -e BUNDLE_GEMS__CONTRIBSYS__COM -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; bundle install --jobs 4 --retry 3" ||
+    e2e_die "bundle install failed"
+fi
+
+# 5b. --reseed: same lane 3 resources, same commands as bin/e2e-down, minus removing the container.
+if [[ "$reseed" == 1 ]]; then
+  e2e_log "reseed: wiping lane 3 data"
+  e2e_exec '[ -f tmp/pids/server-lane3.pid ] && kill $(cat tmp/pids/server-lane3.pid) 2>/dev/null; rm -f tmp/pids/server-lane3.pid; true'
+  e2e_runner 'name = EmailEngagementDynamoStore.table_name; abort("refusing #{name}") unless name.start_with?("lane3_"); begin; EmailEngagementDynamoStore.send(:client).delete_table(table_name: name); rescue Aws::DynamoDB::Errors::ResourceNotFoundException; end' ||
+    e2e_log "warning: could not delete the DynamoDB table"
+  docker exec "$E2E_DB_CONTAINER" mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS gumroad_development_lane3' 2>/dev/null
+  for db in 8 9; do docker exec "$E2E_REDIS_CONTAINER" sh -c "valkey-cli -n $db flushdb 2>/dev/null || redis-cli -n $db flushdb" >/dev/null; done
+  for index in products purchases installments audience_members confirmed_follower_events product_page_views; do
+    docker exec "$E2E_ES_CONTAINER" curl -s -o /dev/null -XDELETE "http://localhost:9200/${index}_lane3"
+  done
+fi
+
+# S3 uploads during seeding go to MinIO at the .env.development endpoint (localhost:9000), which is also the address
+# a browser on the host uses for the stored files; forward it to the shared MinIO from inside the container.
+e2e_exec 'pgrep -x socat >/dev/null || (nohup socat TCP-LISTEN:9000,fork,reuseaddr TCP:minio:9000 >/dev/null 2>&1 &)'
+
+# 6. DynamoDB table, Elasticsearch indices, database, seeds. Every name carries the lane 3 prefix or suffix.
+e2e_log "preparing the database ($(e2e_exec 'echo $DATABASE_NAME'))"
+# Not db:prepare: on a fresh database it runs the seeds itself, before the indices below exist.
+# SKIP_TEST_DATABASE (exported above) keeps create/schema:load off the shared gumroad_test database.
+e2e_exec 'mkdir -p log tmp/pids && bundle exec rails db:create'
+e2e_runner 'ActiveRecord::Base.connection.table_exists?("users") || exit(3)' 2>/dev/null || e2e_exec 'bundle exec rails db:schema:load'
+e2e_exec 'bundle exec rails db:migrate'
+e2e_log "creating the DynamoDB table"
+e2e_runner 'begin; EmailEngagementDynamoStore.create_table!; rescue Aws::DynamoDB::Errors::ResourceInUseException; end'
+# Seeding before the first reindex fails on the audience index, and reindexing after is what makes seeded
+# products searchable, since no Sidekiq worker runs here to index them. The seeds are not re-runnable (duplicate
+# usernames), so they run once per database; to reseed, bin/e2e-down first. A reindex is always safe.
+reindex='DevTools.delete_all_indices_and_reindex_all'
+if e2e_runner 'exit(User.exists?(email: "seller@gumroad.com") ? 0 : 3)' 2>/dev/null; then
+  e2e_log "database already seeded, skipping db:seed; reindexing the *_lane3 indices"
+else
+  e2e_log "creating Elasticsearch indices (suffix _lane3)"
+  e2e_runner "$reindex"
+  e2e_log "seeding"
+  e2e_exec 'bundle exec rails db:seed'
+  e2e_log "reindexing seeded records"
+fi
+e2e_runner "$reindex"
+
+# 7. Local tweaks so repeated free purchases from 127.0.0.1 are not blocked (product_temporarily_blocked).
+e2e_runner '$redis.set(RedisKey.max_allowed_free_purchases_of_same_product, 100_000); PlatformBlock.delete_all'
+
+# 8. Frontend, built once the way the suite expects (NODE_ENV=development keeps reCAPTCHA off in checkout).
+vite_stamp="$(cd "$E2E_ROOT" && { git rev-parse HEAD:app/javascript; sha256sum package-lock.json vite.config.ts; } | sha256sum | cut -d' ' -f1)"
+if [[ "${E2E_REBUILD:-0}" == 1 || "$(e2e_exec 'cat public/vite-test/.e2e-stamp 2>/dev/null' || true)" != "$vite_stamp" ]]; then
+  e2e_log "building the frontend (vite build, mode test)"
+  e2e_exec "npm run setup && NODE_ENV=development VITE_RUBY_MODE=test npx vite build && echo $vite_stamp > public/vite-test/.e2e-stamp"
+fi
+
+# 9. Rails dev server on 3003.
+if e2e_exec "[ -f tmp/pids/server-lane3.pid ] && kill -0 \$(cat tmp/pids/server-lane3.pid) 2>/dev/null"; then
+  e2e_log "Rails already running"
+else
+  e2e_exec 'rm -f tmp/pids/server-lane3.pid'
+  e2e_log "starting Rails on port $E2E_PORT (log: $E2E_CONTAINER:$E2E_APP_DIR/log/e2e-rails.log)"
+  docker exec -d -w "$E2E_APP_DIR" "$E2E_CONTAINER" bash -c ". $E2E_APP_DIR/.e2e.env; export PATH=$E2E_NODE_DIR/bin:\$PATH; exec bundle exec rails s -b 0.0.0.0 -p $E2E_PORT -P tmp/pids/server-lane3.pid >> log/e2e-rails.log 2>&1"
+fi
+for path in /discover /l/demo; do
+  e2e_wait_http "http://localhost:$E2E_PORT$path" || e2e_die "GET $path did not answer 200 (see log/e2e-rails.log in the container)"
+  e2e_log "GET $path -> 200"
+done
+e2e_log "ready: http://localhost:$E2E_PORT  (seller@gumroad.com / password). Stop with bin/e2e-down. Run the suite with bin/e2e-run."
