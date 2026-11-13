@@ -779,12 +779,20 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands a sale in another currency to Rails", parity: true do
-        euro = purchase_row(link: product, seller:, purchase_state: "successful", displayed_price_currency_type: "eur")
+      it "serves a sale in another currency at its stored rate", parity: true do
+        euro = purchase_row(link: product, seller:, purchase_state: "successful", price_cents: 1250, displayed_price_cents: 1000, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.81")
 
         show(euro)
 
-        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["purchase"].slice("currency_symbol", "amount_refundable_in_currency", "formatted_total_price")).to eq("currency_symbol" => "€", "amount_refundable_in_currency" => "10.13", "formatted_total_price" => "€10.13")
+      end
+
+      it "serves a sale in a single-unit currency at its stored rate", parity: true do
+        yen = purchase_row(link: product, seller:, purchase_state: "successful", price_cents: 1000, displayed_price_cents: 1500, displayed_price_currency_type: "jpy", rate_converted_to_usd: "150.0")
+
+        show(yen)
+
+        expect(response.parsed_body["purchase"].slice("currency_symbol", "amount_refundable_in_currency", "formatted_total_price")).to eq("currency_symbol" => "¥", "amount_refundable_in_currency" => "1,500", "formatted_total_price" => "¥1,500")
       end
     end
 
@@ -869,13 +877,14 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       end
     end
 
-    it "hands a sales page with a sale in another currency to Rails", parity: true do
-      purchase_row(link: product, seller:, purchase_state: "successful", displayed_price_currency_type: "eur")
+    it "serves a sales page with sales in other currencies at their stored rates", parity: true do
+      purchase_row(link: product, seller:, purchase_state: "successful", price_cents: 1250, displayed_price_cents: 1000, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.81")
+      purchase_row(link: product, seller:, purchase_state: "successful", price_cents: 1000, displayed_price_cents: 1500, displayed_price_currency_type: "jpy", rate_converted_to_usd: "150.0")
       index_model_records(Purchase)
 
       get "/mobile/sales", params: auth(seller)
 
-      expect(response.parsed_body["purchases"].size).to eq(1)
+      expect(response.parsed_body["purchases"].map { |sale| sale.slice("price", "formatted_total_price") }).to match_array([{ "price" => "€10", "formatted_total_price" => "€10.13" }, { "price" => "¥1,500", "formatted_total_price" => "¥1,500" }])
     end
   end
 

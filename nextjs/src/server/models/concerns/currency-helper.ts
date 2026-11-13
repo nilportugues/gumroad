@@ -173,12 +173,17 @@ export async function getUsdCents(currencyType: string, quantity: number | bigin
   return roundToInteger(isCurrencyTypeSingleUnit(currencyType) ? converted.mul(100) : converted);
 }
 
+// usd_cents_to_currency with a rate already in hand (`rate.present?`): no lookup, so nothing is awaited.
+export function usdCentsToCurrencyAtRate(currencyType: string, quantity: number | bigint, rate: number): number {
+  if (currencyType === "usd") return Number(quantity);
+  const converted = new D(quantity.toString()).mul(new D(String(rate)));
+  return roundToInteger(isCurrencyTypeSingleUnit(currencyType) ? converted.div(100) : converted);
+}
+
 // usd_cents_to_currency(currency_type, quantity, rate = nil)
 export async function usdCentsToCurrency(currencyType: string, quantity: number | bigint, rate?: number): Promise<number> {
   if (currencyType === "usd") return Number(quantity);
-  const conversionRate = rate ?? rubyStringToF(await getRate(currencyType));
-  const converted = new D(quantity.toString()).mul(new D(String(conversionRate)));
-  return roundToInteger(isCurrencyTypeSingleUnit(currencyType) ? converted.div(100) : converted);
+  return usdCentsToCurrencyAtRate(currencyType, quantity, rate ?? rubyStringToF(await getRate(currencyType)));
 }
 
 // formatted_dollar_amount: Money.new(cents, "USD").format(with_currency:, no_cents_if_whole:).
