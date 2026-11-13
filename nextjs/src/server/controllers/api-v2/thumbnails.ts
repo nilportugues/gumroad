@@ -12,6 +12,8 @@ async function create({ params }: ApiV2Input) {
     // A non-String attachable raises ArgumentError, which the action's rescues do not cover.
     if (typeof signedBlobId !== "string")
       return renderResponse(false, { message: "The signed_blob_id is invalid or expired." });
+    // A signed id is `payload--digest`: text without the separator never verifies, whatever the secret.
+    if (!signedBlobId.includes("--")) return renderResponse(false, { message: "The signed_blob_id is invalid or expired." });
     throw new HandBackToRails("a thumbnail attached from a signed blob");
   }
   if (present(params.url)) throw new HandBackToRails("a thumbnail fetched from a URL");

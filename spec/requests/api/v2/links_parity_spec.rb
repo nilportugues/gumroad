@@ -244,7 +244,7 @@ describe "API v2 products", type: :request do
       delete "/v2/products/#{product.external_id}", headers: auth("view_public")
     end
 
-    it "hands back a product that was already deleted to Rails", parity: true do
+    it "deletes a product that was already deleted", parity: true do
       product.update_columns(deleted_at: 1.day.ago)
       delete "/v2/products/#{product.external_id}", headers: auth
     end
