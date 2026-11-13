@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
-import type { JobsChannel, RawJob } from "../src/channels";
+import { jobKey, redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -30,65 +30,10 @@ const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
-// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item (a mail job, wrapped by ActiveJob, is unwrapped); the key of a job is what its Sidekiq twin is compared by.
 // The product reindex of a post attached to a product asks Elasticsearch for a document the replay does not hold, and Node then
 // queues the fallback job Rails never needed.
 const IGNORED_JOBS = new Set(["SendToElasticsearchWorker"]);
-const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
-  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
-
-function redisJobs(redis: Redis): JobsChannel {
-  return {
-    async reset() {
-      /* the seeder flushes the database */
-    },
-    async drain(): Promise<RawJob[]> {
-      const jobs: RawJob[] = [];
-      for (const key of await redis.keys("bull:*")) {
-        if ((await redis.type(key)) !== "hash") continue;
-        const data = await redis.hget(key, "data");
-        if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
-          class: string;
-          args: unknown[];
-          queue: string;
-          at?: number;
-        };
-        if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({
-          class: item.class,
-          args: item.args,
-          queue: item.queue,
-          ...(item.at === undefined ? {} : { at: item.at }),
-        });
-      }
-      // Jobs that still run in Ruby are pushed to Sidekiq's own lists (`queue:<name>`, `schedule`).
-      for (const key of await redis.keys("queue:*")) {
-        for (const raw of await redis.lrange(key, 0, -1)) {
-          const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-          if (!IGNORED_JOBS.has(item.class))
-            jobs.push({
-              class: item.class,
-              args: item.args,
-              queue: item.queue,
-              ...(item.at === undefined ? {} : { at: item.at }),
-            });
-        }
-      }
-      for (const raw of await redis.zrange("schedule", "0", "-1")) {
-        const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-        if (!IGNORED_JOBS.has(item.class))
-          jobs.push({
-            class: item.class,
-            args: item.args,
-            queue: item.queue,
-            ...(item.at === undefined ? {} : { at: item.at }),
-          });
-      }
-      return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-    },
-  };
-}
 
 // Rails' versions are off in the test environment (PaperTrail.enabled = false), so the rows Node writes for them are not compared;
 // models/concerns/paper-trail.test.ts and the golden of each write pin them.
@@ -196,7 +141,7 @@ describe.skipIf(!url)("PurchasesController guards", () => {
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
-    jobs: redisJobs(redis),
+    jobs: redisJobsChannel(redis, IGNORED_JOBS),
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],

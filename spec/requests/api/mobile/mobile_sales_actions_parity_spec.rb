@@ -238,12 +238,16 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(SendPurchaseReceiptJob.jobs.size).to eq(0)
     end
 
-    it "hands a gift sender receipt to Rails", parity: true do
+    it "enqueues the receipts of a gift sender and of its giftee", parity: true do
       sale.update_attribute(:is_gift_sender_purchase, true)
+      giftee_sale = purchase_row(link: product, seller:, email: "giftee@example.com", purchase_state: "gift_receiver_purchase_successful")
+      giftee_sale.update_attribute(:is_gift_receiver_purchase, true)
+      create(:gift, link: product, gifter_purchase: sale, giftee_purchase: giftee_sale)
 
       post "/mobile/sales/#{sale.external_id}/resend_receipt", params: auth(seller)
 
       expect(response.parsed_body).to eq("success" => true)
+      expect(SendPurchaseReceiptJob.jobs.size).to eq(2)
     end
 
     it "stops emailing the buyer of a free sale", parity: true, defer_audience_refresh: true do
