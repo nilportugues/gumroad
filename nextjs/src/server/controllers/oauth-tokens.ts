@@ -1,5 +1,5 @@
 // Oauth::TokensController (app/controllers/oauth/tokens_controller.rb over Doorkeeper::TokensController, doorkeeper 5.7.1): POST
-// /oauth/token with the muse, claude, chatgpt, IFTTT and Notion aliases, /oauth/revoke, /oauth/introspect and GET /oauth/token/info.
+// /oauth/token with the muse, claude, chatgpt, cursor, antigravity, IFTTT and Notion aliases, /oauth/revoke, /oauth/introspect and GET /oauth/token/info.
 //
 // The token endpoint runs the authorization_code, client_credentials, refresh_token and device-code grants in full: validation order, PKCE, the
 // redirect URI check (models/oauth-redirect-uri.ts), the grant and refresh locks, the shared application lock around a refresh and
@@ -536,13 +536,15 @@ async function introspect(input: MutationInput): Promise<ActionResult> {
   );
 }
 
-// Rack::Attack's `oauth_token/ip` rule counts `/oauth/token` and the muse, claude and chatgpt aliases in rack-attack.ts before the action
+// Rack::Attack's `oauth_token/ip` rule counts `/oauth/token` and the muse, claude, chatgpt, cursor and antigravity aliases in rack-attack.ts before the action
 // chain runs, once per request whichever way it leaves; IFTTT and Notion have no throttle in rack_attack.rb.
 const TOKEN_PATHS = [
   "/oauth/token",
   "/muse/v1/oauth2/token",
   "/claude/v1/oauth2/token",
   "/chatgpt/v1/oauth2/token",
+  "/cursor/v1/oauth2/token",
+  "/antigravity/v1/oauth2/token",
   "/ifttt/v1/oauth2/token",
   "/notion/oauth2/token",
 ];

@@ -116,6 +116,8 @@ describe("registered token paths", () => {
       "/muse/v1/oauth2/token",
       "/claude/v1/oauth2/token",
       "/chatgpt/v1/oauth2/token",
+      "/cursor/v1/oauth2/token",
+      "/antigravity/v1/oauth2/token",
       "/ifttt/v1/oauth2/token",
       "/notion/oauth2/token",
     ]);
