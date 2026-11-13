@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, search, purchasesJson, countProducts, productIds } = vi.hoisted(() => ({
+const { actions, search, purchasesJson, countProducts, productIds, dataForDates } = vi.hoisted(() => ({
+  dataForDates: vi.fn(),
   actions: [] as MobileAction[],
   search: vi.fn(),
   purchasesJson: vi.fn(),
@@ -25,6 +26,13 @@ vi.mock("../search/purchase-search.ts", () => ({
 }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ creatorAppPurchasesJson: purchasesJson }));
 
+vi.mock("../page-props/analytics/caching-proxy.ts", () => ({
+  CreatorAnalyticsCachingProxy: class {
+    dataForDates(...args: unknown[]) {
+      return dataForDates(...args);
+    }
+  },
+}));
 vi.mock("../page-props/analytics/seller-analytics.ts", () => ({
   countProductsForCreatorAnalytics: countProducts,
   productIdsForCreatorAnalytics: productIds,
@@ -91,6 +99,37 @@ describe("GET /mobile/analytics/data_by_date", () => {
     async (params) => {
       await expect(run(input(params), auth)).rejects.toBeInstanceOf(HandBackToRails);
       expect(search).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe("GET /mobile/analytics/by_state", () => {
+  const byState = actions.find((action) => action.pattern === "/mobile/analytics/by_state")!.run;
+
+  beforeEach(() => dataForDates.mockReset().mockResolvedValue({ by_state: {} }));
+
+  it.each([
+    [{ start_date: "2026-03-01", end_date: "2026-03-02" }],
+    [{ start_date: "1 March 2026", end_date: "2 March 2026" }],
+  ])("reads the dates of %j as the same two days", async (params) => {
+    await byState(input(params), auth);
+
+    expect(dataForDates).toHaveBeenCalledExactlyOnceWith("2026-03-01", "2026-03-02", "state");
+  });
+
+  it("reads a day and month written out in full for every month", async () => {
+    await byState(input({ start_date: "31 December 2025", end_date: "9 January 2026" }), auth);
+
+    expect(dataForDates).toHaveBeenCalledExactlyOnceWith("2025-12-31", "2026-01-09", "state");
+  });
+
+  it.each([["31 February 2026"], ["1 Marchh 2026"], ["March 1 2026"], ["1 march 2026"], ["1 March 26"]])(
+    "hands the date %j to Rails, which reads it itself",
+    async (date) => {
+      await expect(byState(input({ start_date: date, end_date: "2026-03-02" }), auth)).rejects.toBeInstanceOf(
+        HandBackToRails,
+      );
+      expect(dataForDates).not.toHaveBeenCalled();
     },
   );
 });

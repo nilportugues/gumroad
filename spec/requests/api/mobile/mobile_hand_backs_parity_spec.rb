@@ -38,7 +38,7 @@ describe "Mobile API hand backs", type: :request do
     expect(response.parsed_body).to eq("success" => true)
   end
 
-  it "hands a range with a date Node does not parse to Rails", parity: true do
+  it "reads a range written as day, month name and year", parity: true do
     get "/mobile/analytics/by_state", params: auth(user, scopes: "creator_api").merge(start_date: "1 March 2026", end_date: "2 March 2026")
 
     expect(response).to be_successful

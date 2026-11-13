@@ -397,12 +397,13 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(PostToPingEndpointsWorker.jobs.size).to eq(0)
     end
 
-    it "hands a ping of a sale with URL parameters to Rails", parity: true do
+    it "enqueues the ping of a sale with its URL parameters", parity: true do
       PurchaseUrlParameter.create!(purchase: sale, params: { "discord_id" => "42" })
 
       post "/mobile/sales/#{sale.external_id}/resend_ping", params: auth(seller)
 
       expect(response.parsed_body).to eq("success" => true)
+      expect(PostToPingEndpointsWorker.jobs.map { _1["args"] }).to eq([[sale.id, { "discord_id" => "42" }]])
     end
 
     it "hands a shipment to Rails", parity: true do
