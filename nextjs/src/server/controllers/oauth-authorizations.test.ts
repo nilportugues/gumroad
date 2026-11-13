@@ -16,6 +16,7 @@ vi.mock("../models/sql.ts", () => ({
   selectRows,
   column: (_table: string, name: string) => name,
   table: (name: string) => name,
+  quoteName: (name: string) => name,
 }));
 vi.mock("../models/oauth-application-writes.ts", () => ({ withApplicationLock }));
 
