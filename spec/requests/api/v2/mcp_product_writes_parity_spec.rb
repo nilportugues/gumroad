@@ -485,7 +485,7 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       end
 
       it "keeps a summary as written, markup and accents included", parity: true do
-        update({ summary: "  Sketch <b>every</b> \"day\" / é 🎨 \\ \u2028 " })
+        update({ summary: "  Sketch <b>every</b> & \"day\" / é 🎨 \\ \u2028 " })
       end
 
       it "keeps a summary that is only a zero width space", parity: true do
@@ -645,6 +645,11 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
 
       it "hands a summary with a lone surrogate back to Rails", parity: true do
         body = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_product","arguments":{"id":"pencilpk","summary":"a\\ud800b"}}}'
+        post "/muse/v1/mcp", params: body, headers: rpc.merge(auth("edit_products"))
+      end
+
+      it "hands an additional detail with a lone surrogate back to Rails", parity: true do
+        body = '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_product","arguments":{"id":"pencilpk","additional_details":[{"name":"Pages","value":"a\\ud800b"}]}}}'
         post "/muse/v1/mcp", params: body, headers: rpc.merge(auth("edit_products"))
       end
 
