@@ -97,12 +97,14 @@ export async function customFieldJson(field: CustomField): Promise<Record<string
   };
 }
 
-// ProductBuild#as_json
-export const productBuildJson = (build: ProductBuild) => ({
+// ProductBuild#as_json. `demo` is `demo_selected?`, which the Prisma client cannot read (see models/product-build-demo.ts).
+export const productBuildJson = (build: ProductBuild, demo: boolean) => ({
   id: build.public_id,
   number: build.number,
   status: build.status,
   byte_size: Number(build.byte_size),
   created_at: timeJson(build.created_at),
   promoted_at: timeJson(build.promoted_at),
+  demo,
+  unpack_error: build.site_unpack_error != null && build.site_unpack_error.trim() !== "" ? build.site_unpack_error : null,
 });
