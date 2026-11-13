@@ -12,15 +12,26 @@ import type { Query } from "../controllers/rails-query.ts";
 import { viteAssetPath } from "../infra/vite.ts";
 import { cachedRate, getUsdCents, rubyStringToF, unitScalingFactor } from "../models/concerns/currency-helper.ts";
 import { customStyles, withDefaults } from "../models/seller-profile-styles.ts";
+import { column, selectRows, table } from "../models/sql.ts";
 import { sellerProfile as loadSellerProfile, Users } from "../models/user.ts";
 import { remoteIp } from "../page-props/audience/events.ts";
+import { curatedTaxonomyIds } from "../page-props/discover/curated-products.ts";
+import { createDiscoverSearch } from "../page-props/discover/discover.ts";
+import { taxonomiesForNav } from "../page-props/discover/taxonomies.ts";
 import { domainConfig, assetHost } from "../page-props/domain.ts";
+import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
+import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
+import { storefrontCatalogSections } from "../page-props/storefront/catalog.ts";
+import { setHostMeta } from "../page-props/storefront/post-pages.ts";
+import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
+import { visitorSearchParams } from "../page-props/storefront/product-sections.ts";
 import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 import { settingsProfilePolicy } from "../policies/settings/profile.ts";
-import { column, selectRows, table } from "../models/sql.ts";
 
+import { addressableEscape } from "./asset-preview.ts";
 import { plaintextDescription, htmlSafeDescription, squish } from "./description.ts";
+import { coverProps } from "./product-props-extras.ts";
 import {
   closedMembershipForNewBuyers,
   jsonData,
@@ -30,20 +41,8 @@ import {
   reviewSummary,
   type ProductPageViewerInput,
 } from "./product-props.ts";
-import { addressableEscape } from "./asset-preview.ts";
-import { coverProps } from "./product-props-extras.ts";
 import { customDomainByHost, type LinkRow, type UserRow } from "./product-reads.ts";
 import { longUrl } from "./product.ts";
-
-import { creatorProfile, visiblePosts } from "../page-props/settings/profile.ts";
-import { setFaviconMetaTags } from "../page-props/storefront/post.ts";
-import { setHostMeta } from "../page-props/storefront/post-pages.ts";
-import { storefrontCatalogSections } from "../page-props/storefront/catalog.ts";
-import { visitorSearchParams } from "../page-props/storefront/product-sections.ts";
-import { curatedTaxonomyIds } from "../page-props/discover/curated-products.ts";
-import { createDiscoverSearch } from "../page-props/discover/discover.ts";
-import { taxonomiesForNav } from "../page-props/discover/taxonomies.ts";
-import type { MetaTagBuilder } from "../page-props/meta-tags.ts";
 
 export type RenderContext = {
   chain: Chain;
@@ -472,14 +471,7 @@ async function build(
   kind: ProductPageKind = "show",
 ) {
   const props = await productProps(row, seller, viewer);
-  await setMeta(
-    meta,
-    row,
-    seller,
-    host,
-    viewer.sellerCustomDomainUrl,
-    props.product.covers as CoverMeta[],
-  );
+  await setMeta(meta, row, seller, host, viewer.sellerCustomDomainUrl, props.product.covers as CoverMeta[]);
   // ProductPresenter#iframe_product_props is product_props alone.
   if (kind === "iframe") return props;
   const [section] = await selectRows(

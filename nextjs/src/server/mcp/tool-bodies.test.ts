@@ -686,9 +686,9 @@ describe("tools/call through the session", () => {
   });
 
   it("still hands back a tool that is not ported", async () => {
-    await expect(session("account").handle(call("add_cover", { id: "x", url: "https://example.com/a.png" }))).rejects.toBeInstanceOf(
-      HandBackToRails,
-    );
+    await expect(
+      session("account").handle(call("add_cover", { id: "x", url: "https://example.com/a.png" })),
+    ).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 

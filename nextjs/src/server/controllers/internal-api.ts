@@ -18,11 +18,11 @@ import { urlClickCounts } from "../models/email-engagement-store.ts";
 import { audienceMembersFilterParams } from "../models/installment-audience.ts";
 import { InstallmentPost } from "../models/installment-post.ts";
 import { createBlast, RECIPIENT_FILTER_UNOPENED } from "../models/post-email-blast.ts";
-import { autoResumeEligible, deliveryStatus, redisInt, type Blast } from "../page-props/emails/installment-props.ts";
 import { findAliveVideo, setApprovalStatusBang } from "../models/product-review-video.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
+import { autoResumeEligible, deliveryStatus, redisInt, type Blast } from "../page-props/emails/installment-props.ts";
 import { NotPortedError as PageNotPortedError } from "../page-props/not-ported.ts";
 import { PAGE_URL_HEADER } from "../page-props/render-state.ts";
 import { authorize } from "../policies/authorize.ts";
@@ -41,8 +41,6 @@ import {
   type ActionResult,
   type Rendered,
 } from "./application-controller.ts";
-import { agentActionStatus, agentConversationsLatest, agentTurnStatus } from "./internal-agent.ts";
-import { agentCustomHtmlPreview } from "./internal-agent-previews.ts";
 import { productPosts } from "./internal-product-posts.ts";
 import { json, jsonAction } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -545,7 +543,8 @@ async function latestRegularBlast(postId: bigint | number): Promise<Blast | null
   if (regular.length > 1 && regular.some((blast) => blast.requested_at === null))
     throw new HandBackToRails("a blast with no requested_at beside others");
   return regular.reduce<Blast | null>(
-    (latest, blast) => (latest === null || (blast.requested_at?.getTime() ?? 0) > (latest.requested_at?.getTime() ?? 0) ? blast : latest),
+    (latest, blast) =>
+      latest === null || (blast.requested_at?.getTime() ?? 0) > (latest.requested_at?.getTime() ?? 0) ? blast : latest,
     null,
   );
 }
@@ -593,7 +592,8 @@ async function remainingSend(input: MutationInput): Promise<ActionResult> {
     if (status !== "incomplete") return unprocessable(NOT_WAITING_ON_RECIPIENTS);
     if (await autoResumeEligible(blast, remaining, now)) return unprocessable(RETRYING_AUTOMATICALLY);
     // `$redis.set(marker, claim, nx: true)` fails while the marker is held; claiming it here would leave Rails' own attempt to fail.
-    if ((await getRedis("main").exists(`blast:${blast.id}:auto_resumed`)) > 0) return unprocessable(SEND_STARTED_RECENTLY);
+    if ((await getRedis("main").exists(`blast:${blast.id}:auto_resumed`)) > 0)
+      return unprocessable(SEND_STARTED_RECENTLY);
     throw new HandBackToRails("a send to the remaining recipients");
   });
 }
@@ -707,10 +707,6 @@ const GET_ROUTES: GetRoute[] = [
   { pattern: "/internal/products/:product_id/receipt_preview", run: receiptPreview },
   { pattern: "/internal/products/:product_id/existing_product_files", run: existingProductFiles },
   { pattern: "/internal/products/:product_id/product_posts", run: productPosts },
-  { pattern: "/internal/agent/conversations/latest", run: (request) => agentConversationsLatest(request) },
-  { pattern: "/internal/agent/actions/status", run: (request) => agentActionStatus(request) },
-  { pattern: "/internal/agent/turns/:client_turn_id", run: agentTurnStatus },
-  { pattern: "/internal/agent/custom_html_previews/:token", run: agentCustomHtmlPreview },
 ];
 
 function matchRoute(pattern: string, path: string): Record<string, string> | null {

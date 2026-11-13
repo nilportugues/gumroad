@@ -1,20 +1,19 @@
 // Handlers for every class in src/server/jobs/ported-jobs.ts, keyed by Ruby class name.
 import type { RetriesExhausted, RetryIn } from "../retry.ts";
 
+import { activateIntegrationsWorker } from "./activate-integrations-worker.ts";
+import { alertOnBlockedEstablishedBuyersJob } from "./alert-on-blocked-established-buyers-job.ts";
+import { alertOnBlockedEstablishedSubscribersJob } from "./alert-on-blocked-established-subscribers-job.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
+import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
+import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
-import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
+import { analyzeFileWorker } from "./analyze-file-worker.ts";
+import { annualPayoutExportWorker } from "./annual-payout-export-worker.ts";
+import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
 import { backfillMembershipRenewalRemindersJob } from "./backfill-membership-renewal-reminders-job.ts";
-import { unstickStuckInProgressPurchasesJob } from "./unstick-stuck-in-progress-purchases-job.ts";
-import {
-  generateFinancialReportsForPreviousMonthJob,
-  generateFinancialReportsForPreviousMonthJobRetriesExhausted,
-  generateFinancialReportsForPreviousQuarterJob,
-  generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
-} from "./generate-financial-reports-jobs.ts";
-import { duplicateProductWorker } from "./duplicate-product-worker.ts";
-import { syncGuardianToStripeJob } from "./sync-guardian-to-stripe-job.ts";
-import { generateMerchantCenterFeedWorker } from "./generate-merchant-center-feed-worker.ts";
+import { backfillOrphanedShownProductsInProfileSectionsJob } from "./backfill-orphaned-shown-products-in-profile-sections-job.ts";
+import { backfillPdfStampsJob } from "./backfill-pdf-stamps-job.ts";
 import { backfillPriceCheckerIndexFieldsJob } from "./backfill-price-checker-index-fields-job.ts";
 import { backfillTaggingsCountOnTagsJob } from "./backfill-taggings-count-on-tags-job.ts";
 import {
@@ -24,16 +23,11 @@ import {
 } from "./batched-cleanup-jobs.ts";
 import { cacheProductDataWorker } from "./cache-product-data-worker.ts";
 import { calculatePayoutNumbersWorker } from "./calculate-payout-numbers-worker.ts";
-import {
-  performPayoutsForUserSliceWorker,
-  performPayoutsForUserSliceWorkerRetriesExhausted,
-  performPayoutsUpToDelayDaysAgoWorker,
-  performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
-} from "./payout-batch-jobs.ts";
 import { calculateSaleNumbersWorker } from "./calculate-sale-numbers-worker.ts";
-import { updateTaxRatesJob } from "./update-tax-rates-job.ts";
-import { compileGumroadDailyAnalyticsJob } from "./compile-gumroad-daily-analytics-job.ts";
+import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
 import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
+import { chargePreorderWorker } from "./charge-preorder-worker.ts";
+import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-worker.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -43,7 +37,12 @@ import {
   forceFinishLongRunningCommunityChatRecapRunsJob,
   triggerCommunityChatRecapRunJob,
 } from "./community-chat-recap-jobs.ts";
+import { compileGumroadDailyAnalyticsJob } from "./compile-gumroad-daily-analytics-job.ts";
+import { createLicensesForExistingCustomersWorkerWith } from "./create-licenses-for-existing-customers-worker.ts";
+import { createStripeMerchantAccountWorker } from "./create-stripe-merchant-account-worker.ts";
+import { customDomainVerificationWorker } from "./custom-domain-verification-worker.ts";
 import { customDomainsVerificationWorker } from "./custom-domains-verification-worker.ts";
+import { deactivateIntegrationsWorker } from "./deactivate-integrations-worker.ts";
 import { deleteExpiredOauthDeviceAuthorizationsJob } from "./delete-expired-oauth-device-authorizations-job.ts";
 import {
   deleteOldPingDeliveriesJob,
@@ -52,25 +51,59 @@ import {
 } from "./delete-old-records-jobs.ts";
 import { deleteOldVersionsRecordsWorker } from "./delete-old-versions-records-worker.ts";
 import { deleteProductFilesArchivesWorker } from "./delete-product-files-archives-worker.ts";
+import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
 import { deleteProductRichContentWorker } from "./delete-product-rich-content-worker.ts";
 import { deleteUnusedPublicFilesJob } from "./delete-unused-public-files-job.ts";
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
-import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
+import { deliverFilesReadyNotificationJob } from "./deliver-files-ready-notification-job.ts";
 import { detectFailingPaypalRailsJob } from "./detect-failing-paypal-rails-job.ts";
+import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
+import { duplicateProductWorker } from "./duplicate-product-worker.ts";
 import { elasticsearchIndexerWorker } from "./elasticsearch-indexer-worker.ts";
 import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-seller-job.ts";
-import { alertOnBlockedEstablishedBuyersJob } from "./alert-on-blocked-established-buyers-job.ts";
-import { alertOnBlockedEstablishedSubscribersJob } from "./alert-on-blocked-established-subscribers-job.ts";
-import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
+import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
+import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
+import {
+  emailOutstandingBalancesCsvWorker,
+  emailOutstandingBalancesCsvWorkerRetriesExhausted,
+  sendDailyFinanceLedgerReportJob,
+  sendDailyFinanceLedgerReportJobRetriesExhausted,
+  sendDeferredRefundsReportWorker,
+  sendDeferredRefundsReportWorkerRetriesExhausted,
+  sendFinancesReportWorker,
+  sendFinancesReportWorkerRetriesExhausted,
+  sendStripeBalanceSummariesReportJob,
+  sendStripeBalanceSummariesReportJobRetriesExhausted,
+  sendStripeCurrencyBalancesReportJob,
+  sendStripeCurrencyBalancesReportJobRetriesExhausted,
+} from "./finance-report-jobs.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
+import {
+  generateCommunityChatRecapJob,
+  generateCommunityChatRecapJobRetriesExhausted,
+} from "./generate-community-chat-recap-job.ts";
+import {
+  generateFinancialReportsForPreviousMonthJob,
+  generateFinancialReportsForPreviousMonthJobRetriesExhausted,
+  generateFinancialReportsForPreviousQuarterJob,
+  generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
+} from "./generate-financial-reports-jobs.ts";
+import { generateLargeSellersAnalyticsCacheWorker } from "./generate-large-sellers-analytics-cache-worker.ts";
+import { generateMerchantCenterFeedWorker } from "./generate-merchant-center-feed-worker.ts";
+import { generateProductFilesArchivesJob } from "./generate-product-files-archives-job.ts";
+import {
+  generateSubscribePreviewJob,
+  generateSubscribePreviewJobRetriesExhausted,
+} from "./generate-subscribe-preview-job.ts";
 import { generateUsernameJob } from "./generate-username-job.ts";
+import { generateVideoPosterWorker } from "./generate-video-poster-worker.ts";
+import { googleCalendarInviteJob } from "./google-calendar-invite-job.ts";
 import { handleGrmcCallbackJob } from "./handle-grmc-callback-job.ts";
 import { handleNewUserComplianceInfoWorker } from "./handle-new-user-compliance-info-worker.ts";
-import { googleCalendarInviteJob } from "./google-calendar-invite-job.ts";
 import { handleResendEventJob } from "./handle-resend-event-job.ts";
 import { handleSendgridEventJob } from "./handle-sendgrid-event-job.ts";
 import { handleSnsAwsConfigEventWorker } from "./handle-sns-aws-config-event-worker.ts";
@@ -86,6 +119,7 @@ import {
 } from "./lift-platform-stripe-pause-job.ts";
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
+import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
@@ -99,21 +133,24 @@ import {
   syncStuckPayoutsJob,
   updatePayoutStatusWorker,
 } from "./payment-processor-jobs.ts";
-import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
-import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-worker.ts";
-import { renameProductFileWorker } from "./rename-product-file-worker.ts";
-import { deleteProductFilesWorker } from "./delete-product-files-worker.ts";
-import { recoverStrandedBuyersJobWith } from "./recover-stranded-buyers-job.ts";
-import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
-import { createLicensesForExistingCustomersWorkerWith } from "./create-licenses-for-existing-customers-worker.ts";
-import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
 import {
-  refreshAffiliateEarningsJob,
-  refreshAffiliateEarningsJobRetriesExhausted,
-} from "./refresh-affiliate-earnings-job.ts";
-import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
+  performPayoutsForUserSliceWorker,
+  performPayoutsForUserSliceWorkerRetriesExhausted,
+  performPayoutsUpToDelayDaysAgoWorker,
+  performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
+} from "./payout-batch-jobs.ts";
+import {
+  deleteGuardianStripePersonJob,
+  deleteGuardianStripePersonJobRetriesExhausted,
+  handleNewBankAccountWorker,
+  handleNewBankAccountWorkerRetriesExhausted,
+} from "./payout-note-retries-exhausted-jobs.ts";
+import { pdfUnstampableNotifierJob } from "./pdf-unstampable-notifier-job.ts";
+import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
 import { processAssetPreviewRetinaWorker } from "./process-asset-preview-retina-worker.ts";
+import { processEarlyFraudWarningJob } from "./process-early-fraud-warning-job.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
+import { productBuildUnpackJob } from "./product-build-unpack-job.ts";
 import {
   refreshMerchantAccountProductsRecommendationEligibilityJob,
   refreshUserProductsRecommendationEligibilityJob,
@@ -130,18 +167,26 @@ import {
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
+import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
+import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
 import { recordSocialScoreShadowEvaluationsJob } from "./record-social-score-shadow-evaluations-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
+import { recoverStrandedBuyersJobWith } from "./recover-stranded-buyers-job.ts";
+import {
+  refreshAffiliateEarningsJob,
+  refreshAffiliateEarningsJobRetriesExhausted,
+} from "./refresh-affiliate-earnings-job.ts";
 import { refreshAudienceMemberJob } from "./refresh-audience-member-job.ts";
 import { refreshClosedTierDiscoverPricesJob } from "./refresh-closed-tier-discover-prices-job.ts";
 import { refreshCustomDomainRoutabilityWorker } from "./refresh-custom-domain-routability-worker.ts";
 import { refreshHighVolumeSellerFeeEligibilityJob } from "./refresh-high-volume-seller-fee-eligibility-job.ts";
 import { refreshMerchantAccountPaymentMethodAvailabilityWorker } from "./refresh-merchant-account-payment-method-availability-worker.ts";
+import { refundAllForFraudWorker } from "./refund-all-for-fraud-worker.ts";
 import {
   createMissingDisputeEvidenceJob,
   dispatchPendingFailedRefundExceptionsJob,
@@ -164,20 +209,27 @@ import {
   reindexSellerOfferCodesRecoveryJob,
   reindexSellerOfferCodesRecoveryJobRetriesExhausted,
 } from "./reindex-seller-offer-codes-job.ts";
-import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
 import { reindexUserElasticsearchDataWorker } from "./reindex-user-elasticsearch-data-worker.ts";
+import { reissueSslCertificateForUpdatedCustomDomains } from "./reissue-ssl-certificate-for-updated-custom-domains.ts";
+import { releaseChargebackRatePayoutPauseForSellerJob } from "./release-chargeback-rate-payout-pause-for-seller-job.ts";
+import { removeDeletedFilesFromS3Job } from "./remove-deleted-files-from-s3-job.ts";
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
-import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
-import { backfillPdfStampsJob } from "./backfill-pdf-stamps-job.ts";
+import { renameProductFileWorker } from "./rename-product-file-worker.ts";
+import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-certificates.ts";
+import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
+import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
+import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
 import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
+import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
 import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
-import { refundAllForFraudWorker } from "./refund-all-for-fraud-worker.ts";
-import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
+import {
+  reverseDeferredInternalTransferJob,
+  reverseDeferredInternalTransferJobRetriesExhausted,
+} from "./reverse-deferred-internal-transfer-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
+import { scheduleMembershipPriceUpdatesJob } from "./schedule-membership-price-updates-job.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
-import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-update-emails-job.ts";
-import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
 import {
   alertOnStalledAbandonedCartEmailsJob,
   buildTaxRateCacheWorker,
@@ -187,29 +239,38 @@ import {
   backfillMerchantAccountRecommendationEligibilityJob,
   reindexSubscriptionCurrentEmailWorker,
 } from "./search-reindex-jobs.ts";
-import { removeDeletedFilesFromS3Job } from "./remove-deleted-files-from-s3-job.ts";
 import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
+import { sendLastPostJob } from "./send-last-post-job.ts";
+import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
+import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-update-emails-job.ts";
+import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
+import { sendPaypalTopupNotificationJob } from "./send-paypal-topup-notification-job.ts";
+import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
+import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
+import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
+import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
+import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
+import { sendWorkflowEmailsToPastCanceledMembersJob } from "./send-workflow-emails-to-past-canceled-members-job.ts";
+import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import {
   refreshSitemapDailyWorker,
   refreshSitemapMonthlyWorker,
   refreshWishlistSitemapDailyWorker,
 } from "./sitemap-workers.ts";
-import { sendLastPostJob } from "./send-last-post-job.ts";
-import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-email-job.ts";
-import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
-import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
-import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
-import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
-import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
+import { staleTransientSuppressionSweepJob } from "./stale-transient-suppression-sweep-job.ts";
+import { stampPdfForPurchaseJob } from "./stamp-pdf-for-purchase-job.ts";
+import { stripeCreateMerchantAccountsWorker } from "./stripe-create-merchant-accounts-worker.ts";
 import {
   createStripeApplePayDomainWorker,
   createStripeApplePayDomainWorkerRetriesExhausted,
   deleteStripeApplePayDomainWorker,
   syncStripeBusinessProfileUrlJob,
 } from "./stripe-jobs.ts";
+import { stripePayoutsPausedEmailJob } from "./stripe-payouts-paused-email-job.ts";
+import { stripeRestraintNoticeEmailJob } from "./stripe-restraint-notice-email-job.ts";
 import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import {
   chargeDeclinedReminderWorker,
@@ -226,86 +287,30 @@ import {
 } from "./subscription-write-jobs.ts";
 import { subtitleFileSizeWorker } from "./subtitle-file-size-worker.ts";
 import { suspendAccountsWithPaymentAddressWorker, suspendUsersWorker } from "./suspend-jobs.ts";
+import { syncGuardianToStripeJob } from "./sync-guardian-to-stripe-job.ts";
 import { syncStripeBusinessProfileUrlWorker } from "./sync-stripe-business-profile-url-worker.ts";
 import { syncWatchedUsersJob } from "./sync-watched-users-job.ts";
-import type { JobHandler } from "./types.ts";
-import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
-import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
-import { updatePurchaseEmailToMatchAccountWorker } from "./update-purchase-email-to-match-account-worker.ts";
-import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
-import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
-import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
-import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
-import { stripePayoutsPausedEmailJob } from "./stripe-payouts-paused-email-job.ts";
-import { scheduleMembershipPriceUpdatesJob } from "./schedule-membership-price-updates-job.ts";
-import { updateBundlePurchasesContentJob } from "./update-bundle-purchases-content-job.ts";
-import { staleTransientSuppressionSweepJob } from "./stale-transient-suppression-sweep-job.ts";
-import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
-import { pdfUnstampableNotifierJob } from "./pdf-unstampable-notifier-job.ts";
-import { generateLargeSellersAnalyticsCacheWorker } from "./generate-large-sellers-analytics-cache-worker.ts";
-import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
-import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-certificates.ts";
-import { sendPaypalTopupNotificationJob } from "./send-paypal-topup-notification-job.ts";
-import { updateIntegrationsOnTierChangeWorker } from "./update-integrations-on-tier-change-worker.ts";
-import { deactivateIntegrationsWorker } from "./deactivate-integrations-worker.ts";
-import { activateIntegrationsWorker } from "./activate-integrations-worker.ts";
-import { generateProductFilesArchivesJob } from "./generate-product-files-archives-job.ts";
-import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
-import { utmLinkSaleAttributionJob } from "./utm-link-sale-attribution-job.ts";
-import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
-import { processEarlyFraudWarningJob } from "./process-early-fraud-warning-job.ts";
-import { createStripeMerchantAccountWorker } from "./create-stripe-merchant-account-worker.ts";
-import { analyzeFileWorker } from "./analyze-file-worker.ts";
-import { transferDropboxFileToS3Worker } from "./transfer-dropbox-file-to-s3-worker.ts";
-import { generateVideoPosterWorker } from "./generate-video-poster-worker.ts";
-import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
-import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
-import { chargePreorderWorker } from "./charge-preorder-worker.ts";
-import { pushNotificationWorker } from "./push-notification-worker.ts";
-import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
-import { attachPastPurchasesToUserWorker } from "./attach-past-purchases-to-user-worker.ts";
-import { stripeRestraintNoticeEmailJob } from "./stripe-restraint-notice-email-job.ts";
-import {
-  emailOutstandingBalancesCsvWorker,
-  emailOutstandingBalancesCsvWorkerRetriesExhausted,
-  sendDailyFinanceLedgerReportJob,
-  sendDailyFinanceLedgerReportJobRetriesExhausted,
-  sendDeferredRefundsReportWorker,
-  sendDeferredRefundsReportWorkerRetriesExhausted,
-  sendFinancesReportWorker,
-  sendFinancesReportWorkerRetriesExhausted,
-  sendStripeBalanceSummariesReportJob,
-  sendStripeBalanceSummariesReportJobRetriesExhausted,
-  sendStripeCurrencyBalancesReportJob,
-  sendStripeCurrencyBalancesReportJobRetriesExhausted,
-} from "./finance-report-jobs.ts";
 import {
   taxFormTransactionReportJob,
   taxFormTransactionReportJobRetriesExhausted,
 } from "./tax-form-transaction-report-job.ts";
-import {
-  deleteGuardianStripePersonJob,
-  deleteGuardianStripePersonJobRetriesExhausted,
-  handleNewBankAccountWorker,
-  handleNewBankAccountWorkerRetriesExhausted,
-} from "./payout-note-retries-exhausted-jobs.ts";
-import {
-  generateCommunityChatRecapJob,
-  generateCommunityChatRecapJobRetriesExhausted,
-} from "./generate-community-chat-recap-job.ts";
-import {
-  reverseDeferredInternalTransferJob,
-  reverseDeferredInternalTransferJobRetriesExhausted,
-} from "./reverse-deferred-internal-transfer-job.ts";
-import {
-  generateSubscribePreviewJob,
-  generateSubscribePreviewJobRetriesExhausted,
-} from "./generate-subscribe-preview-job.ts";
-import { productBuildUnpackJob } from "./product-build-unpack-job.ts";
-import { stampPdfForPurchaseJob } from "./stamp-pdf-for-purchase-job.ts";
-import { deliverFilesReadyNotificationJob } from "./deliver-files-ready-notification-job.ts";
-import { customDomainVerificationWorker } from "./custom-domain-verification-worker.ts";
+import { transferDropboxFileToS3Worker } from "./transfer-dropbox-file-to-s3-worker.ts";
+import type { JobHandler } from "./types.ts";
+import { unstickStuckInProgressPurchasesJob } from "./unstick-stuck-in-progress-purchases-job.ts";
+import { updateBundlePurchasesContentJob } from "./update-bundle-purchases-content-job.ts";
+import { updateCachedSalesRelatedProductsInfosJob } from "./update-cached-sales-related-products-infos-job.ts";
+import { updateCurrenciesWorker } from "./update-currencies-worker.ts";
+import { updateIntegrationsOnTierChangeWorker } from "./update-integrations-on-tier-change-worker.ts";
+import { updatePurchaseEmailToMatchAccountWorker } from "./update-purchase-email-to-match-account-worker.ts";
+import { updatePurchasingPowerParityFactorsWorker } from "./update-purchasing-power-parity-factors-worker.ts";
+import { updateSalesRelatedProductsInfosJob } from "./update-sales-related-products-infos-job.ts";
+import { updateSellerRefundEligibilityJob } from "./update-seller-refund-eligibility-job.ts";
+import { updateTaxRatesJob } from "./update-tax-rates-job.ts";
+import { updateTaxonomyStatsJob } from "./update-taxonomy-stats-job.ts";
+import { updateUtmLinkStatsJob } from "./update-utm-link-stats-job.ts";
 import { affiliateExportWorker, audienceExportWorker } from "./user-export-workers.ts";
+import { utmLinkSaleAttributionJob } from "./utm-link-sale-attribution-job.ts";
+import { warmSellerReputationSummaryJob } from "./warm-seller-reputation-summary-job.ts";
 import { recalculateRecentWishlistFollowerCountJob } from "./wishlist-jobs.ts";
 import {
   flushInstallmentDeliveredDeltasJob,
@@ -314,8 +319,6 @@ import {
   sendWorkflowInstallmentRescheduleJob,
   updateInstallmentEventsCountCacheWorker,
 } from "./workflow-jobs.ts";
-import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
-import { sendWorkflowEmailsToPastCanceledMembersJob } from "./send-workflow-emails-to-past-canceled-members-job.ts";
 
 export const JOB_HANDLERS: Record<string, JobHandler> = {
   UpdateTaxRatesJob: updateTaxRatesJob,
@@ -351,7 +354,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   BackfillPdfStampsJob: backfillPdfStampsJob,
   RetryFailedPaypalPayoutsWorker: retryFailedPaypalPayoutsWorker,
   SendMembershipsPriceUpdateEmailsJob: sendMembershipsPriceUpdateEmailsJob,
-  SendRemindersForOutstandingUserComplianceInfoRequestsWorker: sendRemindersForOutstandingUserComplianceInfoRequestsWorker,
+  SendRemindersForOutstandingUserComplianceInfoRequestsWorker:
+    sendRemindersForOutstandingUserComplianceInfoRequestsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
   OrderReviewReminderJob: orderReviewReminderJob,
@@ -555,6 +559,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CustomDomainVerificationWorker: customDomainVerificationWorker,
   "Exports::AffiliateExportWorker": affiliateExportWorker,
   "Exports::AudienceExportWorker": audienceExportWorker,
+  "Exports::Sales::CompileChunksWorker": compileChunksWorker,
+  "Exports::Sales::ProcessChunkWorker": processChunkWorker,
+  AnnualPayoutExportWorker: annualPayoutExportWorker,
+  ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
   BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
   UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,
   GenerateMerchantCenterFeedWorker: generateMerchantCenterFeedWorker,

@@ -33,20 +33,20 @@ import {
 } from "./application-controller.ts";
 import { confirmationNewPage } from "./devise-pages.ts";
 import { discordHandlers } from "./discord.ts";
-import { gumclawPage } from "./erb-pages.ts";
 import { embeddedJavascript } from "./embedded-javascripts.ts";
+import { gumclawPage } from "./erb-pages.ts";
 import { homePage, homePageOptions } from "./home-pages.ts";
 import { integrationsOauthRedirectPage } from "./integrations-oauth-redirect.ts";
-import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { impersonate, redirectToStripeDashboard, vendorMount } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
 import { internalResponse } from "./internal-api.ts";
+import { mcpConnectorPage } from "./mcp-connectors-page.ts";
 import { mobileResponse } from "./mobile-api.ts";
 import { computeDiscount } from "./offer-codes.ts";
 import { chargeData, licenseKeyLookupData, paypalChargeData } from "./public-data.ts";
-import { index as thirdPartyAnalyticsIndex, profile as thirdPartyAnalyticsProfile } from "./third-party-analytics.ts";
 import { assertFlatQuery } from "./rails-params.ts";
 import { queryParam, type RailsRequest, railsRequest } from "./rails-request.ts";
+import { index as thirdPartyAnalyticsIndex, profile as thirdPartyAnalyticsProfile } from "./third-party-analytics.ts";
 import { urlRedirectsAction } from "./url-redirects/deliveries.ts";
 import { utmLinkRedirect } from "./utm-link-tracking.ts";
 import { wishlistUnsubscribe } from "./wishlist-unsubscribe.ts";
@@ -314,7 +314,8 @@ const HANDLERS: Record<string, Handler> = {
   github_stars: { run: () => githubStars() },
   third_party_analytics_profile: {
     options: { optOutOfCsp: true, skipSession: true },
-    run: (_request, url, action) => thirdPartyAnalyticsProfile(decodeURIComponent(url.pathname.split("/").at(-1) ?? ""), action),
+    run: (_request, url, action) =>
+      thirdPartyAnalyticsProfile(decodeURIComponent(url.pathname.split("/").at(-1) ?? ""), action),
   },
   third_party_analytics_index: {
     options: { optOutOfCsp: true, skipSession: true },
@@ -334,7 +335,8 @@ const HANDLERS: Record<string, Handler> = {
   },
   mcp_connectors_index: { run: (request, _url, action) => mcpConnectorPage(request, action, null) },
   mcp_connectors_show: {
-    run: (request, url, action) => mcpConnectorPage(request, action, decodeURIComponent(url.pathname).replace(/^\/|\/$/gu, "")),
+    run: (request, url, action) =>
+      mcpConnectorPage(request, action, decodeURIComponent(url.pathname).replace(/^\/|\/$/gu, "")),
   },
   wishlist_unsubscribe: { run: (request) => wishlistUnsubscribe(request) },
   utm_tracking: { run: (_request, url) => utmLinkRedirect(decodeURIComponent(url.pathname.split("/").at(-1) ?? "")) },
@@ -383,6 +385,7 @@ export async function publicHandlerResponse(incoming: Request, name: string): Pr
   const protocol = incoming.headers.get("x-forwarded-proto") ?? "http";
   const url = new URL(target, `${protocol}://${host}`);
   const request = new Request(url, { method: incoming.method, headers: incoming.headers });
-  const options = typeof handler.options === "function" ? handler.options(railsRequest(request)) : (handler.options ?? {});
+  const options =
+    typeof handler.options === "function" ? handler.options(railsRequest(request)) : (handler.options ?? {});
   return processAction(request, options, (action) => handler.run(railsRequest(request), url, action));
 }

@@ -618,7 +618,7 @@ async function one(
       ? (await followingEmails(purchase.seller_id, [purchase.email])).size > 0
       : await options.isFollowing(purchase);
 
-  const json: Record<string, unknown> = {
+  const withBlanks: Record<string, unknown> = {
     id: encrypt(purchase.id),
     email: emailDisplay,
     seller_id: encrypt(seller.id),
@@ -740,7 +740,9 @@ async function one(
           },
         }),
   };
-  for (const key of Object.keys(json)) if (json[key] === undefined || json[key] === null) delete json[key];
+  const json: Record<string, unknown> = Object.fromEntries(
+    Object.entries(withBlanks).filter(([, value]) => value !== undefined && value !== null),
+  );
 
   json.card = {
     visual: purchase.card_visual,

@@ -4,12 +4,12 @@
 // UserComplianceInfo is immutable and every edit goes through Rails.
 import { Prisma, type UserComplianceInfo } from "@prisma/client";
 
-import { isBlank as rubyBlank } from "./compliance-countries.ts";
-import { alpha2ByName } from "./compliance-countries.ts";
+import { getConfig } from "../infra/config.ts";
+
+import { isBlank as rubyBlank, alpha2ByName } from "./compliance-countries.ts";
 import { isPossiblePoBoxMatch, POSSIBLE_MATCH_SQL_HINT } from "./po-box-address.ts";
 import { castRow, column, selectRows, table } from "./sql.ts";
 import { isStrongboxBlank, strongboxDecrypt } from "./strongbox.ts";
-import { getConfig } from "../infra/config.ts";
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
 export async function aliveUserComplianceInfoRow(userId: bigint): Promise<UserComplianceInfo | null> {
@@ -80,7 +80,14 @@ export function jsonAttr(row: Pick<UserComplianceInfo, "json_data">, key: string
   const data: unknown = JSON.parse(row.json_data!);
   if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error("json_data must be a hash");
   const value = (data as Record<string, unknown>)[key];
-  if (value === undefined || value === null || value === false || value === "" || (typeof value === "string" && rubyBlank(value))) return null;
+  if (
+    value === undefined ||
+    value === null ||
+    value === false ||
+    value === "" ||
+    (typeof value === "string" && rubyBlank(value))
+  )
+    return null;
   return value as string;
 }
 
@@ -91,7 +98,8 @@ export const countryCode = (row: UserComplianceInfo): string | null => alpha2ByN
 export const businessCountryCode = (row: UserComplianceInfo): string | null => alpha2ByName(row.business_country);
 
 // UserComplianceInfo#legal_entity_country_code
-export const legalEntityCountryCode = (row: UserComplianceInfo): string | null => (isBusiness(row) ? businessCountryCode(row) : null) ?? countryCode(row);
+export const legalEntityCountryCode = (row: UserComplianceInfo): string | null =>
+  (isBusiness(row) ? businessCountryCode(row) : null) ?? countryCode(row);
 
 // UserComplianceInfo#legal_entity_name
 export const legalEntityName = (row: UserComplianceInfo): string | null => {
@@ -108,7 +116,7 @@ export function underLegalGuardianAge(row: UserComplianceInfo, ageLimit: number,
 }
 
 // Unicode White_Space, which is what [[:space:]] matches in a Ruby UTF-8 string.
-const SPACE = new RegExp("[\\t-\\r \\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]", "gu");
+const SPACE = /[\t-\r \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/gu;
 
 // Strongbox decryption returns a binary string; Rails forces it to UTF-8 and drops invalid bytes.
 function scrubbedUtf8(plain: Buffer): string {

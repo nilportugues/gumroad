@@ -11,10 +11,8 @@ const URI_ATTRIBUTES = new Set(["href", "src"]);
 const SAFE_URI = /^[A-Za-z0-9\-._~:/?#@!$'()*+,;=%]*(&amp;[A-Za-z0-9\-._~:/?#@!$'()*+,;=%]*)*$/u;
 const SAFE_ATTRIBUTE = /^[^"<>&\\\r\n\t]*$/u;
 // Characters libxml2 may entity-encode or normalize: carriage returns, C0/C1 controls, no-break and line separators.
-const UNSAFE_TEXT = new RegExp(
-  String.raw`[\u0000-\u0008\u000b-\u001f\u007f-\u00a0\u2028\u2029\ufeff\u200b-\u200f]`,
-  "u",
-);
+// eslint-disable-next-line no-control-regex -- the control characters are the point
+const UNSAFE_TEXT = /[\u0000-\u0008\u000b-\u001f\u007f-\u00a0\u2028\u2029\ufeff\u200b-\u200f]/u;
 
 // The abandoned cart email's marker (Installment::PRODUCT_LIST_PLACEHOLDER_TAG_NAME): an unknown element, so libxml2 takes
 // `<x />` as an empty element and writes it back as an open and close tag.

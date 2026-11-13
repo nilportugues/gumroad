@@ -19,22 +19,17 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
-// Replays spec/requests/internal_api_parity_spec.rb and internal_agent_parity_spec.rb: the Api::Internal endpoints on the API host (minimum mobile version, home page
+// Replays spec/requests/internal_api_parity_spec.rb: the Api::Internal endpoints on the API host (minimum mobile version, home page
 // numbers, the GRMC webhook) and the dashboard's JSON endpoints (audience and recipient counts, clicked URLs, existing product files,
-// review video approvals, the Agent chat reads). Each fixture is the last request of its example. A request the port hands back ("hands a ...") must reach
+// review video approvals). Each fixture is the last request of its example. A request the port hands back ("hands a ...") must reach
 // the stand-in Rails untouched. The audience_members index is rebuilt from the seeded rows; the email engagement table (DynamoDB) is
 // seeded per case, because the recorder cannot see it.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = [
-  "internal_api_parity_spec",
-  "internal_agent_parity_spec",
-  "internal_sends_parity_spec",
-  "internal_remaining_send_parity_spec",
-];
+const SPECS = ["internal_api_parity_spec", "internal_sends_parity_spec", "internal_remaining_send_parity_spec"];
 const ROUTE_FLAGS =
-  "nextjs_internal_api_host,nextjs_internal_installments,nextjs_internal_product_files,nextjs_internal_review_videos,nextjs_internal_agent,nextjs_internal_product_posts,nextjs_internal_customer_emails,nextjs_internal_receipt_previews";
+  "nextjs_internal_api_host,nextjs_internal_installments,nextjs_internal_product_files,nextjs_internal_review_videos,nextjs_internal_product_posts,nextjs_internal_customer_emails,nextjs_internal_receipt_previews";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";

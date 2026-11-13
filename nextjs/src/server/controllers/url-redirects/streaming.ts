@@ -7,8 +7,9 @@ import { db } from "../../../lib/db.ts";
 import { decrypt } from "../../../lib/obfuscate-ids.ts";
 import { cgiEscape, getS3Client, signedCloudfrontUrl } from "../../infra/signed-urls.ts";
 import { storageConfig } from "../../infra/storage.ts";
-import { InvalidSubtitleEncoding, subtitleToVtt } from "../../services/subtitle-to-vtt.ts";
 import { isStreamable } from "../../models/product-file.ts";
+import { UrlRedirectFlags } from "../../models/url-redirect.ts";
+import { InvalidSubtitleEncoding, subtitleToVtt } from "../../services/subtitle-to-vtt.ts";
 import {
   HandBackToRails,
   RoutingError,
@@ -18,6 +19,7 @@ import {
 } from "../application-controller.ts";
 import { json } from "../json-actions.ts";
 import { requestFormat } from "../rails-params.ts";
+
 import {
   checkPermissions,
   createConsumptionEvent,
@@ -33,7 +35,6 @@ import {
   StorageObjectMissing,
   type DeliveryFile,
 } from "./files.ts";
-import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 
 const HLS_CONTENT_TYPE = "application/x-mpegurl; charset=utf-8";
 const TEXT_CONTENT_TYPE = "text/plain; charset=utf-8";

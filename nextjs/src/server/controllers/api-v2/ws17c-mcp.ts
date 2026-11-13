@@ -8,8 +8,8 @@ import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from ".
 import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
 import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
 import { type PaperTrailRequest, withPaperTrailRequest } from "../../models/concerns/paper-trail.ts";
-import { insertDynamicClient } from "../../models/oauth-application-writes.ts";
 import { isInvalidUriError, rubyUriParseParts } from "../../models/concerns/ruby-uri.ts";
+import { insertDynamicClient } from "../../models/oauth-application-writes.ts";
 import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
 import { remoteIp } from "../mutation.ts";
@@ -159,9 +159,7 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
     () => isFeatureEnabled(MCP_PROTOCOL_FLAG),
     { user: call.owner, token: call.token },
   );
-  const reply = await withPaperTrailRequest(mcpPaperTrailRequest(call.request), () =>
-    session.handle(JSON.parse(text)),
-  );
+  const reply = await withPaperTrailRequest(mcpPaperTrailRequest(call.request), () => session.handle(JSON.parse(text)));
   // A tool call that hands back leaves before this point, so Rails records its own requests.
   await recordProtocolTelemetry(connector, session.counts);
   if (reply === null) return head(202, {}, false);
@@ -203,9 +201,11 @@ const truthy = (value: unknown) => value !== undefined && value !== null && valu
 // `Array(raw).flatten`, then `uri.to_s.strip`: a number or a boolean can only ever read as a URL without a host, so it stands in as "0".
 function redirectUris(params: Record<string, unknown>): string[] {
   const raw = [params.redirect_uris, params.redirect_uri].find(truthy);
-  if (raw !== undefined && typeof raw === "object" && !Array.isArray(raw)) throw new HandBackToRails("redirect_uris as a hash");
+  if (raw !== undefined && typeof raw === "object" && !Array.isArray(raw))
+    throw new HandBackToRails("redirect_uris as a hash");
   const entries = [raw].flat(Infinity).filter((entry) => entry !== undefined);
-  if (entries.length > REDIRECT_URIS_MAX) throw new RegistrationError(`redirect_uris must contain at most ${REDIRECT_URIS_MAX} entries`);
+  if (entries.length > REDIRECT_URIS_MAX)
+    throw new RegistrationError(`redirect_uris must contain at most ${REDIRECT_URIS_MAX} entries`);
   const strings = entries.map((entry) => {
     if (entry === null) return "";
     if (typeof entry === "string") return rubyStrip(entry);
@@ -265,16 +265,21 @@ function validateRegistration(params: Record<string, unknown>): Registration {
   // OauthApplication.new evaluates its arguments in order: the name, the redirect URI, `confidential?`, then the scopes.
   const name = clientName(params);
   const given = stringParam(params, "token_endpoint_auth_method");
-  if (present(given) && !TOKEN_ENDPOINT_AUTH_METHODS.includes(given)) throw new RegistrationError("unsupported token_endpoint_auth_method");
-  const requested = stringParam(params, "scope").split(/[ \t\n\v\f\r]+/u).filter((scope) => scope !== "");
-  const chosen = requested.length > 0 ? [...new Set(requested.filter((scope) => MCP_SCOPES.includes(scope)))] : MCP_SCOPES;
+  if (present(given) && !TOKEN_ENDPOINT_AUTH_METHODS.includes(given))
+    throw new RegistrationError("unsupported token_endpoint_auth_method");
+  const requested = stringParam(params, "scope")
+    .split(/[ \t\n\v\f\r]+/u)
+    .filter((scope) => scope !== "");
+  const chosen =
+    requested.length > 0 ? [...new Set(requested.filter((scope) => MCP_SCOPES.includes(scope)))] : MCP_SCOPES;
   if (requested.length > 0 && chosen.length === 0) throw new RegistrationError("no supported scopes requested");
   return { redirectUris: uris, name, method: present(given) ? given : "none", scopes: chosen.join(" ") };
 }
 
 // Api::V2::McpController#register.
 export async function register(call: ApiCall): Promise<ActionResult> {
-  const invalid = (message: string) => renderJson({ error: "invalid_client_metadata", error_description: message }, 400);
+  const invalid = (message: string) =>
+    renderJson({ error: "invalid_client_metadata", error_description: message }, 400);
   const text = new TextDecoder().decode(call.rawBody);
   const source = present(text) ? text : "{}";
   let parsed: unknown;
@@ -284,7 +289,8 @@ export async function register(call: ApiCall): Promise<ActionResult> {
     // Rails answers "JSON parse error" for it, but its parser reads comments and rejects bytes JavaScript's does not.
     throw new HandBackToRails("a registration body that is not JSON");
   }
-  const params = parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+  const params =
+    parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
   let registration: Registration;
   try {
     registration = validateRegistration(params);
@@ -295,7 +301,12 @@ export async function register(call: ApiCall): Promise<ActionResult> {
   // Every refusal and hand-back is above this line: from here on the row is written and the answer cannot fail.
   const confidential = registration.method !== "none";
   const created = await insertDynamicClient(
-    { name: registration.name, redirectUri: registration.redirectUris.join("\n"), scopes: registration.scopes, confidential },
+    {
+      name: registration.name,
+      redirectUri: registration.redirectUris.join("\n"),
+      scopes: registration.scopes,
+      confidential,
+    },
     () => new Date(),
   );
   return renderJson(

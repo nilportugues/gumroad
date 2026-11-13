@@ -4,7 +4,7 @@ require "spec_helper"
 
 # The sends, previews and uploads of Api::Internal that mail, enqueue a blast or attach a blob, recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/internal-api.replay.test.ts, which sends the last request of each example.
-# Node answers the sign-in, lookup and policy refusals of each (nextjs/src/server/controllers/internal-api.ts, internal-agent.ts); the
+# Node answers the sign-in, lookup and policy refusals of each (nextjs/src/server/controllers/internal-api.ts); the
 # examples that start "hands a" are the requests it leaves to Rails whole.
 describe "Internal API sends and previews", type: :request do
   include Parity::AudienceSignedIn
@@ -301,38 +301,6 @@ describe "Internal API sends and previews", type: :request do
       post_json("/internal/product_public_files", product_id: product.external_id, signed_blob_id: "tampered")
 
       expect(response).to have_http_status(:bad_request)
-    end
-  end
-
-  describe "POST /internal/agent/{messages,messages/stream,actions}" do
-    it "answers 404 JSON to a visitor who is signed out", parity: true do
-      post_json("/internal/agent/messages")
-
-      expect(response).to have_http_status(:not_found)
-    end
-
-    it "answers 401 JSON to a seller who has not earned the agent", parity: true do
-      log_in(seller)
-
-      post_json("/internal/agent/messages")
-
-      expect(response).to have_http_status(:unauthorized)
-    end
-
-    it "answers 401 JSON to a seller who has not earned the agent when streaming", parity: true do
-      log_in(seller)
-
-      post_json("/internal/agent/messages/stream")
-
-      expect(response).to have_http_status(:unauthorized)
-    end
-
-    it "answers 401 JSON to a seller who has not earned the agent when confirming", parity: true do
-      log_in(seller)
-
-      post_json("/internal/agent/actions")
-
-      expect(response).to have_http_status(:unauthorized)
     end
   end
 end

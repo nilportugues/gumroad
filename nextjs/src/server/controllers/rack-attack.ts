@@ -208,7 +208,8 @@ const HELP_CONTACT_PATH = /^\/help\/contact(?:\.[^/]+)?$/u;
 const OAUTH_DEVICE_CODE_PATH = /^\/oauth\/device\/code(?:\.[^/]+)?$/u;
 const OAUTH_DEVICE_PATH = /^\/oauth\/device(?:\.[^/]+)?$/u;
 const OAUTH_TOKEN_PATH = /^\/oauth\/token(?:\.[^/]+)?$/u;
-const OAUTH_TOKEN_ALIASES_PATH = /^(?:\/oauth\/token|\/(?:muse|claude|chatgpt|cursor|antigravity)\/v1\/oauth2\/token)(?:\.[^/]+)?$/u;
+const OAUTH_TOKEN_ALIASES_PATH =
+  /^(?:\/oauth\/token|\/(?:muse|claude|chatgpt|cursor|antigravity)\/v1\/oauth2\/token)(?:\.[^/]+)?$/u;
 const PASSKEY_REGISTRATION_OPTIONS_PATH = /^\/settings\/passkeys\/registration_options(?:\.[^/]+)?$/u;
 const PASSKEYS_PATH = /^\/settings\/passkeys(?:\.[^/]+)?$/u;
 const MARKETING_EXECUTE_PATH = /^\/products\/[^/]+\/marketing_actions\/[^/]+\/execute(?:\.[^/]+)?$/u;

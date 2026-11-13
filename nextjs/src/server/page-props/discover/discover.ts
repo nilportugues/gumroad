@@ -371,7 +371,7 @@ export async function deferredPropsPortable(
   requested: string[],
   prepared: PreparedSearch,
   visitor: DiscoverVisitor,
-  guid: string | null,
+  _guid: string | null,
   request: DiscoverRequest,
 ): Promise<boolean> {
   for (const name of requested) {

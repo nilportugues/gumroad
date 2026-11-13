@@ -1,0 +1,413 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no domains",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a domain that never had a certificate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a deleted domain with a certificate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an unverified domain with a certificate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "unverified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a domain for a product",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                5,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "one domain with a certificate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "domains without a certificate before one with",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                3,
+                1,
+                "shop3.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "three domains with a certificate",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `custom_domains`.* FROM `custom_domains` WHERE `custom_domains`.`deleted_at` IS NULL AND `custom_domains`.`ssl_certificate_issued_at` IS NOT NULL ORDER BY `custom_domains`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "domain",
+              "created_at",
+              "updated_at",
+              "ssl_certificate_issued_at",
+              "deleted_at",
+              "state",
+              "failed_verification_attempts_count",
+              "product_id",
+              "routable",
+              "routability_checked_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "shop1.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                1,
+                "shop2.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ],
+              [
+                3,
+                1,
+                "shop3.example.com",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                "verified",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an argument",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 1, expected 0)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ReissueSslCertificateForUpdatedCustomDomains",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    }
+  ]
+}

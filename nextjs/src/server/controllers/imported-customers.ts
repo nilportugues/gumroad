@@ -36,7 +36,8 @@ function rubyToI(value: string): number {
   const match = /^\s*([+-]?\d[\d_]*)/u.exec(value);
   if (match === null) return 0;
   const digits = match[1]!.replaceAll("_", "");
-  if (digits.replace(/^[+-]/u, "").length > MAX_PAGE_DIGITS) throw new HandBackToRails("a page number beyond what the port reads");
+  if (digits.replace(/^[+-]/u, "").length > MAX_PAGE_DIGITS)
+    throw new HandBackToRails("a page number beyond what the port reads");
   return Number(digits);
 }
 
@@ -62,7 +63,8 @@ async function list(action: ActionContext): Promise<ActionResult> {
   );
   const canUpdate = importedCustomerPolicy.update(await loadSellerContext(context));
   const customers = [];
-  for (const row of rows) customers.push(await importedCustomerJson(castRow<ImportedCustomer>("ImportedCustomer", row), canUpdate));
+  for (const row of rows)
+    customers.push(await importedCustomerJson(castRow<ImportedCustomer>("ImportedCustomer", row), canUpdate));
   return json({ customers, begin_loading_imported_customers: true });
 }
 
@@ -74,14 +76,21 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   const id = decrypt(input.routeParams.id!);
   const customer = id === null ? null : await findImportedCustomerOf(seller.id, id);
   // `authorize nil` raises Pundit::NotDefinedError in Rails, which answers 500.
-  if (customer === null) throw new NotPortedError("ImportedCustomersController#destroy", "a customer that does not exist");
-  const denied = await authorizeJson(input, (sellerContext) => authorize(importedCustomerPolicy.destroy, sellerContext));
+  if (customer === null)
+    throw new NotPortedError("ImportedCustomersController#destroy", "a customer that does not exist");
+  const denied = await authorizeJson(input, (sellerContext) =>
+    authorize(importedCustomerPolicy.destroy, sellerContext),
+  );
   if (denied) return denied;
 
   // `deleted_at = Time.current; save!`
   customer.set("deleted_at", new Date());
   await ImportedCustomers.saveBang(customer);
-  return json({ success: true, message: "Deleted!", imported_customer: await importedCustomerJson(customer.attributes, null) });
+  return json({
+    success: true,
+    message: "Deleted!",
+    imported_customer: await importedCustomerJson(customer.attributes, null),
+  });
 }
 
 // app/views/imported_customers/unsubscribe.html.erb: the markup, and its `content_for :footer` block.

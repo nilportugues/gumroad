@@ -62,7 +62,7 @@ const DELETED_AT_PRECISION_MS = 1000;
 
 // DiscountsController#destroy: `mark_deleted` saves deleted_at through the validations and callbacks of models/offer-code-writes.ts.
 // A code outside the shape that file covers is handed back before the first statement.
-async function destroyOfferCode(input: MutationInput, row: OfferCode): Promise<ActionResult> {
+async function destroyOfferCode(_input: MutationInput, row: OfferCode): Promise<ActionResult> {
   await assertPlainCode(row);
   const record = loadOfferCode(row);
   const now = new Date();

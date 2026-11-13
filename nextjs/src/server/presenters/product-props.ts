@@ -11,8 +11,8 @@ import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { geoIpLookup } from "../infra/geo-ip.ts";
 import { LinkFlags } from "../models/link.ts";
-import { getFactor } from "../models/purchasing-power-parity.ts";
 import { currencyMinPrice } from "../models/purchase-pricing.ts";
+import { getFactor } from "../models/purchasing-power-parity.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { sellerReputationProps } from "../models/user-reputation-summary.ts";
 import { isFlagSet, tiktokPixelId, Users } from "../models/user.ts";
@@ -413,9 +413,8 @@ function simpleFormat(text: string): string {
 }
 
 async function refundPolicyProps(row: LinkRow, seller: UserRow) {
-  const policyProps = (
-    policy: Row & { max_refund_period_in_days: number | null; fine_print: string | null; updated_at: Date },
-  ) => ({
+  type PolicyRow = Row & { max_refund_period_in_days: number | null; fine_print: string | null; updated_at: Date };
+  const policyProps = (policy: PolicyRow) => ({
     title: REFUND_PERIOD_TITLES[policy.max_refund_period_in_days ?? -1] ?? null,
     fine_print: present(policy.fine_print) ? simpleFormat(policy.fine_print) : null,
     updated_at: isoDate(policy.updated_at),
@@ -430,7 +429,7 @@ async function refundPolicyProps(row: LinkRow, seller: UserRow) {
       accountLevel = false;
   }
   if (accountLevel) {
-    const [policy] = await selectRows<any>(
+    const [policy] = await selectRows<PolicyRow>(
       Prisma.sql`SELECT ${star("refund_policies")} FROM ${table("refund_policies")} WHERE ${column("refund_policies", "seller_id")} = ${seller.id} AND ${column("refund_policies", "product_id")} IS NULL LIMIT 1`,
     );
     // The policy is a required association of an account with the setting on.
@@ -438,7 +437,7 @@ async function refundPolicyProps(row: LinkRow, seller: UserRow) {
     return policyProps(policy);
   }
   if (flag(row, "product_refund_policy_enabled")) {
-    const [policy] = await selectRows<any>(
+    const [policy] = await selectRows<PolicyRow>(
       Prisma.sql`SELECT ${star("refund_policies")} FROM ${table("refund_policies")} WHERE ${column("refund_policies", "product_id")} = ${row.id} LIMIT 1`,
     );
     if (policy) return policyProps(policy);
@@ -598,16 +597,15 @@ async function bundleProductsProps(bundle: LinkRow, viewer: ProductPageViewerInp
       ).toLowerCase(),
       thumbnail_url: await thumbnailUrl(product.id),
       native_type: product.native_type,
-      url: await urlForProductPage(product, seller!, viewer.request, { recommendedBy: viewer.recommendedBy, target: viewer.layout }),
+      url: await urlForProductPage(product, seller!, viewer.request, {
+        recommendedBy: viewer.recommendedBy,
+        target: viewer.layout,
+      }),
       quantity,
       variant: variant?.name ?? null,
     });
   }
   return props;
-}
-
-async function hasRows(tableName: string, where: Prisma.Sql): Promise<boolean> {
-  return (await selectRows(Prisma.sql`SELECT 1 FROM ${table(tableName)} WHERE ${where} LIMIT 1`)).length > 0;
 }
 
 const AFFILIATE_APPLY_TO_ALL_PRODUCTS = 1n << 0n;
@@ -631,19 +629,6 @@ export async function collaboratorForDisplay(row: LinkRow): Promise<UserRow | nu
       ? (BigInt(collaboration.affiliate_flags ?? 0) & AFFILIATE_DONT_SHOW_AS_CO_CREATOR) === 0n
       : (BigInt(collaboration.product_affiliate_flags ?? 0) & PRODUCT_AFFILIATE_DONT_SHOW_AS_CO_CREATOR) === 0n;
   return shown ? findUserById(collaboration.affiliate_user_id) : null;
-}
-
-// BestOfferCodeService#default_offer_codes is empty: no default offer code and no shop-wide sale.
-async function assertNoDefaultOfferCodes(row: LinkRow): Promise<void> {
-  if (row.default_offer_code_id !== null) throw new NotPortedError("BestOfferCodeService with a default offer code");
-  if (
-    await hasRows(
-      "offer_codes",
-      Prisma.sql`${column("offer_codes", "user_id")} = ${row.user_id} AND ${column("offer_codes", "deleted_at")} IS NULL AND ${column("offer_codes", "universal")} = TRUE AND ${column("offer_codes", "auto_apply")} = TRUE`,
-    )
-  ) {
-    throw new NotPortedError("User#auto_apply_offer_code_for");
-  }
 }
 
 async function preorderRelease(productId: bigint): Promise<string | null> {

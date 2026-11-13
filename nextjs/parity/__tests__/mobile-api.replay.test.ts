@@ -57,7 +57,7 @@ const ROUTE_FLAGS = [
   "installments",
   "commissions",
   "sessions",
-  "agent",
+  "agent_meta",
 ]
   .map((name) => `nextjs_mobile_${name}`)
   .join(",");

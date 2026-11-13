@@ -389,10 +389,10 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
 
   it.each(cases)(
     "%s",
-    async (_name, fixturePath, index, fromRequestSpec) => {
-      const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(_name))?.[1];
+    async (name, fixturePath, index, fromRequestSpec) => {
+      const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(name))?.[1];
       const pinned = pageAge !== undefined;
-      if (handsBack(_name)) {
+      if (handsBack(name)) {
         handedBack.length = 0;
         if (pageAge !== undefined)
           vi.useFakeTimers({
@@ -430,7 +430,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       const result = await replayFixtureExchange(fixturePath, index, {
         ...(pinned ? { driftDates: false } : {}),
         sql,
-        redis: seeder(_name),
+        redis: seeder(name),
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
         jobs: redisJobs(redis),
@@ -440,7 +440,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
             ...COMPARE.ignore,
             ...(fromRequestSpec ? ["response.cookies._gumroad_app_session_test.value"] : ["response.cookies"]),
             // The sales totals ask Elasticsearch from the server process, which the replayer cannot observe; the totals are compared in the body.
-            ...(USER_INFO_CASE.test(_name) ? ["http"] : []),
+            ...(USER_INFO_CASE.test(name) ? ["http"] : []),
             // The server stamps the token with its own, unpinned clock.
             ...(pinned
               ? [

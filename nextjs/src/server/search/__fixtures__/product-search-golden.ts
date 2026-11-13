@@ -118,7 +118,7 @@ export async function snapshot(redis: Redis): Promise<unknown> {
 export async function replayProductCase(
   c: ProductCase,
   redis: Redis | null,
-  body: (deps: ProductDocumentDeps) => Promise<JsonValue | void>,
+  body: (deps: ProductDocumentDeps) => Promise<JsonValue> | Promise<void>,
   options: { statements?: Statement[]; sidekiq?: boolean } = {},
 ): Promise<void> {
   const statements = options.statements ?? c.statements;
@@ -131,13 +131,14 @@ export async function replayProductCase(
   }
   const runtime = redis ? goldenRuntime(redis) : null;
   let error: { class: string; message: string } | null = null;
-  let result: JsonValue | void = undefined;
+  let result: JsonValue | undefined;
   try {
     const executor = options.sidekiq ? { ...SIDEKIQ_EXECUTOR, now: () => productGolden.now * 1000 } : WEB_EXECUTOR;
-    const run = () => withExecutor(() => body(goldenDeps(c)), executor);
+    const run = () => withExecutor(() => body(goldenDeps(c)) as Promise<JsonValue | undefined>, executor);
     result = await (runtime ? withJobsRuntime(runtime, run) : run());
   } catch (e) {
     error = { class: (e as Error).name, message: (e as Error).message };
+    // eslint-disable-next-line no-console -- opt-in debug output for golden replays
     if (process.env.DEBUG_SEARCH) console.log(e);
   } finally {
     es.restore();

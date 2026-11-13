@@ -39,7 +39,8 @@ const golden = parseRubyJson(
 ) as unknown as { now: number; cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 const redis = new Redis(url ?? "", { maxRetriesPerRequest: null, lazyConnect: true });
 afterAll(async () => {
   if (!url) return;
