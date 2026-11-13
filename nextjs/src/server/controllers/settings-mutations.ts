@@ -2,9 +2,9 @@
 // (app/controllers/settings/third_party_analytics_controller.rb, advanced_controller.rb).
 //
 // A request Rails would answer differently from what the port can prove is handed back before its first write: a missing or
-// malformed `user` param (strong parameters raise inside the action's own rescue), a float or huge integer for a snippet id, and a
-// JSON-data field that is neither a string nor an integer. Integers, floats and booleans for string columns are cast, arrays and hashes under scalar keys are dropped (as `permit` does), and a numeric or `true` blocked_customer_emails
-// gets the action's own rescue (the generic block failure).
+// malformed `user` param (strong parameters raise inside the action's own rescue) and a JSON-data field that is neither a string nor
+// an integer. Integers, floats and booleans for string columns are cast, arrays and hashes under scalar keys are dropped (as `permit`
+// does), and a numeric or `true` blocked_customer_emails gets the action's own rescue (the generic block failure).
 import type { BillingDetail } from "@prisma/client";
 
 import { notifyError } from "../infra/error-reporting.ts";
@@ -123,13 +123,10 @@ function plainStringValue(value: unknown): string | null {
 }
 
 // A snippet field stays as sent: `save_third_party_analytics` compares and keys on the raw param and casts it only when it
-// assigns a string column or looks a permalink up. The `id` is the exception: a float or a huge integer is decoded as an external
-// id, which is not recorded.
-export function snippetValue(value: unknown, key = ""): string | number | bigint | RubyFloat | boolean | null {
-  if (key === "id" && (value instanceof RubyFloat || typeof value === "bigint"))
-    throw new HandBackToRails("a float or a huge integer for a snippet id");
+// assigns a string column or looks a permalink up. A float or a huge integer id is a lookup that finds no snippet.
+export function snippetValue(value: unknown): string | number | bigint | boolean | RubyFloat | null {
   stringValue(value);
-  return value as string | number | bigint | RubyFloat | boolean | null;
+  return value as string | number | bigint | boolean | RubyFloat | null;
 }
 
 const FLAG_PARAMS: Record<string, UserFlag> = {
@@ -149,7 +146,7 @@ function permittedSnippets(value: unknown): SnippetParams[] {
     if (!isHash(entry)) throw new HandBackToRails("a snippet that is not a hash");
     const snippet: Record<string, unknown> = {};
     for (const key of SNIPPET_KEYS)
-      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = snippetValue(entry[key], key);
+      if (key in entry && isPermittedScalar(entry[key])) snippet[key] = snippetValue(entry[key]);
     return snippet;
   });
 }

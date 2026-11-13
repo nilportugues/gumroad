@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/integrations_discord_parity_spec.rb",
-  "example": "Integrations::DiscordController GET /integrations/discord/oauth_redirect hands a request without a code to Rails",
+  "spec": "spec/requests/integrations_discord_oauth_redirect_page_parity_spec.rb",
+  "example": "Integrations::DiscordController oauth_redirect page hands a request that asks for JSON to Rails",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-13",
   "exchanges": [
     {
       "seed": {
@@ -50,19 +50,19 @@
         "source": "request",
         "method": "GET",
         "path": "/integrations/discord/oauth_redirect",
+        "query": "code=test_code",
         "headers": {
-          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "accept": "application/json",
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1"
       },
       "response": {
-        "status": 400,
+        "status": 200,
         "headers": {
           "cache-control": "no-cache",
-          "content-type": "text/html; charset=utf-8",
-          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
-          "vary": "Origin",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Accept, Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
           "x-gr": "DEV",
@@ -73,13 +73,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "QSKDpRPx5EnVXReYUeJJTzNEiY1osT_F9Lt2_PE3C1xKkmraNA4YLA1gIVhb-OHAbDBMoMiX-sB6zEXoFKXrjg",
+            "value": "uVXTAUx0mtCv7ccBv8sS2-amel9hu3vuiR5gB8uEJ_AwgNTH8YW_F6YkuIv_WBA4Y2Ga7WzWOlLNq_04EAjCBg",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "FNQ6hUtR+dnd8L2N08kosQZdyXhMp9IF9zMD9fgfvLxBiw8vRTORnY2jtmmJ6S+uZnr2BdDutpbJWN0/FLhInPJQxQrqwOBroGD/P5rv90fbiD7ASaIbeEmGM/9x4QfdWI1Al7eEAbZB3kJwpWWu9QHQIjdelHR1cQyaNLy1VnQrnxd9vrj2mEAJQ1/dYDKkUXFMXQ8VO18D3serJKiokDWSWW+3vhzbZIp47RmRCcW+YUXxFe/UqDrWVrAhs/sjUbk87L75dZ8YdzD95zZHGtptHQwzLY83W38XJ+5Z08zBrm5XX69tjxLFMjFjEV+a4HR76ki04sBFoVo1mPEIPmaHk/LNx7x5KC/2T9KQb+Yz7BnZrb/I2ZbWuwDxn1vzDQHo--8Fp5nFVOYSAR+uXS--rdO7lspmmFtxVFBcxJBQMw==",
+            "value": "l5fWs1nzcmRXcuCsFTzu/8CAWgWhs+OAz1BHQiKOXoJgq8pdjsRnjYYw0PwjNn3NdQmHzsb6oyJUMDk0XbkHvxAUQXFHunVknxmqsPR+GUDh62TUdNUT/M5C2LnQryDRZIY148ctPxKNVUiLW7pD0nkjC/KDHMRiA1mo5eP/iCuOkLvZZ2ZVFuVZIWD0z8eTa0mVnBHm15rIX2Y+jnRzevDFTs/TABCJ8IgiPIoTCGlMWW/9bM6A3Ss4uryuxnGP/BanTHn/fw1JQ9mxEB38yZwZD1BLurERdtUDJg45WFQ5ZyalH742PwDpfQwAPCMmXbEchjOV11KwLC65IbaDY6D1CUjHyaVxmYx/SdhXLDN3RaNBRmZojUqesr/nVUD0L8dl--CH2tFhgG9m42qanR--g246xNCBofGk3IeFekxrSA==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -94,8 +94,7 @@
             "httponly": true,
             "samesite": "lax"
           }
-        },
-        "body": "<rails exception debug page, not recorded: the replay ignores a 404 body>"
+        }
       },
       "db": {},
       "jobs": [],

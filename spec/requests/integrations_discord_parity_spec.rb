@@ -5,7 +5,8 @@ require "spec_helper"
 # Integrations::DiscordController's join_server, leave_server and oauth_redirect, recorded for the Next.js port (PARITY_RECORD=1)
 # through the full Rack stack and replayed by nextjs/parity/__tests__/integrations-discord.replay.test.ts, which sends the last
 # request of each example. Node answers the guards and the state redirect; anything that would reach Discord is handed to Rails,
-# which the replay checks by the example's name ("hands a ..."). server_info is Discord's OAuth exchange end to end.
+# which the replay checks by the example's name ("hands a ..."). server_info is Discord's OAuth exchange end to end. The empty page
+# oauth_redirect renders when the state names no seller is in integrations_discord_oauth_redirect_page_parity_spec.rb.
 describe "Integrations::DiscordController", type: :request do
   include Parity::SignedInDashboard
 
@@ -42,44 +43,8 @@ describe "Integrations::DiscordController", type: :request do
       get oauth_redirect_integrations_discord_index_path, params:
     end
 
-    it "hands a code without a state to Rails", parity: true do
-      redirect(code: "test_code")
-
-      expect(response).to have_http_status(:ok)
-    end
-
-    it "hands a request without a code to Rails", parity: true do
-      redirect
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
     it "hands a state that is not JSON to Rails", parity: true do
       redirect(state: "test")
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
-    it "hands a state that is not a JSON object to Rails", parity: true do
-      redirect(code: "test_code", state: "123")
-
-      expect(response).to have_http_status(:ok)
-    end
-
-    it "hands a state without a seller id to Rails", parity: true do
-      redirect(state: { is_custom_domain: false }.to_json)
-
-      expect(response).to have_http_status(:bad_request)
-    end
-
-    it "hands a blank seller id to Rails", parity: true do
-      redirect(code: "test_code", state: { seller_id: "  " }.to_json)
-
-      expect(response).to have_http_status(:ok)
-    end
-
-    it "hands a seller id that is not text to Rails", parity: true do
-      redirect(state: { seller_id: 12 }.to_json)
 
       expect(response).to have_http_status(:bad_request)
     end
