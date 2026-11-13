@@ -49,6 +49,7 @@ import {
   PRODUCTS_BRIDGE_SCRIPT,
   profileCustomHtmlDocument,
 } from "./custom-html-document.ts";
+import { customHtmlProductsSlice } from "./custom-html-products-slice.ts";
 import { json } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
@@ -113,8 +114,8 @@ async function customLandingPageVisible(
   const visible = present && (await isFeatureEnabled(CUSTOM_HTML_FEATURE, userActor(seller.id)));
   return {
     visible,
-    updatedAt: visible ? (page?.updated_at ?? null) : null,
-    customHtml: visible ? page!.custom_html : null,
+    updatedAt: visible ? (page.updated_at ?? null) : null,
+    customHtml: visible ? page.custom_html : null,
   };
 }
 
@@ -236,14 +237,20 @@ async function landingEmbed(input: MutationInput): Promise<ActionResult> {
   };
 }
 
-// GET /:username/landing/products and /landing/products: the 404 for a seller without live custom HTML.
+// GET /:username/landing/products and /landing/products: the 404 for a seller without live custom HTML, else a catalogue slice.
 async function landingProducts(input: MutationInput): Promise<ActionResult> {
   if (input.routeParams.username !== undefined && isSellerHost(input))
     throw new HandBackToRails("a one-segment path under a seller's host that is not a page route");
   requireHtml(input);
   const user = await profileUser(input);
-  if ((await customLandingPageVisible(user)).visible) throw new HandBackToRails("a seller whose custom HTML is live");
-  return landingNotFound(input);
+  const { visible, customHtml } = await customLandingPageVisible(user);
+  if (!visible) return landingNotFound(input);
+  return customHtmlProductsSlice(
+    { id: user.id, username: user.username, external_id: user.external_id },
+    customHtml,
+    input.params,
+    input.chain.now,
+  );
 }
 
 // POST /users/deactivate

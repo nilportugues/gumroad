@@ -25,7 +25,7 @@ import { storeHostWithProtocol, type HostSeller } from "./custom-domain-hosts.ts
 
 const REPUTATION_SUMMARY_FEATURE = "seller_reputation_summary";
 
-const MAX_ITEMS = 100;
+export const MAX_ITEMS = 100;
 const DESCRIPTION_LIMIT = 200;
 const TRUNCATION_OMISSION = "...";
 // More live products than this are not read: Ruby lists the newest MAX_ITEMS and the rest is a count, but loading every row to count them
@@ -103,21 +103,25 @@ const JSON_ESCAPES: Record<string, string> = {
 };
 export const jsonEscape = (json: string): string => json.replace(/[&><\u2028\u2029]/gu, (c) => JSON_ESCAPES[c]!);
 
+// One entry of `Pages::ProfileData.products`, in the payload's key order.
+export const profileProductEntries = (products: ProfileProduct[]) =>
+  products.map((product) => ({
+    name: product.name,
+    url: product.url,
+    price: product.price,
+    native_type: product.native_type,
+    thumbnail_url: null,
+    cover_url: null,
+    description: listedDescription(product.description),
+  }));
+
 // ERB::Util.json_escape(Pages::ProfileData.build(seller).to_json)
 export function profileDataJson(facts: ProfileDataFacts): string {
   if (facts.publishedPosts > 0) throw new NotPortedError("Pages::ProfileData listing posts");
   if (facts.reputationSummaryEnabled)
     throw new NotPortedError("Pages::ProfileData reading the seller's reputation summary");
   const payload = {
-    products: facts.products.map((product) => ({
-      name: product.name,
-      url: product.url,
-      price: product.price,
-      native_type: product.native_type,
-      thumbnail_url: null,
-      cover_url: null,
-      description: listedDescription(product.description),
-    })),
+    products: profileProductEntries(facts.products),
     posts: [],
     pages: tabNames(facts.sellerProfileJsonData).map((name) => ({ name })),
     products_total: facts.productsTotal,
@@ -126,20 +130,20 @@ export function profileDataJson(facts: ProfileDataFacts): string {
   return jsonEscape(JSON.stringify(payload));
 }
 
-// `seller.products.alive.not_archived.not_draft` as the payload reads it. A product the port cannot reproduce hands the page back.
-async function loadProducts(
-  seller: HostSeller,
-  storeHost: string | null,
-): Promise<{ products: ProfileProduct[]; total: number }> {
+// `seller.products.alive.not_archived.not_draft` by `created_at DESC, id DESC`.
+async function liveProducts(seller: HostSeller): Promise<LinkRow[]> {
   const rows = await db.link.findMany({
     where: { user_id: seller.id, deleted_at: null, banned_at: null, purchase_disabled_at: null, draft: false },
     orderBy: [{ created_at: "desc" }, { id: "desc" }],
     take: MAX_PRODUCTS_READ + 1,
   });
   if (rows.length > MAX_PRODUCTS_READ) throw new NotPortedError("Pages::ProfileData counting a very large catalogue");
-  const live = rows.filter((row) => !LinkFlags.isSet(row.flags, "archived"));
-  const listed = live.slice(0, MAX_ITEMS);
-  if (listed.length === 0) return { products: [], total: live.length };
+  return rows.filter((row) => !LinkFlags.isSet(row.flags, "archived"));
+}
+
+// The listed products as the payload reads them. A product the port cannot reproduce hands the page back.
+async function describeProducts(listed: LinkRow[], storeHost: string | null): Promise<ProfileProduct[]> {
+  if (listed.length === 0) return [];
   if (storeHost === null)
     throw new NotPortedError("Pages::ProfileData listing products of a seller without a store host");
 
@@ -149,7 +153,7 @@ async function loadProducts(
     Prisma.sql`SELECT 1 FROM asset_previews WHERE deleted_at IS NULL AND link_id IN (${Prisma.join(listed.map((row) => row.id))}) LIMIT 1`,
   );
   if (previews.length > 0) throw new NotPortedError("Pages::ProfileData listing a product with a cover");
-  const products = listed.map((row: LinkRow) => {
+  return listed.map((row: LinkRow) => {
     try {
       assertPriceSupported(row, data);
     } catch (error) {
@@ -165,7 +169,29 @@ async function loadProducts(
       description: row.description,
     };
   });
-  return { products, total: live.length };
+}
+
+async function loadProducts(
+  seller: HostSeller,
+  storeHost: string | null,
+): Promise<{ products: ProfileProduct[]; total: number }> {
+  const live = await liveProducts(seller);
+  return { products: await describeProducts(live.slice(0, MAX_ITEMS), storeHost), total: live.length };
+}
+
+// Pages::ProfileData.products_page for the gumroad:products bridge. Null when `offset` is past the count, which the controller
+// answers before it touches the store host.
+export async function loadProductsSlice(
+  seller: HostSeller,
+  now: Date,
+  window: { offset: bigint; limit: number },
+): Promise<{ products: ProfileProduct[]; total: number; routabilityRefresh: number | null } | null> {
+  const live = await liveProducts(seller);
+  if (window.offset > BigInt(live.length)) return null;
+  const { host: storeHost, refresh } = await storeHostWithProtocol(seller, now);
+  const offset = Number(window.offset);
+  const products = await describeProducts(live.slice(offset, offset + window.limit), storeHost);
+  return { products, total: live.length, routabilityRefresh: refresh };
 }
 
 export async function loadProfileDataFacts(seller: HostSeller, now: Date): Promise<ProfileDataFacts> {

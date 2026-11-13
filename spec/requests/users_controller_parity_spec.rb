@@ -219,7 +219,7 @@ describe "UsersController", type: :request do
       expect(response.body).to include("gumroad-prices")
     end
 
-    it "hands the products slice of live custom HTML to Rails", parity: true do
+    it "answers the products slice of live custom HTML", parity: true do
       host! DOMAIN
       publish_custom_html(seller)
 

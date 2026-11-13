@@ -131,6 +131,110 @@ describe "Profile landing embed", type: :request do
     end
   end
 
+  describe "GET landing/products" do
+    def slice(query = { offset: 0, limit: 100 })
+      get "/landing/products", params: query
+      JSON.parse(response.body)
+    end
+
+    before do
+      publish
+      host! seller.subdomain
+    end
+
+    it "answers the slice of a seller who lists nothing", parity: true do
+      body = slice
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers["Cache-Control"]).to include("no-store")
+      expect(body).to eq("success" => true, "offset" => 0, "limit" => 100, "products" => [], "products_total" => 0, "prices" => {})
+    end
+
+    it "pages through the newest products first", parity: true do
+      create(:product, user: seller, name: "Old", created_at: 3.days.ago)
+      create(:product, user: seller, name: "Middle <b> & more", created_at: 2.days.ago)
+      create(:product, user: seller, name: "New", created_at: 1.day.ago)
+
+      body = slice(offset: 1, limit: 1)
+
+      expect(body["products"].map { |product| product["name"] }).to eq(["Middle <b> & more"])
+      expect(body.slice("offset", "limit", "products_total")).to eq("offset" => 1, "limit" => 1, "products_total" => 3)
+    end
+
+    it "caps the limit at 100", parity: true do
+      create(:product, user: seller, name: "Only")
+
+      expect(slice(offset: 0, limit: 5000).slice("limit")).to eq("limit" => 100)
+    end
+
+    it "answers an empty slice when the offset equals the total", parity: true do
+      create(:product, user: seller, name: "Only")
+
+      expect(slice(offset: 1, limit: 10)["products"]).to eq([])
+    end
+
+    it "answers a bad request when the offset is past the total", parity: true do
+      create(:product, user: seller, name: "Only")
+
+      slice(offset: 2, limit: 10)
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.body).to eq('{"success":false}')
+    end
+
+    {
+      "no parameter" => {},
+      "a negative offset" => { offset: -1, limit: 10 },
+      "a zero limit" => { offset: 0, limit: 0 },
+      "a non-numeric offset" => { offset: "abc", limit: 10 },
+      "an empty limit" => { offset: 0, limit: "" },
+      "a missing limit" => { offset: 0 }
+    }.each do |name, params|
+      it "answers a bad request for #{name}", parity: true do
+        slice(params)
+
+        expect(response).to have_http_status(:bad_request)
+        expect(response.body).to eq('{"success":false}')
+      end
+    end
+
+    it "reads a signed offset", parity: true do
+      create(:product, user: seller, name: "Only")
+
+      expect(slice(offset: "+0", limit: "+1")["products"].size).to eq(1)
+    end
+
+    it "answers under the username on the Gumroad domain", parity: true do
+      create(:product, user: seller, name: "Only")
+      host! DOMAIN
+
+      get "/#{seller.username}/landing/products", params: { offset: 0, limit: 10 }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)["products"].size).to eq(1)
+    end
+
+    it "hands an offset with a leading zero to Rails", parity: true do
+      create(:product, user: seller, name: "Only")
+
+      slice(offset: "010", limit: 10)
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "hands a slice of a page that references prices to Rails", parity: true do
+      seller.update!(custom_html: "<span data-gumroad-product=\"abc\" data-gumroad-field=\"price\">$1</span>")
+
+      expect(slice).to include("success" => true)
+    end
+
+    it "hands a product with a cover to Rails", parity: true do
+      create(:asset_preview, link: create(:product, user: seller))
+
+      expect(slice).to include("success" => true)
+    end
+  end
+
   describe "GET landing/embed with live products" do
     def embedded_products
       get "/landing/embed"
