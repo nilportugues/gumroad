@@ -334,6 +334,9 @@ function sourceLiterals(): Set<string> {
         // Dispatch tables keyed by a regex (`/^\/media_urls\/([^/.]+)(?:\.json)?$/u`) are routes too: read the capture groups as parameters.
         for (const match of text.matchAll(/\/\^((?:\\\/(?:[\w-]+|\(\[\^\/\.\]\+\)))+)(?:\(\?:\\\.json\)\?)?\$\/u/gu))
           found.add(match[1]!.replace(/\\\//gu, "/").replace(/\(\[\^\/\.\]\+\)/gu, ":p"));
+        // omniauth-phases.ts builds each strategy's callback path from its `name`, which no literal or template above can resolve.
+        if (full.endsWith("omniauth-phases.ts"))
+          for (const match of text.matchAll(/^ {4}name: "(\w+)",$/gmu)) found.add(`/users/auth/${match[1]!}/callback`);
         const constants = new Map(
           [...text.matchAll(/^(?:export )?const (\w+) = ["'`]([^"'`$]*)["'`]/gmu)].map((match) => [
             match[1]!,
