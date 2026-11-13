@@ -542,6 +542,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     },
     props: async (_params, action) => {
       const seller = await sellerOfHost(action.url);
+      setSellerAnalyticsMeta(action.meta, seller);
       await setHostMeta(action.meta, seller);
       await setUserPageMeta(action.meta, seller);
       await setFaviconMetaTags(action.meta, seller);
@@ -588,6 +589,7 @@ export const PROFILE_PAGES: Record<string, PageSpec> = {
     },
     props: async (_params, action) => {
       const seller = await sellerOfHost(action.url);
+      setSellerAnalyticsMeta(action.meta, seller);
       await setHostMeta(action.meta, seller);
       action.meta.set({ title: `Become an affiliate for ${displayName(seller)}` });
       // Rails reads the last value of a repeated param.

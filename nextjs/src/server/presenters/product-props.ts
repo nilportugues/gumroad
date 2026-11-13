@@ -25,6 +25,7 @@ import { PurchaseSearchService } from "../search/purchase-search.ts";
 import { bestOfferCodeResult, defaultOfferCodes, saleLabel } from "./best-offer-code.ts";
 import { htmlSafeDescription } from "./description.ts";
 import { durationDisplayable, numberToHumanSize, pluralize, resolutionDisplayable } from "./human-size.ts";
+import { fileSummaries } from "./product-file-summaries.ts";
 import {
   assertNoAttachedPublicFiles,
   assertNoBoughtPurchase,
@@ -33,7 +34,6 @@ import {
   waitlistProps,
   wishlistProps,
 } from "./product-props-extras.ts";
-import { fileSummaries } from "./product-file-summaries.ts";
 import { findLink, findUserById, type LinkRow, type PriceRow, reviewStat, type UserRow } from "./product-reads.ts";
 import {
   authorBylineProps,

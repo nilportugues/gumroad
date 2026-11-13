@@ -3,8 +3,8 @@ import { Prisma } from "@prisma/client";
 
 import { encrypt } from "../../lib/obfuscate-ids.ts";
 import { LinkFlags } from "../models/link.ts";
-import { hasEditorContent } from "../models/rich-content.ts";
 import { embeddedProductFileIds, type DescriptionNode } from "../models/rich-content-description.ts";
+import { hasEditorContent } from "../models/rich-content.ts";
 import { column, inList, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 
@@ -51,7 +51,8 @@ function embeddedIds(pages: PageRow[]): Set<number> {
     const nodes = typeof page.description === "string" ? (JSON.parse(page.description) as unknown) : page.description;
     if (nodes === null || nodes === undefined) continue;
     // `Array(nodes)` of a hash is its pairs; the JSON schema only lets arrays through.
-    if (!Array.isArray(nodes)) throw new NotPortedError("FileSummaryService with a page whose description is not a list");
+    if (!Array.isArray(nodes))
+      throw new NotPortedError("FileSummaryService with a page whose description is not a list");
     for (const id of embeddedProductFileIds(nodes as DescriptionNode[])) ids.add(id);
   }
   return ids;
@@ -79,7 +80,9 @@ async function summarize(provider: Provider, pages: PageRow[]): Promise<FileSumm
   ].sort();
   return {
     formats,
-    total_size: delivered.some((file) => file.size === null) ? null : Number(delivered.reduce((sum, file) => sum + BigInt(file.size!), 0n)),
+    total_size: delivered.some((file) => file.size === null)
+      ? null
+      : Number(delivered.reduce((sum, file) => sum + BigInt(file.size!), 0n)),
     count: delivered.length,
   };
 }

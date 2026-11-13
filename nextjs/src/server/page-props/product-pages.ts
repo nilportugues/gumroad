@@ -5,6 +5,7 @@
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { PRODUCT_PAGE_OPTIONS } from "../controllers/product-page.ts";
 import { parseQuery } from "../controllers/rails-query.ts";
+import { UserFlags } from "../models/user.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
 import {
   buildProductPage,
@@ -16,12 +17,11 @@ import {
   viewerOf,
 } from "../presenters/product-page.ts";
 import { findLink, findUserById } from "../presenters/product-reads.ts";
-import { UserFlags } from "../models/user.ts";
 
 import { remoteIp } from "./audience/events.ts";
-import { domainConfig } from "./domain.ts";
 import { aliveCartProductCount } from "./checkout/checkout.ts";
 import { autocompleteResults, isAutocompleteOnlyRequest } from "./discover/discover.ts";
+import { domainConfig } from "./domain.ts";
 import type { PageSpec } from "./pages.ts";
 
 // LinksController#show: `layout`, `embed` and `overlay` pick the Inertia component.
