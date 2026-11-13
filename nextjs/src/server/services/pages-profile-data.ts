@@ -9,10 +9,10 @@ import { Prisma } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import { stripTags } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { LinkFlags } from "../models/link.ts";
 import { selectRows } from "../models/sql.ts";
-import { stripTags } from "../html/sanitizer.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import {
   assertPriceSupported,
