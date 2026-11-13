@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { RecordedExchange } from "../support/recorder.ts";
 
-import { diffReplays, isClean } from "./diff.ts";
+import { diffReplays, formatMarkdown, isClean } from "./diff.ts";
 import { maskBody, maskLocation, maskPath } from "./mask.ts";
 import { mapHost, replay } from "./replay.ts";
 
@@ -197,5 +197,13 @@ describe("diffReplays", () => {
     expect(diffReplays(a, b).onlyInA).toHaveLength(1);
     const skipped = a.map((item, index) => (index === 0 ? { ...item, status: 0, replay: { skipped: "x" } } : item));
     expect(diffReplays(a, skipped)).toMatchObject({ skipped: 1, differences: [] });
+  });
+
+  it("names the request behind each difference in the Markdown report", async () => {
+    const a = await run({ token: "t", stamp: "2026-01-01T00:00:00Z", id: 1 });
+    const b = await run({ token: "t", stamp: "2026-01-01T00:00:00Z", id: 1, discoverStatus: 500 });
+    const report = diffReplays(a, b);
+    expect(report.differences[0]?.request).toMatch(/^GET .*\/discover/u);
+    expect(formatMarkdown(report, { a: "Rails", b: "Node" })).toMatch(/\| `GET [^`]*\/discover` .*\| status \| `200` \| `500` \|/u);
   });
 });
