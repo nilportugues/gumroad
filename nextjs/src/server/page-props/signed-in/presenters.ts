@@ -54,7 +54,6 @@ const DEFAULT_GUMROAD_ADMIN_ID = 767_082;
 const STAGING_GUMROAD_ADMIN_ID = 978;
 // DashboardNav::PROMOTABLE_ITEMS
 export const PROMOTABLE_NAV_ITEMS = [
-  "agent",
   "profile",
   "pages",
   "collaborators",
@@ -142,7 +141,7 @@ async function loggedInUserProps(context: SellerContext): Promise<Record<string,
     has_payout_setup_to_port: present(user.payment_address) || willCopyBank,
     can_port_bank_payout_setup: !blockedPayoutCountry(legalCountry),
     will_copy_bank_payout: willCopyBank,
-    policies: await policiesProps(context, railsEnv() === "development"),
+    policies: await policiesProps(context),
     promoted_nav_items: (await dashboardNavItems(user.id)).filter((item) => PROMOTABLE_NAV_ITEMS.includes(item)),
     lazy_load_offscreen_discover_images: await isFeatureEnabled(
       "lazy_load_offscreen_discover_images",

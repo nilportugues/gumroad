@@ -46,7 +46,6 @@ export function suspendedWriteRequest(auth: ResolvedAuth, request: RailsRequest)
 
 // DashboardNav
 const PATH_PREFIXES: Record<string, string> = {
-  "/agent": "agent",
   "/profile": "profile",
   "/pages": "pages",
   "/collaborators": "collaborators",
