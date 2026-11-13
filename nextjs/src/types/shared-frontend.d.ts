@@ -12,6 +12,10 @@ type $TupleOf<T, N extends number, R extends unknown[]> = R["length"] extends N 
 // the standard string[].
 interface ObjectConstructor {
   keys<T extends Record<string, unknown>>(o: T): string extends keyof T ? string[] : (keyof T & string)[];
+  entries<T extends Record<string, unknown>>(
+    o: T,
+  ): string extends keyof T ? [string, T[keyof T]][] : [keyof T & string, T[keyof T]][];
+  fromEntries<T, K extends PropertyKey>(entries: Iterable<readonly [K, T]>): { [k in K]: T };
 }
 
 // @inertiajs/core declares these on DocumentEventMap; the compat module dispatches them itself.
@@ -42,4 +46,20 @@ declare const Routes: typeof import("../lib/navigation/routes");
 declare module "$assets/*.png" {
   const value: string;
   export default value;
+}
+
+// react-select 5.8 and other libraries still read the global JSX namespace that @types/react 19 dropped;
+// without it their prop types collapse to `any` and every callback passed to them loses contextual typing.
+declare namespace JSX {
+  type LibraryManagedAttributes<C, P> = React.JSX.LibraryManagedAttributes<C, P>;
+}
+
+declare module "*?inline" {
+  const content: string;
+  export default content;
+}
+
+declare module "*?url" {
+  const url: string;
+  export default url;
 }

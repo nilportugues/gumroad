@@ -29,7 +29,7 @@ const BlockEmailsSection = ({ blockedEmails, setBlockedEmails }: Props) => {
             .map((email) => {
               if (!isValidEmail(email)) return email;
 
-              const [localPart, domain] = email.split("@");
+              const [localPart = "", domain] = email.split("@");
               return [
                 // Normalize local-part (https://en.wikipedia.org/wiki/Email_address#Common_local-part_semantics)
                 localPart

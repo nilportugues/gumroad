@@ -48,7 +48,7 @@ const FileUtils = {
   getAllowedSubtitleExtensions: (): string[] => ["srt", "vtt"],
   extractUniqueUrlIdentifier: (url: string): string => {
     const guidLength = FileUtils.getGuidLength();
-    const guid = url.split("/original/")[0].slice(-1 * guidLength);
+    const guid = (url.split("/original/")[0] ?? url).slice(-1 * guidLength);
     // NOTE: ideally, this shouldn't encode the url identifier
     if (guid && guid.length === guidLength && isAlphanumeric(guid)) {
       return guid;

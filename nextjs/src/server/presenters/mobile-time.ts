@@ -5,7 +5,7 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
 export function longFormattedDatetime(time: Date, zoneName: string): string {
-  const identifier = new Map(Object.entries(zones)).get(zoneName);
+  const identifier = new Map<string, string>(Object.entries(zones)).get(zoneName);
   if (identifier === undefined) throw new NotPortedError(`the time zone ${zoneName}`);
   let format = formatters.get(identifier);
   if (format === undefined) {

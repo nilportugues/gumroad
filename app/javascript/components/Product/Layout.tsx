@@ -151,8 +151,8 @@ const CtaBar = ({
   discountCode?: ProductDiscount | null;
   pricePending: boolean;
   priceLoading: boolean;
-  ctaButtonRef: React.RefObject<HTMLAnchorElement>;
-  configurationSelectorRef: React.RefObject<ConfigurationSelectorHandle>;
+  ctaButtonRef: React.RefObject<HTMLAnchorElement | null>;
+  configurationSelectorRef: React.RefObject<ConfigurationSelectorHandle | null>;
   selection: PriceSelection;
   setSelection: React.Dispatch<React.SetStateAction<PriceSelection>>;
   hasHero: boolean;

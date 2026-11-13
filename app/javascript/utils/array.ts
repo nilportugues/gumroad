@@ -6,7 +6,10 @@ export function isOpenTuple<T, N extends number>(array: T[], length: N): array i
   return array.length >= length;
 }
 
-export function last<T>(array: readonly [T, ...T[]]): T {
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-  return array[array.length - 1]!;
+// The second overload covers callers type-checked without the Rails app's `String#split` retyping
+// (the Next.js build), where an array may be empty.
+export function last<T>(array: readonly [T, ...T[]]): T;
+export function last<T>(array: readonly T[]): T | undefined;
+export function last<T>(array: readonly T[]): T | undefined {
+  return array[array.length - 1];
 }

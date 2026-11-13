@@ -16,7 +16,8 @@ export function defineFlags<const M extends FlagMap>(table: string, mapping: M, 
   const column = options.column ?? "flags";
   const queryMode = options.queryMode ?? "in_list";
   const bits = new Map<string, bigint>();
-  for (const [position, name] of Object.entries(mapping)) bits.set(name, 1n << BigInt(Number(position) - 1));
+  for (const [position, name] of Object.entries(mapping) as [string, string][])
+    bits.set(name, 1n << BigInt(Number(position) - 1));
   const maxBit = [...bits.values()].reduce((a, b) => (b > a ? b : a), 0n);
 
   const bit = (name: FlagName<M>): bigint => {
