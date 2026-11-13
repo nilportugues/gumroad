@@ -112,8 +112,11 @@ const DISPLAY_PRODUCT_REVIEWS_BIT = 1n << 16n;
 const SHOULD_SHOW_SALES_COUNT_BIT = 1n << 21n;
 const TRANSCODE_VIDEOS_ON_PURCHASE_BIT = 1n << 23n;
 const QUANTITY_ENABLED_BIT = 1n << 13n;
+// Bundles::ContentController writes it; no callback of Link reads it (bundle-content-update-... fixtures).
+const HAS_OUTDATED_PURCHASES_BIT = 1n << 14n;
 const PORTED_FLAG_BITS =
   QUANTITY_ENABLED_BIT |
+  HAS_OUTDATED_PURCHASES_BIT |
   ARCHIVED_BIT |
   IS_ADULT_BIT |
   DISPLAY_PRODUCT_REVIEWS_BIT |
@@ -385,7 +388,7 @@ const refuseUnportedSave: Callback<Link> = {
         throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
       if (link.attributeChanged("flags") && (flagsDiff(link) & ~PORTED_FLAG_BITS) !== 0n)
         throw new NotPortedError(
-          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count and transcode_videos_on_purchase",
+          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count, transcode_videos_on_purchase, quantity_enabled and has_outdated_purchases",
           "app/models/link.rb",
         );
       if (link.get("unique_permalink") == null)

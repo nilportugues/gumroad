@@ -27,7 +27,12 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["internal_api_parity_spec", "internal_agent_parity_spec", "internal_sends_parity_spec"];
+const SPECS = [
+  "internal_api_parity_spec",
+  "internal_agent_parity_spec",
+  "internal_sends_parity_spec",
+  "internal_remaining_send_parity_spec",
+];
 const ROUTE_FLAGS =
   "nextjs_internal_api_host,nextjs_internal_installments,nextjs_internal_product_files,nextjs_internal_review_videos,nextjs_internal_agent,nextjs_internal_product_posts,nextjs_internal_customer_emails,nextjs_internal_receipt_previews";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
@@ -50,6 +55,10 @@ const COMPARE = {
     "db.dashboard_nav_promotions.inserted.*.created_at",
     "db.dashboard_nav_promotions.inserted.*.updated_at",
     "db.users.updated.*.changes.updated_at",
+    // The new blast's stamps are the request's time, which the recording and the replay reach seconds apart.
+    "db.post_email_blasts.inserted.*.requested_at",
+    "db.post_email_blasts.inserted.*.created_at",
+    "db.post_email_blasts.inserted.*.updated_at",
     "http",
   ],
 };

@@ -162,16 +162,6 @@ describe "Internal API sends and previews", type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
     end
-
-    it "hands a post that finished sending to Rails", parity: true do
-      create(:post_email_blast, post: installment, seller:, requested_at: 3.days.ago, completed_at: 2.days.ago, delivery_count: 5)
-      log_in(seller)
-
-      post_json("/internal/installments/#{installment.external_id}/remaining_send")
-
-      expect(response).to have_http_status(:unprocessable_entity)
-      expect(response.parsed_body).to eq("success" => false, "error" => "This email is not waiting on any recipients.")
-    end
   end
 
   describe "POST /internal/customers/:purchase_id/single_customer_email" do
