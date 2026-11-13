@@ -40,7 +40,8 @@ const castByRails = (value: unknown) =>
   !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 const redis = new Redis(url ?? "", { maxRetriesPerRequest: null, lazyConnect: true });
 // The Flipper reads of `Feature.active?` go to the main Redis.
 beforeAll(() => {

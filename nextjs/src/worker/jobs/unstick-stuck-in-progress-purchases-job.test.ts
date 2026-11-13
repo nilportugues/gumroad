@@ -4,7 +4,9 @@
 import { loadGolden, replayJobGolden } from "./__fixtures__/replay-job-golden.ts";
 import { unstickStuckInProgressPurchasesJobWith } from "./unstick-stuck-in-progress-purchases-job.ts";
 
-const golden = loadGolden(new URL("./__fixtures__/unstick-stuck-in-progress-purchases-job.golden.json", import.meta.url));
+const golden = loadGolden(
+  new URL("./__fixtures__/unstick-stuck-in-progress-purchases-job.golden.json", import.meta.url),
+);
 
 // Ids Rails casts (nil, a float, a word, digit strings, a single id) are handed back before any statement.
 const castByRails = (ids: unknown) =>

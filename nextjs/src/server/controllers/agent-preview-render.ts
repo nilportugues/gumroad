@@ -10,9 +10,8 @@ import { fragmentToHtml, html4Fragment } from "../html/loofah.ts";
 import { getRedis } from "../infra/redis.ts";
 import { domainConfig, assetHost } from "../page-props/domain.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
-import { enqueueRoutabilityRefresh } from "../services/custom-domain-hosts.ts";
-
 import { avatarAttachmentOf } from "../page-props/signed-in/reads.ts";
+import { enqueueRoutabilityRefresh } from "../services/custom-domain-hosts.ts";
 import { defaultProfileDocument } from "../services/pages-default-profile-document.ts";
 import { interpolateProfile } from "../services/pages-interpolator.ts";
 import { referencedInPrices } from "../services/pages-product-prices.ts";

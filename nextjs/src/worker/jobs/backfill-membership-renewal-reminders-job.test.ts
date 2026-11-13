@@ -12,7 +12,6 @@ import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, type RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { plain } from "../../server/search/__fixtures__/job-harness.ts";
 
-import { backfillMembershipRenewalRemindersJobWith } from "./backfill-membership-renewal-reminders-job.ts";
 import {
   asSidekiqJob,
   contextFor,
@@ -23,6 +22,7 @@ import {
   type RedisSnapshot,
 } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
+import { backfillMembershipRenewalRemindersJobWith } from "./backfill-membership-renewal-reminders-job.ts";
 
 type Case = {
   name: string;
@@ -34,11 +34,15 @@ type Case = {
   redis_before: RedisSnapshot;
 };
 const golden = parseRubyJson(
-  readFileSync(new URL("./__fixtures__/backfill-membership-renewal-reminders-job.golden.json", import.meta.url), "utf8"),
+  readFileSync(
+    new URL("./__fixtures__/backfill-membership-renewal-reminders-job.golden.json", import.meta.url),
+    "utf8",
+  ),
 ) as unknown as { now: number; cases: Case[] };
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 const redis = new Redis(url ?? "", { maxRetriesPerRequest: null, lazyConnect: true });
 afterAll(async () => {
   if (!url) return;

@@ -5,7 +5,9 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+
 import { CRON_SCHEDULE, JOB_REGISTRY } from "../src/server/jobs/registry.generated.ts";
+
 import { pageStatus, parseRoutes, rows } from "./remaining-work.ts";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -35,7 +37,10 @@ const rel = (full: string) => relative(repoRoot, full);
 function handBackSites(): Map<string, number> {
   const bySite = new Map<string, number>();
   for (const dir of SRC_DIRS) {
-    const files = walk(join(repoRoot, dir), (name) => name.endsWith(".ts") && !/\.(test|replay\.test)\.ts$/u.test(name));
+    const files = walk(
+      join(repoRoot, dir),
+      (name) => name.endsWith(".ts") && !/\.(test|replay\.test)\.ts$/u.test(name),
+    );
     for (const file of files) {
       const count = [...readFileSync(file, "utf8").matchAll(SITE)].length;
       if (count > 0) bySite.set(rel(file), count);
@@ -70,7 +75,8 @@ const EPICS: Epic[] = [
   {
     id: "E01",
     title: "Paid checkout (card purchase, order, charge)",
-    files: /orders|purchase-(create|success|fees|response|license)|charge-|order-|free-order|checkout|customer-surcharge|purchase-sales-tax|stripe\/(payment|charge|setup)/u,
+    files:
+      /orders|purchase-(create|success|fees|response|license)|charge-|order-|free-order|checkout|customer-surcharge|purchase-sales-tax|stripe\/(payment|charge|setup)/u,
     fallback: /purchase-pricing|merge-carts|models\/(charge|order|credit)\.ts|cart-items/u,
     state: "in progress (WS-20; free orders done, paid shape recorded, post-charge half being ported)",
     blocker:
@@ -84,39 +90,50 @@ const EPICS: Epic[] = [
     files: /payout|payment-state|process-payment|bank-account|stripe\/payout/u,
     fallback: /models\/payment\.ts/u,
     state: "in progress (failure paths recorded: 17 examples; Node models and Stripe client being built)",
-    blocker: "Payment state machine, Payouts.create_payments, a Stripe client with the gem's retry/idempotency behaviour.",
-    scope: "Instant payout, scheduled payouts, PayPal payouts, payout holds, reversal of internal transfers, payouts page branches.",
+    blocker:
+      "Payment state machine, Payouts.create_payments, a Stripe client with the gem's retry/idempotency behaviour.",
+    scope:
+      "Instant payout, scheduled payouts, PayPal payouts, payout holds, reversal of internal transfers, payouts page branches.",
   },
   {
     id: "E03",
     title: "Refunds and the ledger (FlowOfFunds)",
     files: /refund|flow-of-funds|dispute|balance/u,
     state: "in progress (post-call failure branches being recorded; ledger being ported)",
-    blocker: "Only the success path was recorded; ledger, error handling around StripeChargeProcessor#refund!, Connect, PayPal, Braintree refunds.",
-    scope: "Full and partial refund, destination-charge and fee-reversal paths, refund policy enforcement tail, dispute handling writes.",
+    blocker:
+      "Only the success path was recorded; ledger, error handling around StripeChargeProcessor#refund!, Connect, PayPal, Braintree refunds.",
+    scope:
+      "Full and partial refund, destination-charge and fee-reversal paths, refund policy enforcement tail, dispute handling writes.",
   },
   {
     id: "E04",
     title: "Stripe account creation and Connect",
     files: /merchant-account|stripe-connect|stripe\/account|settings-payments/u,
-    state: "started (failure and no-verdict recordings of the creation save: six hand-back examples; the account, person, company and bank account payload builders are ported against Ruby goldens but no route calls them; UpdateUserComplianceInfo and UpdatePayoutMethod not ported; Stripe Connect callback: documented decision to stay handed back)",
-    blocker: "StripeMerchantAccountManager is ~4.8k lines of country and entity payloads; only the US-individual shape is recorded. Stripe Connect code is spent in the token exchange, so no earlier idempotent read exists.",
-    scope: "create_account/update_account per country and entity type, Connect OAuth callback, account reconciliation after a Stripe error.",
+    state:
+      "started (failure and no-verdict recordings of the creation save: six hand-back examples; the account, person, company and bank account payload builders are ported against Ruby goldens but no route calls them; UpdateUserComplianceInfo and UpdatePayoutMethod not ported; Stripe Connect callback: documented decision to stay handed back)",
+    blocker:
+      "StripeMerchantAccountManager is ~4.8k lines of country and entity payloads; only the US-individual shape is recorded. Stripe Connect code is spent in the token exchange, so no earlier idempotent read exists.",
+    scope:
+      "create_account/update_account per country and entity type, Connect OAuth callback, account reconciliation after a Stripe error.",
   },
   {
     id: "E05",
     title: "PayPal, Braintree and processor webhooks",
     files: /paypal|braintree|foreign-webhooks|webhook/u,
-    state: "started (HandleStripeEventWorker runs in Node for the deauthorization, capability.updated, standard account.updated, the charge, refund, payment_intent, capital and radar events that end before the ledger or a Stripe call, the seller plan subscription events and the events no branch routes; webhook receivers done; the ledger and Stripe-calling events, PayPal handlers and Braintree hand back)",
+    state:
+      "started (HandleStripeEventWorker runs in Node for the deauthorization, capability.updated, standard account.updated, the charge, refund, payment_intent, capital and radar events that end before the ledger or a Stripe call, the seller plan subscription events and the events no branch routes; webhook receivers done; the ledger and Stripe-calling events, PayPal handlers and Braintree hand back)",
     blocker: "No recordings of PayPal/Braintree request sequences; their routes are not registered.",
-    scope: "PayPal controller (4 routes), Braintree (2), PayPal orders, refunds, payouts, IPN; Braintree token and charge.",
+    scope:
+      "PayPal controller (4 routes), Braintree (2), PayPal orders, refunds, payouts, IPN; Braintree token and charge.",
   },
   {
     id: "E06",
     title: "Sales tax and VAT (WS-22)",
     files: /tax|vat|zip-tax|geoip/u,
-    state: "partial (TaxJar rate update job and the customer surcharge quote in Node; the offline tax-id validators and IRAS, Revenu Quebec and taxid.pro checks run against Ruby goldens; ABN, MVA and VIES hand back)",
-    blocker: "Vatstack (ABN, MVA: the memo is a marshalled HTTParty::Response), VIES through valvat, ZipTaxRate selection and GeoIP hand back.",
+    state:
+      "partial (TaxJar rate update job and the customer surcharge quote in Node; the offline tax-id validators and IRAS, Revenu Quebec and taxid.pro checks run against Ruby goldens; ABN, MVA and VIES hand back)",
+    blocker:
+      "Vatstack (ABN, MVA: the memo is a marshalled HTTParty::Response), VIES through valvat, ZipTaxRate selection and GeoIP hand back.",
     scope: "Sales tax at checkout, surcharge preview, VAT id validation, tax forms and transaction reports.",
   },
   {
@@ -124,9 +141,11 @@ const EPICS: Epic[] = [
     title: "Sign-in providers and account security",
     files: /omniauth|social-|oauth|passkey|webauthn|totp|team-invit|auth-|login|signup|session|confirmation/u,
     fallback: /instagram/u,
-    state: "mostly done (Apple, Twitter, Google, YouTube, Instagram, TikTok, TOTP, team join, passkey login and registration in Node); the Stripe Connect callback, the POST callbacks and the unprovable passkey shapes (signed attestation formats, non-ES256 keys) left",
+    state:
+      "mostly done (Apple, Twitter, Google, YouTube, Instagram, TikTok, TOTP, team join, passkey login and registration in Node); the Stripe Connect callback, the POST callbacks and the unprovable passkey shapes (signed attestation formats, non-ES256 keys) left",
     blocker: "Single-use codes must not be spent unless every outcome is reproducible.",
-    scope: "Remaining OmniAuth callbacks, passkey registration shapes, team invitation for the Gumroad account's own team, unconfirmed-account adoption.",
+    scope:
+      "Remaining OmniAuth callbacks, passkey registration shapes, team invitation for the Gumroad account's own team, unconfirmed-account adoption.",
   },
   {
     id: "E08",
@@ -135,7 +154,8 @@ const EPICS: Epic[] = [
     fallback: /integrations?-|discord|s3-utility/u,
     state: "partial (access gates done; bytes, rich content, posts, integrations, licenses, polls hand back)",
     blocker: "Signed URLs, S3 presign of the test environment, Cloudflare production key and distribution.",
-    scope: "stream/read/play/captions past the gate, download pages with files and rich content, ProductFile creation and build promote.",
+    scope:
+      "stream/read/play/captions past the gate, download pages with files and rich content, ProductFile creation and build promote.",
   },
   {
     id: "E09",
@@ -144,33 +164,41 @@ const EPICS: Epic[] = [
     fallback: /recommended|widgets|embedded-javascripts/u,
     state: "in progress (covers, nav done; Interpolator wiring and custom HTML pages being ported)",
     blocker: "Pages::ProfileData, ProductPrices, Ai::PageSanitizer.",
-    scope: "Custom HTML pages, uploaded video covers, asset previews, product sections, impersonated session on the home pages.",
+    scope:
+      "Custom HTML pages, uploaded video covers, asset previews, product sections, impersonated session on the home pages.",
   },
   {
     id: "E10",
     title: "Public/v2 API and mobile API (WS-17)",
-    files: /api-v2|mobile|product-(resource|build|write|create)|link-(create|publish|update)|offer-code|variant|price-writes/u,
+    files:
+      /api-v2|mobile|product-(resource|build|write|create)|link-(create|publish|update)|offer-code|variant|price-writes/u,
     fallback: /api\/v2\//u,
     state: "in progress (v2 create/update done for plain digital products; mobile sales/library shapes left)",
-    blocker: "Files, rich content, refund-policy params, covers, non-USD currency, other native types in v2; media location, preorder, membership, refund and review serialization on mobile.",
-    scope: "Remaining v2 product params, mobile library and search rows, sales show (CustomerPresenter), remaining mobile writes.",
+    blocker:
+      "Files, rich content, refund-policy params, covers, non-USD currency, other native types in v2; media location, preorder, membership, refund and review serialization on mobile.",
+    scope:
+      "Remaining v2 product params, mobile library and search rows, sales show (CustomerPresenter), remaining mobile writes.",
   },
   {
     id: "E11",
     title: "MCP and AI (WS-19)",
     files: /mcp|ai-|agent|moderation|llm/u,
-    state: "in progress (read tools done; OAuth client registration and permalink changes done; memberships in create_draft_product, add_cover, add_file, bundle tools, ProductFileIngest left)",
+    state:
+      "in progress (read tools done; OAuth client registration and permalink changes done; memberships in create_draft_product, add_cover, add_file, bundle tools, ProductFileIngest left)",
     blocker: "get_subscriptions churn breakdown (Ruby Float vs Node cached payload).",
-    scope: "create_draft_product, update_product, add_cover, add_file, bundle and discount-code tools, client registration.",
+    scope:
+      "create_draft_product, update_product, add_cover, add_file, bundle and discount-code tools, client registration.",
   },
   {
     id: "E12",
     title: "Audience, emails, workflows and the receipt mailer (WS-13/15)",
     files: /mail|receipt|workflow|installment|post-|audience|follower|export|customers|analytics/u,
     fallback: /marketing|\bposts?[-.]|imported-customer|events-mutations|test-ping/u,
-    state: "partial (renewal receipts, fixed-length, installment and gifted membership receipts hand back; export variants hand back)",
+    state:
+      "partial (renewal receipts, fixed-length, installment and gifted membership receipts hand back; export variants hand back)",
     blocker: "Mailer templates with files that have thumbnails.",
-    scope: "Remaining receipt shapes, workflow emails with thumbnails, purchases export families (several variants, gifts, preorders, subscriptions, PayPal, Connect).",
+    scope:
+      "Remaining receipt shapes, workflow emails with thumbnails, purchases export families (several variants, gifts, preorders, subscriptions, PayPal, Connect).",
   },
   {
     id: "E13",
@@ -178,15 +206,18 @@ const EPICS: Epic[] = [
     files: /subscription|preorder|membership|recurring/u,
     state: "partial (cancellations done; charges and plan changes hand back)",
     blocker: "Charge path (E01) and processor calls.",
-    scope: "Subscription charges, plan changes and price updates, preorder charges, free-trial conversions, installment plans.",
+    scope:
+      "Subscription charges, plan changes and price updates, preorder charges, free-trial conversions, installment plans.",
   },
   {
     id: "E14",
     title: "Settings, team and admin (WS-10/18)",
     files: /settings|admin|team|brand-account|user-|account/u,
-    fallback: /users?-controller|models\/user\.ts|seller-|json-seller|json-actions|custom-domain|help-center|feature-announcement|connections-mutations|piracy/u,
+    fallback:
+      /users?-controller|models\/user\.ts|seller-|json-seller|json-actions|custom-domain|help-center|feature-announcement|connections-mutations|piracy/u,
     state: "mostly done; brand accounts that copy a payout setup and the admin web UIs (Flipper, Sidekiq web) left",
-    blocker: "Vendor Rack apps (Flipper UI, Sidekiq web) have no Rails recording; the payout copy needs the Stripe account job.",
+    blocker:
+      "Vendor Rack apps (Flipper UI, Sidekiq web) have no Rails recording; the payout copy needs the Stripe account job.",
     scope: "Brand account payout copy, Flipper UI and Sidekiq web.",
   },
   {
@@ -195,7 +226,8 @@ const EPICS: Epic[] = [
     files: /^nextjs\/src\/(worker|server\/jobs)|jobs?\/|-job\.|-worker\./u,
     state: "in progress (two agents on it; 187 of 296 classes run in Node, many with prefix hand-backs)",
     blocker: "Money jobs wait on E01-E03; Marshal cache entries and Sidekiq changelog writes for a few.",
-    scope: "The Ruby-runtime classes listed in section 4, then the hand-back tails of the ported ones, then removing the Sidekiq bridge.",
+    scope:
+      "The Ruby-runtime classes listed in section 4, then the hand-back tails of the ported ones, then removing the Sidekiq bridge.",
   },
   {
     id: "E16",
@@ -204,31 +236,40 @@ const EPICS: Epic[] = [
     fallback: /communit/u,
     state: "partial (most reads and writes done; each controller still refuses some shapes)",
     blocker: "Per-shape recordings; commission completion needs balance charge (E01/E03).",
-    scope: "Affiliate redirect and requests, collaborator invitations, wishlist items, comments, product reviews and responses, UTM links, commissions.",
+    scope:
+      "Affiliate redirect and requests, collaborator invitations, wishlist items, comments, product reviews and responses, UTM links, commissions.",
   },
   {
     id: "E17",
     title: "Purchase management (customers, receipts JSON, license JSON)",
     files: /purchase-json|license-purchase|purchases-controller|purchases-|customer-actions|library|invoice/u,
-    fallback: /purchase-custom-field|purchase-product-updates|models\/purchase\.ts|purchase-access-writes|customer-details|shipment|buyer\/products/u,
-    state: "partial (revoke access, search, export done; refund, update, resend receipt, confirm and charge actions hand back)",
+    fallback:
+      /purchase-custom-field|purchase-product-updates|models\/purchase\.ts|purchase-access-writes|customer-details|shipment|buyer\/products/u,
+    state:
+      "partial (revoke access, search, export done; refund, update, resend receipt, confirm and charge actions hand back)",
     blocker: "Refund and charge paths (E01, E03).",
-    scope: "PurchasesController actions beyond revoke access, purchase and license JSON shapes, invoices, library writes.",
+    scope:
+      "PurchasesController actions beyond revoke access, purchase and license JSON shapes, invoices, library writes.",
   },
   {
     id: "E18",
     title: "Request and response fidelity (Rails params/body parsing, ERB, rate limits)",
     files: /rails-(body|params)|erb\/|rack-attack|application-controller|\/infra\/|route-table|mutation\.ts/u,
-    fallback: /number-with-delimiter|friendly-id|html-fragment|row-reads|with-filtering|public-handlers|public-data|secure-encrypt|route-redirects/u,
-    state: "ongoing (generic refusals for inputs Rails munges or rejects; each is a deliberate hand-back, not a missing feature)",
+    fallback:
+      /number-with-delimiter|friendly-id|html-fragment|row-reads|with-filtering|public-handlers|public-data|secure-encrypt|route-redirects/u,
+    state:
+      "ongoing (generic refusals for inputs Rails munges or rejects; each is a deliberate hand-back, not a missing feature)",
     blocker: "None; port only if a real request needs the shape.",
-    scope: "Nested/duplicate query keys, JSON bodies Rails munges, unsafe numbers, ERB helpers, Rack::Attack corner cases.",
+    scope:
+      "Nested/duplicate query keys, JSON bodies Rails munges, unsafe numbers, ERB helpers, Rack::Attack corner cases.",
   },
   {
     id: "E19",
     title: "Product editor, bundles and internal endpoints",
-    files: /internal|product-editor|editor|seller-products|product-props|links-mutations|bundle|secure-redirect|listing|presenters\//u,
-    fallback: /links?-(create|controller|metrics)|models\/link\.ts|products-mutations|rich-content-writes|upsell|product-tags|thumbnails|call-availab|models\/call\.ts/u,
+    files:
+      /internal|product-editor|editor|seller-products|product-props|links-mutations|bundle|secure-redirect|listing|presenters\//u,
+    fallback:
+      /links?-(create|controller|metrics)|models\/link\.ts|products-mutations|rich-content-writes|upsell|product-tags|thumbnails|call-availab|models\/call\.ts/u,
     state: "partial (editor JSON and mutations mostly done; sections, files and rich content shapes hand back)",
     blocker: "ProductFile creation (E08), rich content writes.",
     scope: "Product editor mutations, bundle edits, internal admin endpoints, listing pages and presenters.",
@@ -246,7 +287,9 @@ const OTHER: Epic = {
 
 function epicOf(path: string): Epic {
   const normalized = path.replace(/_/gu, "-");
-  return EPICS.find((epic) => epic.files.test(normalized)) ?? EPICS.find((epic) => epic.fallback?.test(normalized)) ?? OTHER;
+  return (
+    EPICS.find((epic) => epic.files.test(normalized)) ?? EPICS.find((epic) => epic.fallback?.test(normalized)) ?? OTHER
+  );
 }
 
 const NON_CODE = [
@@ -276,7 +319,12 @@ function build(): string {
   const jobEntries = Object.entries(JOB_REGISTRY);
   const rubyJobs = jobEntries
     .filter(([, job]) => job.runtime === "ruby")
-    .map(([name, job]) => ({ name, queue: String((job.options as Record<string, unknown>).queue ?? "default"), file: job.file, lines: rubyLines(job.file) }))
+    .map(([name, job]) => ({
+      name,
+      queue: String((job.options as Record<string, unknown>).queue ?? "default"),
+      file: job.file,
+      lines: rubyLines(job.file),
+    }))
     .sort((a, b) => a.lines - b.lines || a.name.localeCompare(b.name));
   const nodeJobs = jobEntries.length - rubyJobs.length;
   const cronByClass = new Map(CRON_SCHEDULE.map((entry) => [entry.class, entry.cron]));
@@ -309,11 +357,21 @@ function build(): string {
   out.push("");
   out.push("| Unit | Done | Remaining | Total | How it is counted |");
   out.push("| --- | ---: | ---: | ---: | --- |");
-  out.push(`| Routes served natively | ${n(nativeRoutes.length)} | ${n(remainingRoutes.length)} | ${n(all.length)} | \`config/routes*.rb\` against \`routes.json\` and Node code (static) |`);
-  out.push(`| Inertia pages with Node props | ${n(pages.ported.length)} | ${n(pages.missing.length)} | ${n(pages.total)} | component names Rails renders against string literals in src/server |`);
-  out.push(`| Sidekiq classes running in Node | ${n(nodeJobs)} | ${n(rubyJobs.length)} | ${n(jobEntries.length)} | \`runtime\` in \`registry.generated.ts\` |`);
-  out.push(`| Hand-back sites inside ported code | not applicable | ${n(siteTotal)} | in ${n(sites.size)} files | \`HandBackToRails\`, \`NotPortedError\`, \`handBack(\`, \`notPorted(\` in non-test source under src/server and src/worker |`);
-  out.push(`| Recorded unported shapes | not applicable | ${n(recordedTotal)} | in ${n(recorded.size)} specs | Rails parity examples whose title says Rails keeps the request ("hands ...") |`);
+  out.push(
+    `| Routes served natively | ${n(nativeRoutes.length)} | ${n(remainingRoutes.length)} | ${n(all.length)} | \`config/routes*.rb\` against \`routes.json\` and Node code (static) |`,
+  );
+  out.push(
+    `| Inertia pages with Node props | ${n(pages.ported.length)} | ${n(pages.missing.length)} | ${n(pages.total)} | component names Rails renders against string literals in src/server |`,
+  );
+  out.push(
+    `| Sidekiq classes running in Node | ${n(nodeJobs)} | ${n(rubyJobs.length)} | ${n(jobEntries.length)} | \`runtime\` in \`registry.generated.ts\` |`,
+  );
+  out.push(
+    `| Hand-back sites inside ported code | not applicable | ${n(siteTotal)} | in ${n(sites.size)} files | \`HandBackToRails\`, \`NotPortedError\`, \`handBack(\`, \`notPorted(\` in non-test source under src/server and src/worker |`,
+  );
+  out.push(
+    `| Recorded unported shapes | not applicable | ${n(recordedTotal)} | in ${n(recorded.size)} specs | Rails parity examples whose title says Rails keeps the request ("hands ...") |`,
+  );
   out.push("");
   out.push(
     "How to read it. Routes, pages and job classes are the headline units, but a route counts as native once its common path runs, so the real remainder is the hand-back sites row: each is a branch Node refuses and Rails still serves. A site is a place in the code, not a request; several sites can guard one shape and one site can cover many requests, so the number measures where work remains, not how many hours it takes. The recorded-shapes row is the part of that remainder that already has a Rails recording, which is the cheapest to port because the proof exists.",
@@ -321,7 +379,9 @@ function build(): string {
   out.push("");
   out.push("## 2. Routes not served natively");
   out.push("");
-  out.push(`${n(remainingRoutes.length)} routes: ${n(remainingRoutes.filter((r) => r.status === "hands back").length)} listed in \`routes.json\` without Node code (hands back) and ${n(remainingRoutes.filter((r) => r.status === "not registered").length)} not registered (Rails serves them).`);
+  out.push(
+    `${n(remainingRoutes.length)} routes: ${n(remainingRoutes.filter((r) => r.status === "hands back").length)} listed in \`routes.json\` without Node code (hands back) and ${n(remainingRoutes.filter((r) => r.status === "not registered").length)} not registered (Rails serves them).`,
+  );
   out.push("");
   out.push(
     "Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google, YouTube, Instagram and TikTok OmniAuth callbacks run in Node through the shared phases handler (`nextjs_omniauth_phases`) although their routes are built from the strategy name. So at least 7 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.",
@@ -329,8 +389,12 @@ function build(): string {
   out.push("");
   out.push("| Route | Controller#action | Status | Workstream |");
   out.push("| --- | --- | --- | --- |");
-  for (const row of remainingRoutes.sort((a, b) => b.weight - a.weight || `${a.controller}#${a.action}`.localeCompare(`${b.controller}#${b.action}`))) {
-    out.push(`| \`${row.method} ${row.path}\` | \`${row.controller}#${row.action}\` | ${row.status} | ${row.workstream} |`);
+  for (const row of remainingRoutes.sort(
+    (a, b) => b.weight - a.weight || `${a.controller}#${a.action}`.localeCompare(`${b.controller}#${b.action}`),
+  )) {
+    out.push(
+      `| \`${row.method} ${row.path}\` | \`${row.controller}#${row.action}\` | ${row.status} | ${row.workstream} |`,
+    );
   }
   out.push("");
   out.push("## 3. Inertia pages without Node props");
@@ -339,11 +403,16 @@ function build(): string {
   out.push("");
   out.push("## 4. Sidekiq classes still running in Ruby");
   out.push("");
-  out.push(`${n(rubyJobs.length)} classes, smallest Ruby file first (a rough proxy for effort). The ${n(CRON_SCHEDULE.length)} cron entries are in \`registry.generated.ts\`; the Cron column shows the schedule of the class when it has one.`);
+  out.push(
+    `${n(rubyJobs.length)} classes, smallest Ruby file first (a rough proxy for effort). The ${n(CRON_SCHEDULE.length)} cron entries are in \`registry.generated.ts\`; the Cron column shows the schedule of the class when it has one.`,
+  );
   out.push("");
   out.push("| Class | Queue | Ruby lines | Cron | File |");
   out.push("| --- | --- | ---: | --- | --- |");
-  for (const job of rubyJobs) out.push(`| \`${job.name}\` | ${job.queue} | ${n(job.lines)} | ${cronByClass.get(job.name) ?? ""} | \`${job.file}\` |`);
+  for (const job of rubyJobs)
+    out.push(
+      `| \`${job.name}\` | ${job.queue} | ${n(job.lines)} | ${cronByClass.get(job.name) ?? ""} | \`${job.file}\` |`,
+    );
   out.push("");
   out.push("## 5. Hand-back sites by area and file");
   out.push("");
@@ -359,21 +428,26 @@ function build(): string {
   }
   out.push("| Area | Sites | Files |");
   out.push("| --- | ---: | ---: |");
-  for (const [area, bucket] of [...byArea].sort((a, b) => b[1].sites - a[1].sites)) out.push(`| \`${area}\` | ${n(bucket.sites)} | ${n(bucket.files)} |`);
+  for (const [area, bucket] of [...byArea].sort((a, b) => b[1].sites - a[1].sites))
+    out.push(`| \`${area}\` | ${n(bucket.sites)} | ${n(bucket.files)} |`);
   out.push("");
   out.push("The 40 files with the most sites:");
   out.push("");
   out.push("| File | Sites | Epic |");
   out.push("| --- | ---: | --- |");
-  for (const [file, count] of [...sites].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 40)) out.push(`| \`${file}\` | ${n(count)} | ${epicOf(file).id} |`);
+  for (const [file, count] of [...sites].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 40))
+    out.push(`| \`${file}\` | ${n(count)} | ${epicOf(file).id} |`);
   out.push("");
   out.push("## 6. Recorded unported shapes (Rails examples that say Rails keeps the request)");
   out.push("");
-  out.push("The 40 specs with the most. Each example is a concrete shape with a fixture; serving it in Node and flipping the example to a served one is a well-defined task.");
+  out.push(
+    "The 40 specs with the most. Each example is a concrete shape with a fixture; serving it in Node and flipping the example to a served one is a well-defined task.",
+  );
   out.push("");
   out.push("| Spec | Examples | Epic |");
   out.push("| --- | ---: | --- |");
-  for (const [file, count] of [...recorded].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 40)) out.push(`| \`${file}\` | ${n(count)} | ${epicOf(file).id} |`);
+  for (const [file, count] of [...recorded].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 40))
+    out.push(`| \`${file}\` | ${n(count)} | ${epicOf(file).id} |`);
   out.push("");
   out.push("## 7. Epics: the task list");
   out.push("");
@@ -383,7 +457,8 @@ function build(): string {
   out.push("");
   out.push("| Epic | Task | Sites | Recorded shapes | State |");
   out.push("| --- | --- | ---: | ---: | --- |");
-  for (const { epic, sites: siteCount, examples } of perEpic.values()) out.push(`| ${epic.id} | ${epic.title} | ${n(siteCount)} | ${n(examples)} | ${epic.state} |`);
+  for (const { epic, sites: siteCount, examples } of perEpic.values())
+    out.push(`| ${epic.id} | ${epic.title} | ${n(siteCount)} | ${n(examples)} | ${epic.state} |`);
   const totalSites = [...perEpic.values()].reduce((sum, bucket) => sum + bucket.sites, 0);
   const totalExamples = [...perEpic.values()].reduce((sum, bucket) => sum + bucket.examples, 0);
   out.push(`| | **Total** | **${n(totalSites)}** | **${n(totalExamples)}** | |`);
@@ -400,9 +475,15 @@ function build(): string {
   const other = perEpic.get(OTHER.id)!;
   out.push(`### ${OTHER.id} ${OTHER.title}`);
   out.push("");
-  out.push(`${n(other.sites)} sites in ${n(other.siteFiles)} files and ${n(other.examples)} recorded examples in ${n(other.specs)} specs match no epic pattern. Unassigned files with sites:`);
+  out.push(
+    `${n(other.sites)} sites in ${n(other.siteFiles)} files and ${n(other.examples)} recorded examples in ${n(other.specs)} specs match no epic pattern. Unassigned files with sites:`,
+  );
   out.push("");
-  for (const [file, count] of [...sites].filter(([file]) => epicOf(file).id === OTHER.id).sort((a, b) => b[1] - a[1]).slice(0, 200)) out.push(`- \`${file}\` (${n(count)})`);
+  for (const [file, count] of [...sites]
+    .filter(([file]) => epicOf(file).id === OTHER.id)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 200))
+    out.push(`- \`${file}\` (${n(count)})`);
   out.push("");
   const otherSpecs = [...recorded].filter(([file]) => epicOf(file).id === OTHER.id).sort((a, b) => b[1] - a[1]);
   if (otherSpecs.length > 0) {

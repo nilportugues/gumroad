@@ -21,14 +21,26 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
-const SPECS = ["product_editor_json_signed_in_spec", "product_editor_mutations_signed_in_spec", "product_builds_index_parity_spec"].filter((dir) => existsSync(path.join(FIXTURES, dir)));
-const ROUTE_FLAGS = ["nextjs_tags", "nextjs_cart_items_count", "nextjs_product_events", "nextjs_product_editor_json", "nextjs_bundles", "nextjs_product_duplicates"].join(",");
+const SPECS = [
+  "product_editor_json_signed_in_spec",
+  "product_editor_mutations_signed_in_spec",
+  "product_builds_index_parity_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = [
+  "nextjs_tags",
+  "nextjs_cart_items_count",
+  "nextjs_product_events",
+  "nextjs_product_editor_json",
+  "nextjs_bundles",
+  "nextjs_product_duplicates",
+].join(",");
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
 
-const jobKey = (job: { class: string; args: unknown; queue?: string }) => `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
 function redisJobs(redis: Redis): JobsChannel {
@@ -42,14 +54,29 @@ function redisJobs(redis: Redis): JobsChannel {
         if ((await redis.type(key)) !== "hash") continue;
         const data = await redis.hget(key, "data");
         if (data === null) continue;
-        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as { class: string; args: unknown[]; queue: string; at?: number };
-        jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+        };
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
       }
       // Jobs that still run in Ruby are pushed to Sidekiq's own lists.
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
           const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string; at?: number };
-          jobs.push({ class: item.class, args: item.args, queue: item.queue, ...(item.at === undefined ? {} : { at: item.at }) });
+          jobs.push({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          });
         }
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
@@ -88,7 +115,14 @@ const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
     .filter((file) => file.endsWith(".json"))
-    .map((file) => [`${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`, path.join(dir, file), loadFixture(path.join(dir, file)).exchanges.length - 1] as const);
+    .map(
+      (file) =>
+        [
+          `${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
 });
 
 describe.skipIf(!url)("WS-12c parity", () => {
@@ -110,7 +144,11 @@ describe.skipIf(!url)("WS-12c parity", () => {
       const chunks: Buffer[] = [];
       request.on("data", (chunk: Buffer) => chunks.push(chunk));
       request.on("end", () => {
-        handedBack.push({ method: request.method ?? "", url: request.url ?? "", body: Buffer.concat(chunks).toString("utf8") });
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
         response.writeHead(204).end();
       });
     });
@@ -121,7 +159,12 @@ describe.skipIf(!url)("WS-12c parity", () => {
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
-      ...(secureIdKey ? { SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ?? "1", SECURE_EXTERNAL_ID__KEYS__1: secureIdKey } : {}),
+      ...(secureIdKey
+        ? {
+            SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") ?? "1",
+            SECURE_EXTERNAL_ID__KEYS__1: secureIdKey,
+          }
+        : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
@@ -157,7 +200,11 @@ describe.skipIf(!url)("WS-12c parity", () => {
       transport: httpTransport(server.baseUrl),
       interceptHttp: false,
       jobs: redisJobs(redis),
-      rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+      rewriteRequest: (
+        request: Parameters<typeof reencryptCookies>[0],
+        loaded: Parameters<typeof reencryptCookies>[1],
+        now: Date,
+      ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
       compare: { ignore },
     };
   };
@@ -185,7 +232,12 @@ describe.skipIf(!url)("WS-12c parity", () => {
         const result = await replayFixtureExchange(fixture, index, replayOptions(file));
         assertParity(result);
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => !line.startsWith("Next.js includes")).slice(-40).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

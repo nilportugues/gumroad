@@ -360,7 +360,10 @@ describe("hand-backs", () => {
   it("serves a VAT id VIES and the vendors answer", async () => {
     validateViesVatId.mockResolvedValue({ kind: "valid", valid: true });
     validateVendorTaxId.mockResolvedValue({ kind: "valid", valid: true });
-    for (const params of [{ vat_id: "IE6388047V", country: "DE" }, { vat_id: "123456789", country: "SG" }]) {
+    for (const params of [
+      { vat_id: "IE6388047V", country: "DE" },
+      { vat_id: "123456789", country: "SG" },
+    ]) {
       expect((await call(cart(params))).body).toMatchObject({ vat_id_valid: true });
     }
     expect(validateViesVatId).toHaveBeenCalledWith("IE6388047V");

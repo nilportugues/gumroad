@@ -9,5 +9,8 @@ export function withSortedChangelog<T>(state: T): T {
   const view = state as unknown as Record<string, ChangelogView | JsonValue>;
   const changelog = view["uniquejobs:changelog"] as ChangelogView | undefined;
   if (!changelog || !Array.isArray(changelog.messages)) return state;
-  return { ...view, "uniquejobs:changelog": { ...changelog, messages: [...changelog.messages].sort() } } as unknown as T;
+  return {
+    ...view,
+    "uniquejobs:changelog": { ...changelog, messages: [...changelog.messages].sort() },
+  } as unknown as T;
 }

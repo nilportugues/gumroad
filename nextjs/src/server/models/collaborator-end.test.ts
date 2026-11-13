@@ -19,7 +19,9 @@ vi.mock("./link.ts", () => ({
 const { endBlocker } = await import("./collaborator-end.ts");
 
 // Deliberately partial: endBlocker reads only these columns.
-const row = { id: 5, seller_id: 3, affiliate_user_id: 9, affiliate_basis_points: 3000, flags: 0 } as Parameters<typeof endBlocker>[0];
+const row = { id: 5, seller_id: 3, affiliate_user_id: 9, affiliate_basis_points: 3000, flags: 0 } as Parameters<
+  typeof endBlocker
+>[0];
 const product = { id: 11n, flags: 1n << 27n };
 
 // endBlocker reads the two accounts, then the products.

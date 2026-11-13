@@ -21,8 +21,8 @@ import {
   seededDocuments,
 } from "../src/elasticsearch";
 import { type Fixture, type FixtureRequest, loadFixture } from "../src/fixture";
-import { railsOnlyKey } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { railsOnlyKey } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -164,7 +164,14 @@ const RENDERED = new Set(
     "arriving-from-discover-stores-nothing-while-the-flag-is-off",
   ]
     .map((name) => `on-a-seller-subdomain-${name}`)
-    .concat(["on-a-product-s-custom-domain-renders-the-product-at-the-root", "signed-in-shows-the-seller-their-own-product-with-the-edit-controls", "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls", "signed-in-lists-the-viewer-s-wishlists-with-what-each-holds-of-the-product", "signed-in-shows-a-buyer-whose-purchase-was-refunded-the-product-without-a-purchase", "signed-in-counts-the-waitlist-of-an-unpublished-product-for-the-seller"]),
+    .concat([
+      "on-a-product-s-custom-domain-renders-the-product-at-the-root",
+      "signed-in-shows-the-seller-their-own-product-with-the-edit-controls",
+      "signed-in-lists-the-posts-a-profile-section-could-show-in-the-seller-s-edit-controls",
+      "signed-in-lists-the-viewer-s-wishlists-with-what-each-holds-of-the-product",
+      "signed-in-shows-a-buyer-whose-purchase-was-refunded-the-product-without-a-purchase",
+      "signed-in-counts-the-waitlist-of-an-unpublished-product-for-the-seller",
+    ]),
 );
 
 // The route gate (hostKindOf) sends a host that no alive seller owns to Rails whole: its catch-all is the 404. So does the root of a custom
@@ -178,11 +185,24 @@ const cases: Case[] = readdirSync(DIR)
     const fixture = loadFixture(path.join(DIR, file));
     const index = fixture.exchanges.length - 1;
     const response = fixture.exchanges[index]!.response;
-    const served = response.status === 301 || response.status === 404 || (response.status === 302 && /\/coffee(\?|$)/u.test(response.location ?? ""));
+    const served =
+      response.status === 301 ||
+      response.status === 404 ||
+      (response.status === 302 && /\/coffee(\?|$)/u.test(response.location ?? ""));
     // The cookie's value is the time it was set.
     const affiliate = Object.keys(response.cookies ?? {}).filter((name) => name.startsWith("_gumroad_affiliate_id_"));
     const name = file.replace(/\.json$/u, "");
-    return { name, file: path.join(DIR, file), index, served: (served || RENDERED.has(name.replace(/^product-page-/u, ""))) && !GATE_HANDS_BACK.has(name) && railsOnlyKey(fixture.exchanges[index]!.request) === null, status: response.status, ignore: affiliate.map((name) => `response.cookies.${name}.value`) };
+    return {
+      name,
+      file: path.join(DIR, file),
+      index,
+      served:
+        (served || RENDERED.has(name.replace(/^product-page-/u, ""))) &&
+        !GATE_HANDS_BACK.has(name) &&
+        railsOnlyKey(fixture.exchanges[index]!.request) === null,
+      status: response.status,
+      ignore: affiliate.map((name) => `response.cookies.${name}.value`),
+    };
   });
 
 describe.skipIf(!url)("Product page parity", () => {
@@ -217,7 +237,9 @@ describe.skipIf(!url)("Product page parity", () => {
       RAILS_ORIGIN: `http://127.0.0.1:${(rails.address() as AddressInfo).port}`,
       SECRET_KEY_BASE,
       // The keys the test environment of the recording configured (.env.test).
-      ...(envTest.match(/^(STRIPE_PUBLIC_KEY_TEST|RECAPTCHA_MONEY_SITE_KEY)=(.+)$/gmu) ?? []).reduce<Record<string, string>>((env, line) => {
+      ...(envTest.match(/^(STRIPE_PUBLIC_KEY_TEST|RECAPTCHA_MONEY_SITE_KEY)=(.+)$/gmu) ?? []).reduce<
+        Record<string, string>
+      >((env, line) => {
         const [name, ...value] = line.split("=");
         return { ...env, [name!]: value.join("=") };
       }, {}),
@@ -252,7 +274,12 @@ describe.skipIf(!url)("Product page parity", () => {
       const retinaEnqueue = /retina-worker-has-not|analyzer-wrote-no|width-and-no-height/u.test(c.name);
       const compare = {
         ...COMPARE,
-        ignore: [...COMPARE.ignore, ...c.ignore, ...(c.status === 404 ? ["response.body"] : []), ...(retinaEnqueue ? ["jobs"] : [])],
+        ignore: [
+          ...COMPARE.ignore,
+          ...c.ignore,
+          ...(c.status === 404 ? ["response.body"] : []),
+          ...(retinaEnqueue ? ["jobs"] : []),
+        ],
       };
       const options = {
         sql,
@@ -276,14 +303,22 @@ describe.skipIf(!url)("Product page parity", () => {
             const products = { model: "Link", name: replayIndexName("products", ES_INDEX_SUFFIX) } as const;
             await recreateIndex(es, products);
             await reindexProducts(es, products.name, sql);
-            const views = { model: "ProductPageView", name: replayIndexName("product_page_views", ES_INDEX_SUFFIX) } as const;
+            const views = {
+              model: "ProductPageView",
+              name: replayIndexName("product_page_views", ES_INDEX_SUFFIX),
+            } as const;
             await recreateIndex(es, views);
-            await bulkIndex(es, views.name, seededDocuments(exchange as never, "ProductPageView", now).map((body) => ({ body })));
+            await bulkIndex(
+              es,
+              views.name,
+              seededDocuments(exchange as never, "ProductPageView", now).map((body) => ({ body })),
+            );
           },
         },
         transport: httpTransport(server.baseUrl),
         interceptHttp: false,
-        rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date) => reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
+        rewriteRequest: (request: FixtureRequest, fixture: Fixture, now: Date) =>
+          reencryptCookies(request, fixture, SECRET_KEY_BASE, now),
       };
       if (!c.served) {
         // The request the filters cannot prove goes to Rails whole.
@@ -304,7 +339,12 @@ describe.skipIf(!url)("Product page parity", () => {
           expect(classes).toEqual(["ProcessAssetPreviewRetinaWorker"]);
         }
       } catch (error) {
-        const logs = server.output().split("\n").filter((line) => /error|Error|at /u.test(line)).slice(-25).join("\n");
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => /error|Error|at /u.test(line))
+          .slice(-25)
+          .join("\n");
         throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
       }
     },

@@ -48,7 +48,9 @@ const COUNTED_IN_NODE: Record<string, string[]> = {
   "/follow": ["/ip:/follow:post", "/ip/params:/follow:post"],
   "/follow_from_embed_form": ["/ip:/follow_from_embed_form", "/ip/params:/follow_from_embed_form"],
   // Served by an api-v2 or mobile handler, which also runs through processAction.
-  "\\A/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/register(?:\\.[^/]+)?\\z": ["oauth_dynamic_registration/ip"],
+  "\\A/(?:muse|claude|chatgpt|cursor|antigravity)/v1/oauth2/register(?:\\.[^/]+)?\\z": [
+    "oauth_dynamic_registration/ip",
+  ],
   "ends_with:/v2/sales": ["/api/v2/sales"],
   "\\A/(api/)?v2/user/custom_html(\\.\\w+)?\\z": [
     "/ip:(?-mix:\\A\\/(api\\/)?v2\\/user\\/custom_html(\\.\\w+)?\\z):put",

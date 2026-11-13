@@ -8,6 +8,7 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
 import { CronExpressionParser } from "cron-parser";
+import { format, resolveConfig } from "prettier";
 import { parse as parseYaml } from "yaml";
 
 import { LOCK_ARGS } from "../src/server/jobs/lock-args.ts";
@@ -77,7 +78,8 @@ function splitTopLevel(input: string, separator: string): string[] {
 
 function constantsOf(source: string): Map<string, string> {
   const constants = new Map<string, string>();
-  for (const match of source.matchAll(/^\s*([A-Z][A-Z0-9_]*) = (.+)$/gmu)) constants.set(match[1]!, stripComment(match[2]!).trim());
+  for (const match of source.matchAll(/^\s*([A-Z][A-Z0-9_]*) = (.+)$/gmu))
+    constants.set(match[1]!, stripComment(match[2]!).trim());
   return constants;
 }
 
@@ -125,7 +127,8 @@ type Statement = { keyword: "sidekiq_options" | "recurring_lock_ttl"; text: stri
 function statements(source: string): Statement[] {
   const found: Statement[] = [];
   const lines = source.split("\n").map(stripComment);
-  const balance = (s: string) => [...s].reduce((n, ch) => n + ("{[(".includes(ch) ? 1 : "}])".includes(ch) ? -1 : 0), 0);
+  const balance = (s: string) =>
+    [...s].reduce((n, ch) => n + ("{[(".includes(ch) ? 1 : "}])".includes(ch) ? -1 : 0), 0);
   for (let i = 0; i < lines.length; i++) {
     const head = lines[i]!.match(/^\s*(sidekiq_options|recurring_lock_ttl)\b\(?\s*(.*)$/u);
     if (!head) continue;
@@ -193,7 +196,11 @@ function jobFiles(): string[] {
     (readdirSync(join(repoRoot, dir), { recursive: true }) as string[])
       .filter((file) => file.endsWith(".rb") && !file.startsWith("concerns/"))
       .map((file) => `${dir}/${file}`)
-      .filter((relative) => dir === "app/sidekiq" || /^\s*include Sidekiq::(Job|Worker)\b/mu.test(readFileSync(join(repoRoot, relative), "utf8"))),
+      .filter(
+        (relative) =>
+          dir === "app/sidekiq" ||
+          /^\s*include Sidekiq::(Job|Worker)\b/mu.test(readFileSync(join(repoRoot, relative), "utf8")),
+      ),
   ).sort();
 }
 
@@ -244,7 +251,8 @@ function parseJobFile(relative: string, schedule: CronEntry[]): [string, JobEntr
     options,
     customLockArgs: /^\s*def self\.lock_args\b/mu.test(source),
     customRetryIn: /^\s*sidekiq_retry_in\b/mu.test(source),
-    retriesExhausted: /^\s*sidekiq_retries_exhausted\b/mu.test(source) || /^\s*include FinanceReportFailureAlert\b/mu.test(source),
+    retriesExhausted:
+      /^\s*sidekiq_retries_exhausted\b/mu.test(source) || /^\s*include FinanceReportFailureAlert\b/mu.test(source),
     ...(recurringLockMaxAttempt === undefined ? {} : { recurringLockMaxAttempt }),
     runtime: PORTED_JOBS.includes(className) ? "node" : "ruby",
   };
@@ -258,19 +266,35 @@ export function buildRegistry() {
   const problems: string[] = [];
   for (const [name, entry] of Object.entries(jobs)) {
     if (entry.aliasOf && !jobs[entry.aliasOf]) problems.push(`${name} aliases unknown ${entry.aliasOf}`);
-    if (entry.customLockArgs && !LOCK_ARGS[name]) problems.push(`${name} defines self.lock_args; port it to src/server/jobs/lock-args.ts`);
+    if (entry.customLockArgs && !LOCK_ARGS[name])
+      problems.push(`${name} defines self.lock_args; port it to src/server/jobs/lock-args.ts`);
   }
-  for (const name of Object.keys(LOCK_ARGS)) if (!jobs[name]?.customLockArgs) problems.push(`lock-args.ts has ${name}, which defines no lock_args in Ruby`);
-  for (const name of PORTED_JOBS) if (!jobs[name] || jobs[name].aliasOf) problems.push(`ported-jobs.ts lists ${name}, which is not a job class`);
-  for (const entry of schedule) if (!jobs[entry.class]) problems.push(`cron entry ${entry.name} runs unknown class ${entry.class}`);
+  for (const name of Object.keys(LOCK_ARGS))
+    if (!jobs[name]?.customLockArgs) problems.push(`lock-args.ts has ${name}, which defines no lock_args in Ruby`);
+  for (const name of PORTED_JOBS)
+    if (!jobs[name] || jobs[name].aliasOf) problems.push(`ported-jobs.ts lists ${name}, which is not a job class`);
+  for (const entry of schedule)
+    if (!jobs[entry.class]) problems.push(`cron entry ${entry.name} runs unknown class ${entry.class}`);
   if (problems.length) throw new Error(`Job registry problems:\n  ${problems.join("\n  ")}`);
 
   return { jobs, schedule };
 }
 
-function render(): { ts: string; json: string } {
+// Format with the repo prettier config so the file passes eslint's prettier/prettier rule as written.
+async function formatTs(source: string): Promise<string> {
+  const config = await resolveConfig(outTs);
+  return format(source, { ...config, filepath: outTs });
+}
+
+async function render(): Promise<{ ts: string; json: string }> {
   const { jobs, schedule } = buildRegistry();
-  const queues = [...new Set(["default", ...Object.values(jobs).map((job) => String(job.options.queue ?? "default")), ...schedule.flatMap((e) => (e.queue ? [e.queue] : []))])].sort();
+  const queues = [
+    ...new Set([
+      "default",
+      ...Object.values(jobs).map((job) => String(job.options.queue ?? "default")),
+      ...schedule.flatMap((e) => (e.queue ? [e.queue] : [])),
+    ]),
+  ].sort();
   const ts = `// Generated by scripts/generate-job-registry.ts from app/sidekiq and config/sidekiq_schedule.yml.
 // Do not edit; run \`npm run jobs:generate\`. \`npm run jobs:check-drift\` fails CI when this is stale.
 import type { JobDefinition, CronDefinition } from "./registry-types.ts";
@@ -286,11 +310,11 @@ export const CRON_SCHEDULE: readonly CronDefinition[] = ${JSON.stringify(schedul
   const nodeOwned = Object.entries(jobs)
     .filter(([, entry]) => entry.runtime === "node")
     .map(([name]) => name);
-  return { ts, json: `${JSON.stringify(nodeOwned, null, 2)}\n` };
+  return { ts: await formatTs(ts), json: `${JSON.stringify(nodeOwned, null, 2)}\n` };
 }
 
 if (import.meta.main) {
-  const { ts, json } = render();
+  const { ts, json } = await render();
   if (process.argv.includes("--check")) {
     const stale = [
       [outTs, ts],
@@ -303,6 +327,7 @@ if (import.meta.main) {
   } else {
     writeFileSync(outTs, ts);
     writeFileSync(outJson, json);
+    // eslint-disable-next-line no-console -- CLI output
     console.log(`Wrote ${basename(outTs)} and ${basename(outJson)}`);
   }
 }

@@ -590,7 +590,17 @@ const xsrfCookie = (chain: Chain) => {
   });
 };
 
-function commitSession({ request, headers, session, csrfToken, now, sessionCleared, bare, metal, skipSession }: Chain): void {
+function commitSession({
+  request,
+  headers,
+  session,
+  csrfToken,
+  now,
+  sessionCleared,
+  bare,
+  metal,
+  skipSession,
+}: Chain): void {
   if ((bare && !metal) || skipSession) return;
   if (!sessionCleared && !bare) session.data._csrf_token = csrfToken;
   headers.append("set-cookie", sessionCookie(request, session, now));
@@ -718,7 +728,12 @@ function applyEtag(request: RailsRequest, response: ControllerResponse): void {
 }
 
 // SecureHeaders::Middleware under config/initializers/secure_headers.rb: flag cookies, then add headers.
-function applySecureHeaders(request: RailsRequest, headers: Headers, options: ActionOptions = {}, cspNonce?: string): void {
+function applySecureHeaders(
+  request: RailsRequest,
+  headers: Headers,
+  options: ActionOptions = {},
+  cspNonce?: string,
+): void {
   const https = domainConfig(process.env).protocol === "https";
   const requestIsHttps = request.protocol === "https://";
   const cookies = headers.getSetCookie();
@@ -738,7 +753,9 @@ function applySecureHeaders(request: RailsRequest, headers: Headers, options: Ac
       headers.append("set-cookie", line);
     }
   }
-  for (const [name, value] of Object.entries(secureHeaders({ optOutOfCsp: options.optOutOfCsp, scriptNonce: cspNonce, styleNonce: cspNonce })))
+  for (const [name, value] of Object.entries(
+    secureHeaders({ optOutOfCsp: options.optOutOfCsp, scriptNonce: cspNonce, styleNonce: cspNonce }),
+  ))
     headers.set(name, value);
 }
 

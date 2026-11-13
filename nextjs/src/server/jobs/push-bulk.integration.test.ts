@@ -9,13 +9,14 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { withSortedChangelog } from "./__fixtures__/changelog-order.ts";
 import { enqueueWith } from "./enqueue.ts";
 import { performBulkWith, type PushBulkItems, pushBulkWith } from "./push-bulk.ts";
-import { JOB_REGISTRY } from "./registry.generated.ts";
 import type { JobDefinition } from "./registry-types.ts";
+import { JOB_REGISTRY } from "./registry.generated.ts";
 import { createJobsRuntime } from "./runtime.ts";
 import { type JsonValue, parseRubyJson, RubyFloat } from "./sidekiq/ruby-json.ts";
 
 const url = process.env.JOBS_REDIS_URL;
-if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url)) throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
+if (url && /\/0$|^[^/]*\/\/[^/]+$/u.test(url))
+  throw new Error("JOBS_REDIS_URL must name a scratch database other than 0");
 
 type Snapshot = Record<string, { type: string; value?: JsonValue; messages?: string[]; expires: boolean }>;
 type Case = {
@@ -27,15 +28,28 @@ type Case = {
   error: { class: string; message: string } | null;
   redis: Snapshot;
 };
-const golden = parseRubyJson(readFileSync(new URL("./__fixtures__/push-bulk.golden.json", import.meta.url), "utf8")) as unknown as {
+const golden = parseRubyJson(
+  readFileSync(new URL("./__fixtures__/push-bulk.golden.json", import.meta.url), "utf8"),
+) as unknown as {
   now: number;
   node_owned: string[];
   cases: Case[];
 };
 
-const base = { file: "", sidekiqJob: true, customLockArgs: false, customRetryIn: false, retriesExhausted: false } as const;
+const base = {
+  file: "",
+  sidekiqJob: true,
+  customLockArgs: false,
+  customRetryIn: false,
+  retriesExhausted: false,
+} as const;
 const registry: Record<string, JobDefinition> = { ...(JOB_REGISTRY as Record<string, JobDefinition>) };
-for (const name of ["SendToElasticsearchWorker", "UpdateUserBalanceStatsCacheWorker", "UpdateCachedSalesRelatedProductsInfosJob", "PushNotificationWorker"]) {
+for (const name of [
+  "SendToElasticsearchWorker",
+  "UpdateUserBalanceStatsCacheWorker",
+  "UpdateCachedSalesRelatedProductsInfosJob",
+  "PushNotificationWorker",
+]) {
   registry[name] = { ...registry[name]!, runtime: "ruby" };
 }
 registry.NodeOwnedBulkJob = { ...base, runtime: "node", options: { retry: 2, queue: "low", lock: "until_executed" } };
@@ -45,7 +59,8 @@ const PREFIX = "ws37test";
 function plain(value: unknown): unknown {
   if (value instanceof RubyFloat) return value.value;
   if (Array.isArray(value)) return value.map(plain);
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, plain(v)]));
   return value;
 }
 
@@ -58,7 +73,11 @@ async function snapshot(redis: Redis): Promise<Snapshot> {
     const expires = (await redis.pttl(key)) > 0;
     if (key === "uniquejobs:changelog") {
       const members = await redis.zrange(key, "0", "-1");
-      result[key] = { type, messages: members.map((member) => (JSON.parse(member) as { message: string }).message), expires };
+      result[key] = {
+        type,
+        messages: members.map((member) => (JSON.parse(member) as { message: string }).message),
+        expires,
+      };
       continue;
     }
     let value: JsonValue;
@@ -107,7 +126,10 @@ describe.skipIf(!url)("Sidekiq::Client.push_bulk against Redis", () => {
         if (c.push) jids = await pushBulkWith(runtime, c.push);
         else {
           const bulk = c.perform_bulk!;
-          jids = await performBulkWith(runtime, bulk.class, bulk.args, { ...(bulk.batch_size === undefined ? {} : { batchSize: bulk.batch_size }), ...(bulk.set ? { set: bulk.set } : {}) });
+          jids = await performBulkWith(runtime, bulk.class, bulk.args, {
+            ...(bulk.batch_size === undefined ? {} : { batchSize: bulk.batch_size }),
+            ...(bulk.set ? { set: bulk.set } : {}),
+          });
         }
       } catch (e) {
         error = { class: (e as Error).name, message: (e as Error).message };

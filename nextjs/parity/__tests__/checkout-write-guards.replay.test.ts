@@ -8,10 +8,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
-import type { JobsChannel, RawJob } from "../src/channels";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
