@@ -72,19 +72,39 @@ describe("licensePurchaseJson", () => {
     expect(await licensePurchaseJson(purchase, license)).not.toHaveProperty("license_key");
   });
 
-  it("hands back a gift receiver purchase", async () => {
+  it("names the price and the email of the gifter's purchase on a gift receiver purchase", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      gifts: [{ id: 1n, giftee_purchase_id: 3n, gifter_purchase_id: 2n, gifter_email: "named@example.com" }],
+      purchases: [{ id: 2n, price_cents: 700, email: "gifter@example.com" }],
+    });
+
+    const json = await licensePurchaseJson({ ...purchase, flags: FLAGS.is_gift_receiver_purchase }, license);
+
+    expect(json).toMatchObject({
+      is_gift_receiver_purchase: true,
+      gift_price: 700,
+      gifter_email: "gifter@example.com",
+    });
+  });
+
+  it("hands back a gift receiver purchase whose gift row is gone", async () => {
     database({ links: [link], users: [seller] });
 
     await expect(licensePurchaseJson({ ...purchase, flags: FLAGS.is_gift_receiver_purchase }, license)).rejects.toThrow(
-      /gift/u,
+      /without a gift row/u,
     );
   });
 
-  it("hands back a preorder authorization", async () => {
+  it("flags a preorder authorization and leaves the key off the charge of a preorder", async () => {
     database({ links: [link], users: [seller] });
 
-    await expect(licensePurchaseJson({ ...purchase, flags: FLAGS.is_preorder_authorization }, license)).rejects.toThrow(
-      /preorder/u,
+    expect(await licensePurchaseJson({ ...purchase, flags: FLAGS.is_preorder_authorization }, license)).toMatchObject({
+      is_preorder_authorization: true,
+    });
+    expect(await licensePurchaseJson({ ...purchase, preorder_id: 6n }, license)).not.toHaveProperty(
+      "is_preorder_authorization",
     );
   });
 
@@ -182,22 +202,75 @@ describe("licensePurchaseJson", () => {
     await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/ordinary key/u);
   });
 
-  it("hands back a file custom field", async () => {
+  it("serializes a file custom field by its stored value", async () => {
     database({
       links: [link],
       users: [seller],
       purchase_custom_fields: [{ id: 1n, purchase_id: 3n, field_type: "file", name: "Upload", value: null }],
     });
 
-    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/file custom field/u);
+    expect(await licensePurchaseJson(purchase, license)).toMatchObject({
+      Upload: "",
+      custom_fields: ["Upload: "],
+    });
   });
 
-  it("hands back a purchase of a subscription that is a recurring charge", async () => {
-    database({ links: [link], users: [seller], subscriptions: [{ id: 2n, flags: 0 }] });
+  it("flags the purchase of a subscription that is not its original as a recurring charge", async () => {
+    database({
+      links: [link],
+      users: [seller],
+      subscriptions: [{ id: 2n, flags: 0, last_payment_option_id: null }],
+      payment_options: [{ id: 8n, subscription_id: 2n, price_id: 9n, deleted_at: null }],
+      prices: [{ id: 9n, recurrence: "monthly" }],
+    });
 
-    await expect(licensePurchaseJson({ ...purchase, subscription_id: 2n }, license)).rejects.toThrow(
-      /recurring charge/u,
+    const json = await licensePurchaseJson({ ...purchase, subscription_id: 2n }, license);
+
+    expect(json).toMatchObject({ is_recurring_charge: true, recurrence: "monthly" });
+    expect(Object.keys(json).indexOf("is_recurring_charge")).toBeGreaterThan(
+      Object.keys(json).indexOf("subscription_id"),
     );
+  });
+
+  it("keeps custom_fields at its place in the payload when only the original purchase has fields", async () => {
+    const rows: Rows = {
+      links: [link],
+      users: [seller],
+      subscriptions: [{ id: 2n, flags: 0, last_payment_option_id: null }],
+      payment_options: [{ id: 8n, subscription_id: 2n, price_id: 9n, deleted_at: null }],
+      prices: [{ id: 9n, recurrence: "monthly" }],
+      purchases: [{ id: 1n, subscription_id: 2n, flags: 0 }],
+    };
+    setSqlClient(() => ({
+      $queryRaw: (async (query: { sql: string; values: unknown[] }) => {
+        const table = /FROM `(\w+)`/u.exec(query.sql)?.[1] ?? "";
+        if (table === "purchase_custom_fields")
+          return query.values.includes(1n)
+            ? [{ id: 1n, purchase_id: 1n, field_type: "text", name: "Company", value: "A" }]
+            : [];
+        return rows[table] ?? [];
+      }) as never,
+      $executeRaw: (async () => 0) as never,
+    }));
+
+    const json = await licensePurchaseJson({ ...purchase, subscription_id: 2n }, license);
+
+    expect(json.custom_fields).toEqual([]);
+    expect(json).not.toHaveProperty("Company");
+    expect(Object.keys(json).indexOf("custom_fields")).toBeLessThan(Object.keys(json).indexOf("recurrence"));
+  });
+
+  it("names the affiliate and the credit it earned", async () => {
+    database({
+      links: [link],
+      users: [{ id: 11n, email: "collab@example.com", unconfirmed_email: null }, seller],
+      affiliates: [{ id: 7n, type: "DirectAffiliate", affiliate_user_id: 11n }],
+      affiliate_credits: [{ id: 1n, purchase_id: 3n }],
+    });
+
+    const json = await licensePurchaseJson({ ...purchase, affiliate_id: 7n, affiliate_credit_cents: 100 }, license);
+
+    expect(json).toMatchObject({ affiliate: "collab@example.com", affiliate_credit_amount_cents: 100 });
   });
 
   it("hands back a purchase whose license is another row", async () => {

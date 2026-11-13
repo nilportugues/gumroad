@@ -1,7 +1,7 @@
 // The `purchase` of a license response in Api::V2::LicensesController#success_with_license:
 // `purchase.payload_for_ping_notification.merge(purchase_as_json(purchase))`, where the second hash is the WHITELIST_PURCHASE_ATTRIBUTES
-// slice of `Purchase#as_json_for_license`. A gift, preorder, affiliate, SKU, several variants, a file custom field, a shipped product or
-// a recurring charge raises NotPortedError before anything is written, and the dispatcher hands the request to Rails.
+// slice of `Purchase#as_json_for_license`. A SKU, several variants, a shipped product or
+// a gifted membership raises NotPortedError before anything is written, and the dispatcher hands the request to Rails.
 import { Prisma } from "@prisma/client";
 
 import { encrypt, encryptNumeric } from "../../lib/obfuscate-ids.ts";
@@ -11,7 +11,7 @@ import { PurchaseFlags } from "../search/flags.ts";
 
 import { moneyFormatWithGemSymbol } from "./concerns/money-formatter.ts";
 import { LinkFlags } from "./link.ts";
-import { castBoolean, timeJson } from "./purchase-json.ts";
+import { castBoolean, directAffiliateFields, ownAffiliateCreditCents, timeJson } from "./purchase-json.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { SubscriptionFlags } from "./subscription.ts";
 import { NotPortedError } from "./user.ts";
@@ -92,7 +92,6 @@ async function customFieldsOf(purchase: Row): Promise<{ name: string; value: str
     Prisma.sql`SELECT ${Prisma.raw("`purchase_custom_fields`.*")} FROM ${table("purchase_custom_fields")} WHERE ${column("purchase_custom_fields", "purchase_id")} = ${purchase.id} ORDER BY ${column("purchase_custom_fields", "id")} ASC`,
   );
   return rows.map((field) => {
-    if (field.field_type === "fileUpload" || field.field_type === "file") throw notPorted("a file custom field");
     // The payload sets each name as a key: a numeric key sorts first in a JS object, and `__proto__` is not a key.
     if (/^\d+$/u.test(String(field.name)) || field.name === "__proto__")
       throw notPorted("a custom field whose name is not an ordinary key");
@@ -134,6 +133,46 @@ async function offerCodeJson(purchase: Row, link: LinkRow): Promise<OfferCodeJso
   return { code: offerCode.code, displayed_amount_off: displayed, name: offerCode.code };
 }
 
+// The `affiliate` and `affiliate_credit_amount_cents` keys of the ping payload. The credit key needs a non-direct AffiliateCredit row
+// (`purchase.affiliate_credit`), the email an Affiliate row; either can exist without the other.
+async function affiliatePayload(
+  purchase: Row,
+): Promise<{ named: boolean; email: string | null; creditCents: number | null }> {
+  const hasCredit = await exists(
+    "affiliate_credits",
+    "purchase_id",
+    purchase.id,
+    Prisma.sql` AND is_direct_affiliate_credit = 0`,
+  );
+  const [affiliate] =
+    purchase.affiliate_id == null
+      ? []
+      : await selectRows<Row>(
+          Prisma.sql`SELECT ${Prisma.raw("`affiliates`.*")} FROM ${table("affiliates")} WHERE ${column("affiliates", "id")} = ${purchase.affiliate_id} LIMIT 1`,
+        );
+  let email: string | null = null;
+  if (affiliate !== undefined) {
+    const [user] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`users`.*")} FROM ${table("users")} WHERE ${column("users", "id")} = ${affiliate.affiliate_user_id} LIMIT 1`,
+    );
+    if (user === undefined) throw notPorted("an affiliate whose user row is missing");
+    // User#form_email
+    email = present(user.unconfirmed_email) ? user.unconfirmed_email : present(user.email) ? user.email : null;
+  }
+  let creditCents: number | null = null;
+  if (hasCredit) {
+    const directId = directAffiliateFields(purchase).id;
+    const [direct] =
+      directId === null
+        ? []
+        : await selectRows<Row>(
+            Prisma.sql`SELECT ${Prisma.raw("`affiliates`.*")} FROM ${table("affiliates")} WHERE ${column("affiliates", "id")} = ${directId} LIMIT 1`,
+          );
+    creditCents = ownAffiliateCreditCents(purchase, affiliate, direct);
+  }
+  return { named: affiliate !== undefined, email, creditCents };
+}
+
 export async function licensePurchaseJson(purchase: Row, license: Row): Promise<Record<string, unknown>> {
   const flags = (name: Parameters<typeof PurchaseFlags.isSet>[1]) => PurchaseFlags.isSet(purchase.flags, name);
   const link: LinkRow | null = purchase.link_id == null ? null : await findLink(purchase.link_id);
@@ -141,34 +180,51 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   const purchaser: UserRow | null = purchase.purchaser_id == null ? null : await findUserById(purchase.purchaser_id);
   if (link === null || seller === null) throw notPorted("a purchase without a product or seller");
 
-  if (flags("is_gift_sender_purchase") || flags("is_gift_receiver_purchase")) throw notPorted("a gift purchase");
-  if (flags("is_preorder_authorization") || purchase.preorder_id != null) throw notPorted("a preorder purchase");
+  const giftReceiver = flags("is_gift_receiver_purchase");
+  if (giftReceiver && flags("is_gift_sender_purchase")) throw notPorted("a gift sent and received at once");
+  // Purchase#gift: gift_received for a receiver; a missing row or a gifted membership stays with Rails
+  let gift: { price: unknown; gifterEmail: unknown } | null = null;
+  if (giftReceiver) {
+    const [received] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`gifts`.*")} FROM ${table("gifts")} WHERE ${column("gifts", "giftee_purchase_id")} = ${purchase.id} LIMIT 1`,
+    );
+    if (received === undefined || purchase.subscription_id != null)
+      throw notPorted("a gift purchase without a gift row");
+    const [gifter] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${received.gifter_purchase_id} LIMIT 1`,
+    );
+    if (gifter === undefined) throw notPorted("a gift whose gifter purchase is gone");
+    gift = { price: gifter.price_cents, gifterEmail: gifter.email };
+  }
+  if (flags("is_gift_sender_purchase") && purchase.subscription_id != null) throw notPorted("a gifted membership");
   if (
     LinkFlags.isSet(link.flags, "is_physical") ||
     LinkFlags.isSet(link.flags, "skus_enabled") ||
     truthy(link.require_shipping)
   )
     throw notPorted("a shipped or SKU product");
-  if (purchase.affiliate_id != null || (await exists("affiliate_credits", "purchase_id", purchase.id)))
-    throw notPorted("an affiliate purchase");
+  const affiliate = await affiliatePayload(purchase);
   const variant = await singleVariant(purchase);
   const customFields = await customFieldsOf(purchase);
   const offerCode = purchase.offer_code_id == null ? null : await offerCodeJson(purchase, link);
 
   const recurringBilling = LinkFlags.isSet(link.flags, "is_recurring_billing");
   let subscription: Row | null = null;
+  let subscriptionCustomFields: { name: string; value: string | boolean | null }[] = [];
   if (purchase.subscription_id != null) {
     [subscription = null] = await selectRows<Row>(
       Prisma.sql`SELECT ${Prisma.raw("`subscriptions`.*")} FROM ${table("subscriptions")} WHERE ${column("subscriptions", "id")} = ${purchase.subscription_id} LIMIT 1`,
     );
     if (subscription === null) throw notPorted("a purchase whose subscription is gone");
-    if (!flags("is_original_subscription_purchase")) throw notPorted("a recurring charge");
-    // `subscription.custom_fields` delegates to the original purchase, and the ping reads them when the purchase has none.
-    if (customFields.length > 0) throw notPorted("a subscription with custom fields");
-    const [others] = await selectRows<{ total: bigint }>(
-      Prisma.sql`SELECT COUNT(*) AS total FROM ${table("purchase_custom_fields")} INNER JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("purchase_custom_fields", "purchase_id")} WHERE ${column("purchases", "subscription_id")} = ${subscription.id}`,
-    );
-    if (Number(others?.total ?? 0) > 0) throw notPorted("a subscription with custom fields");
+    // The ping reads `subscription.custom_fields` (those of its original purchase) when the purchase has none.
+    if (customFields.length === 0) {
+      const originals = await selectRows<Row>(
+        Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} = ${subscription.id} AND ${PurchaseFlags.condition("is_original_subscription_purchase", true)} AND ${PurchaseFlags.condition("is_archived_original_subscription_purchase", false)} ORDER BY ${column("purchases", "id")} ASC LIMIT 2`,
+      );
+      // has_one without an order picks a row MySQL chooses
+      if (originals.length > 1) throw notPorted("a subscription with several original purchases");
+      if (originals[0] !== undefined) subscriptionCustomFields = await customFieldsOf(originals[0]);
+    }
   } else if (recurringBilling) {
     throw notPorted("a recurring product purchase without a subscription");
   }
@@ -208,19 +264,29 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   if (present(purchase.full_name)) payload.full_name = purchase.full_name;
   if (purchaser !== null) payload.purchaser_id = purchaser.external_id;
   if (subscription !== null) payload.subscription_id = encrypt(subscription.id);
+  if (affiliate.creditCents !== null) payload.affiliate_credit_amount_cents = affiliate.creditCents;
   if (variant !== null) payload.variants = { [variant.title]: variant.name };
   if (offerCode !== null) payload.offer_code = offerCode.code;
   if (purchaser !== null && String(purchaser.id) === String(seller.id)) payload.test = true;
+  // Purchase#is_recurring_subscription_charge: a subscription's purchase that is not its original (a gifted membership is refused above)
+  if (subscription !== null && !flags("is_original_subscription_purchase")) payload.is_recurring_charge = true;
+  if (flags("is_preorder_authorization")) payload.is_preorder_authorization = true;
   for (const field of customFields) payload[field.name] = field.value;
-  if (customFields.length > 0)
-    payload.custom_fields = Object.fromEntries(customFields.map((field) => [field.name, field.value]));
+  const payloadFields = customFields.length > 0 ? customFields : subscriptionCustomFields;
+  if (payloadFields.length > 0)
+    payload.custom_fields = Object.fromEntries(payloadFields.map((field) => [field.name, field.value]));
   if (licenseKey !== null) {
     payload.license_key = licenseKey;
     payload.is_multiseat_license = flags("is_multiseat_license");
   }
   if (present(purchase.ip_country)) payload.ip_country = purchase.ip_country;
   if (subscription !== null) payload.recurrence = await subscriptionRecurrence(subscription);
-  payload.is_gift_receiver_purchase = false;
+  if (affiliate.named) payload.affiliate = affiliate.email;
+  payload.is_gift_receiver_purchase = giftReceiver;
+  if (gift !== null) {
+    payload.gift_price = gift.price;
+    payload.gifter_email = gift.gifterEmail;
+  }
   payload.refunded = stripeRefunded === true;
   payload.disputed = chargedBack;
   payload.dispute_won = reversed;
