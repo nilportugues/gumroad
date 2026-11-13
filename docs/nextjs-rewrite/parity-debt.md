@@ -68,9 +68,10 @@ Total: 119. Exact example names: `node scripts/parity-debt.ts`.
 
 ### 1.2 Known gaps outside the tagged specs
 
-- `nextjs_mobile_url_redirects` (`/mobile/url_redirects/fetch_placeholder_products`) has only
-  `spec/controllers/api/mobile/url_redirects_controller_spec.rb` and no replay naming it. Tag an example in
-  `mobile_api_parity_spec.rb`, record it, and add the flag to `ROUTE_FLAGS` in `mobile-api.replay.test.ts`.
+None open. `nextjs_mobile_url_redirects` (`/mobile/url_redirects/fetch_placeholder_products`) was the last one: two examples in
+`mobile_api_parity_spec.rb` (answer with only the mobile token; refusal without it) are recorded (lane c17m: `gumroad_test_c17m`,
+`gumroad_replay_c17m`, Redis 42-44, `PARITY_ES_INDEX_SUFFIX=-c17m`, no external call) and replayed in `mobile-api.replay.test.ts`,
+whose `ROUTE_FLAGS` already lists `url_redirects`. Mutation checks: a non-empty list, an unregistered route and dropping the flag each fail the replay.
 
 ## 2. Golden generators
 
@@ -209,7 +210,7 @@ area is closed. Flags not listed under a replay are covered by the replay file i
 | `internal-api` | `internal_api_parity_spec`, `internal_agent_parity_spec` | `nextjs_internal_agent`, `_internal_api_host`, `_internal_installments`, `_internal_product_files`, `_internal_product_posts`, `_internal_review_videos` |
 | `ws17e-admin-api` | `controllers/api/internal/admin/*`, `admin_impersonate_parity_spec`, `admin_users_parity_spec` (affiliates, compliance_info, unpaid_balance, the watchlist writes; four "hands a ..." cases), `admin_piracy_reports_parity_spec` (show, create, the transitions; five "hands a ..." cases), `admin_purchases_parity_spec` (show, search, lookup and the write guards; 14 "hands a ..." cases), `admin_products_parity_spec` (index, show, external-link download url, the sales hold writes; four "hands a ..." cases), `admin_users_reads_parity_spec`, `admin_user_write_guards_parity_spec`, `admin_payout_reads_parity_spec` (WS-18o, lane 23; the controller examples that run a guarded write are listed in `HANDED_CONTROLLER_EXAMPLES` and replay as hand-backs) | `nextjs_admin_api_auth`, `_campaigns`, `_piracy`, `_products`, `_users`, `_purchases`, `nextjs_admin_impersonate` |
 | `api-v2-products`, `api-v2-ws17b`, `api-v2-ws17c`, `api-token-auth` | `api/v2/*_parity_spec` (incl. `sales_exports_parity_spec`), `controllers/api/v2/*` | `nextjs_api_v2_*` (17 flags; licenses are not served in Node, see 4.6; `payouts_media` records the Polish and Bosnian IBAN-prefixed `bank_account_visual`, while Card and European destinations still hand back with no example) |
-| `mobile-api`, `mobile-analytics` | `api/mobile/*_parity_spec` (37 missing, 1.1) | `nextjs_mobile_*` (17 flags); `nextjs_mobile_url_redirects` has no replay (1.2) |
+| `mobile-api`, `mobile-analytics` | `api/mobile/*_parity_spec` (37 missing, 1.1) | `nextjs_mobile_*` (17 flags, all replayed) |
 
 Flag counts per row come from `routes.json`; the full flag-to-route list is `node -e` over that file. I did
 not check that each flag's replay actually turns that flag on, except by name for the 161 flags the replay

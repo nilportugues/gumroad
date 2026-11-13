@@ -299,6 +299,22 @@ describe "Mobile API parity", type: :request do
     end
   end
 
+  describe "GET /mobile/url_redirects/fetch_placeholder_products" do
+    it "answers an empty list with only the mobile token", parity: true do
+      get "/mobile/url_redirects/fetch_placeholder_products", params: { mobile_token: }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true, "placeholder_products" => [])
+    end
+
+    it "refuses a request without the mobile token", parity: true do
+      get "/mobile/url_redirects/fetch_placeholder_products"
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Invalid request")
+    end
+  end
+
   describe "GET /mobile/url_redirects/(stream|hls_playlist|download)/:token/:product_file_id" do
     let(:buyer) { create(:user) }
     let(:product) { create(:product, user: seller) }
