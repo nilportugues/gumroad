@@ -3,7 +3,7 @@
 //
 // Left to Rails, before anything is written: a seller who needs a CAPTCHA (an unreviewed one: Google's verification is a call the
 // Rails test environment skips, so there is no recording of it), a waitlist product, a seller under a newsletter cutover, and the HTML
-// answer of #from_embed_form, which renders an Inertia page that a mutation cannot.
+// answer of #from_embed_form, which renders an Inertia page that a mutation cannot (its props are page-props/audience/follower-embed-form.ts).
 import { Prisma, type User } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
@@ -16,7 +16,8 @@ import { confirmBang, coveredByCutover, Followers, type FollowerRecord } from ".
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, isRecordNotUnique, selectRows, table } from "../models/sql.ts";
-import { isAccountActive, isCompliant, nameOrUsername, Users } from "../models/user.ts";
+import { isAccountActive, isCompliant, Users } from "../models/user.ts";
+import { followConfirmationMessage } from "../page-props/audience/follower-embed-form.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { json } from "./json-actions.ts";
@@ -142,14 +143,6 @@ async function createFollower(input: MutationInput, source: string | null): Prom
   return { follower, seller };
 }
 
-// FollowersController#follow_confirmation_message
-function confirmationMessage(follower: FollowerRecord, seller: NonNullable<Seller>): string {
-  const name = nameOrUsername(seller);
-  return follower.get("confirmed_at") !== null
-    ? `You are now following ${name}!`
-    : "Check your inbox to confirm your follow request.";
-}
-
 const failureMessage = (follower: FollowerRecord | null) =>
   follower === null ? null : follower.errors.isEmpty() ? null : toSentence(follower.errors.fullMessages());
 
@@ -168,7 +161,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
     if (format === "json") return json({ success: false, message: errors }, UNPROCESSABLE_ENTITY);
     return { status: FOUND, location: SUBSCRIBE_PATH, flash: { alert: errors } };
   }
-  const message = confirmationMessage(follower, seller);
+  const message = followConfirmationMessage(seller, follower.get("confirmed_at") !== null);
   if (format === "json") return json({ success: true, message });
   return { status: SEE_OTHER, location: SUBSCRIBE_PATH, flash: { notice: message } };
 }
@@ -187,7 +180,7 @@ async function fromEmbedForm(input: MutationInput): Promise<ActionResult> {
     if (seller === null) throw new HandBackToRails("an embed follow for an unknown seller");
     return json({ success: false, message: failureMessage(follower) ?? EMBED_FORM_FAILURE }, UNPROCESSABLE_ENTITY);
   }
-  return json({ success: true, message: confirmationMessage(follower, seller!) });
+  return json({ success: true, message: followConfirmationMessage(seller!, follower.get("confirmed_at") !== null) });
 }
 
 registerMutations(

@@ -33,7 +33,7 @@ describe "Subscribing to a seller", type: :request do
 
       expect(response).to redirect_to("/subscribe")
       expect(response).to have_http_status(:see_other)
-      expect(flash[:notice]).to eq("Check your inbox to confirm your follow request.")
+      expect(flash[:notice]).to eq("Check your inbox to confirm your follow request to Followed Seller.")
       expect(Follower.find_by(email: "visitor@example.com")).to have_attributes(followed_id: seller.id, confirmed_at: nil, source: nil)
       mail_job = ActiveJob::Base.queue_adapter.enqueued_jobs.find { _1[:args].first(2) == %w[FollowerMailer confirm_follower] }
       expect(mail_job[:queue]).to eq("critical")
@@ -43,7 +43,7 @@ describe "Subscribing to a seller", type: :request do
       subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com" })
 
       expect(response).to have_http_status(:ok)
-      expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request.")
+      expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
     end
 
     it "links the follow to the account that has the email", parity: true do
@@ -196,7 +196,7 @@ describe "Subscribing to a seller", type: :request do
     it "answers JSON with the message and records the embed form as the source", parity: true do
       subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" })
 
-      expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request.")
+      expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
       expect(Follower.find_by(email: "visitor@example.com").source).to eq(Follower::From::EMBED_FORM)
     end
 
@@ -216,10 +216,42 @@ describe "Subscribing to a seller", type: :request do
       expect(follower.reload).to have_attributes(deleted_at: nil, source: Follower::From::EMBED_FORM)
     end
 
+    # The HTML answer is the Followers/FromEmbedForm Inertia page; a mutation cannot render a page in Node yet, so these hand back, and
+    # followers-embed-form.test.ts compares the props Node builds with the ones recorded here.
+    def embed_form_props
+      JSON.parse(CGI.unescapeHTML(response.body[/data-page="([^"]*)"/, 1])).fetch("props").slice("success", "message", "confirmed", "subscribe_url", "waitlist_url")
+    end
+
     it "hands a form post of the embed form to Rails", parity: true do
       subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" }, headers: {}, as_json: false)
 
       expect(response).to have_http_status(:ok)
+      expect(embed_form_props).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.", "confirmed" => false)
+    end
+
+    it "hands the embed form result of a signed-in visitor with a verified email to Rails", parity: true do
+      log_in(create(:user, email: "member@example.com"))
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "member@example.com" }, headers: {}, as_json: false)
+
+      expect(embed_form_props).to eq("success" => true, "message" => "You are now following Followed Seller!", "confirmed" => true)
+    end
+
+    it "hands the embed form of a seller who needs a CAPTCHA to Rails, pointing at the seller's subscribe page", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" }, headers: {}, as_json: false)
+
+      expect(embed_form_props).to eq("success" => false, "message" => "Please subscribe from Followed Seller's subscribe page so we can confirm you're not a bot.", "subscribe_url" => "#{seller.subdomain_with_protocol}/subscribe", "waitlist_url" => nil)
+      expect(Follower.where(followed_id: seller.id)).to be_empty
+    end
+
+    it "hands the embed form of a seller with no name or username who needs a CAPTCHA to Rails", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed", username: nil, name: nil)
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" }, headers: {}, as_json: false)
+
+      expect(embed_form_props).to eq("success" => false, "message" => "Please subscribe from #{seller.external_id}'s subscribe page so we can confirm you're not a bot.", "subscribe_url" => "#{seller.subdomain_with_protocol}/subscribe", "waitlist_url" => nil)
     end
 
     it "hands a request for an unknown seller to Rails", parity: true do
