@@ -101,7 +101,7 @@ const CONSTANT_KEYS = new Set(["confirmations_version"]);
 const ISO_KEY = /^\d{4}-\d{2}-\d{2}$/u;
 // A date column is recorded as a token relative to the recording day, so even a constant the spec pins (a 1975
 // birthday) is seeded a day later on the next day and its response moves with it, however far from today.
-const SEEDED_DATE_KEYS = new Set(["date_of_birth"]);
+const SEEDED_DATE_KEYS = new Set(["date_of_birth", "birthday"]);
 
 const shiftSeededDate = (text: string, days: number) =>
   ISO_KEY.test(text) ? new Date(Date.parse(`${text}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10) : text;

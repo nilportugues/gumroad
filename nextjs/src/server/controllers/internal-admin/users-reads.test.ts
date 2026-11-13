@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NotPortedError } from "../../models/user.ts";
+
 import { findAdminRoute } from "./registry.ts";
 import { addressOf, counterparty, lastEmailSentAt, taxIdLastFour } from "./users-reads.ts";
 
@@ -22,7 +23,11 @@ describe("counterparty", () => {
   });
 
   it("prefers the name", () => {
-    expect(counterparty(user({ name: "Ada", username: "ada" }))).toEqual({ id: "ext123", email: "a@example.com", name: "Ada" });
+    expect(counterparty(user({ name: "Ada", username: "ada" }))).toEqual({
+      id: "ext123",
+      email: "a@example.com",
+      name: "Ada",
+    });
   });
 
   it("falls back to the email when the username is the default external id", () => {
@@ -47,7 +52,9 @@ describe("lastEmailSentAt", () => {
   });
 
   it("reads the last time of the list", () => {
-    expect(lastEmailSentAt('{"emails_sent_at":["2026-01-01T00:00:00Z","2026-01-02T03:04:05Z"]}')).toBe("2026-01-02T03:04:05Z");
+    expect(lastEmailSentAt('{"emails_sent_at":["2026-01-01T00:00:00Z","2026-01-02T03:04:05Z"]}')).toBe(
+      "2026-01-02T03:04:05Z",
+    );
   });
 
   it("hands back a time that is not an ISO 8601 string", () => {

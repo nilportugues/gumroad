@@ -9,9 +9,9 @@ import { LinkFlags, defaultPriceCents, findLinkBang } from "../../models/link.ts
 import { s3Fields } from "../../models/product-file.ts";
 import { selectRows } from "../../models/sql.ts";
 import { NotPortedError } from "../../models/user.ts";
-import { loadOembed, oembedUrl } from "../../presenters/asset-preview.ts";
 import { displayExtension, nameDisplayable } from "../../page-props/audience/product-file-json.ts";
 import { longUrl } from "../../page-props/piracy-reports/pages.ts";
+import { loadOembed, oembedUrl } from "../../presenters/asset-preview.ts";
 import { RubyFloat } from "../../search/es-json.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 

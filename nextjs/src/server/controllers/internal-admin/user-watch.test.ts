@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NotPortedError } from "../../models/user.ts";
+
 import { findAdminRoute } from "./registry.ts";
 import { notesParam, parseThresholdCents } from "./user-watch.ts";
 
@@ -34,7 +35,8 @@ describe("parseThresholdCents", () => {
   });
 
   it("hands back shapes BigDecimal reads in other ways", () => {
-    for (const text of ["1e-2", "1.5e2", "1e+2", "1e999", "1_000", " 5 ", "5.", "0x10"]) expect(() => parseThresholdCents(text)).toThrow(NotPortedError);
+    for (const text of ["1e-2", "1.5e2", "1e+2", "1e999", "1_000", " 5 ", "5.", "0x10"])
+      expect(() => parseThresholdCents(text)).toThrow(NotPortedError);
   });
 
   it("hands back an amount past the bigint column", () => {
@@ -63,7 +65,9 @@ describe("notesParam", () => {
 describe("watchlist routes", () => {
   it("serves watch, update_watch and unwatch as POSTs on both hosts", () => {
     for (const action of ["watch", "update_watch", "unwatch"]) {
-      expect(findAdminRoute("POST", `/internal/admin/users/${action}`)?.route.pattern).toBe(`/internal/admin/users/${action}`);
+      expect(findAdminRoute("POST", `/internal/admin/users/${action}`)?.route.pattern).toBe(
+        `/internal/admin/users/${action}`,
+      );
       expect(findAdminRoute("POST", `/api/internal/admin/users/${action}`)).not.toBeNull();
       expect(findAdminRoute("GET", `/internal/admin/users/${action}`)).toBeNull();
     }
