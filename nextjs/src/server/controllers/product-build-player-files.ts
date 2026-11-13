@@ -4,15 +4,21 @@
 //
 // Handed to Rails: a page of the build (html, htm), which gets the buyer's save and the save shim put in front of its scripts and
 // whose serving checks the kill switch. So is a build served from a storage that is not MinIO (the signed link is a Cloudflare URL).
-// #save (POST /d/:id/play/:grant/save) applies a batch to the buyer's ProductBuildSave in Node.
+// #save (POST /d/:id/play/:grant/save) applies a batch to the buyer's ProductBuildSave in Node. #heartbeat (POST /d/:id/play/:grant/heartbeat)
+// extends an open play session in Node; a session past its expiry (Rails starts or reuses a replacement and issues a new grant) is handed back.
 import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { Prisma } from "@prisma/client";
 
-import { PLAYER_GRANT_PURPOSE, PLAYER_SAVE_GRANT_PURPOSE, verifiedPlayerGrant } from "../auth/player-grant.ts";
+import {
+  PLAYER_GRANT_PURPOSE,
+  PLAYER_HEARTBEAT_GRANT_PURPOSE,
+  PLAYER_SAVE_GRANT_PURPOSE,
+  verifiedPlayerGrant,
+} from "../auth/player-grant.ts";
 import { getS3Client, presignS3GetUrl, SIGNED_S3_URL_VALID_FOR_MINIMUM } from "../infra/signed-urls.ts";
 import { storageConfig } from "../infra/storage.ts";
 import { applyChanges, LimitError } from "../models/product-build-save.ts";
-import { column, selectRows, table } from "../models/sql.ts";
+import { column, execute, selectRows, table } from "../models/sql.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
@@ -189,8 +195,34 @@ async function save(input: MutationInput): Promise<ActionResult> {
   return head(NO_CONTENT);
 }
 
+// ProductBuildPlaySession::SESSION_EXPIRY
+const PLAY_SESSION_EXPIRY_MS = 2 * 60 * 1000;
+
+// POST /d/:id/play/:grant/heartbeat: the player page is open, so extend the play session its page load started.
+async function heartbeat(input: MutationInput): Promise<ActionResult> {
+  const grant = verifiedPlayerGrant(input.routeParams.grant!, input.routeParams.id!, PLAYER_HEARTBEAT_GRANT_PURPOSE);
+  if (grant === null) throw new RoutingError("Not Found");
+  const sessionId = BigInt(grant.session_id as number | string);
+  const purchaseId = BigInt(grant.purchase_id as number | string);
+  const now = input.chain.now;
+  const sessions = table("product_build_play_sessions");
+  // ProductBuildPlaySession.find_by(id:, purchase_id:), and #open?: the last beat is no older than the expiry.
+  const [found] = await selectRows<{ open: number | bigint | boolean }>(
+    Prisma.sql`SELECT ${column("product_build_play_sessions", "last_heartbeat_at")} >= ${new Date(now.getTime() - PLAY_SESSION_EXPIRY_MS)} AS open FROM ${sessions} WHERE ${column("product_build_play_sessions", "id")} = ${sessionId} AND ${column("product_build_play_sessions", "purchase_id")} = ${purchaseId} LIMIT 1`,
+  );
+  if (found === undefined) throw new RoutingError("Not Found");
+  if (!Number(found.open))
+    throw new HandBackToRails("a play session past its expiry, which Rails resumes in a new session");
+  // GREATEST keeps a beat that arrives out of order from moving the last beat back (ProductBuildPlaySession#extend_to!).
+  await execute(
+    Prisma.sql`UPDATE ${sessions} SET ${column("product_build_play_sessions", "last_heartbeat_at")} = GREATEST(${column("product_build_play_sessions", "last_heartbeat_at")}, ${now}), ${column("product_build_play_sessions", "updated_at")} = ${now} WHERE ${column("product_build_play_sessions", "id")} = ${sessionId}`,
+  );
+  return { status: NO_CONTENT, body: "", contentType: "", headers: {}, paramsRead: true };
+}
+
 registerMutations(
   { method: "GET", pattern: "/d/:id/play/:grant", skipForgeryProtection: true, run: show },
   { method: "GET", pattern: "/d/:id/play/:grant/*path", skipForgeryProtection: true, run: show },
   { method: "POST", pattern: "/d/:id/play/:grant/save", skipForgeryProtection: true, rawBody: true, run: save },
+  { method: "POST", pattern: "/d/:id/play/:grant/heartbeat", skipForgeryProtection: true, run: heartbeat },
 );
