@@ -1,21 +1,24 @@
 // Integrations::DiscordController (app/controllers/integrations/discord_controller.rb): #oauth_redirect, #join_server and #leave_server.
-// #server_info is not ported: it authenticates, then exchanges the OAuth code with Discord.
 //
 // Ported: the state redirect of #oauth_redirect (and its 404 for a seller that does not exist), its empty application layout page when
 // the state names no seller (integrations-oauth-redirect.ts), and the guards of #join_server and #leave_server that answer
 // `{ success: false }` before Discord is called.
-// Handed to Rails whole, before any write:
-//   - #oauth_redirect's empty page on a seller's subdomain (the layout was recorded on the main domain only).
-//   - #join_server once the request is authorized (the OAuth exchange comes next), and #leave_server once the purchase has a Discord
-//     membership to remove (the Discord API call and the soft delete).
+// #join_server and #leave_server run whole in Node: the OAuth exchange, the profile read, the member add and remove (Discordrb's error
+// classes) and the PurchaseIntegration insert or soft delete. A Discord rate limit throws, because the single-use code is spent.
+// Handed to Rails whole: #oauth_redirect's empty page on a seller's subdomain (the layout was recorded on the main domain only).
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { isBlank } from "../html/text-helper.ts";
-import { subdomainFromUsername } from "../models/user.ts";
+import { getConfig } from "../infra/config.ts";
+import { DISCORD_INTEGRATION, discordUserIdFor, findEnabledIntegration } from "../models/purchase-integrations.ts";
+import { PurchaseRecord } from "../models/purchase-pricing.ts";
+import { subdomainFromUsername, NoMethodError, NotPortedError } from "../models/user.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { PurchaseFlags } from "../search/flags.ts";
+import { isHash, isPresent, parseHttpParty, postForm } from "../services/http-party.ts";
 
 import { HandBackToRails, RoutingError, type ActionContext, type ActionResult } from "./application-controller.ts";
+import { DiscordApiError, addMember, identify, removeMember } from "./integrations-discord-api.ts";
 import { integrationsOauthRedirectPage } from "./integrations-oauth-redirect.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { assertFlatQuery, cgiEscape, cgiUnescape } from "./rails-params.ts";
@@ -23,7 +26,7 @@ import { queryParam, type RailsRequest } from "./rails-request.ts";
 import { grantsAccess } from "./url-redirects/access.ts";
 
 const OAUTH_REDIRECT_PATH = "/integrations/discord/oauth_redirect";
-const DISCORD_INTEGRATION_TYPE = "DiscordIntegration";
+const DEFAULT_OAUTH_TOKEN_URL = "https://discord.com/api/oauth2/token";
 
 const failure = (): ActionResult => jsonResponse({ success: false }, 200, true);
 
@@ -74,11 +77,83 @@ async function authorizedPurchase(
   return (await db.urlRedirect.count({ where: { token, purchase_id: purchase.id } })) > 0 ? purchase : null;
 }
 
+// `integration.server_id` / `server_name`: attr_json_data_accessor readers over the json_data column.
+function integrationDetail(integration: { json_data: string | null }, name: string): string | null {
+  if (integration.json_data === null || isBlank(integration.json_data)) return null;
+  const data = JSON.parse(integration.json_data) as unknown;
+  const value = isHash(data) ? data[name] : null;
+  return value === null || value === undefined ? null : String(value);
+}
+
 async function joinServer(request: RailsRequest, action: ActionContext): Promise<ActionResult> {
   assertFlatQuery(request.queryString);
   if (isBlank(stringParam(request, "code")) || isBlank(stringParam(request, "purchase_id"))) return failure();
-  if (!(await authorizedPurchase(request, action))) return failure();
-  throw new HandBackToRails("exchanging a Discord OAuth code");
+  const purchase = await authorizedPurchase(request, action);
+  if (!purchase) return failure();
+
+  const config = domainConfig(process.env);
+  const oauth = await parseHttpParty(
+    await postForm(getConfig("DISCORD_OAUTH_TOKEN_URL", DEFAULT_OAUTH_TOKEN_URL), [
+      ["grant_type", "authorization_code"],
+      ["code", stringParam(request, "code")],
+      ["client_id", getConfig("DISCORD_CLIENT_ID")],
+      ["client_secret", getConfig("DISCORD_CLIENT_SECRET")],
+      ["redirect_uri", `${config.protocol}://${config.domain}${OAUTH_REDIRECT_PATH}`],
+    ]),
+  );
+  const accessToken = isHash(oauth.parsed) ? oauth.parsed.access_token : null;
+  if (!oauth.ok || !isPresent(accessToken)) return failure();
+
+  // The code is spent from here on: every outcome is answered in Node.
+  try {
+    const user: unknown = JSON.parse((await identify(String(accessToken))).body);
+    const record = new PurchaseRecord(purchase, null);
+    const integration = await findEnabledIntegration(record, DISCORD_INTEGRATION);
+    if (integration === null) return failure();
+    if (!isHash(user)) throw new Error("Discord answered a profile that is not a JSON object");
+    const discordUserId = user.id;
+    const serverId = integrationDetail(integration, "server_id");
+    if (typeof discordUserId !== "string" || serverId === null)
+      throw new NotPortedError(
+        "a Discord user id or server id that is not a string",
+        "Integrations::DiscordController#join_server",
+      );
+
+    const added = await addMember(serverId, discordUserId, String(accessToken));
+    if (added.status !== 201 && added.status !== 204) return failure();
+
+    // PurchaseIntegration validations: a Discord user id, one live row per integration, one integration per type.
+    if (isBlank(discordUserId)) return failure();
+    const liveIds = (
+      await db.purchaseIntegration.findMany({
+        where: { purchase_id: purchase.id, deleted_at: null },
+        select: { integration_id: true },
+      })
+    ).map((row) => row.integration_id);
+    if (liveIds.includes(integration.id)) return failure();
+    if (
+      (await db.integration.count({
+        where: { id: { in: liveIds }, type: integration.type, NOT: { id: integration.id } },
+      })) > 0
+    )
+      return failure();
+
+    const now = action.chain.now;
+    await db.purchaseIntegration.create({
+      data: {
+        purchase_id: purchase.id,
+        integration_id: integration.id,
+        discord_user_id: discordUserId,
+        created_at: now,
+        updated_at: now,
+      },
+    });
+    return jsonResponse({ success: true, server_name: integrationDetail(integration, "server_name") }, 200, true);
+  } catch (error) {
+    if (error instanceof SyntaxError) return failure();
+    if (error instanceof DiscordApiError) return failure();
+    throw error;
+  }
 }
 
 async function leaveServer(request: RailsRequest, action: ActionContext): Promise<ActionResult> {
@@ -86,18 +161,33 @@ async function leaveServer(request: RailsRequest, action: ActionContext): Promis
   if (isBlank(stringParam(request, "purchase_id"))) return failure();
   const purchase = await authorizedPurchase(request, action);
   if (!purchase) return failure();
-  // purchase.find_integration_by_name(DISCORD): an integration of the purchase's live memberships.
-  const memberships = await db.purchaseIntegration.findMany({
-    where: { purchase_id: purchase.id, deleted_at: null },
-    select: { integration_id: true },
+  const record = new PurchaseRecord(purchase, null);
+  const integration = await findEnabledIntegration(record, DISCORD_INTEGRATION);
+  const discordUserId = await discordUserIdFor(record);
+  if (integration === null || discordUserId === null || isBlank(discordUserId)) return failure();
+
+  const serverId = integrationDetail(integration, "server_id");
+  if (serverId === null)
+    throw new NotPortedError(
+      "a Discord integration without a server id",
+      "Integrations::DiscordController#leave_server",
+    );
+  try {
+    if ((await removeMember(serverId, discordUserId)).status !== 204) return failure();
+  } catch (error) {
+    // A deleted server is not a reason to keep the membership; a missing permission is.
+    if (!(error instanceof DiscordApiError)) throw error;
+    if (error.kind === "no_permission") return failure();
+    if (error.kind !== "unknown_server") throw error;
+  }
+  const membership = await db.purchaseIntegration.findFirst({
+    where: { purchase_id: purchase.id, integration_id: integration.id, deleted_at: null },
+    orderBy: { id: "asc" },
   });
-  const ids = memberships.map((membership) => membership.integration_id);
-  if (
-    ids.length === 0 ||
-    (await db.integration.count({ where: { id: { in: ids }, type: DISCORD_INTEGRATION_TYPE } })) === 0
-  )
-    return failure();
-  throw new HandBackToRails("removing a member through the Discord API");
+  if (!membership) throw new NoMethodError("undefined method 'mark_deleted!' for nil");
+  const now = action.chain.now;
+  await db.purchaseIntegration.update({ where: { id: membership.id }, data: { deleted_at: now, updated_at: now } });
+  return jsonResponse({ success: true, server_name: integrationDetail(integration, "server_name") }, 200, true);
 }
 
 async function oauthRedirect(request: RailsRequest, action: ActionContext): Promise<ActionResult> {

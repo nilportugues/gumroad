@@ -116,12 +116,17 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       create_draft({ name: "Club", product_type: "membership", tiers: [{ name: "Gold", price_cents: 500, recurrence: "monthly" }, { name: "Silver", price_cents: 100, recurrence: "yearly" }] })
     end
 
-    it "hands a free product back to Rails", parity: true do
+    it "saves a free draft with a zero price", parity: true do
       create_draft({ name: "Freebie", price_cents: 0 })
+
+      expect(created.price_cents).to eq(0)
+      expect(created.customizable_price).to be true
     end
 
-    it "hands a description with markup back to Rails", parity: true do
+    it "saves a draft with a paragraph description", parity: true do
       create_draft({ name: "Notebook", description: "<p>Dotted pages</p>", price_cents: 500 })
+
+      expect(created.description).to eq("<p>Dotted pages</p>")
     end
 
     it "hands a membership back to Rails", parity: true do

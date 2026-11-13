@@ -74,6 +74,8 @@ const TOTALS_MAX_ROWS = 100;
 const MAX_SUPPORTED_YEAR = 9998;
 const DAY_MS = 86_400_000;
 const USD = "usd";
+// Rails stores a description as sent; only whole paragraphs of plain text are recorded.
+const PARAGRAPH_DESCRIPTION = /^(?:<p>[^<>&]*<\/p>)+$/u;
 const CHARGED_SUCCESS_STATES = ["preorder_authorization_successful", "successful"];
 const KEPT_SUCCESS_STATES = ["successful", "preorder_authorization_successful", "gift_receiver_purchase_successful"];
 const CUSTOMER_REFUNDED = "COALESCE(purchases.stripe_refunded, 0) = 1";
@@ -1311,8 +1313,8 @@ const tiersPrice = (tiers: unknown): boolean =>
   );
 
 // tool_create_draft_product for a digital product. Argument errors come before the scope check, so they are answered here and the scope
-// is checked after them. A membership, a free product (set_customizable_price runs after its save), a seller pricing in another currency,
-// and a description with markup (Rails stores it as sent, but only plain text is proven) go to Rails whole, before the first write.
+// is checked after them. A membership, a seller pricing in another currency, and a description with markup other than
+// paragraphs go to Rails whole, before the first write.
 async function createDraftProduct(args: Hash, context: ToolContext): Promise<Hash> {
   // Currency, pay what you want and a suggested price (on the product or on a tier) are checked and written by Rails, which answers their
   // argument errors ahead of the scope check.
@@ -1337,10 +1339,11 @@ async function createDraftProduct(args: Hash, context: ToolContext): Promise<Has
     throw new ToolRpcError("name is required", INVALID_PARAMS);
   const priceCents = args.price_cents as number;
   if (priceCents < 0) throw new ToolRpcError("price_cents must be zero or more", INVALID_PARAMS);
-  if (priceCents === 0) throw new HandBackToRails("a free draft product");
   if (!Number.isSafeInteger(priceCents)) throw new HandBackToRails("a price beyond 2^53");
   const description = "description" in args ? (args.description as string) : "";
-  if (/[<>&]/u.test(description)) throw new HandBackToRails("a description with markup");
+  if (/[<>&]/u.test(description) && !PARAGRAPH_DESCRIPTION.test(description))
+    throw new HandBackToRails("a description with markup other than paragraphs");
+  // CurrencyHelper#query_rate is not ported, so a seller who prices in another currency goes to Rails.
   if (context.user.currency_type !== USD) throw new HandBackToRails("a seller who prices in another currency");
   // Link#price_cents= raises LinkInvalid ahead of the save.
   if (priceCents > MAX_PRICE_CENTS) throw new ToolError(PRICE_TOO_LARGE);

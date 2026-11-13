@@ -4,8 +4,9 @@ require "spec_helper"
 
 # Integrations::DiscordController's join_server, leave_server and oauth_redirect, recorded for the Next.js port (PARITY_RECORD=1)
 # through the full Rack stack and replayed by nextjs/parity/__tests__/integrations-discord.replay.test.ts, which sends the last
-# request of each example. Node answers the guards and the state redirect; anything that would reach Discord is handed to Rails,
-# which the replay checks by the example's name ("hands a ..."). server_info is Discord's OAuth exchange end to end. The empty page
+# request of each example. Node answers the guards, the state redirect and, against a stand-in that answers the Discord calls the recording
+# saw, the whole of join_server and leave_server; what it cannot prove is handed to Rails, which the replay checks by the example's name
+# ("hands a ..."). server_info is Discord's OAuth exchange end to end. The empty page
 # oauth_redirect renders when the state names no seller is in integrations_discord_oauth_redirect_page_parity_spec.rb.
 describe "Integrations::DiscordController", type: :request do
   include Parity::SignedInDashboard
@@ -28,8 +29,22 @@ describe "Integrations::DiscordController", type: :request do
     WebMock.stub_request(:post, DISCORD_OAUTH_TOKEN_URL).to_return(status: 500)
   end
 
-  def stub_discord_removal
-    WebMock.stub_request(:delete, "#{Discordrb::API.api_base}/guilds/0/members/#{discord_user_id}").to_return(status: 204)
+  def stub_discord_removal(status: 204, body: "")
+    WebMock.stub_request(:delete, "#{Discordrb::API.api_base}/guilds/0/members/#{discord_user_id}").to_return(status:, body:, headers: json_headers)
+  end
+
+  def json_headers = { "Content-Type" => "application/json" }
+
+  def stub_discord_oauth(body: { access_token: "discord_access" }.to_json)
+    WebMock.stub_request(:post, DISCORD_OAUTH_TOKEN_URL).to_return(status: 200, body:, headers: json_headers)
+  end
+
+  def stub_discord_profile(status: 200, body: { id: "42", username: "buyer_one" }.to_json)
+    WebMock.stub_request(:get, "#{Discordrb::API.api_base}/users/@me").to_return(status:, body:, headers: json_headers)
+  end
+
+  def stub_discord_add_member(status: 201, body: "")
+    WebMock.stub_request(:put, "#{Discordrb::API.api_base}/guilds/0/members/42").to_return(status:, body:, headers: json_headers)
   end
 
   def state(user, **extra)
@@ -236,7 +251,7 @@ describe "Integrations::DiscordController", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
 
-    it "hands a purchaser's request to Rails", parity: true do
+    it "fails when Discord refuses the code of a purchaser", parity: true do
       stub_discord_oauth_failure
       log_in(buyer)
 
@@ -245,7 +260,7 @@ describe "Integrations::DiscordController", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
 
-    it "hands a download token holder's request to Rails", parity: true do
+    it "fails when Discord refuses the code of a download token holder", parity: true do
       stub_discord_oauth_failure
       redirect = create(:url_redirect, purchase:)
 
@@ -254,13 +269,122 @@ describe "Integrations::DiscordController", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
 
-    it "hands a purchase of a membership that still grants access to Rails", parity: true do
+    it "fails when Discord refuses the code of a membership that still grants access", parity: true do
       stub_discord_oauth_failure
       subscription = create(:subscription, link: product, user: buyer)
       purchase.update_columns(subscription_id: subscription.id)
       log_in(buyer)
 
       join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "adds the purchaser to the server and records the membership", parity: true do
+      stub_discord_oauth
+      stub_discord_profile
+      stub_discord_add_member
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => true, "server_name" => "Gaming")
+      expect(purchase.live_purchase_integrations.pluck(:discord_user_id)).to eq(["42"])
+    end
+
+    it "accepts a 204 from the member add for a download token holder", parity: true do
+      stub_discord_oauth
+      stub_discord_profile
+      stub_discord_add_member(status: 204)
+      redirect = create(:url_redirect, purchase:)
+
+      join(code: "test_code", purchase_id: purchase.external_id, token: redirect.token)
+
+      expect(response.parsed_body).to eq("success" => true, "server_name" => "Gaming")
+    end
+
+    it "fails without a membership when the member add answers another success status", parity: true do
+      stub_discord_oauth
+      stub_discord_profile
+      stub_discord_add_member(status: 200)
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails when the token answer carries no access token", parity: true do
+      stub_discord_oauth(body: { error: "x" }.to_json)
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails when the profile request is refused", parity: true do
+      stub_discord_oauth
+      stub_discord_profile(status: 401, body: { code: 0, message: "401: Unauthorized" }.to_json)
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails when the profile is not JSON", parity: true do
+      stub_discord_oauth
+      stub_discord_profile(body: "not json")
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails when the bot lacks permission to add the member", parity: true do
+      stub_discord_oauth
+      stub_discord_profile
+      stub_discord_add_member(status: 403, body: { code: 50013, message: "Missing Permissions" }.to_json)
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails when Discord reports the server as unknown on the member add", parity: true do
+      stub_discord_oauth
+      stub_discord_profile
+      stub_discord_add_member(status: 404, body: { code: 10_004, message: "Unknown Guild" }.to_json)
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails for a purchase that already joined the server", parity: true do
+      create(:purchase_integration, integration:, purchase:, discord_user_id: "42")
+      stub_discord_oauth
+      stub_discord_profile
+      stub_discord_add_member
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "fails for a product without a Discord integration", parity: true do
+      other_product = create(:product)
+      other_purchase = create(:free_purchase, link: other_product, purchaser: buyer)
+      stub_discord_oauth
+      stub_discord_profile
+      log_in(buyer)
+
+      join(code: "test_code", purchase_id: other_purchase.external_id)
 
       expect(response.parsed_body).to eq("success" => false)
     end
@@ -349,7 +473,7 @@ describe "Integrations::DiscordController", type: :request do
       expect(response.parsed_body).to eq("success" => false)
     end
 
-    it "hands a purchaser who joined the server to Rails", parity: true do
+    it "removes a purchaser who joined the server and deletes the membership", parity: true do
       stub_discord_removal
       log_in(buyer)
 
@@ -358,13 +482,40 @@ describe "Integrations::DiscordController", type: :request do
       expect(response.parsed_body).to eq("success" => true, "server_name" => "Gaming")
     end
 
-    it "hands a download token holder who joined the server to Rails", parity: true do
+    it "removes a download token holder who joined the server", parity: true do
       stub_discord_removal
       redirect = create(:url_redirect, purchase:)
 
       leave(purchase_id: purchase.external_id, token: redirect.token)
 
       expect(response.parsed_body).to eq("success" => true, "server_name" => "Gaming")
+    end
+    it "deletes the membership when Discord reports the server as unknown", parity: true do
+      stub_discord_removal(status: 404, body: { code: 10_004, message: "Unknown Guild" }.to_json)
+      log_in(buyer)
+
+      leave(purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => true, "server_name" => "Gaming")
+      expect(purchase.live_purchase_integrations).to be_empty
+    end
+
+    it "keeps the membership when the bot lacks permission to remove it", parity: true do
+      stub_discord_removal(status: 403, body: { code: 50013, message: "Missing Permissions" }.to_json)
+      log_in(buyer)
+
+      leave(purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "keeps the membership when the removal answers another success status", parity: true do
+      stub_discord_removal(status: 200)
+      log_in(buyer)
+
+      leave(purchase_id: purchase.external_id)
+
+      expect(response.parsed_body).to eq("success" => false)
     end
   end
 end

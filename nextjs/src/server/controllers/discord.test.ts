@@ -34,7 +34,6 @@ const { discordHandlers } = await import("./discord.ts");
 const NOW = new Date("2026-01-01T00:00:00Z");
 // Purchase flags 25 (is_access_revoked) and 10 (chargeback_reversed)
 const ACCESS_REVOKED = 1n << 24n;
-const CHARGEBACK_REVERSED = 1n << 9n;
 const request = (query: string) => railsRequest(new Request(`https://app.example.com/integrations/discord/x${query}`));
 const action = (loggedInUserId: bigint | null) =>
   ({
@@ -107,11 +106,6 @@ describe("GET /integrations/discord/join_server", () => {
     expect(body(await join("?code=abc&purchase_id=7"))).toEqual({ success: false });
   });
 
-  it("keeps a charged back purchase whose chargeback was reversed", async () => {
-    db.purchase.findUnique.mockResolvedValue(purchaseRow({ chargeback_date: NOW, flags: CHARGEBACK_REVERSED }));
-    await expect(join("?code=abc&purchase_id=7")).rejects.toBeInstanceOf(HandBackToRails);
-  });
-
   it("reports failure for a lapsed membership", async () => {
     db.purchase.findUnique.mockResolvedValue(purchaseRow({ subscription_id: 5n }));
     db.subscription.findUnique.mockResolvedValue({ id: 5n });
@@ -119,22 +113,6 @@ describe("GET /integrations/discord/join_server", () => {
     grantsAccess.mockReturnValue(false);
     expect(body(await join("?code=abc&purchase_id=7"))).toEqual({ success: false });
     expect(grantsAccess).toHaveBeenCalledWith({ id: 5n }, { id: 9n }, NOW);
-  });
-
-  it("hands a purchaser's request to Rails", async () => {
-    await expect(join("?code=abc&purchase_id=7")).rejects.toBeInstanceOf(HandBackToRails);
-  });
-
-  it("hands a token holder's request to Rails", async () => {
-    db.urlRedirect.count.mockResolvedValue(1);
-    await expect(join("?code=abc&purchase_id=7&token=t", null)).rejects.toBeInstanceOf(HandBackToRails);
-  });
-
-  it("hands a membership that still grants access to Rails", async () => {
-    db.purchase.findUnique.mockResolvedValue(purchaseRow({ subscription_id: 5n }));
-    db.subscription.findUnique.mockResolvedValue({ id: 5n });
-    grantsAccess.mockReturnValue(true);
-    await expect(join("?code=abc&purchase_id=7")).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("hands a parameter sent as a hash to Rails", async () => {
@@ -152,28 +130,6 @@ describe("GET /integrations/discord/leave_server", () => {
 
   it("reports failure for a signed-out visitor without a token", async () => {
     expect(body(await leave("?purchase_id=7", null))).toEqual({ success: false });
-  });
-
-  it("reports failure for a purchase with no live membership", async () => {
-    db.purchaseIntegration.findMany.mockResolvedValue([]);
-    expect(body(await leave("?purchase_id=7"))).toEqual({ success: false });
-    expect(db.purchaseIntegration.findMany).toHaveBeenCalledWith({
-      where: { purchase_id: 7n, deleted_at: null },
-      select: { integration_id: true },
-    });
-  });
-
-  it("reports failure for a purchase whose memberships are not Discord's", async () => {
-    db.purchaseIntegration.findMany.mockResolvedValue([{ integration_id: 2n }]);
-    db.integration.count.mockResolvedValue(0);
-    expect(body(await leave("?purchase_id=7"))).toEqual({ success: false });
-    expect(db.integration.count).toHaveBeenCalledWith({ where: { id: { in: [2n] }, type: "DiscordIntegration" } });
-  });
-
-  it("hands a purchaser with a Discord membership to Rails", async () => {
-    db.purchaseIntegration.findMany.mockResolvedValue([{ integration_id: 2n }]);
-    db.integration.count.mockResolvedValue(1);
-    await expect(leave("?purchase_id=7")).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 
