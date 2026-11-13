@@ -171,7 +171,7 @@ describe "OAuth token issuance", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    %w[muse claude chatgpt].each do |client|
+    %w[muse claude chatgpt cursor antigravity].each do |client|
       it "issues a token on the #{client} alias", parity: true do
         grant = grant_for(public_app)
 
