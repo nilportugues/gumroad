@@ -105,11 +105,15 @@ const PORTED_CHANGES = [
   "custom_receipt",
   "content_updated_at",
 ];
-// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index, :custom_summary`, and the inferred taxonomy values.
+// The only json_data keys a ported update writes: `attr_json_data_accessor :sections, :main_section_index, :custom_summary`, the receipt
+// texts and additional details of update_product, and the inferred taxonomy values.
 const PORTED_JSON_DATA_KEYS = [
   "sections",
   "main_section_index",
   "custom_summary",
+  "custom_attributes",
+  "custom_receipt_text",
+  "custom_view_content_button_text",
   "inferred_taxonomy_attribute_values",
 ];
 const ARCHIVED_BIT = 1n << 4n;

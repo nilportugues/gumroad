@@ -14,6 +14,8 @@ import { isPublishedProduct, plannedDescription } from "../controllers/api-v2/pr
 import { HandBackToRails } from "../controllers/application-controller.ts";
 import { getRedis } from "../infra/redis.ts";
 import { findByName } from "../models/compliance-countries.ts";
+import { setJsonDataForAttr } from "../models/concerns/json-data.ts";
+import { RubyHash, type YamlValue } from "../models/concerns/psych.ts";
 import {
   instantInTimeZoneIso8601,
   InvalidTimeZoneError,
@@ -42,6 +44,7 @@ import { planBuyPriceWrite, PRICE_TOO_LARGE as PRICE_WRITE_TOO_LARGE, writeBuyPr
 import { s3Fields } from "../models/product-file.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
+import { isBlank } from "../models/runtime/validators.ts";
 import { selectRows } from "../models/sql.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
 import { UserFlags } from "../models/user.ts";
@@ -974,8 +977,11 @@ export const readProductExtras: NonNullable<ToolContext["productExtras"]> = asyn
     summary: jsonData.custom_summary ?? null,
     additional_details,
     tags: names,
-    custom_receipt_text: jsonData.custom_receipt_text ?? null,
-    custom_view_content_button_text: jsonData.custom_view_content_button_text ?? null,
+    // attr_json_data_accessor reads a blank value as nil; custom_summary is read raw.
+    custom_receipt_text: isBlank(jsonData.custom_receipt_text) ? null : jsonData.custom_receipt_text,
+    custom_view_content_button_text: isBlank(jsonData.custom_view_content_button_text)
+      ? null
+      : jsonData.custom_view_content_button_text,
   };
 };
 
@@ -1388,23 +1394,69 @@ async function assertPermalinkReleasable(
     throw new HandBackToRails("a licensed product's permalink while a product-id cutover is set");
 }
 
-const isBlankText = (value: string) => /^[\s\u0085\u180e\u200b-\u200d\u2060\ufeff]*$/u.test(value);
+// String#blank?: [[:space:]] only. The zero-width characters and U+180E are not space to it.
+const isBlankText = (value: string) => isBlank(value);
 
 // tool_update_product for name, description, price_cents and permalink on a product with one buy price. A permalink that a deleted product of
 // the seller holds, or that a licensed product claims while a product-id cutover is set, a description Node cannot sanitize like
 // SaveContentUpsellsService, a rename of a published product (content moderation), a product beside discount codes (the warning lists the
 // ones the new price breaks) and a product whose price is not one buy price go to Rails whole, before the first write.
-const UNPORTED_UPDATE_KEYS = [
-  "summary",
-  "additional_details",
-  "category",
-  "tags",
-  "currency",
-  "pay_what_you_want",
-  "suggested_price_cents",
-  "custom_receipt_text",
-  "custom_view_content_button_text",
-];
+const UNPORTED_UPDATE_KEYS = ["category", "tags", "currency", "pay_what_you_want", "suggested_price_cents"];
+
+// A lone surrogate is what JSON.dump refuses to write; the port cannot tell which error Rails would raise first.
+const LONE_SURROGATE = /[\ud800-\udfff]/u;
+const assertWritableText = (text: string) => {
+  if (LONE_SURROGATE.test(text)) throw new HandBackToRails("text JSON.dump would not write");
+};
+
+// `value.to_s.presence`
+const presence = (text: string): string | null => {
+  assertWritableText(text);
+  return isBlank(text) ? null : text;
+};
+
+// Mcp::Server#additional_detail_text: both fields are declared as strings, and nil reads as an empty one.
+function additionalDetailText(row: Hash, key: "name" | "value"): string {
+  const field = Object.hasOwn(row, key) ? row[key] : null;
+  if (field === null || field === undefined) return "";
+  if (typeof field !== "string") return rpcError(`additional detail ${key} must be text`);
+  assertWritableText(field);
+  return field;
+}
+
+// Mcp::Server#normalized_additional_details
+function normalizedAdditionalDetails(rows: unknown[]): RubyHash[] {
+  return rows
+    .map((row) => {
+      if (row === null || typeof row !== "object" || Array.isArray(row))
+        return rpcError("each additional detail must be an object with name and value");
+      const name = additionalDetailText(row as Hash, "name");
+      const value = additionalDetailText(row as Hash, "value");
+      // The editor keeps a row only when it has a name, so a value on its own is refused.
+      if (isBlank(name) && !isBlank(value)) rpcError("each additional detail needs a name");
+      return { name, value };
+    })
+    .filter((row) => !(isBlank(row.name) && isBlank(row.value)))
+    .map(
+      (row) =>
+        new RubyHash([
+          ["name", row.name],
+          ["value", row.value],
+        ]),
+    );
+}
+
+// The json_data keys update_product writes, in the order tool_update_product assigns them.
+function plannedJsonDataWrites(args: Hash): [string, YamlValue][] {
+  const writes: [string, YamlValue][] = [];
+  if ("summary" in args) writes.push(["custom_summary", presence(args.summary as string)]);
+  if ("additional_details" in args)
+    writes.push(["custom_attributes", normalizedAdditionalDetails(args.additional_details as unknown[])]);
+  if ("custom_receipt_text" in args) writes.push(["custom_receipt_text", presence(args.custom_receipt_text as string)]);
+  if ("custom_view_content_button_text" in args)
+    writes.push(["custom_view_content_button_text", presence(args.custom_view_content_button_text as string)]);
+  return writes;
+}
 
 async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   // The fields Node does not write: category and currency are resolved against Rails' tables, tags and the json_data fields have their
@@ -1412,7 +1464,16 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   if (UNPORTED_UPDATE_KEYS.some((key) => key in args))
     throw new HandBackToRails("an update_product field Node does not write");
   const found = await findProduct(args, context);
-  const changes = ["name", "description", "price_cents", "permalink"].filter((key) => key in args);
+  const changes = [
+    "name",
+    "description",
+    "summary",
+    "additional_details",
+    "price_cents",
+    "custom_receipt_text",
+    "custom_view_content_button_text",
+    "permalink",
+  ].filter((key) => key in args);
   if (changes.length === 0)
     throw new ToolRpcError(
       "Pass at least one of name, description, summary, additional_details, category, tags, price_cents, currency, pay_what_you_want, suggested_price_cents, custom_receipt_text, custom_view_content_button_text, or permalink",
@@ -1459,6 +1520,7 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     priceCents = plan.cents;
   }
   if ("description" in args) attributes.description = plannedDescription(product, args.description);
+  const jsonDataWrites = plannedJsonDataWrites(args);
   if (await hasApplicableOfferCodes(context.user, product))
     throw new HandBackToRails("a product beside discount codes");
 
@@ -1473,6 +1535,7 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
         throw new PermalinkChangedDuringLock();
       if (priceCents !== undefined) await writeBuyPrice(product, priceCents, context.now);
       if (permalink !== undefined) attributes.custom_permalink = permalink;
+      for (const [key, value] of jsonDataWrites) setJsonDataForAttr(record, key, value);
       await Links.updateBang(record, attributes, { now: context.now });
     });
   } catch (caught) {
