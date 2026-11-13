@@ -53,7 +53,6 @@ const railsTimeline = (fragment: string): string[] => {
 
 const PREFIX = "api-v2-product-build-writes-post-products-link-id-builds-id-promote-";
 const SUPERSEDES = `${PREFIX}supersedes-the-live-build-and-swaps-its-file-in-the-c47751c8.json`;
-const FIRST_BUILD = `${PREFIX}promotes-the-first-build-of-a-product-with-no-pages.json`;
 // Products::BuildsController#promote (parity/fixtures/requests/product_builds_promote_parity_spec) takes the same path.
 const INTERNAL = new URL(
   "../../../parity/fixtures/requests/product_builds_promote_parity_spec/promoting-a-product-build-supersedes-the-live-build-and-swaps-its-file-in-the-pages.json",
@@ -200,21 +199,6 @@ describe("promoteBuildBang", () => {
     ]);
   });
 
-  it("creates the zip of a first build and queues the unpack, with no page to touch", async () => {
-    await promoteBuildBang(5n, 2n, { uuid });
-
-    expect(writesOf()).toEqual(railsTimeline(FIRST_BUILD));
-    const file = database.writes.find((write) => write.model === "productFile" && write.op === "create")!;
-    expect(file.data).toMatchObject({
-      url: "http://localhost:9010/gumroad-specs/builds/5/2/build.zip",
-      display_name: "Playable build 2.zip",
-    });
-    expect(database.writes.find((write) => write.model === "productBuild")!.data).toMatchObject({
-      status: "live",
-      product_file_id: file.id,
-    });
-  });
-
   it("puts the zip on the first page by position only and rewrites a page only when it changes", async () => {
     setUp({
       previous: build(1n, 1, { status: "live", product_file_id: 10n, promoted_at: T0 }),
@@ -235,6 +219,7 @@ describe("promoteBuildBang", () => {
   });
 
   it("queues the unpack after every write, as Rails queues it outside the lock", async () => {
+    setUp({ pages: [page(7n, 0, [paragraph("Intro")])] });
     await promoteBuildBang(5n, 2n, { uuid });
 
     expect(writesOf().at(-1)).toBe("job ProductBuildUnpackJob");
@@ -249,6 +234,7 @@ describe("promoteBuildBang", () => {
     };
 
     it("a build that is already live", () => refused({ build: build(2n, 2, { status: "live" }) }, /live build/u));
+    it("a product with no pages", () => refused({}, /no pages/u));
     it("a product with versions", () => refused({ variants: true }, /versions/u));
     it("a product with a folder archive", () => refused({ folderArchive: true }, /folder archive/u));
     it("a page with a folder", () =>

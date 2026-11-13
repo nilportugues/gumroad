@@ -302,9 +302,27 @@ async function refusedPurchase(
   };
 }
 
-registerMutations({
-  method: "POST",
-  pattern: "/orders",
-  formats: ["any"],
-  run: (input) => create(input),
-});
+// OrdersController#prepare shares `validate_order_request` with #create, so the same two refusals answer. A request past them
+// builds an order and an unconfirmed PaymentIntent, which is Rails'.
+async function prepare(input: MutationInput): Promise<ActionResult> {
+  const { params, request } = input;
+  const lines = lineItems(params);
+  if (isBot(request.headers.get("user-agent"), params.user_agent_bot))
+    return { ...json({ success: true }), rescued: true };
+  if (lines.length > MAX_ALLOWED_CART_PRODUCTS)
+    return {
+      ...json(errorResponse(`You cannot add more than ${MAX_ALLOWED_CART_PRODUCTS} products to the cart.`)),
+      rescued: true,
+    };
+  return handBack("prepare, which creates an order and a PaymentIntent");
+}
+
+registerMutations(
+  {
+    method: "POST",
+    pattern: "/orders",
+    formats: ["any"],
+    run: (input) => create(input),
+  },
+  { method: "POST", pattern: "/orders/prepare", formats: ["any"], run: (input) => prepare(input) },
+);

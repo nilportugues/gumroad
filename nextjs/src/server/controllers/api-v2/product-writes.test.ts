@@ -119,6 +119,23 @@ describe("PUT /v2/products/:id with simple attributes", () => {
     expect(mocks.updateBang.mock.calls[0]![1]).toEqual({ flags: 0n, name: "Pen", description: "<p>Writes</p>" });
   });
 
+  it.each([
+    ["3.50", "3"],
+    ["0.5", "0"],
+    ["120.999", "120"],
+    ["300", "300"],
+  ])("plans the price text %s as %s, the digits before the point", async (price, planned) => {
+    await run({ price });
+
+    expect(mocks.planPrice).toHaveBeenCalledWith(draft, planned);
+  });
+
+  it("leaves a price that is not text for the plan to judge", async () => {
+    await run({ price: 300 });
+
+    expect(mocks.planPrice).toHaveBeenCalledWith(draft, 300);
+  });
+
   it("answers a price past the column without writing", async () => {
     mocks.planPrice.mockResolvedValue({ tooLarge: true });
 

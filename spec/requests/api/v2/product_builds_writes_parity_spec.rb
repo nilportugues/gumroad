@@ -21,6 +21,14 @@ describe "API v2 product build writes", type: :request do
     api_call(:post, "/products/#{options.fetch(:product_id) { product.external_id }}/builds/#{build_id}/promote", token: options.fetch(:token) { token }, **options.slice(:api_host))
   end
 
+  def select_demo(build_id, options = {})
+    api_call(:post, "/products/#{options.fetch(:product_id) { product.external_id }}/builds/#{build_id}/demo", token: options.fetch(:token) { token }, **options.slice(:api_host))
+  end
+
+  def unselect_demo(build_id, options = {})
+    api_call(:delete, "/products/#{options.fetch(:product_id) { product.external_id }}/builds/#{build_id}/demo", token: options.fetch(:token) { token }, **options.slice(:api_host))
+  end
+
   describe "POST /products/:link_id/builds/deploy" do
     it "asks for a url", parity: true do
       deploy
@@ -160,7 +168,7 @@ describe "API v2 product build writes", type: :request do
       build
     end
 
-    it "promotes the first build of a product with no pages", parity: true, parity_timeline: true do
+    it "hands a promotion for a product with no pages to Rails", parity: true do
       build = create(:product_build, product:, number: 1, public_id: "buildpublicid00000006")
 
       promote(build.public_id)
@@ -170,6 +178,7 @@ describe "API v2 product build writes", type: :request do
     end
 
     it "promotes a build through the /api prefix on the Gumroad domain", parity: true, parity_timeline: true do
+      create(:rich_content, entity: product, description: [paragraph("Intro")])
       build = create(:product_build, product:, public_id: "buildpublicid00000007")
 
       promote(build.public_id, api_host: false)
@@ -252,6 +261,139 @@ describe "API v2 product build writes", type: :request do
       promote(build.public_id)
 
       expect(response.parsed_body["build"]).to include("status" => "live")
+    end
+  end
+
+  describe "POST and DELETE /products/:link_id/builds/:id/demo" do
+    let!(:live) { create(:product_build, :live, product:, number: 1, public_id: "buildpublicid0demo001", site_unpacked_at: Time.utc(2026, 1, 2, 3, 4, 5)) }
+    let!(:second) { create(:product_build, product:, number: 2, public_id: "buildpublicid0demo002") }
+
+    it "makes the build the demo and queues its unpack", parity: true, parity_timeline: true do
+      select_demo(second.public_id)
+
+      expect(response.parsed_body["build"]).to include("id" => second.public_id, "demo" => true)
+    end
+
+    it "makes the build the demo through the /api prefix on the Gumroad domain", parity: true, parity_timeline: true do
+      select_demo(second.public_id, api_host: false)
+
+      expect(response.parsed_body["build"]).to include("demo" => true)
+    end
+
+    it "replaces the build that was the demo", parity: true, parity_timeline: true do
+      third = create(:product_build, product:, number: 3, public_id: "buildpublicid0demo003", site_unpacked_at: Time.utc(2026, 1, 2, 3, 4, 5), demo_selected_at: Time.utc(2026, 1, 3))
+
+      select_demo(second.public_id)
+
+      expect(third.reload).not_to be_demo_selected
+      expect(second.reload).to be_demo_selected
+    end
+
+    it "does not unpack a build whose site is ready", parity: true, parity_timeline: true do
+      second.update!(site_unpacked_at: Time.utc(2026, 1, 2, 3, 4, 5))
+
+      select_demo(second.public_id)
+
+      expect(response.parsed_body["build"]).to include("demo" => true)
+    end
+
+    it "refuses the live build of a paid product", parity: true do
+      select_demo(live.public_id)
+
+      expect(response.parsed_body["message"]).to eq("This build is what buyers get. Deploy a separate build to use as the demo.")
+    end
+
+    it "accepts the live build of a free product", parity: true, parity_timeline: true do
+      product.update!(price_cents: 0)
+
+      select_demo(live.public_id)
+
+      expect(response.parsed_body["build"]).to include("demo" => true)
+    end
+
+    it "refuses the live build of a free product with a paid version", parity: true do
+      product.update!(price_cents: 0)
+      category = create(:variant_category, link: product, title: "Edition")
+      create(:variant, variant_category: category, name: "Plus", price_difference_cents: 500)
+
+      select_demo(live.public_id)
+
+      expect(response.parsed_body["success"]).to eq(false)
+    end
+
+    it "refuses a build whose zip could not be unpacked", parity: true do
+      second.update!(site_unpack_error: "no index.html")
+
+      select_demo(second.public_id)
+
+      expect(response.parsed_body["success"]).to eq(false)
+    end
+
+    it "does not find an unknown build", parity: true do
+      select_demo("unknown")
+
+      expect(response.parsed_body["message"]).to eq("The build was not found.")
+    end
+
+    it "does not find the build of another product", parity: true do
+      build = create(:product_build, product: create(:product, user: seller, unique_permalink: "playabld"), public_id: "buildpublicid0demo004")
+
+      select_demo(build.public_id)
+
+      expect(response.parsed_body["message"]).to eq("The build was not found.")
+    end
+
+    it "does not find the product", parity: true do
+      select_demo("buildpublicid0demo005", product_id: "unknown")
+
+      expect(response.parsed_body["message"]).to eq("The product was not found.")
+    end
+
+    it "refuses a request without a token", parity: true do
+      select_demo(second.public_id, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "refuses a token that lacks the edit_products scope", parity: true do
+      select_demo(second.public_id, token: api_token(seller, scopes: "view_sales"))
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "stops using the build as the demo", parity: true, parity_timeline: true do
+      second.update!(demo_selected_at: Time.utc(2026, 1, 3))
+
+      unselect_demo(second.public_id)
+
+      expect(response.parsed_body["build"]).to include("id" => second.public_id, "demo" => false)
+      expect(second.reload).not_to be_demo_selected
+    end
+
+    it "answers an unselect of a build that is not the demo without writing", parity: true, parity_timeline: true do
+      unselect_demo(second.public_id)
+
+      expect(response.parsed_body["build"]).to include("demo" => false)
+    end
+
+    it "unselects through the /api prefix on the Gumroad domain", parity: true, parity_timeline: true do
+      second.update!(demo_selected_at: Time.utc(2026, 1, 3))
+
+      unselect_demo(second.public_id, api_host: false)
+
+      expect(response.parsed_body["build"]).to include("demo" => false)
+    end
+
+    it "does not find the build to unselect", parity: true do
+      unselect_demo("unknown")
+
+      expect(response.parsed_body["message"]).to eq("The build was not found.")
+    end
+
+    it "refuses an unselect without a token", parity: true do
+      unselect_demo(second.public_id, token: nil)
+
+      expect(response).to have_http_status(:unauthorized)
     end
   end
 end

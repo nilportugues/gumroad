@@ -49,17 +49,30 @@ function hexColor(attribute: "background_color" | "highlight_color"): Callback<S
   };
 }
 
-// lib/json_schemas/seller_profile.json: `tabs` is required and the only key; each tab is exactly a string `name` and a `sections` list of unique integers.
-export function jsonDataValid(value: unknown): boolean {
-  const isHash = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+const isHash = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+
+// lib/json_schemas/seller_profile.json: `tabs` is required and the only key; each tab is exactly a string `name` and a `sections` list of
+// unique integers. Returns the index of every tab whose list repeats an id, or null when something else in the data breaks the schema.
+export function schemaDuplicates(value: unknown): number[] | null {
   const data = typeof value === "string" ? (JSON.parse(value) as unknown) : value;
-  if (!isHash(data) || Object.keys(data).length !== 1 || !Array.isArray(data.tabs)) return false;
-  return data.tabs.every((tab) => {
-    if (!isHash(tab) || Object.keys(tab).length !== 2 || typeof tab.name !== "string" || !Array.isArray(tab.sections)) return false;
+  if (!isHash(data) || Object.keys(data).length !== 1 || !Array.isArray(data.tabs)) return null;
+  const repeated: number[] = [];
+  for (const [index, tab] of data.tabs.entries()) {
+    if (!isHash(tab) || Object.keys(tab).length !== 2 || typeof tab.name !== "string" || !Array.isArray(tab.sections))
+      return null;
     const ids = tab.sections.map((id) => (typeof id === "bigint" ? Number(id) : id));
-    return ids.every((id) => Number.isInteger(id)) && new Set(ids).size === ids.length;
-  });
+    if (!ids.every((id) => Number.isInteger(id))) return null;
+    if (new Set(ids).size !== ids.length) repeated.push(index);
+  }
+  return repeated;
 }
+
+export const jsonDataValid = (value: unknown): boolean => schemaDuplicates(value)?.length === 0;
+
+// JSON::Validator's message with the "in schema <uuid>" suffix `validate_json_data` slices off. Only one repeating tab is reproduced: the
+// order several errors come in is not recorded.
+export const duplicatedSectionsMessage = (tab: number) =>
+  `The property '#/tabs/${tab}/sections' contained duplicated array values`;
 
 const seller = { name: "seller", foreignKey: "seller_id", targetTable: "users", targetModel: "User" } as const;
 
@@ -87,8 +100,13 @@ export const SellerProfiles = defineModel<SellerProfile>({
       name: "validate :validate_json_data",
       if: (record) => !isBlank(record.get("json_data")),
       run(record) {
-        if (!jsonDataValid(record.get("json_data")))
-          throw new NotPortedError("a seller profile whose json_data breaks its schema", "app/models/seller_profile.rb");
+        const repeated = schemaDuplicates(record.get("json_data"));
+        if (repeated?.length === 1) record.errors.add("base", duplicatedSectionsMessage(repeated[0]!));
+        else if (repeated === null || repeated.length > 1)
+          throw new NotPortedError(
+            "a seller profile whose json_data breaks its schema",
+            "app/models/seller_profile.rb",
+          );
       },
     },
     validatesLengthOf<SellerProfile>(["seo_title"], { maximum: MAX_SEO_TITLE_LENGTH }),

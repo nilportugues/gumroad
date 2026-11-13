@@ -455,7 +455,7 @@ describe "Profile settings when signed in", type: :request do
       expect(seller.seller_profile_sections.count).to eq(0)
     end
 
-    it "hands a layout that lists a section twice", parity: true do
+    it "refuses a layout that lists a section twice", parity: true do
       section = products_section
       save_tabs({ name: "Home", sections: [section.id] })
       log_in(seller)

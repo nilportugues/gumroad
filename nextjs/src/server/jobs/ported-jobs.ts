@@ -269,4 +269,7 @@ export const PORTED_JOBS: readonly string[] = [
   "GenerateAvatarVariantJob",
   "AlertOnStaleBlocksHoldingEstablishedBuyersJob",
   "AlertSellersOfUndeliveredReceiptsJob",
+  "ReconcileStripePayoutsPausesJob",
+  "ReconcileStripePayoutsPauseForSellerJob",
+  "SendPostBlastEmailsSliceJob",
 ];
