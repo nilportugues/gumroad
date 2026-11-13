@@ -32,6 +32,21 @@ describe "Collabs page when signed in", type: :request do
     expect(inertia_props_of(response)["products_data"]["products"].map { _1["cut"] }).to eq([50, 70])
   end
 
+  it "quotes collabs listed in other currencies in their own", parity: true do
+    euro = collab_product(owner: seller, collaborator: collaborator_user, name: "Euro collab", price_cents: 1050, created_at: Time.utc(2025, 1, 1))
+    yen = collab_product(owner: seller, collaborator: create(:user), name: "Yen collab", price_cents: 1500, created_at: Time.utc(2025, 2, 1))
+    [[euro, "eur", 1050], [yen, "jpy", 1500]].each do |product, currency, cents|
+      product.update_columns(price_currency_type: currency, price_cents: cents)
+      product.prices.update_all(currency:, price_cents: cents)
+    end
+    cache_values(euro, yen)
+    log_in(seller)
+
+    get products_collabs_path, headers: json_headers.merge("X-Inertia-Partial-Component" => "Products/Collabs/Index", "X-Inertia-Partial-Data" => "products_data,memberships_data")
+
+    expect(response.parsed_body["props"]["products_data"]["products"].map { _1["price_formatted"] }).to eq(["¥1,500", "€10.50"])
+  end
+
   it "lists the collaborations of a collaborator with their share", parity: true do
     product = collab_product(owner: seller, collaborator: collaborator_user, name: "Shared guide", price_cents: 2500)
     cache_values(product)
