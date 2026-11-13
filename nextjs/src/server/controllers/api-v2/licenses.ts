@@ -5,17 +5,20 @@ import { randomUUID } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
 
+import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
+import { doorkeeperToken } from "../../auth/api-token.ts";
 import { getNamespacedRedis, getRedis } from "../../infra/redis.ts";
-import { timeAgoInWords } from "../../models/concerns/time-ago-in-words.ts";
-import { disableBang, disabled, enableBang, findLicense, Licenses, type LicenseRecord } from "../../models/license.ts";
-import { findPurchaseRow, licensePurchaseJson } from "../../models/license-purchase-json.ts";
-import { timeJson } from "../../models/purchase-json.ts";
 import { performAsync } from "../../models/concerns/job-runtime.ts";
+import { timeAgoInWords } from "../../models/concerns/time-ago-in-words.ts";
+import { findPurchaseRow, licensePurchaseJson } from "../../models/license-purchase-json.ts";
+import { disableBang, disabled, enableBang, findLicense, Licenses, type LicenseRecord } from "../../models/license.ts";
+import { timeJson } from "../../models/purchase-json.ts";
 import { column, execute, selectRows, table } from "../../models/sql.ts";
-import { PurchaseFlags } from "../../search/flags.ts";
 import { findLink, type LinkRow } from "../../presenters/product-reads.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
 import { HandBackToRails } from "../application-controller.ts";
+
 import { fromExternalId, json, registerApiV2, type ApiV2Input } from "./base.ts";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -232,10 +235,27 @@ registerApiV2(
     anonymous: true,
     // skip_before_action :verify_authenticity_token
     keepSession: true,
-    // A token on a verify call would reach `log_method_use` in Rails.
-    preAuth({ request, params }) {
-      if (request.headers.get("authorization") !== null || "access_token" in params)
-        throw new HandBackToRails("a token on a license verification");
+    // verify never authorizes the token, but the after_action `log_method_use` reads its owner: a token with none (or whose user is gone)
+    // raises RecordNotFound, and the CLI's user agent marks the owner as a CLI user. Any other token, valid or not, changes nothing.
+    async preAuth({ request, params }) {
+      let token;
+      try {
+        token = await doorkeeperToken({
+          authorization: request.headers.get("authorization"),
+          parameters: params,
+          path: request.path,
+        });
+      } catch {
+        throw new HandBackToRails("a token parameter that is not text");
+      }
+      if (token === null) return;
+      const owner =
+        token.resource_owner_id == null
+          ? null
+          : await db.user.findUnique({ where: { id: BigInt(token.resource_owner_id) }, select: { id: true } });
+      if (owner === null) throw new HandBackToRails("a token on a license verification that has no owner");
+      if (/^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? ""))
+        throw new HandBackToRails("a CLI license verification that carries a token");
     },
     before: verifyBefore,
     async run(input) {
