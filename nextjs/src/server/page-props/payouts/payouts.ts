@@ -3,7 +3,8 @@
 //
 // What the port cannot prove goes to Rails whole (`HandBackToRails`, decided before the page renders by
 // `planPayouts`): daily payouts of a compliant seller (Payouts.is_user_payable), a seller whose payout account is
-// seasoned for instant payouts (Stripe is asked about the bank account), a cached balance-stats blob that exists, a PayPal
+// seasoned for instant payouts and whose bank account Stripe lists instant payouts for (the instant payout props) or whose
+// schedule is daily, a cached balance-stats blob that exists, a PayPal
 // connected account and bank account classes whose routing number is not derivable. A daily seller that is not
 // compliant is scheduled weekly, an unseasoned account rules instant payouts out, and payouts in a currency the
 // money gem knows are formatted here.
@@ -17,10 +18,17 @@ import { getRedis } from "../../infra/redis.ts";
 import { enqueue } from "../../jobs/enqueue.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
 import { knownCurrency, moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
+import { bankAccountSupportsInstantPayouts } from "../../models/instant-payouts-supported.ts";
 import { type MerchantAccountRow, isStripeConnectAccount } from "../../models/merchant-account.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
-import { jsonDataForAttr, RISK_STATES, UserFlags, Users } from "../../models/user.ts";
+import {
+  jsonDataForAttr,
+  NotPortedError as ModelNotPortedError,
+  RISK_STATES,
+  UserFlags,
+  Users,
+} from "../../models/user.ts";
 import { taxCenterEnabled } from "../dashboard/tax-center.ts";
 import { NotPortedError } from "../not-ported.ts";
 import PAYMENTS_DATA from "../settings/payments-data.generated.json" with { type: "json" };
@@ -346,6 +354,9 @@ export type PayoutsPlan = {
   activeBank: BankAccountRow | null;
   // `eligible_for_instant_payouts? && !active_bank_account&.supports_instant_payouts?`, served only where the second is true.
   showInstantPayoutsNotice: boolean;
+  // The two Stripe answers behind the instant payout props and the notice, when the page asked: the filter reads them once and
+  // the props reuse them.
+  instantReads: InstantReads | null;
   frequency: PayoutFrequency;
   // Stored as daily, scheduled as weekly (see planPayouts).
   dailyFallback: boolean;
@@ -354,6 +365,8 @@ export type PayoutsPlan = {
   // The blob's two periods, when one exists: Rails serves them as stored, however stale, and still enqueues the refresh.
   cached: CachedPeriods | null;
 };
+
+export type InstantReads = [instantPayout: boolean, notice: boolean];
 
 type CachedPeriods = { next: Record<string, unknown> | null; processing: Record<string, unknown>[] };
 
@@ -460,7 +473,29 @@ async function eligibleForInstantPayouts(
   );
 }
 
-export async function planPayouts(seller: Seller, pageParam: string | null, now = new Date()): Promise<PayoutsPlan> {
+// Rails asks Stripe once for `instant_payout` and once for the notice, each on a bank account record of its own, so a partial reload
+// that asks for one of them makes one call: a port that always reads twice would not match, and hands those back.
+async function readInstantSupport(bank: BankAccountRow, partial: boolean): Promise<InstantReads> {
+  if (partial) throw new HandBackToRails();
+  try {
+    const instantPayout = await bankAccountSupportsInstantPayouts(bank);
+    // A bank account that supports them gets the instant payout props, which Rails builds.
+    if (instantPayout) throw new HandBackToRails();
+    return [instantPayout, await bankAccountSupportsInstantPayouts(bank)];
+  } catch (error) {
+    if (error instanceof ModelNotPortedError) throw new HandBackToRails();
+    throw error;
+  }
+}
+
+export type PlanOptions = { partial?: boolean; instantReads?: InstantReads | null };
+
+export async function planPayouts(
+  seller: Seller,
+  pageParam: string | null,
+  now = new Date(),
+  { partial = false, instantReads }: PlanOptions = {},
+): Promise<PayoutsPlan> {
   const record = Users.load(seller);
   const storedFrequency = jsonDataForAttr(record, "payout_frequency", "weekly");
   if (!PAYOUT_FREQUENCIES.includes(storedFrequency as PayoutFrequency)) throw new HandBackToRails();
@@ -476,14 +511,18 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
   const facts = await payoutFacts(seller, now);
   const activeBank = await activeBankAccount(seller.id);
   const eligibleForInstant = await eligibleForInstantPayouts(seller, facts, compliant, dateOnly(now), now);
-  // BankAccount#supports_instant_payouts? is false without both Stripe ids, and asks Stripe otherwise.
+  // BankAccount#supports_instant_payouts? is false without both Stripe ids, and asks Stripe otherwise. A daily schedule asks it
+  // again (Payouts.is_user_payable), so it goes to Rails before any read.
+  let reads: InstantReads | null = null;
   if (
     eligibleForInstant &&
     activeBank &&
     present(activeBank.stripe_connect_account_id) &&
     present(activeBank.stripe_bank_account_id)
-  )
-    throw new HandBackToRails();
+  ) {
+    if (storedFrequency === "daily") throw new HandBackToRails();
+    reads = instantReads ?? (await readInstantSupport(activeBank, partial));
+  }
 
   const count = await sumOf(Prisma.sql`SELECT COUNT(*) AS value ${completedDisplayable(seller.id)}`);
   const pageNumber = validatedPageNumber(rubyToI(pageParam), count);
@@ -513,7 +552,8 @@ export async function planPayouts(seller: Seller, pageParam: string | null, now 
     pastPayments: await withBank(past),
     processingPayments: await withBank(processing),
     activeBank,
-    showInstantPayoutsNotice: eligibleForInstant,
+    showInstantPayoutsNotice: eligibleForInstant && !(reads?.[1] ?? false),
+    instantReads: reads,
     frequency: frequency as PayoutFrequency,
     dailyFallback: storedFrequency === "daily",
     refreshBalanceStatsCache,

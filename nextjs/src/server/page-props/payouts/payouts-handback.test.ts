@@ -1,9 +1,11 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db } from "../../../lib/db.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { getRedis } from "../../infra/redis.ts";
 import { balanceStatsCacheKey } from "../../models/user-balance-stats.ts";
+import { InvalidRequestError } from "../../stripe/errors.ts";
+import { Account } from "../../stripe/resources.ts";
 
 import { planPayouts, payoutsProps } from "./payouts.ts";
 
@@ -90,11 +92,81 @@ describe.skipIf(!url)("planPayouts hands back what it cannot prove", () => {
       }
     });
 
-    it("hands back a seasoned account whose bank account carries both Stripe ids: Stripe is asked", async () => {
-      const seller = await user();
-      await account("2026-01-01");
-      await bank({ connect: "acct_1", external: "ba_1" });
-      await expect(planPayouts(seller, null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+    describe("with a seasoned account and a bank account carrying both Stripe ids", () => {
+      const read = (...answers: unknown[]) => {
+        const spy = vi.spyOn(Account, "retrieveExternalAccount");
+        for (const answer of answers) {
+          if (answer instanceof Error) spy.mockRejectedValueOnce(answer);
+          else spy.mockResolvedValueOnce(answer as never);
+        }
+        return spy;
+      };
+      const standard = { available_payout_methods: ["standard"] };
+      const instant = { available_payout_methods: ["standard", "instant"] };
+      const prepare = async () => {
+        const seller = await user();
+        await account("2026-01-01");
+        await bank({ connect: "acct_1", external: "ba_1" });
+        return seller;
+      };
+      afterEach(() => vi.restoreAllMocks());
+
+      it("offers the notice when Stripe lists no instant payouts, after the two reads Rails makes", async () => {
+        const spy = read(standard, standard);
+        const plan = await planPayouts(await prepare(), null, NOW);
+        expect(plan.showInstantPayoutsNotice).toBe(true);
+        expect(plan.instantReads).toEqual([false, false]);
+        expect(spy.mock.calls.map(([account, external]) => [account, external])).toEqual([
+          ["acct_1", "ba_1"],
+          ["acct_1", "ba_1"],
+        ]);
+      });
+
+      it("withholds the notice when only the second read lists instant payouts", async () => {
+        read(standard, instant);
+        expect((await planPayouts(await prepare(), null, NOW)).showInstantPayoutsNotice).toBe(false);
+      });
+
+      it("offers the notice when Stripe refuses the read", async () => {
+        read(new InvalidRequestError("No such external account: 'ba_1'", null), new InvalidRequestError("boom", null));
+        const plan = await planPayouts(await prepare(), null, NOW);
+        expect(plan.showInstantPayoutsNotice).toBe(true);
+      });
+
+      it("reuses the reads of the filter instead of asking Stripe again", async () => {
+        const spy = read();
+        const plan = await planPayouts(await prepare(), null, NOW, { instantReads: [false, false] });
+        expect(plan.showInstantPayoutsNotice).toBe(true);
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      it("hands back a bank account Stripe lists instant payouts for: the instant payout props", async () => {
+        const spy = read(instant);
+        await expect(planPayouts(await prepare(), null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+        expect(spy).toHaveBeenCalledTimes(1);
+      });
+
+      it("hands back an external account answered without its payout methods", async () => {
+        read({});
+        await expect(planPayouts(await prepare(), null, NOW)).rejects.toBeInstanceOf(HandBackToRails);
+      });
+
+      it("hands back a partial reload without asking Stripe: Rails asks only for the props requested", async () => {
+        const spy = read();
+        await expect(planPayouts(await prepare(), null, NOW, { partial: true })).rejects.toBeInstanceOf(
+          HandBackToRails,
+        );
+        expect(spy).not.toHaveBeenCalled();
+      });
+
+      it("hands back a daily schedule, which asks Stripe again", async () => {
+        read(standard, standard);
+        const seller = await prepare();
+        await db.$executeRawUnsafe(`UPDATE users SET json_data = '{"payout_frequency":"daily"}' WHERE id = ${USER_ID}`);
+        await expect(
+          planPayouts(await db.user.findUniqueOrThrow({ where: { id: seller.id } }), null, NOW),
+        ).rejects.toBeInstanceOf(HandBackToRails);
+      });
     });
 
     it("serves an unseasoned account whose bank account carries both Stripe ids", async () => {

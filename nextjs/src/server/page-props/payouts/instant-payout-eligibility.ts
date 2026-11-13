@@ -1,6 +1,6 @@
 // The database half of User#eligible_for_instant_payouts? (app/models/user.rb): the seasoning of the payout
 // destination account. Whether an eligible seller's bank account supports instant payouts is a Stripe call
-// (BankAccount#supports_instant_payouts?) unless the bank account carries no Stripe ids, which the Payouts page checks.
+// (BankAccount#supports_instant_payouts?), asked by the Payouts page through planPayouts.
 import { Prisma } from "@prisma/client";
 
 import { ago } from "../../models/concerns/ruby-time.ts";

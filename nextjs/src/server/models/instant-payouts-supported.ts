@@ -144,7 +144,9 @@ export async function eligibleForInstantPayouts(user: UserRecord, options: SaveO
 }
 
 // `BankAccount#supports_instant_payouts?`
-async function bankAccountSupportsInstantPayouts(bank: BankAccount): Promise<boolean> {
+export async function bankAccountSupportsInstantPayouts(
+  bank: Pick<BankAccount, "stripe_connect_account_id" | "stripe_bank_account_id">,
+): Promise<boolean> {
   const accountId = bank.stripe_connect_account_id;
   const externalAccountId = bank.stripe_bank_account_id;
   if (!present(accountId) || !present(externalAccountId)) return false;
