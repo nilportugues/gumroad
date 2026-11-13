@@ -7,7 +7,42 @@ Playwright (chromium only) drives a **locally running** Gumroad app. It has two 
    request/response pair, so the same traffic can later be replayed against Rails and the Node port and the
    responses compared.
 
+## One command: lane 3 in a container
+
+`bin/e2e-up` builds everything below for **dev lane 3 only** (`http://localhost:3003`) and leaves it running;
+`bin/e2e-run` runs the suite against it; `bin/e2e-down` removes it again.
+
+```shell
+bin/e2e-up        # idempotent; first run takes several minutes (npm ci, Vite build, seeds, reindex)
+bin/e2e-run       # npm run e2e inside the container; extra args go to `playwright test`, e.g. bin/e2e-run e2e/specs/discover.spec.ts
+bin/e2e-down      # idempotent; removes only what e2e-up created
+```
+
+What `bin/e2e-up` does, in order:
+
+1. Verifies the shared `gumroad-db-1`, `gumroad-redis-1`, `gumroad-elasticsearch-1` and `gr-dynamo` containers
+   (starts one only if it is stopped, never recreates them).
+2. Creates one container, `gr-e2e-lane3` (image `gr-ruby-img25`, else `ruby:3.4.12-bookworm`), on the
+   `gumroad_default` network with `127.0.0.1:3003` published and the shared `gr_bundle` gem volume. The checkout's
+   tracked files are copied to `/work`; Node (from `.node-version`) and `npm ci` live inside the container, so the
+   host `node_modules` (darwin bindings) is never used and dies with the container.
+3. Loads the schema into `gumroad_development_lane3`, creates the `lane3_` DynamoDB table, creates the `*_lane3`
+   Elasticsearch indices, runs `rails db:seed`, then reindexes (no Sidekiq runs, so seeds are only searchable after
+   the reindex; the seeds are not re-runnable, so they run once per database and a second `bin/e2e-up` only reindexes; to reseed run `bin/e2e-down` first). Seeding needs ffmpeg and a `localhost:9000` forward to the shared MinIO, both set up in the container. `SKIP_TEST_DATABASE=true` keeps the shared `gumroad_test` database untouched.
+4. Applies the local tweaks from the preconditions below (free-purchase limit 100000, `PlatformBlock.delete_all`)
+   and exports `SECURE_EXTERNAL_ID__*` from `.env.test` into the container's environment file.
+5. Builds the frontend once (`npm run setup` then `NODE_ENV=development VITE_RUBY_MODE=test npx vite build`; rebuilt when
+   `app/javascript` or the lockfile changes, or with `E2E_REBUILD=1`), starts `rails s` on 3003 and waits for
+   `/discover` and `/l/demo` to answer 200.
+
+Only lane 3 resources are touched: database `gumroad_development_lane3`, Redis dbs 8 and 9, indices `*_lane3`, table
+`lane3_*`, container `gr-e2e-lane3`. `bin/e2e-common.sh` aborts if `bin/dev-lane 3` stops resolving to exactly
+those. Not started: Sidekiq, AnyCable, `bin/vite dev`. Rails logs: `docker exec gr-e2e-lane3 tail -f /work/log/e2e-rails.log`.
+`bin/e2e-run` installs Chromium and its system libraries inside the container on first use.
+
 ## Precondition: a running, seeded local app
+
+The sections below describe the same setup done by hand.
 
 The suite never creates its own data for the catalogue; it relies on `bin/rails db:seed`.
 
