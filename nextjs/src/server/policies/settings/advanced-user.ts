@@ -3,4 +3,10 @@ import { requireUser, roleAdminFor, type SellerContext } from "../seller-context
 
 const show = (context: SellerContext) => roleAdminFor(requireUser(context));
 
-export const settingsAdvancedUserPolicy = { show, update: show, testPing: show };
+export const settingsAdvancedUserPolicy = {
+  show,
+  update: show,
+  testPing: show,
+  rotatePingSigningSecret: show,
+  disablePingSigning: show,
+};
