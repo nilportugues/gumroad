@@ -48,7 +48,7 @@ function conversionName(value: Json): string {
 }
 
 // `request.json_data`: a NULL or blank column is {}; anything but a Hash raises the ArgumentError due_for_retry? rescues.
-function jsonDataOf(request: UserComplianceInfoRequest): RubyHash {
+export function jsonDataOf(request: Pick<UserComplianceInfoRequest, "json_data">): RubyHash {
   const raw = request.json_data;
   if (raw === null || isBlank(raw)) return new RubyHash([]);
   let parsed: Json;
@@ -64,8 +64,8 @@ function jsonDataOf(request: UserComplianceInfoRequest): RubyHash {
 }
 
 // `RetryStripeJpAddressResyncsJob.attempts`: `json_data["address_resync_count"].to_i`
-function attempts(hash: RubyHash): number | bigint {
-  const count = jsonGet(hash, "address_resync_count");
+export function attempts(hash: RubyHash, key = "address_resync_count"): number | bigint {
+  const count = jsonGet(hash, key);
   if (typeof count === "bigint") return count;
   if (isRubyFloat(count)) {
     const float = floatValue(count);
@@ -76,34 +76,38 @@ function attempts(hash: RubyHash): number | bigint {
   return rubyToI(count ?? null);
 }
 
+// `last.blank? || Time.iso8601(last) + interval <= Time.current`, the time half of both retry jobs' due checks.
+export function retryIntervalElapsed(last: unknown, intervalMs: number, now: Date): boolean {
+  if (isBlank(last) || (last instanceof RubyHash && last.entries.length === 0)) return true;
+  if (typeof last !== "string")
+    throw new RubyTypeError(`no implicit conversion of ${conversionName(last as Json)} into String`);
+  let parsed;
+  try {
+    parsed = timeIso8601(last);
+  } catch (error) {
+    // A year before 1000 is either refused (counted as due) or long past (due): due either way. A later year is not ported.
+    const year = /^[ \t\n\v\f\r]*(-?\d+)-/u.exec(last)?.[1];
+    if (
+      error instanceof Error &&
+      error.name === "NotPortedError" &&
+      year !== undefined &&
+      BigInt(year) < MIN_PORTED_YEAR
+    )
+      return true;
+    throw error;
+  }
+  // Time arithmetic keeps the microseconds the millisecond clock drops.
+  const dueAt = BigInt(parsed.getTime() + intervalMs) * 1000n + BigInt(parsed.microseconds % 1000);
+  return dueAt <= BigInt(now.getTime()) * 1000n;
+}
+
 // `RetryStripeJpAddressResyncsJob.due_for_retry?`
 export function dueForRetry(request: UserComplianceInfoRequest, now: Date): boolean {
   try {
     const hash = jsonDataOf(request);
     if (attempts(hash) >= MAX_ATTEMPTS) return false;
 
-    const last = jsonGet(hash, "address_resync_at");
-    if (isBlank(last) || (last instanceof RubyHash && last.entries.length === 0)) return true;
-    if (typeof last !== "string")
-      throw new RubyTypeError(`no implicit conversion of ${conversionName(last as Json)} into String`);
-    let parsed;
-    try {
-      parsed = timeIso8601(last);
-    } catch (error) {
-      // A year before 1000 is either refused (counted as due) or long past (due): due either way. A later year is not ported.
-      const year = /^[ \t\n\v\f\r]*(-?\d+)-/u.exec(last)?.[1];
-      if (
-        error instanceof Error &&
-        error.name === "NotPortedError" &&
-        year !== undefined &&
-        BigInt(year) < MIN_PORTED_YEAR
-      )
-        return true;
-      throw error;
-    }
-    // Time arithmetic keeps the microseconds the millisecond clock drops.
-    const dueAt = BigInt(parsed.getTime() + RETRY_INTERVAL_MS) * 1000n + BigInt(parsed.microseconds % 1000);
-    return dueAt <= BigInt(now.getTime()) * 1000n;
+    return retryIntervalElapsed(jsonGet(hash, "address_resync_at"), RETRY_INTERVAL_MS, now);
   } catch (error) {
     if (error instanceof RubyArgumentError) return true;
     throw error;

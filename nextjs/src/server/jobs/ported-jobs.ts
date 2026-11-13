@@ -37,6 +37,8 @@ export const PORTED_JOBS: readonly string[] = [
   "RefreshCustomDomainRoutabilityWorker",
   "ProcessPaymentWorker",
   "RetryStripeJpAddressResyncsJob",
+  "RetryStripeRejectedPayoutSetupsJob",
+  "StripeCreateMerchantAccountsWorker",
   "SyncWatchedUsersJob",
   "RecordOrderChargeOutcomeJob",
   "OrderReviewReminderJob",

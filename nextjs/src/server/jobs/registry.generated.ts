@@ -2695,7 +2695,7 @@ export const JOB_REGISTRY = {
     "customRetryIn": false,
     "retriesExhausted": false,
     "recurringLockMaxAttempt": 3600,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "ReverseDeferredInternalTransferJob": {
     "file": "app/sidekiq/reverse_deferred_internal_transfer_job.rb",
@@ -3257,7 +3257,7 @@ export const JOB_REGISTRY = {
     "customLockArgs": false,
     "customRetryIn": false,
     "retriesExhausted": false,
-    "runtime": "ruby"
+    "runtime": "node"
   },
   "StripePayoutsPausedEmailJob": {
     "file": "app/sidekiq/stripe_payouts_paused_email_job.rb",
