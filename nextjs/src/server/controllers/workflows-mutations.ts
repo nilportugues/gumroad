@@ -6,6 +6,7 @@ import { Prisma, type Link, type Workflow } from "@prisma/client";
 import * as Routes from "@/lib/navigation/routes";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { castRow, column, selectRows, table } from "../models/sql.ts";
 import { PRODUCT_TYPE, VARIANT_TYPE } from "../models/with-filtering.ts";
@@ -16,7 +17,7 @@ import {
   SAVE_AND_PUBLISH_ACTION,
   SAVE_AND_UNPUBLISH_ACTION,
 } from "../models/workflow-manage.ts";
-import { permitInstallments, saveInstallments } from "../models/workflow-save-installments.ts";
+import { permitInstallments, previewNoticeRequested, saveInstallments } from "../models/workflow-save-installments.ts";
 import { markDeletedBang, Workflows } from "../models/workflow-writes.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
@@ -29,6 +30,7 @@ import { railsSegment, registerMutations, type MutationInput } from "./mutation.
 const SEE_OTHER = 303;
 const FOUND = 302;
 const FLASH_CHANGES_SAVED = "Changes saved!";
+const FLASH_PREVIEW_EMAIL_SENT = "A preview has been sent to your email.";
 const FLASH_WORKFLOW_PUBLISHED = "Workflow published!";
 const FLASH_WORKFLOW_UNPUBLISHED = "Unpublished!";
 const FLASH_WORKFLOW_DELETED = "Workflow deleted!";
@@ -149,14 +151,21 @@ async function updateEmails(input: MutationInput): Promise<ActionResult> {
   const params = permitInstallments(input.params.workflow);
   const record = workflow!;
   const location = `/workflows/${railsSegment(encrypt(record.get("id")))}/emails`;
-  const result = await saveInstallments({ seller: input.context.currentSeller!, params, workflow: record });
+  const result = await saveInstallments({
+    seller: input.context.currentSeller!,
+    params,
+    workflow: record,
+    previewRecipient: railsLoggedInUser(input.context),
+  });
   if (!result.ok) return { status: SEE_OTHER, location, flash: { alert: result.error }, inertiaErrors: result.errors };
   const notice =
     params.save_action_name === SAVE_AND_PUBLISH_ACTION
       ? FLASH_WORKFLOW_PUBLISHED
       : params.save_action_name === SAVE_AND_UNPUBLISH_ACTION
         ? FLASH_WORKFLOW_UNPUBLISHED
-        : FLASH_CHANGES_SAVED;
+        : previewNoticeRequested(params)
+          ? FLASH_PREVIEW_EMAIL_SENT
+          : FLASH_CHANGES_SAVED;
   return { status: SEE_OTHER, location, flash: { notice } };
 }
 

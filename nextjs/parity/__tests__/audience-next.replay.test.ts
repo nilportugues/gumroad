@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { unwrapActiveJob } from "../src/active-job";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
@@ -74,18 +75,20 @@ function redisJobs(redis: Redis): JobsChannel {
           at?: number;
         };
         if (IGNORED_JOBS.has(item.class)) continue;
-        jobs.push({
-          class: item.class,
-          args: item.args,
-          queue: item.queue,
-          ...(item.at === undefined ? {} : { at: item.at }),
-        });
+        jobs.push(
+          unwrapActiveJob({
+            class: item.class,
+            args: item.args,
+            queue: item.queue,
+            ...(item.at === undefined ? {} : { at: item.at }),
+          }),
+        );
       }
       // A job whose body stays in Ruby (Exports::AudienceExportWorker) goes straight to Sidekiq's list.
       for (const key of await redis.keys("queue:*")) {
         for (const raw of await redis.lrange(key, 0, -1)) {
           const item = JSON.parse(raw) as { class: string; args: unknown[]; queue: string };
-          jobs.push({ class: item.class, args: item.args, queue: item.queue });
+          jobs.push(unwrapActiveJob({ class: item.class, args: item.args, queue: item.queue }));
         }
       }
       return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));

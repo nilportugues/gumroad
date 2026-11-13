@@ -2,14 +2,17 @@
 // (`replace_all: true`). Recorded by spec/requests/workflows_emails_update_spec.rb.
 //
 // What Node cannot prove throws NotPortedError before the first write of the transaction, and the controller hands the request
-// to Rails: an abandoned cart workflow, an email with files or a preview, a message holding an upsell card, a delay that is not
+// to Rails: an email with files, a preview sent through PostEmailApi, a message holding an upsell card, a delay that is not
 // a whole number of a known unit, and the seller or file checks the Installment and Workflow writes refuse (installment-writes.ts).
 import { randomUUID } from "node:crypto";
 
 import { Prisma, type Installment, type InstallmentRule, type User, type Workflow } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
+import { deliverLater } from "../mail/active-job.ts";
+import { mailRoute } from "../mail/delivery.ts";
 
+import { currentJobsRuntime } from "./concerns/job-runtime.ts";
 import { jsonData } from "./concerns/json-data.ts";
 import { setAssociation } from "./concerns/rails-validations.ts";
 import { rubyToI } from "./concerns/ruby-numeric.ts";
@@ -42,6 +45,9 @@ type InstallmentModel = ModelRecord<Installment>;
 
 export const SAVE_ACTION = "save";
 const ABANDONED_CART_TYPE = "abandoned_cart";
+const ABANDONED_CART_EMAIL_COUNT_MESSAGE = "An abandoned cart workflow can only have one email.";
+const PRODUCT_LIST_PLACEHOLDER = "<product-list-placeholder />";
+const PREVIEW_UNCONFIRMED_MESSAGE = "You have to confirm your email address before you can do that.";
 const INSTALLMENT_REQUIRED_MESSAGE = "Installments data is required";
 const WORKFLOW_NOT_FOUND_MESSAGE = "The workflow was not found.";
 // ActiveSupport: 1.hour, 1.day, 1.week and 1.month (a twelfth of 365.2425 days)
@@ -91,13 +97,6 @@ export function permitInstallments(raw: unknown): SaveInstallmentsParams {
         return refuse("an email with files (SaveFilesService)");
       email.files = [];
     }
-    // `if installment_params[:send_preview_email]`: any value but nil and false sends one.
-    if (
-      email.send_preview_email !== undefined &&
-      email.send_preview_email !== null &&
-      email.send_preview_email !== false
-    )
-      return refuse("a preview email");
     return email;
   });
   return out;
@@ -225,11 +224,30 @@ function groupedMessages(errors: Errors): Record<string, string[]> {
   return grouped;
 }
 
+// `installment_params[:send_preview_email]` in the service: anything but nil and false.
+const previewRequested = (email: EmailParams) =>
+  email.send_preview_email !== undefined && email.send_preview_email !== null && email.send_preview_email !== false;
+
+// ActiveModel::Type::Boolean#cast, which the controller uses to pick its notice: "" and nil are nil, these are false.
+const FALSE_VALUES = [false, 0, "0", "f", "F", "false", "FALSE", "off", "OFF"];
+export const previewNoticeRequested = (params: SaveInstallmentsParams) =>
+  (params.installments ?? []).some((email) => {
+    const flag = email.send_preview_email;
+    return flag !== undefined && flag !== null && flag !== "" && !FALSE_VALUES.includes(flag);
+  });
+
+export type PreviewRecipient = { id: number | bigint; unconfirmed_email: string | null; confirmed_at: Date | null };
+
 export type SaveInstallmentsResult = { ok: true } | { ok: false; error: string; errors: Record<string, string[]> };
 
 // Workflow::SaveInstallmentsService#process
 export async function saveInstallments(
-  input: { seller: User; params: SaveInstallmentsParams; workflow: WorkflowModel },
+  input: {
+    seller: User;
+    params: SaveInstallmentsParams;
+    workflow: WorkflowModel;
+    previewRecipient: PreviewRecipient | null;
+  },
   options: { now?: () => Date } = {},
 ): Promise<SaveInstallmentsResult> {
   const { seller, params, workflow } = input;
@@ -240,6 +258,17 @@ export async function saveInstallments(
     return { ok: false, error, errors: { base: [error] } };
   }
 
+  const abandoned = workflow.get("workflow_type") === ABANDONED_CART_TYPE;
+  const recipient = input.previewRecipient;
+  // `has_unconfirmed_email?`
+  const recipientUnconfirmed = recipient !== null && (!!recipient.unconfirmed_email || recipient.confirmed_at === null);
+  if (emails.some(previewRequested)) {
+    if (recipient === null) refuse("a preview email with no recipient");
+    // A confirmed recipient of a regular workflow gets PostEmailApi.process, which Node does not run.
+    if (!abandoned && !recipientUnconfirmed) refuse("a preview email sent through PostEmailApi");
+  }
+
+  const previews: { recipientId: number; installmentId: number }[] = [];
   const failure: { value: SaveInstallmentsResult | null } = { value: null };
   try {
     await transaction(
@@ -253,7 +282,14 @@ export async function saveInstallments(
           };
           return false;
         }
-        if (workflow.get("workflow_type") === ABANDONED_CART_TYPE) refuse("an abandoned cart workflow");
+        if (abandoned && emails.length !== 1) {
+          failure.value = {
+            ok: false,
+            error: ABANDONED_CART_EMAIL_COUNT_MESSAGE,
+            errors: { base: [ABANDONED_CART_EMAIL_COUNT_MESSAGE] },
+          };
+          return false;
+        }
 
         if (workflow.get("first_published_at") === null) {
           const value = params.send_to_past_customers;
@@ -271,7 +307,8 @@ export async function saveInstallments(
           installment ??= Installments.build({ workflow_id: Number(workflow.get("id")) } as Partial<Installment>);
           installment.set("name", (email.name ?? null) as string);
           if (typeof email.message !== "string") refuse("an email whose message is not text");
-          const message = email.message as string;
+          let message = email.message as string;
+          if (abandoned && !message.includes("product-list-placeholder")) message += PRODUCT_LIST_PLACEHOLDER;
           // SaveContentUpsellsService#from_html
           for (const html of [installment.attributeWas("message"), message])
             if (html !== null && /upsell-card/iu.test(html))
@@ -284,6 +321,11 @@ export async function saveInstallments(
           await Installments.saveBang(installment, { now });
           await saveInstallmentFiles(installment, { installment: { files: [] } });
           await saveRule(installment, email, params.save_action_name, now);
+
+          if (previewRequested(email)) {
+            if (recipientUnconfirmed) throw new PreviewEmailError(PREVIEW_UNCONFIRMED_MESSAGE);
+            previews.push({ recipientId: Number(recipient!.id), installmentId: Number(installment.get("id")) });
+          }
         }
 
         if (params.save_action_name === SAVE_AND_PUBLISH_ACTION) await publishBang(workflow, { now });
@@ -304,5 +346,17 @@ export async function saveInstallments(
       return { ok: false, error: caught.message, errors: { base: [caught.message] } };
     throw caught;
   }
-  return failure.value ?? { ok: true };
+  if (failure.value) return failure.value;
+  // `deliver_later` inside the transaction; a later failure cannot follow it, since only an abandoned cart gets here and it saves one email.
+  for (const { recipientId, installmentId } of previews)
+    await deliverLater(
+      currentJobsRuntime(),
+      {
+        mailer: "CustomerMailer",
+        method: "abandoned_cart_preview",
+        args: [recipientId, installmentId],
+      },
+      mailRoute("CustomerMailer", "abandoned_cart_preview"),
+    );
+  return { ok: true };
 }
