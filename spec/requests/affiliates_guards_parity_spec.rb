@@ -178,7 +178,7 @@ describe "AffiliatesController guards", type: :request do
       send_json(:patch, affiliate_path(direct_affiliate.external_id), affiliate_body(email: ""))
 
       expect(response).to have_http_status(:see_other)
-      expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates/#{direct_affiliate.id}/edit")
+      expect(response.location).to eq("#{PROTOCOL}://#{DOMAIN}/affiliates/#{direct_affiliate.external_id}/edit")
     end
 
     it "refuses an edit that moves onto another affiliate's email", parity: true do

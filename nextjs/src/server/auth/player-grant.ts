@@ -8,6 +8,7 @@ import { NotPortedError } from "../models/user.ts";
 
 export const PLAYER_GRANT_PURPOSE = "product_build_player";
 export const PLAYER_SAVE_GRANT_PURPOSE = "product_build_player_save";
+export const PLAYER_HEARTBEAT_GRANT_PURPOSE = "product_build_player_heartbeat";
 
 const SALT = "product_build_player_grant";
 const KEY_ITERATIONS = 1000;

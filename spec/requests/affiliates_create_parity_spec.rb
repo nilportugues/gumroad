@@ -184,8 +184,8 @@ describe "Affiliates create", type: :request, parity_timeline: true, parity_mail
 
     send_create(body)
 
-    expect(response).to have_http_status(:found)
-    expect(response.location).to end_with(new_affiliate_path)
+    expect(response).to have_http_status(:see_other)
+    expect(response.location).to end_with(affiliates_path)
   end
 
   it "hands an affiliate whose earlier row has no product and still holds the account", parity: true do
