@@ -7,10 +7,10 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 | Measure | Done | Total | Share |
 | --- | ---: | ---: | ---: |
-| Routes served natively (counted, static check) | 959 | 1008 | 95.1% |
-| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 959 | 1008 | 95.1% |
-| Routes weighted by difficulty (counted routes, estimated weights) | 1809 | 1915 | 94.5% |
-| Same, registered in routes.json (upper bound) | 1809 | 1915 | 94.5% |
+| Routes served natively (counted, static check) | 960 | 1008 | 95.2% |
+| Routes registered in routes.json (counted; upper bound, adds the 0 listed under "hands back") | 960 | 1008 | 95.2% |
+| Routes weighted by difficulty (counted routes, estimated weights) | 1810 | 1915 | 94.5% |
+| Same, registered in routes.json (upper bound) | 1810 | 1915 | 94.5% |
 | Rails Inertia pages with Node props (counted, string match) | 114 | 115 | 99.1% |
 | Sidekiq job classes running in Node (counted) | 0 | 0 | n/a |
 
@@ -28,7 +28,7 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 
 - The route share counts endpoints, and an endpoint is one row whether it is a health check or a purchase. The weighted share corrects that only as far as my weights are right.
 - Neither number measures the code under the routes. A route is counted native as soon as Node serves its common path, while its hard branches (see "Known partial hand-backs") still go to Rails. The shares therefore overstate how much of the work is finished, most for checkout, payouts, and the mobile and MCP APIs.
-- Code volume cross-check (counted, not a completion measure): Node has 184,928 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
+- Code volume cross-check (counted, not a completion measure): Node has 185,052 non-test lines under `src/server` and `src/worker`; Rails has 199,286 lines in `app/{models,controllers,services,sidekiq,business,presenters}`. TypeScript is not the same size as Ruby, and Node also holds infrastructure Rails does not (the proxy, the Sidekiq bridge, the parity helpers).
 - 331 distinct rollout flags gate the routes in routes.json; none is enabled in production.
 
 ## By workstream
@@ -44,13 +44,13 @@ It inventories every route of `config/routes.rb` and `config/routes/admin.rb`, n
 | WS-14 Discover and search | 4 | 4 | 0 | 0 | 100.0% | 5 | 5 | 100.0% |
 | WS-15 Analytics and exports | 23 | 23 | 0 | 0 | 100.0% | 26 | 26 | 100.0% |
 | WS-16 Library and content delivery | 39 | 39 | 0 | 0 | 100.0% | 51 | 51 | 100.0% |
-| WS-17 Public and mobile API | 194 | 187 | 0 | 7 | 96.4% | 351 | 340 | 96.9% |
+| WS-17 Public and mobile API | 194 | 188 | 0 | 6 | 96.9% | 351 | 341 | 97.2% |
 | WS-18 Admin | 86 | 86 | 0 | 0 | 100.0% | 254 | 254 | 100.0% |
 | WS-19 AI, MCP and moderation | 43 | 35 | 0 | 8 | 81.4% | 129 | 105 | 81.4% |
 | WS-20 Checkout and orders | 73 | 62 | 0 | 11 | 84.9% | 228 | 191 | 83.8% |
 | WS-21 Payment processors | 8 | 8 | 0 | 0 | 100.0% | 32 | 32 | 100.0% |
 | WS-23 Balances and payouts | 25 | 25 | 0 | 0 | 100.0% | 74 | 74 | 100.0% |
-| **All** | 1008 | 959 | 0 | 49 | 95.1% | 1915 | 1809 | 94.5% |
+| **All** | 1008 | 960 | 0 | 48 | 95.2% | 1915 | 1810 | 94.5% |
 
 ## Sensitivity to the weights
 
@@ -58,16 +58,16 @@ The weights are the soft part of this inventory, so here is the headline under o
 
 | Scheme | Native weight | Total weight | Share |
 | --- | ---: | ---: | ---: |
-| Every route counts 1 (the plain route share) | 959 | 1008 | 95.1% |
-| Verb only: GET 1, other verbs 2 | 1396 | 1472 | 94.8% |
-| Rubric weights 1 to 4 (the headline) | 1809 | 1915 | 94.5% |
-| Rubric weights doubled per step: 1, 2, 4, 8 | 2124 | 2261 | 93.9% |
+| Every route counts 1 (the plain route share) | 960 | 1008 | 95.2% |
+| Verb only: GET 1, other verbs 2 | 1397 | 1472 | 94.9% |
+| Rubric weights 1 to 4 (the headline) | 1810 | 1915 | 94.5% |
+| Rubric weights doubled per step: 1, 2, 4, 8 | 2125 | 2261 | 94.0% |
 
 ## By weight
 
 | Weight | Routes | Native | Native % |
 | ---: | ---: | ---: | ---: |
-| 1 | 397 | 382 | 96.2% |
+| 1 | 397 | 383 | 96.5% |
 | 2 | 340 | 325 | 95.6% |
 | 3 | 246 | 231 | 93.9% |
 | 4 | 25 | 21 | 84.0% |
@@ -88,8 +88,8 @@ Sorted by remaining weight (weight of the routes not native), largest first.
 | `Oauth::AuthorizationsController` | WS-10 Settings and account | 15 | 11 | 0 | 4 | 1/2 (17) | 4 |
 | `Oauth::TokensController` | WS-10 Settings and account | 10 | 8 | 0 | 2 | 2 (20) | 4 |
 | `Settings::AdvancedController` | WS-10 Settings and account | 4 | 2 | 0 | 2 | 1/2 (7) | 4 |
-| `Api::V2::Partner::MigrationsController` | WS-17 Public and mobile API | 2 | 0 | 0 | 2 | 1/2 (3) | 3 |
 | `Stripe::SetupIntentsController` | WS-20 Checkout and orders | 1 | 0 | 0 | 1 | 3 (3) | 3 |
+| `Api::V2::Partner::MigrationsController` | WS-17 Public and mobile API | 2 | 1 | 0 | 1 | 1/2 (3) | 2 |
 | `Api::V2::Partner::SellersController` | WS-17 Public and mobile API | 1 | 0 | 0 | 1 | 2 (2) | 2 |
 | `ProductBuildDemosController` | WS-12 Products and bundles | 2 | 0 | 0 | 2 | 1 (2) | 2 |
 | `ProductBuildPlayerFilesController` | WS-12 Products and bundles | 3 | 2 | 0 | 1 | 1/2 (5) | 2 |
@@ -394,7 +394,7 @@ Copied by hand from workstreams.md, parity-debt.md and parity-tasks.md as of 202
 - WS-10 settings writes: a float or huge integer in a snippet `id` hands back; password, team invitations (the Gumroad account's team and mailboxes only Mail can parse), passkey registration, login/signup POSTs and OAuth callbacks are only partly ported (see the not registered rows). The authenticator app endpoints run whole in Node. Sign in with Apple creates and links accounts in Node except for guest purchases to attach and adopting an unconfirmed account; the Google and Twitter callbacks run in Node (Google from the code exchange to the sign-in, with its own guest-purchase attach and picture), the YouTube, Instagram and TikTok connect callbacks run in Node whatever code, redirect URI or XHR header they carry, a new passkey registers in Node when its attestation is the `none` format with an ES256 key, and the Stripe Connect callback that creates or links accounts still hands back.
 - WS-19 MCP: the tool bodies other than `get_account`, `list_payouts`, `get_customers`, `get_sales_totals`, `list_sales`, `list_products`, `get_product`, `list_files`, `get_analytics`, `get_subscriptions`, `publish_product`/`unpublish_product`, `create_draft_product` (digital drafts), `update_product` (name, description, price, permalink), `create_discount_code` and `update_discount_code` and `expire_discount_code` (plain codes) hand back, so do `add_cover`, `add_file`, the bundle tools, memberships in `create_draft_product` and `ProductFileIngest`; the moderation logic exists but is wired to no route.
 - WS-13 receipt mailer: the first receipt of a membership and of its free trial (a dollar product that renews at the same price) is served; renewal receipts, fixed-length, installment-plan and gifted memberships, a renewal that costs more or less than the first charge, and a gift receiver with a price, a hidden recipient or a physical product hand back; posts and workflow emails with files that have thumbnails throw `NotPortedError`.
-- WS-15 purchases export (`nextjs_purchases_export`, `GET|POST /purchases/export`): signed-out requests, the mobile `access_token` form, an `in_seller_time_zone` that is not a plain word or a seller zone ActiveSupport does not map, `variant_ids`, dates that are not `YYYY-MM-DD` and any result holding a sale with several variants, a variant of a tiered membership or of a licensed product, a gift, pre-order, subscription charge, cart, buyer-currency or PayPal charge, a seller's own Stripe Connect account, a GeoIP-derived state or country, a non-ASCII address or a product with several custom fields hand back whole. Plain sales and sales with one variant or SKU, tax, an affiliate, a tip, a review, a license key, a UTM link or an upsell run in Node.
+- WS-15 purchases export (`nextjs_purchases_export`, `GET|POST /purchases/export`): signed-out POSTs, the mobile `access_token` form, an `in_seller_time_zone` that is not a plain word or a seller zone ActiveSupport does not map, dates that are not `YYYY-MM-DD` (with an optional time of day) and any result holding a sale Rails reads in an unspecified order or raises on hand back whole: several variants, gifts, tips, licenses or UTM links on one sale, a product with several custom fields, a sale in several orders, a tier with two live buy prices for one recurrence, a subscription with two live original purchases, a licensed product's variant, a gift receiver in the export or on another subscription than the sender's, a custom field Ruby escapes in its inspect, and the sales Rails raises a NoMethodError on (a missing subscription row or payment option, a SKU of a tiered membership). Everything else runs in Node: variants, SKUs, tax, affiliates, tips, reviews, licenses, UTM links, upsells, gifts, pre-orders, carts, PayPal, Connect and buyer-currency sales, GeoIP states and countries, subscription charges and installment plans.
 - WS-12 `GET /bundles/create_from_email` (`nextjs_bundles_create_from_email`): the policy refusal, a bundle type the marketing email never sends and a price under the currency minimum answer in Node; creating the bundle (Link, Price and bundle product rows) and a link with no whole-number price hand back.
 - WS-11 third-party analytics host: `GET /profile/:username` (`nextjs_third_party_analytics_profile`) and `GET /:link_id` (`nextjs_third_party_analytics_index`; a request with a `purchase_id` stays in Rails) run in Node. `GET /users/confirmation/new` (Devise's view inside the application layout) and `GET /_/test/outgoing_traffic` (a probe that reads one S3 object to prove the Rails process has outbound traffic) stay in Rails.
 - WS-30 jobs: most Node jobs hand individual runs back to Ruby, so the job count above is an upper bound on finished jobs.
