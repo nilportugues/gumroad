@@ -68,6 +68,7 @@ import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconn
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
 import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
+import { createAndEnqueueChunksWorker } from "./exports-sales-create-and-enqueue-chunks-worker.ts";
 import { finalizeBuyerPresentmentPurchaseJob } from "./finalize-buyer-presentment-purchase-job.ts";
 import {
   emailOutstandingBalancesCsvWorker,
@@ -122,9 +123,12 @@ import {
 import { logResendEventJob } from "./log-resend-event-job.ts";
 import { logSendgridEventWorker } from "./log-sendgrid-event-worker.ts";
 import { massRefundForFraudJob } from "./mass-refund-for-fraud-job.ts";
+import { mcpDeleteExpiredEventSubscriptionsJob } from "./mcp-delete-expired-event-subscriptions-job.ts";
+import { mcpDeliverEventJob } from "./mcp-deliver-event-job.ts";
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
+import { partnerMigrationNotificationJob } from "./partner-migration-notification-job.ts";
 import {
   executeScheduledPayoutsJob,
   failAbandonedPurchaseWorker,
@@ -169,6 +173,7 @@ import {
   syncStuckPurchasesJob,
   updatePurchaseHealthcheckThresholdJob,
 } from "./purchase-reads-jobs.ts";
+import { purchaseRefundRequestsEscalateOverdueJob } from "./purchase-refund-requests-escalate-overdue-job.ts";
 import { purgeOldDeletedAssetPreviewsWorker } from "./purge-old-deleted-asset-previews-worker.ts";
 import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
@@ -178,6 +183,7 @@ import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-ref
 import { recordOrderChargeOutcomeJob } from "./record-order-charge-outcome-job.ts";
 import { recordProductFileMissingFromStorageJob } from "./record-product-file-missing-from-storage-job.ts";
 import { recordSocialScoreShadowEvaluationsJob } from "./record-social-score-shadow-evaluations-job.ts";
+import { recordUtmLinkVisitJob } from "./record-utm-link-visit-job.ts";
 import { recoverAusBacktaxFromStripeAccountJob } from "./recover-aus-backtax-from-stripe-account-job.ts";
 import { recoverStrandedBuyersJobWith } from "./recover-stranded-buyers-job.ts";
 import {
@@ -246,6 +252,7 @@ import {
 } from "./search-reindex-jobs.ts";
 import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
+import { sendBundlesMarketingEmailJob } from "./send-bundles-marketing-email-job.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
@@ -259,6 +266,7 @@ import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
 import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
 import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
+import { sendWorkflowEmailToOpenedNonClickerJob } from "./send-workflow-email-to-opened-non-clicker-job.ts";
 import { sendWorkflowEmailsToPastCanceledMembersJob } from "./send-workflow-emails-to-past-canceled-members-job.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
 import {
@@ -486,6 +494,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PayoutUsersWorker: payoutUsersWorker,
   DeleteWishlistProductsJob: deleteWishlistProductsJob,
   DeleteExpiredOauthDeviceAuthorizationsJob: deleteExpiredOauthDeviceAuthorizationsJob,
+  "Mcp::DeleteExpiredEventSubscriptionsJob": mcpDeleteExpiredEventSubscriptionsJob,
   FlushDeliveredEmailInfosJob: flushDeliveredEmailInfosJob,
   DeleteProductFilesArchivesWorker: deleteProductFilesArchivesWorker,
   PurgeOldDeletedAssetPreviewsWorker: purgeOldDeletedAssetPreviewsWorker,
@@ -581,9 +590,16 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DispatchPendingPartnerMigrationNotificationsJob: dispatchPendingPartnerMigrationNotificationsJob,
   DispatchProductPublishSchedulesJob: dispatchProductPublishSchedulesJob,
   PublishScheduledProductJob: publishScheduledProductJob,
+  PartnerMigrationNotificationJob: partnerMigrationNotificationJob,
   ResumeStalledPartnerMigrationsJob: resumeStalledPartnerMigrationsJob,
+  SendWorkflowEmailToOpenedNonClickerJob: sendWorkflowEmailToOpenedNonClickerJob,
   ScheduleOpenedNoClickWorkflowEmailsJob: scheduleOpenedNoClickWorkflowEmailsJob,
   SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
+  "PurchaseRefundRequests::EscalateOverdueJob": purchaseRefundRequestsEscalateOverdueJob,
+  RecordUtmLinkVisitJob: recordUtmLinkVisitJob,
+  "Mcp::DeliverEventJob": mcpDeliverEventJob,
+  "Exports::Sales::CreateAndEnqueueChunksWorker": createAndEnqueueChunksWorker,
+  SendBundlesMarketingEmailJob: sendBundlesMarketingEmailJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
