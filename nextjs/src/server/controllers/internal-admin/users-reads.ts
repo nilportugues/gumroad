@@ -6,8 +6,17 @@ import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { isBlank as rubyBlank } from "../../models/compliance-countries.ts";
 import { selectRows } from "../../models/sql.ts";
 import { isStrongboxBlank } from "../../models/strongbox.ts";
+import {
+  aliveUserComplianceInfoRow,
+  businessCountryCode,
+  countryCode,
+  decryptedTaxId,
+  isBusiness,
+  jsonAttr,
+  legalEntityName,
+} from "../../models/user-compliance-info.ts";
 import { NotPortedError } from "../../models/user.ts";
-import { aliveUserComplianceInfoRow, businessCountryCode, countryCode, decryptedTaxId, isBusiness, jsonAttr, legalEntityName } from "../../models/user-compliance-info.ts";
+
 import { failure, jsonRendered, paramToS, timeJson } from "./base.ts";
 import { paginateWithCursor } from "./cursor.ts";
 import { defineAdminRoute } from "./registry.ts";
@@ -34,7 +43,14 @@ type AffiliateRow = {
   created_at_iso: string;
 };
 
-type CounterpartyUser = { id: bigint; external_id: string | null; email: string | null; unconfirmed_email: string | null; name: string | null; username: string | null };
+type CounterpartyUser = {
+  id: bigint;
+  external_id: string | null;
+  email: string | null;
+  unconfirmed_email: string | null;
+  name: string | null;
+  username: string | null;
+};
 
 const presence = (value: string | null): string | null => (value === null || rubyBlank(value) ? null : value);
 
@@ -43,14 +59,32 @@ export function counterparty(user: CounterpartyUser | undefined) {
   if (user === undefined) return null;
   const formEmail = presence(user.unconfirmed_email) ?? presence(user.email);
   const username = presence(user.username) ?? user.external_id;
-  const displayName = presence(user.name) ?? (username === user.external_id ? (formEmail ?? presence(username)) : (presence(username) ?? formEmail));
+  const displayName =
+    presence(user.name) ??
+    (username === user.external_id ? (formEmail ?? presence(username)) : (presence(username) ?? formEmail));
   return { id: user.external_id, email: user.email, name: displayName };
 }
 
-function addressOf(street: string | null, city: string | null, state: string | null, zip: string | null, country: string | null, code: string | null) {
-  // Compliance::Countries.find_subdivision_code reads the countries gem's subdivision tables, which Node does not carry.
-  if (state !== null && state !== "") throw new NotPortedError("a compliance address with a state", SOURCE);
-  return { street_address: street, city, state, state_code: null, zip_code: zip, country, country_code: code };
+// Compliance::Countries.find_subdivision_code reads the countries gem's subdivision tables, which Node does not carry. Only the
+// recorded outcomes are served: California in the US is CA, and in any other country no subdivision carries that name.
+function subdivisionCode(state: string, code: string | null): string | null {
+  if (state.toLowerCase() !== "california") throw new NotPortedError("a compliance address with a state", SOURCE);
+  if (code === "US") return "CA";
+  if (code === null || code === "MX" || code === "CA")
+    throw new NotPortedError("a compliance address with a state", SOURCE);
+  return null;
+}
+
+export function addressOf(
+  street: string | null,
+  city: string | null,
+  state: string | null,
+  zip: string | null,
+  country: string | null,
+  code: string | null,
+) {
+  const stateCode = state === null ? null : state === "" ? null : subdivisionCode(state, code);
+  return { street_address: street, city, state, state_code: stateCode, zip_code: zip, country, country_code: code };
 }
 
 // `decrypt(...).to_s[-4..]`: unlike the settings page, whitespace stays, and fewer than four characters is nil.
@@ -66,7 +100,8 @@ export function lastEmailSentAt(jsonData: string | null): string | null {
   const sent = (JSON.parse(jsonData) as Record<string, unknown>).emails_sent_at;
   if (sent === undefined || sent === null || (Array.isArray(sent) && sent.length === 0)) return null;
   const last: unknown = Array.isArray(sent) ? sent.at(-1) : undefined;
-  if (typeof last !== "string" || !ISO_TIME.test(last)) throw new NotPortedError("an emails_sent_at entry that is not an ISO 8601 string", SOURCE);
+  if (typeof last !== "string" || !ISO_TIME.test(last))
+    throw new NotPortedError("an emails_sent_at entry that is not an ISO 8601 string", SOURCE);
   return timeJson(new Date(last));
 }
 
@@ -100,17 +135,34 @@ defineAdminRoute(
         "affiliates",
         Prisma.sql`${owner} = ${user.id} AND \`affiliates\`.\`type\` IN (${Prisma.join(AFFILIATE_TYPES)})`,
         admin.params,
-        Prisma.raw("`affiliates`.`id`, `affiliates`.`type`, `affiliates`.`seller_id`, `affiliates`.`affiliate_user_id`, `affiliates`.`affiliate_basis_points`, `affiliates`.`destination_url`, `affiliates`.`flags`, `affiliates`.`deleted_at`, `affiliates`.`created_at`"),
+        Prisma.raw(
+          "`affiliates`.`id`, `affiliates`.`type`, `affiliates`.`seller_id`, `affiliates`.`affiliate_user_id`, `affiliates`.`affiliate_basis_points`, `affiliates`.`destination_url`, `affiliates`.`flags`, `affiliates`.`deleted_at`, `affiliates`.`created_at`",
+        ),
       );
       if ("invalid" in page) return page.invalid;
 
       const counterpartyOf = (row: AffiliateRow) => (granted ? row.affiliate_user_id : row.seller_id);
       const counterpartyIds = [...new Set(page.rows.map(counterpartyOf).filter((id): id is number => id !== null))];
-      const users = counterpartyIds.length === 0 ? [] : await db.user.findMany({ where: { id: { in: counterpartyIds.map(BigInt) } }, select: { id: true, external_id: true, email: true, unconfirmed_email: true, name: true, username: true } });
+      const users =
+        counterpartyIds.length === 0
+          ? []
+          : await db.user.findMany({
+              where: { id: { in: counterpartyIds.map(BigInt) } },
+              select: { id: true, external_id: true, email: true, unconfirmed_email: true, name: true, username: true },
+            });
       const usersById = new Map(users.map((row) => [Number(row.id), row]));
-      const links = page.rows.length === 0 ? [] : await db.productAffiliate.findMany({ where: { affiliate_id: { in: page.rows.map((row) => row.id) } }, orderBy: { id: "asc" } });
+      const links =
+        page.rows.length === 0
+          ? []
+          : await db.productAffiliate.findMany({
+              where: { affiliate_id: { in: page.rows.map((row) => row.id) } },
+              orderBy: { id: "asc" },
+            });
       const productIds = [...new Set(links.map((link) => link.link_id).filter((id): id is number => id !== null))];
-      const products = productIds.length === 0 ? [] : await db.link.findMany({ where: { id: { in: productIds.map(BigInt) } }, select: { id: true, name: true } });
+      const products =
+        productIds.length === 0
+          ? []
+          : await db.link.findMany({ where: { id: { in: productIds.map(BigInt) } }, select: { id: true, name: true } });
       const productsById = new Map(products.map((product) => [Number(product.id), product]));
 
       const affiliates = page.rows.map((row) => ({
@@ -167,8 +219,20 @@ defineAdminRoute(
               business_type: row.business_type,
               business_phone: jsonAttr(row, "business_phone"),
               business_vat_id_number: jsonAttr(row, "business_vat_id_number"),
-              business_address: business ? addressOf(row.business_street_address, row.business_city, row.business_state, row.business_zip_code, row.business_country, businessCountryCode(row)) : null,
-              tax_ids: { individual_last_four: taxIdLastFour(row.individual_tax_id), business_last_four: taxIdLastFour(row.business_tax_id) },
+              business_address: business
+                ? addressOf(
+                    row.business_street_address,
+                    row.business_city,
+                    row.business_state,
+                    row.business_zip_code,
+                    row.business_country,
+                    businessCountryCode(row),
+                  )
+                : null,
+              tax_ids: {
+                individual_last_four: taxIdLastFour(row.individual_tax_id),
+                business_last_four: taxIdLastFour(row.business_tax_id),
+              },
               identity_documents: {
                 stripe_identity_document_id: row.stripe_identity_document_id,
                 stripe_company_document_id: jsonAttr(row, "stripe_company_document_id"),
@@ -177,7 +241,16 @@ defineAdminRoute(
               created_at: timeJson(row.created_at),
               updated_at: timeJson(row.updated_at),
             };
-      const requests = await db.$queryRaw<{ id: number; field_needed: string | null; state: string | null; due_at: Date | null; created_at: Date; json_data: string | null }[]>`SELECT id, field_needed, state, due_at, created_at, json_data FROM user_compliance_info_requests WHERE user_id = ${user.id} AND state = 'requested' ORDER BY ISNULL(due_at), due_at ASC, created_at ASC`;
+      const requests = await db.$queryRaw<
+        {
+          id: number;
+          field_needed: string | null;
+          state: string | null;
+          due_at: Date | null;
+          created_at: Date;
+          json_data: string | null;
+        }[]
+      >`SELECT id, field_needed, state, due_at, created_at, json_data FROM user_compliance_info_requests WHERE user_id = ${user.id} AND state = 'requested' ORDER BY ISNULL(due_at), due_at ASC, created_at ASC`;
       const now = Date.now();
       const infoRequests = requests.map((request) => ({
         id: encrypt(request.id),

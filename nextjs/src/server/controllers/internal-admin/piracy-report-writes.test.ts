@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NotPortedError } from "../../models/user.ts";
+
 import type { AdminRequest } from "./base.ts";
 import { descriptionFact } from "./piracy-report-detail.ts";
 import { normalizeUrl, parseHttpUrl, parseIsoDate, screeningInput } from "./piracy-report-writes.ts";
@@ -13,21 +14,36 @@ const allChecks = { page_offers_work: passed, not_other_authorized_use: passed, 
 
 describe("parseHttpUrl", () => {
   it("reads the host, port, path and query of an http URL", () => {
-    expect(parseHttpUrl("https://Example.net:8443/a/b?x=1#frag")).toEqual({ scheme: "https", host: "Example.net", port: 8443, path: "/a/b", query: "x=1" });
+    expect(parseHttpUrl("https://Example.net:8443/a/b?x=1#frag")).toEqual({
+      scheme: "https",
+      host: "Example.net",
+      port: 8443,
+      path: "/a/b",
+      query: "x=1",
+    });
   });
 
   it("answers null for text that is not an http URL under any reading", () => {
-    for (const text of ["", "example.net", "ftp://example.net/x", "not a url", "//example.net/x"]) expect(parseHttpUrl(text)).toBeNull();
+    for (const text of ["", "example.net", "ftp://example.net/x", "not a url", "//example.net/x"])
+      expect(parseHttpUrl(text)).toBeNull();
   });
 
   it("hands back a URL that starts like one but falls outside the pattern", () => {
-    for (const text of ["http://user@example.net/", "http://[::1]/", "http://example.net/a b", "http://example.net/100%"]) expect(() => parseHttpUrl(text)).toThrow(NotPortedError);
+    for (const text of [
+      "http://user@example.net/",
+      "http://[::1]/",
+      "http://example.net/a b",
+      "http://example.net/100%",
+    ])
+      expect(() => parseHttpUrl(text)).toThrow(NotPortedError);
   });
 });
 
 describe("normalizeUrl", () => {
   it("makes two spellings of the same page collide", () => {
-    expect(normalized("HTTP://www.Example.net/course/?b=2&a=1#top")).toBe(normalized("https://example.net/course?a=1&b=2"));
+    expect(normalized("HTTP://www.Example.net/course/?b=2&a=1#top")).toBe(
+      normalized("https://example.net/course?a=1&b=2"),
+    );
     expect(normalized("https://example.net")).toBe("example.net/");
   });
 
@@ -62,20 +78,34 @@ describe("descriptionFact", () => {
     expect(result.endsWith("...")).toBe(true);
   });
 
+  it("writes an escaped ampersand back unchanged", () => {
+    expect(descriptionFact("<p>Fish &amp; chips</p>")).toBe("Fish &amp; chips");
+  });
+
   it("hands back markup and entities the sanitizer treats specially", () => {
-    for (const text of ["<script>x</script>", "Fish &amp; chips", "1 < 2"]) expect(() => descriptionFact(text)).toThrow(NotPortedError);
+    for (const text of ["<script>x</script>", "Fish &lt; chips", "Fish & chips", "1 < 2"])
+      expect(() => descriptionFact(text)).toThrow(NotPortedError);
   });
 });
 
 describe("screeningInput", () => {
   it("accepts a fail verdict with one failed check", () => {
-    const result = input({ verdict: "fail", checks: { page_offers_work: { passed: false, reason: " Different course. " } } });
+    const result = input({
+      verdict: "fail",
+      checks: { page_offers_work: { passed: false, reason: " Different course. " } },
+    });
     expect(result.errors).toEqual([]);
     expect(result.checks).toEqual({ page_offers_work: { passed: false, reason: "Different course." } });
   });
 
   it("reads the string forms of booleans and nothing else", () => {
-    const result = input({ verdict: "review", checks: { page_offers_work: { passed: "true", reason: "r" }, not_other_authorized_use: { passed: "maybe", reason: "r" } } });
+    const result = input({
+      verdict: "review",
+      checks: {
+        page_offers_work: { passed: "true", reason: "r" },
+        not_other_authorized_use: { passed: "maybe", reason: "r" },
+      },
+    });
     expect(result.errors).toEqual(["check not_other_authorized_use passed must be true or false"]);
   });
 
@@ -96,8 +126,17 @@ describe("screeningInput", () => {
   });
 
   it("needs a reason within the limit on each check", () => {
-    const errors = input({ verdict: "review", checks: { page_offers_work: { passed: true, reason: "  " }, not_other_authorized_use: { passed: true, reason: "x".repeat(281) } } }).errors;
-    expect(errors).toEqual(["check page_offers_work needs a reason", "check not_other_authorized_use reason is too long"]);
+    const errors = input({
+      verdict: "review",
+      checks: {
+        page_offers_work: { passed: true, reason: "  " },
+        not_other_authorized_use: { passed: true, reason: "x".repeat(281) },
+      },
+    }).errors;
+    expect(errors).toEqual([
+      "check page_offers_work needs a reason",
+      "check not_other_authorized_use reason is too long",
+    ]);
   });
 });
 
@@ -105,6 +144,7 @@ describe("piracy report routes", () => {
   it("serves the show, create and the four transitions", () => {
     expect(findAdminRoute("GET", "/internal/admin/piracy_reports/abc_-1")).not.toBeNull();
     expect(findAdminRoute("POST", "/api/internal/admin/piracy_reports")).not.toBeNull();
-    for (const action of ["start_screening", "screen", "counter_notice", "resolve"]) expect(findAdminRoute("POST", `/internal/admin/piracy_reports/abc/${action}`)).not.toBeNull();
+    for (const action of ["start_screening", "screen", "counter_notice", "resolve"])
+      expect(findAdminRoute("POST", `/internal/admin/piracy_reports/abc/${action}`)).not.toBeNull();
   });
 });
