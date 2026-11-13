@@ -253,6 +253,9 @@ import {
 import { sellerUpdateWorker } from "./seller-update-worker.ts";
 import { sellerUpdatesWorker } from "./seller-updates-worker.ts";
 import { sendBundlesMarketingEmailJob } from "./send-bundles-marketing-email-job.ts";
+import { generateAvatarVariantJob } from "./generate-avatar-variant-job.ts";
+import { alertOnStaleBlocksHoldingEstablishedBuyersJob } from "./alert-on-stale-blocks-holding-established-buyers-job.ts";
+import { alertSellersOfUndeliveredReceiptsJob } from "./alert-sellers-of-undelivered-receipts-job.ts";
 import { sendCommunityChatRecapNotificationsJob } from "./send-community-chat-recap-notifications-job.ts";
 import { sendFeatureAnnouncementCampaignJob } from "./send-feature-announcement-campaign-job.ts";
 import { sendLastPostJob } from "./send-last-post-job.ts";
@@ -600,6 +603,9 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Mcp::DeliverEventJob": mcpDeliverEventJob,
   "Exports::Sales::CreateAndEnqueueChunksWorker": createAndEnqueueChunksWorker,
   SendBundlesMarketingEmailJob: sendBundlesMarketingEmailJob,
+  GenerateAvatarVariantJob: generateAvatarVariantJob,
+  AlertOnStaleBlocksHoldingEstablishedBuyersJob: alertOnStaleBlocksHoldingEstablishedBuyersJob,
+  AlertSellersOfUndeliveredReceiptsJob: alertSellersOfUndeliveredReceiptsJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.

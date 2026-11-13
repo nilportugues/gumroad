@@ -1,0 +1,2390 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no receipts and a cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '5') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "5",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no receipts and a cursor of zero",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no receipts and no cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a stored cursor that is not a number",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "abc",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a stored cursor that is empty and no receipts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a stored cursor of only spaces and no receipts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "  ",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a stored cursor with leading spaces",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '7') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '7') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                9,
+                9,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "7",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "  7",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a stored cursor with trailing text",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                3,
+                3,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2x",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt sent a day ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt sent two days and a second ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-02T12:30:44.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a receipt sent two days ago to the second",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-02T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a receipt sent two days less a second ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-02T12:30:46.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt sent a second from now",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-04T12:30:46.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt that was never sent",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a bounced receipt that was never stamped",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "bounced",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a bounced receipt sent three days ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "bounced",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a receipt sent three days ago",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a delivered receipt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an opened receipt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt in a created state",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt with no state",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt of another email name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt with no email name",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email info of another type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an email info with no type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt at the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '1') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt before the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '4') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "4",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "4",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt after the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '1') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '1') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                "sent",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a young receipt after settled ones at the cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                3,
+                3,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a young receipt first, an old one after",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                "sent",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an old receipt first, a young one after",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an unsent receipt first, an old one after",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                "sent",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "two young receipts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ],
+              [
+                2,
+                2,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a delivered receipt before a young one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a receipt with no purchase",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "sent",
+                {
+                  "$time": "2026-11-01T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a young receipt with no purchase",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `email_infos`.`id`, `email_infos`.`purchase_id`, `email_infos`.`state`, `email_infos`.`sent_at`, `email_infos`.`delivered_at`, `email_infos`.`opened_at` FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '0') ORDER BY `email_infos`.`id` ASC LIMIT 5000",
+          "result": {
+            "fields": [
+              "id",
+              "purchase_id",
+              "state",
+              "sent_at",
+              "delivered_at",
+              "opened_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "sent",
+                {
+                  "$time": "2026-11-03T12:30:45.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a retry set and no receipts",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "3",
+          "expires": false
+        },
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11"
+          ],
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a retry set and a young receipt",
+      "error": null,
+      "statements": [],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        },
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11",
+            "12"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "0",
+          "expires": false
+        },
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11",
+            "12"
+          ],
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a retry set and no cursor on an empty table",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11"
+          ],
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "a retry set and a receipt a month old and no cursor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11"
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {
+        "undelivered_receipt_sweep:pending_retry": {
+          "type": "set",
+          "value": [
+            "11"
+          ],
+          "expires": false
+        }
+      },
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "no cursor and only receipts a month old",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no cursor and only receipts without a send time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no cursor and a receipt a week old",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "no cursor and a receipt inside the lookback",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "no cursor and a receipt just past the skew bound",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '1') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no cursor and a receipt at the skew bound",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '1') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "1",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "no cursor and a receipt of another email name inside the lookback",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "no cursor and one recent receipt",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "no cursor and a recent receipt that was never sent",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `email_infos`.`id` FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id"
+            ],
+            "rows": [
+              [
+                2
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM (SELECT `email_infos`.* FROM `email_infos` ORDER BY `email_infos`.`id` DESC LIMIT 1000) email_infos WHERE (email_infos.sent_at >= '2026-10-28 11:30:45.123000') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `email_infos` WHERE `email_infos`.`type` = 'CustomerEmailInfo' AND `email_infos`.`email_name` = 'receipt' AND `email_infos`.`state` IN ('sent', 'bounced') AND (email_infos.id > '2') LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {
+        "undelivered_receipt_sweep:cursor": {
+          "type": "string",
+          "value": "2",
+          "expires": false
+        }
+      },
+      "cache": [],
+      "redis_before": {},
+      "job": "AlertSellersOfUndeliveredReceiptsJob",
+      "args": [],
+      "hands_back": false
+    }
+  ]
+}
