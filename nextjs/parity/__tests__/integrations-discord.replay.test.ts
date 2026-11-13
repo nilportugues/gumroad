@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
@@ -9,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { loadFixture } from "../src/fixture";
+import { loadFixture, type CapturedHttp } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
@@ -66,6 +67,9 @@ describe.skipIf(!url)("integrations discord", () => {
   let redis: Redis;
   let server: NextServer;
   let rails: Server;
+  let standIn: Server;
+  const recorded: CapturedHttp[] = [];
+  const received: { method: string; url: string; body: string }[] = [];
   const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
@@ -90,12 +94,34 @@ describe.skipIf(!url)("integrations discord", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    // Answers the Discord calls the recording saw, in order; the calls Node makes are compared with them below.
+    standIn = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        received.push({
+          method: request.method ?? "",
+          url: String(request.headers["x-parity-original-url"] ?? request.url),
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        const answer = recorded.shift()?.response;
+        if (answer === undefined) return void response.writeHead(599).end("parity: no recorded answer left");
+        response.writeHead(answer.status ?? 200, answer.contentType ? { "content-type": answer.contentType } : {});
+        response.end(answer.body ?? "");
+      });
+    });
+    await new Promise<void>((resolve) => standIn.listen(0, "127.0.0.1", resolve));
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      OUTBOUND_HTTP_STAND_IN: `http://127.0.0.1:${(standIn.address() as AddressInfo).port}`,
+      // What the recording ran with (the test environment has no client id or secret).
+      DISCORD_CLIENT_ID: "parity-discord-client",
+      DISCORD_CLIENT_SECRET: "parity-discord-secret",
+      ...(testEnv("DISCORD_BOT_TOKEN") ? { DISCORD_BOT_TOKEN: testEnv("DISCORD_BOT_TOKEN")! } : {}),
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
       REDIS_HOST: redisHost,
@@ -112,6 +138,7 @@ describe.skipIf(!url)("integrations discord", () => {
   afterAll(async () => {
     await server?.stop();
     await new Promise((resolve) => rails?.close(resolve));
+    await new Promise((resolve) => standIn?.close(resolve));
     await closeAllRedis();
     await redis?.quit();
     await client?.$disconnect();
@@ -154,6 +181,8 @@ describe.skipIf(!url)("integrations discord", () => {
     async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
+        recorded.splice(0, recorded.length, ...fixture.exchanges[index]!.http);
+        received.length = 0;
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options(fixture));
@@ -165,12 +194,17 @@ describe.skipIf(!url)("integrations discord", () => {
           );
           if (request.body) expect(handedBack[0]!.body).toBe(request.body);
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          expect(received).toEqual([]);
           return;
         }
         const result = await replayFixtureExchange(fixture, index, options(fixture));
         assertParity(result);
         const { expected, actual } = result.exchanges[0]!;
         expect(withoutNextVary(actual.response.headers.vary)).toBe(expected.response.headers.vary);
+        // The port made the Discord calls Rails made: the same method, URL and body, in the same order.
+        expect(received).toEqual(
+          fixture.exchanges[index]!.http.map((call) => ({ method: call.method, url: call.url, body: call.body ?? "" })),
+        );
       } catch (error) {
         const logs = server
           .output()
