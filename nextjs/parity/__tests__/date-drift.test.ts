@@ -49,9 +49,9 @@ describe("shiftLiteralInstants", () => {
 
   it("keeps the offset and the fraction the request wrote", () => {
     const now = new Date("2026-11-13T17:41:00Z");
-    expect(shiftLiteralInstants('{"a":"2099-02-01T08:00:00+02:00","b":"2099-02-01T08:00:00.5Z"}', recordedAt, now)).toBe(
-      '{"a":"2099-02-01T16:00:00+02:00","b":"2099-02-01T16:00:00.5Z"}',
-    );
+    expect(
+      shiftLiteralInstants('{"a":"2099-02-01T08:00:00+02:00","b":"2099-02-01T08:00:00.5Z"}', recordedAt, now),
+    ).toBe('{"a":"2099-02-01T16:00:00+02:00","b":"2099-02-01T16:00:00.5Z"}');
   });
 
   it("leaves a body without an instant alone", () => {

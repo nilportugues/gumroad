@@ -188,7 +188,9 @@ export function shiftLiteralInstants(body: string, recordedAt: Date, now: Date):
   const hours = Math.ceil((now.getTime() - recordedAt.getTime()) / HOUR_MS - 0.5);
   return body.replace(INSTANT, (_match, local: string, zone: string) => {
     const offsetMs =
-      zone === "Z" ? 0 : (zone.startsWith("-") ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4))) * 60_000;
+      zone === "Z"
+        ? 0
+        : (zone.startsWith("-") ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4))) * 60_000;
     const shifted = new Date(Date.parse(`${local}${zone}`) + hours * HOUR_MS + offsetMs);
     const fraction = /\.\d+$/u.exec(local)?.[0] ?? "";
     return `${shifted.toISOString().slice(0, 19)}${fraction}${zone}`;

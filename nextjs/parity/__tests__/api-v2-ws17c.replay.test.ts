@@ -12,6 +12,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
 import { compareExchange } from "../src/compare";
+import { shiftLiteralInstants } from "../src/date-drift";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { bulkIndex, recreateIndex, reindexPurchases, replayIndexName, seededDocuments } from "../src/elasticsearch";
 import { loadFixture, type CapturedExchange, type Exchange } from "../src/fixture";
@@ -20,7 +21,6 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { fillFirstThrottle, rackAttackCounters } from "../src/rack-attack";
 import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
-import { shiftLiteralInstants } from "../src/date-drift";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the WS-17c request specs (spec/requests/api/v2/*_parity_spec.rb): API v2 users, pages, help articles, UTM links, emails, workflows,
