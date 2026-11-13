@@ -925,7 +925,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   DispatchPendingWorkflowInstallmentScheduleIntentsJob: {
     file: "app/sidekiq/dispatch_pending_workflow_installment_schedule_intents_job.rb",
@@ -955,7 +955,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: false,
     recurringLockMaxAttempt: 600,
-    runtime: "ruby",
+    runtime: "node",
   },
   DisputeEvidenceDueSoonReminderJob: {
     file: "app/sidekiq/dispute_evidence_due_soon_reminder_job.rb",
@@ -2044,7 +2044,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "PurchaseRefundRequests::EscalateOverdueJob": {
     file: "app/sidekiq/purchase_refund_requests/escalate_overdue_job.rb",
@@ -2784,7 +2784,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RetryFailedPaypalPayoutsWorker: {
     file: "app/sidekiq/retry_failed_paypal_payouts_worker.rb",
@@ -2940,7 +2940,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   ScheduleWorkflowEmailsWorker: {
     file: "app/sidekiq/schedule_workflow_emails_worker.rb",
@@ -3216,7 +3216,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendPurchaseReceiptJob: {
     file: "app/sidekiq/send_purchase_receipt_job.rb",

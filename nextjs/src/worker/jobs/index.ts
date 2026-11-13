@@ -57,6 +57,8 @@ import { deleteUnusedPublicFilesJob } from "./delete-unused-public-files-job.ts"
 import { deleteWishlistProductsJob } from "./delete-wishlist-products-job.ts";
 import { deliverFilesReadyNotificationJob } from "./deliver-files-ready-notification-job.ts";
 import { detectFailingPaypalRailsJob } from "./detect-failing-paypal-rails-job.ts";
+import { dispatchPendingPartnerMigrationNotificationsJob } from "./dispatch-pending-partner-migration-notifications-job.ts";
+import { dispatchProductPublishSchedulesJob } from "./dispatch-product-publish-schedules-job.ts";
 import { dispatchPendingWorkflowInstallmentScheduleIntentsJob } from "./dispatch-workflow-intents-job.ts";
 import { disputeEvidenceDueSoonReminderJob } from "./dispute-evidence-due-soon-reminder-job.ts";
 import { duplicateProductWorker } from "./duplicate-product-worker.ts";
@@ -158,6 +160,7 @@ import {
   sendToElasticsearchWorker,
 } from "./product-search-jobs.ts";
 import { publishScheduledPostJob } from "./publish-scheduled-post-job.ts";
+import { publishScheduledProductJob } from "./publish-scheduled-product-job.ts";
 import {
   createMissingPurchaseEventsWorker,
   expireRentalPurchasesWorker,
@@ -219,6 +222,7 @@ import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-cert
 import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
 import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
 import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
+import { resumeStalledPartnerMigrationsJob } from "./resume-stalled-partner-migrations-job.ts";
 import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
@@ -229,6 +233,7 @@ import {
 } from "./reverse-deferred-internal-transfer-job.ts";
 import { blockSuspendedAccountIpWorker, checkPaymentAddressWorker } from "./risk-jobs.ts";
 import { scheduleMembershipPriceUpdatesJob } from "./schedule-membership-price-updates-job.ts";
+import { scheduleOpenedNoClickWorkflowEmailsJob } from "./schedule-opened-no-click-workflow-emails-job.ts";
 import { scheduleWorkflowInstallmentJob } from "./schedule-workflow-installment-job.ts";
 import {
   alertOnStalledAbandonedCartEmailsJob,
@@ -249,6 +254,7 @@ import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-up
 import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
 import { sendPaypalTopupNotificationJob } from "./send-paypal-topup-notification-job.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
+import { sendProductPublishScheduleNoticeJob } from "./send-product-publish-schedule-notice-job.ts";
 import { sendPurchaseReceiptJob } from "./send-purchase-receipt-job.ts";
 import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./send-reminders-for-outstanding-user-compliance-info-requests-worker.ts";
 import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
@@ -572,6 +578,12 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJob,
   ReconcilePendingPaypalRefundsJob: reconcilePendingPaypalRefundsJob,
   SendWorkflowEmailsToPastCanceledMembersJob: sendWorkflowEmailsToPastCanceledMembersJob,
+  DispatchPendingPartnerMigrationNotificationsJob: dispatchPendingPartnerMigrationNotificationsJob,
+  DispatchProductPublishSchedulesJob: dispatchProductPublishSchedulesJob,
+  PublishScheduledProductJob: publishScheduledProductJob,
+  ResumeStalledPartnerMigrationsJob: resumeStalledPartnerMigrationsJob,
+  ScheduleOpenedNoClickWorkflowEmailsJob: scheduleOpenedNoClickWorkflowEmailsJob,
+  SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
 };
 
 // `sidekiq_retry_in` and `sidekiq_retries_exhausted` blocks of ported jobs, keyed by Ruby class name.
