@@ -168,10 +168,16 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a signed-out request to Rails", parity: true do
-    get "/purchases/export"
+  it "sends a signed-out request to the login page with the path as next", parity: true do
+    get "/purchases/export", params: { start_time: "2026-01-11" }
 
-    expect(response).to have_http_status(:found)
+    expect(response.location).to end_with("/login?next=%2Fpurchases%2Fexport%3Fstart_time%3D2026-01-11")
+  end
+
+  it "answers a signed-out JSON request with a 404", parity: true do
+    get "/purchases/export", headers: json_headers
+
+    expect(response).to have_http_status(:not_found)
   end
 
   it "hands a mobile export with an access token to Rails", parity: true do
@@ -193,6 +199,33 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
 
     expect(response).to have_http_status(:ok)
     expect(csv.size).to eq(4)
+  end
+
+  it "reads the day a date with a time of day names", parity: true do
+    sell(created_at: Time.utc(2026, 1, 10, 12))
+    sell(created_at: Time.utc(2026, 1, 11, 12))
+    sell(created_at: Time.utc(2026, 1, 12, 12))
+    sell(created_at: Time.utc(2026, 1, 13, 12))
+
+    export({ start_time: "2026-01-11T23:30:00", end_time: "2026-01-12 01:00:00" })
+
+    expect(csv.size).to eq(4)
+  end
+
+  it "reads the day a date with a time of day and an offset names", parity: true do
+    sell(created_at: Time.utc(2026, 1, 10, 12))
+    sell(created_at: Time.utc(2026, 1, 11, 12))
+    sell(created_at: Time.utc(2026, 1, 12, 12))
+
+    export({ start_time: "2026-01-11T00:30:00.250-08:00", end_time: "2026-01-11T23:59:59+05:30" })
+
+    expect(csv.size).to eq(3)
+  end
+
+  it "writes the day a date with a time of day names into the query of an asynchronous export", parity: true do
+    export({ start_time: "2026-01-11T10:00:00+02:00", end_time: "2026-01-12T10:00:00-02:00", force_async: "1" })
+
+    expect(SalesExport.last.query.to_s).to include("2026-01-11T00:00:00Z", "2026-01-13T00:00:00Z")
   end
 
   it "reads the dates in the seller's time zone from one side only", parity: true do
@@ -258,6 +291,60 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
 
     expect(response).to have_http_status(:ok)
     expect(csv.map { |row| row[csv.first.index("Variants")] }).to include("(Large)", "(Small)")
+  end
+
+  describe "variant_ids" do
+    let(:category) { create(:variant_category, link: product, title: "Size") }
+    let(:large) { create(:variant, variant_category: category, name: "Large", price_difference_cents: 150) }
+    let(:small) { create(:variant, variant_category: category, name: "Small", price_difference_cents: 0) }
+
+    before do
+      sell(price_cents: 650).variant_attributes << large
+      sell(price_cents: 500).variant_attributes << small
+      sell(price_cents: 500)
+    end
+
+    it "keeps the sales of the selected variants", parity: true do
+      export({ variant_ids: [large.external_id] })
+
+      expect(response).to have_http_status(:ok)
+      expect(csv.size).to eq(3)
+    end
+
+    it "keeps the sales of every selected variant", parity: true do
+      export({ variant_ids: [large.external_id, small.external_id] })
+
+      expect(csv.size).to eq(4)
+    end
+
+    it "reads a single variant id that is not wrapped in a list", parity: true do
+      export({ variant_ids: small.external_id })
+
+      expect(csv.size).to eq(3)
+    end
+
+    it "keeps the sales of a selected product or a selected variant", parity: true do
+      other = create(:product, user: seller, name: "Other product", price_cents: 700)
+      sell(of: other, price_cents: 700)
+
+      export({ product_ids: [other.external_id], variant_ids: [large.external_id] })
+
+      expect(csv.size).to eq(4)
+    end
+
+    it "drops the filter when no variant matches the id", parity: true do
+      export({ variant_ids: ["unknown"] })
+
+      expect(response).to have_http_status(:ok)
+      expect(csv.size).to eq(5)
+    end
+
+    it "writes the variant ids into the query of an asynchronous export", parity: true do
+      export({ variant_ids: [small.external_id, large.external_id], force_async: "1" })
+
+      expect(response).to have_http_status(:see_other)
+      expect(SalesExport.last.query.to_s).to include("variant_ids")
+    end
   end
 
   it "writes a SKU's custom name or its external id in the SKU column", parity: true do

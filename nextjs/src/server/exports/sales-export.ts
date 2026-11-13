@@ -23,6 +23,7 @@ export type SalesExportFilters = {
   startDate?: string;
   endDate?: string;
   productIds?: number[];
+  variantIds?: number[];
   // ActiveSupport::TimeZone name of the seller, set when the dates are the seller's own days (`in_seller_time_zone`).
   timeZone?: string;
 };
@@ -57,7 +58,7 @@ export function salesExportSearchOptions(sellerId: bigint | number, filters: Sal
     state: NON_GIFT_SUCCESS_STATES,
     exclude_not_charged_non_free_trial_purchases: true,
     exclude_bundle_product_purchases: true,
-    any_products_or_variants: { products: filters.productIds, variants: undefined },
+    any_products_or_variants: { products: filters.productIds, variants: filters.variantIds },
     created_on_or_after: startTime,
     created_before: endTime,
     size: SYNCHRONOUS_EXPORT_THRESHOLD,
