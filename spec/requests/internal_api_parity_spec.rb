@@ -130,7 +130,7 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
         expect(response).to have_http_status(:unauthorized)
       end
 
-      it "hands a notification with a float to Rails", parity: true do
+      it "keeps a notification that carries a fraction", parity: true do
         floats = { job_id: "job-2", status: "success", progress: 0.5 }.to_json
         deliver(floats, signature(floats))
 
@@ -310,7 +310,7 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
         expect(response).to have_http_status(:unauthorized)
       end
 
-      it "hands a cents filter that is not digits to Rails", parity: true do
+      it "reads a cents filter written with an exponent", parity: true do
         seed_audience
         log_in(seller)
 

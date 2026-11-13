@@ -310,10 +310,13 @@ const RECIPIENT_COUNT_LISTS = [
 
 const isScalar = (value: unknown): value is string | null => value === null || typeof value === "string";
 
-// A cents filter stays the string the query carried; the filter reads it as the integer it spells.
-function centsValue(name: string, value: string | null): number | null {
+// A cents filter stays the string the query carried; the filter reads it as the number it spells: plain digits, or digits and a
+// decimal exponent (`3e2`), which MySQL converts to 300 when it compares the string with a column.
+const CENTS_FILTER = /^\d{1,15}(?:e\d{1,2})?$/u;
+export function centsValue(name: string, value: string | null): number | null {
   if (value === null || value.trim() === "") return null;
-  if (!/^\d{1,15}$/u.test(value)) throw new NotPortedError(`${name} that is not plain digits`, "installment.rb");
+  if (!CENTS_FILTER.test(value) || !Number.isSafeInteger(Number(value)))
+    throw new NotPortedError(`${name} that is not plain digits`, "installment.rb");
   return Number(value);
 }
 
