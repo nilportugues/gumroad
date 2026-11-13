@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { defer, lazy, resolveLazyProps } from "../lazy-props.ts";
 import { affiliatedParams } from "./affiliated.ts";
-import { assertPriceSupported, assertTableSupported, listingParams, type LinkRow, type RowData } from "./listing.ts";
+import {
+  assertPriceSupported,
+  assertTableSupported,
+  listingParams,
+  priceFormattedVerbose,
+  type LinkRow,
+  type RowData,
+} from "./listing.ts";
 
 describe("listingParams", () => {
   it("reads the search, pages and sorts, ignoring a sort key the page does not know", () => {
@@ -49,9 +56,44 @@ describe("assertPriceSupported", () => {
     expect(() => assertPriceSupported(product({}), empty)).not.toThrow();
   });
 
-  it("hands other currencies and rentals to Rails", () => {
-    expect(() => assertPriceSupported(product({ price_currency_type: "eur" }), empty)).toThrow(HandBackToRails);
+  it("accepts a product listed in a currency the money gem knows", () => {
+    for (const code of ["eur", "jpy", "gbp"])
+      expect(() => assertPriceSupported(product({ price_currency_type: code }), empty)).not.toThrow();
+  });
+
+  it("hands a currency the gem does not know, and rentals, to Rails", () => {
+    expect(() => assertPriceSupported(product({ price_currency_type: "xyz" }), empty)).toThrow(HandBackToRails);
     expect(() => assertPriceSupported(product({ purchase_type: 2 }), empty)).toThrow(HandBackToRails);
+  });
+});
+
+describe("priceFormattedVerbose", () => {
+  const priced = (currency: string, cents: number, flags = 0n) => {
+    const row = {
+      id: 1n,
+      flags,
+      price_currency_type: currency,
+      subscription_duration: null,
+      customizable_price: false,
+    } as unknown as LinkRow;
+    const data = {
+      prices: [{ link_id: 1, variant_id: null, price_cents: cents, flags: 0, recurrence: null }],
+      variants: [],
+      categories: new Map(),
+      thumbnails: new Map(),
+    } as unknown as RowData;
+    return priceFormattedVerbose(row, data);
+  };
+
+  it("quotes a price in the symbol and scale of the product's currency", () => {
+    expect(priced("eur", 1050)).toBe("\u20ac10.50");
+    expect(priced("jpy", 1500)).toBe("\u00a51,500");
+    expect(priced("gbp", 250)).toBe("\u00a32.50");
+  });
+
+  it("keeps the 99 cent shorthand to the dollar", () => {
+    expect(priced("usd", 99)).toBe("99\u00a2");
+    expect(priced("gbp", 99)).toBe("\u00a30.99");
   });
 });
 

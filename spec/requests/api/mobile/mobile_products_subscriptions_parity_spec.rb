@@ -25,6 +25,23 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       expect(response.parsed_body["pagination"]).to eq("count" => 2, "page" => 1, "pages" => 1, "next" => nil)
     end
 
+    it "quotes products listed in euros, yen and pounds in their own currency", parity: true do
+      { "eur" => 1050, "jpy" => 1500, "gbp" => 99 }.each_with_index do |(currency, cents), i|
+        create(:product, user: seller, name: currency.upcase, created_at: (i + 1).days.ago).tap do |product|
+          product.update_columns(price_currency_type: currency, price_cents: cents)
+          product.prices.update_all(currency:, price_cents: cents)
+        end
+      end
+      create(:product, user: seller, name: "Open", customizable_price: true, created_at: 4.days.ago).tap do |product|
+        product.update_columns(price_currency_type: "eur", price_cents: 300)
+        product.prices.update_all(currency: "eur", price_cents: 300)
+      end
+
+      get "/mobile/products", params: auth(seller)
+
+      expect(response.parsed_body["products"].map { _1["price_formatted"] }).to eq(["€10.50", "¥1,500", "£0.99", "€3+"])
+    end
+
     it "filters products by name", parity: true do
       create(:product, user: seller, name: "Photo pack")
       match = create(:product, user: seller, name: "Writing guide")

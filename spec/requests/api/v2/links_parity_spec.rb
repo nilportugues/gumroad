@@ -79,6 +79,25 @@ describe "API v2 products", type: :request do
       get "/v2/products/#{product.external_id}", headers: auth
     end
 
+    it "shows the price of a product listed in euros, with its version", parity: true do
+      product.update_columns(price_currency_type: "eur", price_cents: 1050)
+      product.prices.update_all(currency: "eur", price_cents: 1050)
+      create(:variant, variant_category: create(:variant_category, link: product, title: "Size"), name: "Large", price_difference_cents: 250)
+      get "/v2/products/#{product.external_id}", headers: auth
+    end
+
+    it "shows a pay-what-you-want product listed in yen without decimals", parity: true do
+      product.update_columns(price_currency_type: "jpy", price_cents: 1500, customizable_price: true)
+      product.prices.update_all(currency: "jpy", price_cents: 1500)
+      get "/v2/products/#{product.external_id}", headers: auth
+    end
+
+    it "shows a product listed in pounds at 99 subunits without the dollar shorthand", parity: true do
+      product.update_columns(price_currency_type: "gbp", price_cents: 99)
+      product.prices.update_all(currency: "gbp", price_cents: 99)
+      get "/v2/products/#{product.external_id}", headers: auth
+    end
+
     it "serves /api/v2 on the main domain", parity: true do
       host! DOMAIN
       get "/api/v2/products/#{product.external_id}", params: { access_token: create("doorkeeper/access_token", application:, resource_owner_id: seller.id, scopes: "edit_products").token }
@@ -139,6 +158,18 @@ describe "API v2 products", type: :request do
       create(:variant, variant_category: create(:variant_category, link: newer, title: "Size"), name: "Small")
       create(:product, user: seller, name: "Gone", created_at: 3.days.ago).update_columns(deleted_at: 1.day.ago)
       create(:product, name: "Someone else's")
+      get "/v2/products", headers: auth
+    end
+
+    it "lists products listed in euros, yen and pounds", parity: true do
+      product.update_columns(price_currency_type: "eur", price_cents: 1050)
+      product.prices.update_all(currency: "eur", price_cents: 1050)
+      yen = create(:product, user: seller, name: "Eraser", created_at: 1.day.ago)
+      yen.update_columns(price_currency_type: "jpy", price_cents: 1500)
+      yen.prices.update_all(currency: "jpy", price_cents: 1500)
+      pounds = create(:product, user: seller, name: "Ruler", created_at: 12.hours.ago)
+      pounds.update_columns(price_currency_type: "gbp", price_cents: 250)
+      pounds.prices.update_all(currency: "gbp", price_cents: 250)
       get "/v2/products", headers: auth
     end
 

@@ -131,6 +131,21 @@ describe "Seller products pages when signed in", type: :request do
     end
   end
 
+  it "quotes products listed in other currencies in their own", parity: true do
+    products = { "eur" => 1050, "jpy" => 1500, "gbp" => 99 }.each_with_index.map do |(currency, cents), i|
+      create(:product, user: seller, name: currency.upcase, created_at: Time.utc(2025, 1, i + 1)).tap do |product|
+        product.update_columns(price_currency_type: currency, price_cents: cents)
+        product.prices.update_all(currency:, price_cents: cents)
+      end
+    end
+    cache_values(*products)
+    log_in(seller)
+
+    tables products_path
+
+    expect(response.parsed_body["props"]["products_data"]["products"].map { _1["price_formatted"] }).to eq(["£0.99", "¥1,500", "€10.50"])
+  end
+
   it "renders the empty state for a seller without products", parity: true do
     log_in(seller)
 

@@ -1,15 +1,15 @@
 // The product listings the seller dashboard shares (DashboardProductsPagePresenter, CollabProductsPagePresenter):
 // sorting and pagination (ProductsHelper#sort_and_paginate_products), a row's price and status, thumbnails and
 // the cached stats. What the port cannot answer exactly goes to Rails whole (HandBackToRails), decided before the
-// page renders: a currency other than USD, rentals, an uploaded thumbnail, a sort that Elasticsearch performs,
+// page renders: a currency the money gem does not know, rentals, an uploaded thumbnail, a sort that Elasticsearch performs,
 // a closed membership tier, and a product without a fresh ProductCachedValue (Rails enqueues a job for it).
 import { Prisma } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
+import { formatJustPriceInCents, knownCurrency } from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
-import { formatMoney } from "../audience/filters.ts";
 import { paramToI, type QuerySource } from "../audience/support.ts";
 import { productLongUrl } from "../buyer/users.ts";
 import { domainConfig } from "../domain.ts";
@@ -258,12 +258,6 @@ export function thumbnailJson(product: LinkRow, data: RowData): { url: string | 
   };
 }
 
-const dollars = (cents: number) => {
-  const formatted = `$${formatMoney(cents, USD)}`;
-  // Product::Prices#format_price
-  return formatted === "$0.99" ? "99¢" : formatted;
-};
-
 type Tier = { variant: VariantRow; prices: PriceRow[] };
 
 // Product::Prices tiers_for_displayed_price: the alive tiers a new buyer can purchase (a fully closed membership
@@ -281,7 +275,8 @@ const buyPrices = (prices: PriceRow[]) => prices.filter((price) => (price.flags 
 
 // What a row's price needs and the port cannot do goes to Rails.
 export function assertPriceSupported(product: LinkRow, data: RowData): void {
-  if ((product.price_currency_type ?? USD).toLowerCase() !== USD) throw new HandBackToRails();
+  // Rails soft-fails a code the gem does not know through ErrorNotifier.
+  if (!knownCurrency(product.price_currency_type ?? USD)) throw new HandBackToRails();
   if (product.purchase_type !== BUY_ONLY && product.purchase_type !== null) throw new HandBackToRails();
   if (product.duration_in_months !== null && isSet(product.flags, "is_tiered_membership")) throw new HandBackToRails();
   if (
@@ -339,7 +334,9 @@ export function priceFormattedVerbose(product: LinkRow, data: RowData): string {
   const label = isSet(product.flags, "is_recurring_billing")
     ? ` ${recurrence ? (RECURRENCE_LABELS[recurrence] ?? "") : ""}`
     : "";
-  return `${dollars(displayPriceCents(product, data))}${customizable ? "+" : ""}${label}`;
+  // Product::Prices#format_price over MoneyFormatter in the product's currency
+  const price = formatJustPriceInCents(displayPriceCents(product, data), product.price_currency_type ?? USD);
+  return `${price}${customizable ? "+" : ""}${label}`;
 }
 
 // ---- stats ----
