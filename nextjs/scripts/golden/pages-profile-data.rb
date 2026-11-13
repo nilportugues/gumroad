@@ -4,8 +4,8 @@
 # (as pages are served with it: to_json, then ERB::Util.json_escape) for sellers set up in a scratch database, each case rolled back.
 # The Node port (services/pages-profile-data.ts) builds the payload for a seller with no published post and no reputation summary; the
 # product's formatted price and URL are read by the loader (and proved by the request recordings), so a case records them as Ruby wrote
-# them next to the stored description, the one field the builder derives. A seller with a post or the flag, or a description that goes
-# through the HTML parser, is handed back.
+# them next to the stored description, the one field the builder derives. A seller with a post or the flag, or a description with a control
+# character, is handed back.
 #   docker exec gr-ruby-c25m bash -c 'source /tmp/env25.sh; cd /app && bundle exec rails runner nextjs/scripts/golden/pages-profile-data.rb'
 require "json"
 require "factory_bot_rails"
@@ -102,9 +102,14 @@ cases << scenario("unicode text", products: ["日本語 café ünïcode"])
 cases << scenario("a draft, an archived and a deleted product beside a live one", products: ["live"], draft_products: 1, archived_products: 1, deleted_products: 1)
 cases << scenario("a draft product only", draft_products: 1)
 cases << scenario("an archived product only", archived_products: 1)
-cases << scenario("a description with markup", products: ["<b>bold</b> text"], hands_back: true)
-cases << scenario("a description with an ampersand", products: ["Tom & Jerry"], hands_back: true)
-cases << scenario("a description with an entity", products: ["a &amp; b"], hands_back: true)
+cases << scenario("a description with markup", products: ["<b>bold</b> text"])
+cases << scenario("a description with an ampersand", products: ["Tom & Jerry"])
+cases << scenario("a description with an entity", products: ["a &amp; b"])
+cases << scenario("a description of paragraphs and a list", products: ["<p>Hello &amp; welcome</p><ul><li>one</li><li>two</li></ul><p>a<br>b</p>"])
+cases << scenario("a description with a script and a style", products: ["<script>alert(1)</script><style>p { color: red }</style>kept"])
+cases << scenario("a description with comparison signs", products: ["1 < 2 > 0 &lt; &gt; &quot;q&quot; &#39;s&#39; &#65; &nbsp;|&copy; &unknown; &amp"])
+cases << scenario("a description with an unclosed tag and a stray close", products: ["<p>unclosed <b>bold</i> </p>stray</div>"])
+cases << scenario("markup across the limit", products: ["<p>#{'x &amp; ' * 120}</p>"])
 cases << scenario("a description with a control character", products: ["a\u0001b"], hands_back: true)
 cases << scenario("more products than the payload lists", products: Array.new(101) { |i| "Described #{i}" })
 cases << scenario("a published post", posts: 1)

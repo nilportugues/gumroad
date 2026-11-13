@@ -50,7 +50,7 @@ describe("Pages::ProfileData against Ruby (nextjs/scripts/golden/pages-profile-d
   });
 
   it("covers every case the generator records", () => {
-    expect(golden.cases.length).toBe(32);
+    expect(golden.cases.length).toBe(37);
   });
 });
 
