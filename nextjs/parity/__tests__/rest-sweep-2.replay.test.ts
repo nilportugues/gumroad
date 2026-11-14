@@ -171,11 +171,10 @@ const COMPARE = {
 
 const HANDED_BACK = /hands-|through-rails/u;
 
-// The spec dated the affiliate at 2026-03-02T03:30Z, recorded as `<now-6154h>`: seeded from a replay clock a day later it falls on the other
-// side of Pacific midnight. Only the seed resolves against the pinned instant, which is that date plus the 6,154 hours.
-const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
-  ["dates-an-affiliate-in-the-affiliate-s-own-time-zone", "2026-11-13T13:30:00Z"],
-];
+// The export prints each affiliate's creation day in the affiliate's own time zone (Pacific), so a row seeded as `<now>` lands on the other
+// side of midnight depending on the hour the replay runs at, and the time-zone example (dated 2026-03-02T03:30Z, recorded as `<now-6154h>`)
+// does so a day later. Only the seed resolves against the pinned instant, which is that date plus the 6,154 hours.
+const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [["affiliates-export-", "2026-11-13T13:30:00Z"]];
 
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
