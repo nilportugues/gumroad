@@ -120,7 +120,10 @@ export async function contentItems(loaded: Loaded, loggedInUser: User | null, em
   if (
     purchase &&
     (await db.commission.count({
-      where: { OR: [{ deposit_purchase_id: purchase.id }, { completion_purchase_id: purchase.id }], status: "completed" },
+      where: {
+        OR: [{ deposit_purchase_id: purchase.id }, { completion_purchase_id: purchase.id }],
+        status: "completed",
+      },
     })) > 0
   )
     throw new HandBackToRails("a completed commission");

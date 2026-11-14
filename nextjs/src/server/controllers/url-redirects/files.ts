@@ -85,7 +85,8 @@ export async function aliveProductFiles(
   if (redirect.preorder_id !== null) throw new HandBackToRails("a url redirect of a preorder");
   if (product === null) return [];
   const provider = await contentProvider(loaded);
-  if ((provider.kind === "variant" || provider.version) && !versions) throw new HandBackToRails("a purchase of a version");
+  if ((provider.kind === "variant" || provider.version) && !versions)
+    throw new HandBackToRails("a purchase of a version");
   if (
     provider.kind === "product" &&
     !provider.version &&
