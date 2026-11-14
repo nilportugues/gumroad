@@ -152,6 +152,95 @@ describe "Subscribing to a seller", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    describe "from a product's waitlist" do
+      let(:waitlist_product) { create(:product, user: seller, draft: true, waitlist_enabled: true) }
+
+      def confirmation_job
+        ActiveJob::Base.queue_adapter.enqueued_jobs.find { _1[:args].first(2) == %w[FollowerMailer confirm_follower] }
+      end
+
+      it "records the waitlist entry and asks the visitor to confirm", parity: true do
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: waitlist_product.external_id })
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body).to eq("success" => true, "message" => "You're on the list for Followed Seller's launch. Check your inbox to confirm.")
+        follower = Follower.find_by(email: "visitor@example.com")
+        expect(follower).to have_attributes(confirmed_at: nil, source: nil)
+        expect(follower.waitlist_entries.pluck(:product_id)).to eq([waitlist_product.id])
+        expect(confirmation_job[:queue]).to eq("critical")
+        expect(confirmation_job[:args].last["args"]).to eq([seller.id, follower.id, waitlist_product.id])
+      end
+
+      it "confirms a signed-in visitor with a verified email who joins the waitlist", parity: true do
+        log_in(create(:user, email: "member@example.com"))
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "member@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "You're on the list. Followed Seller will email you when it launches.")
+        follower = Follower.find_by(email: "member@example.com")
+        expect(follower.confirmed_at).to be_present
+        expect(follower.waitlist_entries.pluck(:product_id)).to eq([waitlist_product.id])
+      end
+
+      it "adds a confirmed follower to the waitlist without another confirmation email", parity: true do
+        follower = follow("confirmed@example.com", confirmed_at: Time.utc(2025, 1, 2, 12))
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "confirmed@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "You're on the list. Followed Seller will email you when it launches.")
+        expect(follower.reload.waitlist_entries.pluck(:product_id)).to eq([waitlist_product.id])
+        expect(confirmation_job).to be_nil
+      end
+
+      it "keeps the entry of a follower who joins the same waitlist twice", parity: true do
+        follower = follow("again@example.com")
+        entry = WaitlistEntry.create!(follower:, product: waitlist_product, created_at: Time.utc(2025, 1, 1, 12), updated_at: Time.utc(2025, 1, 1, 12))
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "again@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body["message"]).to eq("You're on the list for Followed Seller's launch. Check your inbox to confirm.")
+        expect(follower.reload.waitlist_entries.pluck(:id)).to eq([entry.id])
+      end
+
+      it "records the entry of a follower who had been removed", parity: true do
+        follower = follow("returning@example.com", deleted_at: Time.utc(2025, 2, 5, 12), source: Follower::From::PROFILE_PAGE)
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "returning@example.com", product_id: waitlist_product.external_id })
+
+        expect(response).to have_http_status(:ok)
+        expect(follower.reload).to have_attributes(deleted_at: nil, confirmed_at: nil, source: nil)
+        expect(follower.waitlist_entries.pluck(:product_id)).to eq([waitlist_product.id])
+      end
+
+      it "follows plainly when the product is already published", parity: true do
+        published = create(:product, user: seller, waitlist_enabled: true)
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: published.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
+      it "follows plainly when the product belongs to another seller", parity: true do
+        other = create(:user, name: "Other Seller", username: "otherseller", user_risk_state: "compliant")
+        elsewhere = create(:product, user: other, draft: true, waitlist_enabled: true)
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: elsewhere.external_id })
+
+        expect(response.parsed_body["message"]).to eq("Check your inbox to confirm your follow request to Followed Seller.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
+      it "records the waitlist entry of an embed form signup", parity: true do
+        subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "You're on the list for Followed Seller's launch. Check your inbox to confirm.")
+        follower = Follower.find_by(email: "visitor@example.com")
+        expect(follower.source).to eq(Follower::From::EMBED_FORM)
+        expect(follower.waitlist_entries.pluck(:product_id)).to eq([waitlist_product.id])
+      end
+    end
+
     it "hands a seller under a newsletter cutover to Rails", parity: true do
       FeatureAnnouncementNewsletterCutover.create!(seller:, state: "rolled_back", cutoff_at: Time.utc(2025, 1, 1, 12))
 
