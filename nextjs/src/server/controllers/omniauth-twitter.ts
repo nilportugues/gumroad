@@ -19,7 +19,7 @@ import { type ActionResult, HandBackToRails } from "./application-controller.ts"
 import { prepareTwoFactorAuthentication, resetTwoFactorSession } from "./auth-mutations.ts";
 import { signedInUserHome } from "./auth-pages.ts";
 import { assertNoGuestCart, refreshPasskeySetupPrompt, rememberedTwoFactor, signIn } from "./auth-session.ts";
-import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
+import { csrfVerified, type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
 import {
   assertHtml,
   BARE,
@@ -28,6 +28,7 @@ import {
   fullHost,
   humanize,
   isHash,
+  nullSessionFailure,
   queryParams,
   sanitizeOauthError,
   sessionHash,
@@ -123,6 +124,11 @@ async function failureAction(
 
 async function requestPhase(input: MutationInput): Promise<ActionResult> {
   assertHtml(input);
+  if (!csrfVerified(input.request, input.params)) {
+    // A link request also runs the funnel hook for the signed-in seller; whether it runs before the check is not recorded.
+    if (LINK_STATES.includes(queryParams(input.url).state ?? "")) throw new HandBackToRails("a link request with a bad authenticity token");
+    return nullSessionFailure(input);
+  }
   const { session } = input.chain;
   const params = queryParams(input.url);
   if (input.params.callback_url !== undefined) throw new HandBackToRails("a callback_url of its own");
@@ -395,7 +401,7 @@ class NotPorted extends Error {
 }
 
 registerMutations(
-  { method: "POST", pattern: REQUEST_PATH, options: BARE, run: requestPhase },
+  { method: "POST", pattern: REQUEST_PATH, options: BARE, skipForgeryProtection: true, run: requestPhase },
   { method: "GET", pattern: CALLBACK_PATH, skipForgeryProtection: true, run: callbackPhase },
   { method: "POST", pattern: CALLBACK_PATH, run: formCallback(callbackPhase) },
 );

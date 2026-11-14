@@ -23,12 +23,13 @@ import { type ActionResult, HandBackToRails } from "./application-controller.ts"
 import { signedInUserHome } from "./auth-pages.ts";
 import { signIn } from "./auth-session.ts";
 import { faradayQuery } from "./faraday-query.ts";
-import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
+import { csrfVerified, type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
 import {
   assertHtml,
   BARE,
   fullHost,
   isHash,
+  nullSessionFailure,
   oauthFailure,
   queryParams,
   sessionHash,
@@ -174,6 +175,7 @@ async function verifyIdToken(token: string, cookieNonce: string | null, now: Dat
 
 async function requestPhase(input: MutationInput): Promise<ActionResult> {
   assertHtml(input);
+  if (!csrfVerified(input.request, input.params)) return nullSessionFailure(input);
   const { session } = input.chain;
   const clientId = getConfig("APPLE_WEB_CLIENT_ID");
   if (!clientId) throw new HandBackToRails("no Apple client id configured");
@@ -404,7 +406,7 @@ async function exchange(code: string, now: Date): Promise<boolean> {
 }
 
 registerMutations(
-  { method: "POST", pattern: REQUEST_PATH, options: BARE, run: requestPhase },
+  { method: "POST", pattern: REQUEST_PATH, options: BARE, skipForgeryProtection: true, run: requestPhase },
   { method: "POST", pattern: CALLBACK_PATH, skipForgeryProtection: true, run: callbackPhase },
   { method: "GET", pattern: CALLBACK_PATH, skipForgeryProtection: true, run: callbackPhase },
 );

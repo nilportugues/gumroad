@@ -291,9 +291,7 @@ function requestPhase(strategy: Strategy) {
     const { social } = strategy;
     if (!csrfVerified(input.request, input.params)) {
       if (social) throw new HandBackToRails("a social connect request with a bad authenticity token");
-      // The failure action's own CSRF check fails too, so it runs with a null session: only the redirect goes out, no flash and no cookie.
-      input.chain.skipSession = true;
-      return { status: FOUND, location: SIGN_IN_PATH };
+      return nullSessionFailure(input);
     }
     // The request phase runs in the middleware, ahead of any controller filter: `env["warden"].user` is the session's user, and the
     // chain of this route is bare, so the visitor is resolved here. What Devise would write on the way (remember cookie, ended session)
@@ -570,17 +568,28 @@ function callbackPhase(strategy: Strategy) {
 // `Rack::Request#params` reads a form body only; a JSON body is a Rails parameter the middleware never sees, so the two would disagree on `code`.
 const FORM_CONTENT_TYPE = /^(?:application\/x-www-form-urlencoded|multipart\/form-data)(?:;|$)/iu;
 
-// The callback of a form POST: Devise routes `/users/auth/:provider/callback` to the same action for GET and POST. Only the middleware's
-// own checks and the action run in Node, as for the GET; the CSRF check is the framework's (`protect_from_forgery` is `null_session`, so a POST
-// without a valid token runs the action with a session that is never written, which Rails keeps).
-export function formCallback(run: (input: MutationInput) => Promise<ActionResult>) {
-  return (input: MutationInput): Promise<ActionResult> => {
+// The callback of a form POST: Devise routes `/users/auth/:provider/callback` to the same action for GET and POST. `protect_from_forgery`
+// is `null_session`, so a bad token runs the action with a session that is never written (`bare` drops the commit, XSRF cookie and flash).
+// A social connect reads the signed-in user, which a null session hides, so the framework hands its bad token back.
+export function formCallback(run: (input: MutationInput) => Promise<ActionResult>, { nullSession = false } = {}) {
+  return async (input: MutationInput): Promise<ActionResult> => {
     const contentType = input.request.headers.get("content-type");
     if (contentType !== null && contentType !== "" && !FORM_CONTENT_TYPE.test(contentType))
       throw new HandBackToRails("a callback whose body is not a form");
     if (isXhr(input)) throw new HandBackToRails("an XHR callback sent as a form POST");
-    return run(input);
+    if (!nullSession || csrfVerified(input.request, input.params)) return run(input);
+    const result = await run(input);
+    if (!("location" in result)) throw new HandBackToRails("a null-session callback that does not redirect");
+    input.chain.bare = true;
+    return { status: result.status, location: result.location };
   };
+}
+
+// A request phase whose CSRF check failed: OmniAuth redirects to the failure action, whose own check fails too, so it runs with a null
+// session and only the redirect to the sign-in page goes out, no flash and no cookie.
+export function nullSessionFailure(input: MutationInput): ActionResult {
+  input.chain.skipSession = true;
+  return { status: FOUND, location: SIGN_IN_PATH };
 }
 
 export const BARE: ActionOptions = {
@@ -619,7 +628,8 @@ registerMutations(
       method: "POST",
       pattern: callbackPath(strategy),
       ...(strategy.social ? { options: { prepended: unavailableCallback(strategy) } } : {}),
-      run: formCallback(callbackPhase(strategy)),
+      ...(strategy.social ? {} : { skipForgeryProtection: true }),
+      run: formCallback(callbackPhase(strategy), { nullSession: strategy.social === undefined }),
     },
   ]),
 );

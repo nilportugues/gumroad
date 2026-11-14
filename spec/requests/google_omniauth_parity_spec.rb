@@ -120,22 +120,36 @@ describe "Google OAuth2 login and signup", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Invalid credentials\".")
     end
 
-    it "hands a callback without an authenticity token to Rails", parity: true do
+    it "signs the user in without writing a session when the callback has no authenticity token", parity: true do
       stub_google
       state = begin_flow
 
       post "/users/auth/google_oauth2/callback", params: { code: "google-code-1", state: }
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/dashboard")
+      expect(response.headers["Set-Cookie"]).to be_nil
+      expect(user.reload.sign_in_count).to eq(1)
     end
 
-    it "hands a callback with a wrong authenticity token to Rails", parity: true do
+    it "signs the user in without writing a session when the callback has a wrong authenticity token", parity: true do
       stub_google
       state = begin_flow
 
       post_callback(state, token: "forged")
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/dashboard")
+      expect(response.headers["Set-Cookie"]).to be_nil
+      expect(user.reload.sign_in_count).to eq(1)
+    end
+
+    it "ends in the failure action and writes no cookie when a callback with no authenticity token is refused by Google", parity: true do
+      stub_google(token_status: 400, token_body: { error: "invalid_grant" })
+      state = begin_flow
+
+      post "/users/auth/google_oauth2/callback", params: { code: "google-code-1", state: }
+
+      expect(response).to redirect_to("/users/sign_in")
+      expect(response.headers["Set-Cookie"]).to be_nil
     end
   end
 
