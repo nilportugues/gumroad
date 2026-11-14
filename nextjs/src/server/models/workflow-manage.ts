@@ -34,6 +34,7 @@ const SCALAR_KEYS = [
   "workflow_type",
   "variant_external_id",
   "workflow_trigger",
+  "workflow_trigger_post_id",
   "paid_more_than",
   "paid_less_than",
   "bought_from",
