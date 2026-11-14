@@ -358,7 +358,6 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
       "a creation with attributes beyond name, description, price, limits, taxonomy, tags and summary",
     );
   const viaCli = /^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? "");
-  if (currency !== "usd") throw new HandBackToRails("a product priced in a currency other than USD");
   if (has(params, "name") && typeof params.name !== "string") throw new HandBackToRails("a name that is not text");
 
   let priceCents: number | null = null;

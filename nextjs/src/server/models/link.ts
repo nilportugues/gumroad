@@ -13,6 +13,7 @@ import { railsCache } from "../cache/rails-cache.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 
+import { getUsdCents as helperGetUsdCents } from "./concerns/currency-helper.ts";
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
@@ -329,14 +330,14 @@ async function loadUser(link: LinkRecord, ctx: CallbackContext): Promise<Row | n
   return loadBelongsTo(link, USER, ctx);
 }
 
-// CurrencyHelper#get_usd_cents. A rate missing from Redis is fetched over HTTP by query_rate.
+// CurrencyHelper#get_usd_cents.
 export async function getUsdCents(currencyType: string, quantity: number): Promise<number> {
   if (currencyType === "usd") return quantity;
   const code = currencyType.toUpperCase();
   const rate = await collaborators.redis().get(`currencies:${code}`);
   const rateFloat = rate == null ? 0 : Number.parseFloat(rate);
-  if (!(rateFloat > 0))
-    throw new NotPortedError(`CurrencyHelper#query_rate(${code})`, "app/helpers/currency_helper.rb:96");
+  // query_rate: the rates document, then the cache write; the helper's port is golden-tested against Rails.
+  if (!(rateFloat > 0)) return helperGetUsdCents(currencyType, quantity);
   const converted = new Prisma.Decimal(quantity).div(rateFloat);
   return (CURRENCIES[currencyType]?.single_unit ? converted.mul(100) : converted)
     .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP)

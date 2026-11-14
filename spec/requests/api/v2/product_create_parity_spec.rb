@@ -411,10 +411,122 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response.parsed_body).to include("success" => true)
   end
 
-  it "hands a product priced in another currency back to Rails", parity: true do
-    create_product({ name: "Notebook", price: 500, price_currency_type: "eur" })
+  describe "another currency" do
+    it "creates and publishes a product priced in euros", parity: true, parity_timeline: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur" })
 
-    expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("success" => true)
+      expect(response.parsed_body.dig("product", "published")).to be true
+      expect(created.price_currency_type).to eq("eur")
+      expect(created.price_cents).to eq(500)
+    end
+
+    it "reads the currency without regard to case or surrounding spaces", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: " GBP " })
+
+      expect(created.price_currency_type).to eq("gbp")
+    end
+
+    it "creates a product priced in a single-unit currency", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "jpy" })
+
+      expect(response.parsed_body).to include("success" => true)
+      expect(created.price_cents).to eq(500)
+    end
+
+    it "creates a draft priced in another currency", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur", draft: true })
+
+      expect(created.draft).to be true
+    end
+
+    it "creates a free product in another currency", parity: true do
+      create_product({ name: "Notebook", price: 0, price_currency_type: "eur" })
+
+      expect(created.customizable_price).to be true
+    end
+
+    it "creates a pay-what-you-want product with a suggested price in another currency", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur", customizable_price: true, suggested_price_cents: 850 })
+
+      expect(created.suggested_price_cents).to eq(850)
+    end
+
+    it "refuses a price under the minimum of its currency", parity: true do
+      create_product({ name: "Notebook", price: 10, price_currency_type: "eur" })
+
+      expect(message).to start_with("Sorry, a product must be at least")
+    end
+
+    it "refuses a price above the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 600_000, price_currency_type: "eur" })
+
+      expect(message).to eq("Sorry, we don't support pricing products above $5,000.")
+    end
+
+    it "accepts a price just under the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 200_000, price_currency_type: "gbp" })
+
+      expect(response.parsed_body).to include("success" => true)
+    end
+
+    it "accepts a price in Canadian dollars whose dollar value is under the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 505_000, price_currency_type: "cad" })
+
+      expect(response.parsed_body).to include("success" => true)
+    end
+
+    it "refuses a price in Canadian dollars whose dollar value is above the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 520_000, price_currency_type: "cad" })
+
+      expect(message).to eq("Sorry, we don't support pricing products above $5,000.")
+    end
+
+    it "publishes a product beside a discount code in the same currency", parity: true do
+      create(:universal_offer_code, user: seller, code: "euros", currency_type: "eur", amount_cents: 100)
+
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur" })
+
+      expect(response.parsed_body.dig("product", "published")).to be true
+    end
+
+    it "keeps a product a draft when a discount code in the same currency puts its price under the minimum", parity: true do
+      create(:universal_offer_code, user: seller, code: "euros", currency_type: "eur", amount_cents: 100)
+
+      create_product({ name: "Notebook", price: 150, price_currency_type: "eur" })
+
+      expect(response.parsed_body["warning"]).to start_with("Saved as a draft: An existing discount code puts the price")
+    end
+
+    it "ignores a discount code in another currency", parity: true do
+      create(:universal_offer_code, user: seller, code: "dollars", currency_type: "usd", amount_cents: 100)
+
+      create_product({ name: "Notebook", price: 150, price_currency_type: "eur" })
+
+      expect(response.parsed_body.dig("product", "published")).to be true
+    end
+
+    it "uses the default currency of the seller when none is given", parity: true do
+      seller.update!(currency_type: "gbp")
+
+      create_product({ name: "Notebook", price: 500 })
+
+      expect(created.price_currency_type).to eq("gbp")
+    end
+
+    it "refuses a currency that is not supported", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "zzz" })
+
+      expect(message).to eq("'zzz' is not a supported currency.")
+    end
   end
 
   it "hands a rich content page back to Rails", parity: true do
