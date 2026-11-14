@@ -125,6 +125,14 @@ describe "AffiliatesController guards", type: :request do
       expect(response).to redirect_to(new_affiliate_path)
     end
 
+    it "refuses an enabled product whose fee is a hash, which the permitted parameters drop", parity: true do
+      log_in(seller)
+
+      send_json(:post, affiliates_path, affiliate_body(products: [enabled_product(fee_percent: { amount: 10 })]))
+
+      expect(response).to redirect_to(new_affiliate_path)
+    end
+
     it "hands a valid affiliate for all products to Rails", parity: true do
       affiliate_user
       product
