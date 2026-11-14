@@ -12,6 +12,7 @@ import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture } from "../src/fixture";
 import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { redisJobsChannel } from "../src/active-job";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -35,6 +36,10 @@ const COMPARE = {
     "response.cookies.__profilin",
     "response.cookies.XSRF-TOKEN.value",
     "db.versions",
+    // The Elasticsearch update is delayed seconds ahead of the clock, which the recording normalizes to <now> and the replay to its bucket.
+    "jobs.*.at",
+    // Seeded and written within the same second, so the replay sees no change where Rails recorded one.
+    "db.purchases.updated.*.changes.updated_at",
     "http",
     // Next.js owns the per-response random values of an Inertia page.
     "response.inertia.props.csp_nonce",
@@ -125,6 +130,7 @@ describe.skipIf(!url)("UsersController", () => {
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
+    jobs: redisJobsChannel(redis),
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     rewriteRequest: (
