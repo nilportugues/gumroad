@@ -78,6 +78,7 @@ const SCALAR_KEYS = [
   "send_emails",
   "allow_comments",
   "not_clicked_post_id",
+  "opened_post_id",
 ] as const;
 const ARRAY_KEYS = [
   "bought_products",
@@ -146,6 +147,7 @@ const FILTER_KEYS = new Set([
   "active_customers_only",
   "minimum_license_uses",
   "not_clicked_post_id",
+  "opened_post_id",
 ]);
 const FILTER_LISTS = new Set([
   "bought_products",
@@ -271,7 +273,12 @@ export function addAndValidateFilters(
   // A post picked by its external id: the filter asks DynamoDB for who clicked it.
   if (present(params.not_clicked_post_id)) refuse("a has-not-clicked audience filter");
   set("not_clicked_post_id", null);
+  // Opened-post and trigger-post ids are checked against the seller's emails, and an opened filter counts through DynamoDB.
+  if (present(params.opened_post_id)) refuse("an opened audience filter");
+  set("opened_post_id", null);
   set("workflow_trigger", sellerish ? presence((params.workflow_trigger ?? null) as Scalar) : null);
+  if (sellerish && present(params.workflow_trigger_post_id)) refuse("a workflow trigger post");
+  set("workflow_trigger_post_id", null);
 
   const hash = jsonData(record);
   const value = (key: string) => hash.entries.find(([name]) => name === key)?.[1];
@@ -301,7 +308,7 @@ const DATE_WORD = /sun|mon|tue|wed|thu|fri|sat|jan|feb|mar|apr|may|jun|jul|aug|s
 function parseLocalTime(timezone: string, text: string): Date | null {
   if (!/\d/u.test(text) && !DATE_WORD.test(text)) return null;
   // An explicit offset (the API's ISO 8601 times) names the instant: the seller's zone only reads a time without one.
-  const zoned = /^\s*(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:\d{2})\s*$/u.exec(text);
+  const zoned = /^\s*(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(Z|[+-]\d{2}:?\d{2})\s*$/u.exec(text);
   if (zoned !== null) {
     const [year, month, day, hour, minute, second] = zoned.slice(1, 7).map((part) => Number(part ?? 0)) as [
       number,
@@ -315,7 +322,11 @@ function parseLocalTime(timezone: string, text: string): Date | null {
     const check = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
     if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day || hour > 23)
       return refuse("a publish time Time.new would normalize");
-    return new Date(`${text.trim().slice(0, 16)}:${String(second).padStart(2, "0")}${zoned[7]}`);
+    const offset = zoned[7]!;
+    const [offsetHour, offsetMinute] = offset === "Z" ? [0, 0] : [Number(offset.slice(1, 3)), Number(offset.slice(-2))];
+    if (offsetHour > 23 || offsetMinute > 59) return refuse("a publish time with an offset Time.new may reject");
+    const zone = offset === "Z" ? offset : `${offset.slice(0, 3)}:${offset.slice(-2)}`;
+    return new Date(`${text.trim().slice(0, 16)}:${String(second).padStart(2, "0")}${zone}`);
   }
   const match = /^\s*(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?\s*$/u.exec(text);
   if (match === null) return refuse("a publish time in a format TimeZone#parse reads");

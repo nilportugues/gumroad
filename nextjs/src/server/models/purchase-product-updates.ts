@@ -43,9 +43,10 @@ async function blockingFlagsByProduct(productIds: bigint[]): Promise<Map<bigint,
   );
 }
 
+// Every scope of Purchase.product_installments is `alive.published`, so a draft or a deleted post never reaches a buyer.
 async function anyPostBy(sellerIds: bigint[], productIds: bigint[]): Promise<boolean> {
   const rows = await selectRows(
-    Prisma.sql`SELECT 1 FROM ${table("installments")} WHERE ${column("installments", "seller_id")} IN (${Prisma.join(sellerIds)}) OR ${column("installments", "link_id")} IN (${Prisma.join(productIds)}) LIMIT 1`,
+    Prisma.sql`SELECT 1 FROM ${table("installments")} WHERE (${column("installments", "seller_id")} IN (${Prisma.join(sellerIds)}) OR ${column("installments", "link_id")} IN (${Prisma.join(productIds)})) AND ${column("installments", "deleted_at")} IS NULL AND ${column("installments", "published_at")} IS NOT NULL LIMIT 1`,
   );
   return rows.length > 0;
 }
