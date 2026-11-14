@@ -308,7 +308,10 @@ import {
 } from "./stripe-jobs.ts";
 import { stripePayoutsPausedEmailJob } from "./stripe-payouts-paused-email-job.ts";
 import { stripeRestraintNoticeEmailJob } from "./stripe-restraint-notice-email-job.ts";
-import { submitPaypalDisputeEvidenceJob } from "./submit-paypal-dispute-evidence-job.ts";
+import {
+  submitPaypalDisputeEvidenceJob,
+  submitPaypalDisputeEvidenceJobRetryIn,
+} from "./submit-paypal-dispute-evidence-job.ts";
 import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import {
   chargeDeclinedReminderWorker,
@@ -655,6 +658,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
 // The worker refuses to start when a ported job defines one in Ruby and has none here.
 export const JOB_RETRY_IN: Record<string, RetryIn> = {
   LiftPlatformStripePauseJob: liftPlatformStripePauseJobRetryIn,
+  SubmitPaypalDisputeEvidenceJob: submitPaypalDisputeEvidenceJobRetryIn,
 };
 
 export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
