@@ -381,13 +381,21 @@ async function refreshTokenGrant(input: MutationInput, state: string | null, now
   return application === null ? run() : withApplicationLock(application.id, true, run);
 }
 
+// OauthDeviceAuthorization.digest hashes `value.to_s`, so a one-element array of plain characters is looked up as its inspected form.
+function deviceCodeParam(input: MutationInput): string | null {
+  const value = input.params.device_code;
+  if (Array.isArray(value) && value.length === 1 && typeof value[0] === "string" && /^[\w-]+$/u.test(value[0]))
+    return `["${value[0]}"]`;
+  return stringParam(input.params, "device_code");
+}
+
 // Oauth::TokensController#create_device_access_token. The connector aliases do not offer the grant.
 async function deviceCodeGrant(input: MutationInput): Promise<ActionResult> {
   const { application, refusal } = await authenticateOauthApplication(input);
   if (refusal !== null) return refusalJson(input, refusal);
   if (!truthy(application.device_authorization_enabled))
     return oauthJsonError(input, "unauthorized_client", "Client is not allowed to use device authorization");
-  const deviceCode = stringParam(input.params, "device_code");
+  const deviceCode = deviceCodeParam(input);
   if (!isPresent(deviceCode)) return oauthJsonError(input, "invalid_request", "device_code is required");
 
   const expiredToken = () => oauthJsonError(input, "expired_token", "Device code is invalid or expired");
