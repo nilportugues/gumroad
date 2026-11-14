@@ -6,26 +6,46 @@
 // when it has nothing to write, the removal of its custom HTML (a page with no content or title of its own) and a change to its
 // search fields (a seller profile row that exists), #destroy (the row and the touch of the seller; the profile entry has nothing to delete), and the
 // 404 of #preview and #products for a profile with no custom HTML or a page that is not the profile, and the catalogue slices
-// of the profile preview for a page that references no price.
+// of the profile preview for a page that references no price, and the preview documents (rich text, slugged and profile custom HTML).
 // Handed to Rails whole, before any write: a save that passes validation (HTML sanitizing, content moderation, the slug), the
-// other changes to the profile entry, and the rendered preview.
+// other changes to the profile entry, and the preview of a profile that references prices.
 import { Prisma } from "@prisma/client";
 
 import { isBlank } from "../models/compliance-countries.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { findSellerProfile, SellerProfiles } from "../models/seller-profile.ts";
 import { column, execute, selectRows, table } from "../models/sql.ts";
-import { findUserBang, rubyStrip, setSellerProfileTarget, Users } from "../models/user.ts";
+import {
+  findUserBang,
+  nameOrUsername,
+  rubyStrip,
+  setSellerProfileTarget,
+  subdomainWithProtocol,
+  Users,
+} from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
 import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
 import { pagePolicy } from "../policies/page.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 import { squish } from "../search/plaintext.ts";
+import { enqueueRoutabilityRefresh } from "../services/custom-domain-hosts.ts";
+import { richTextDocument } from "../services/pages-documents.ts";
+import { interpolateProfile } from "../services/pages-interpolator.ts";
+import { referencedInPrices } from "../services/pages-product-prices.ts";
+import { loadProfileDataFacts, profileDataJson } from "../services/pages-profile-data.ts";
 
 import { HandBackToRails, type ActionResult, type Redirected } from "./application-controller.ts";
+import {
+  customHtmlCsp,
+  FOLLOW_BRIDGE_SCRIPT,
+  pagesTailwindHead,
+  PRODUCTS_BRIDGE_SCRIPT,
+  profileCustomHtmlDocument,
+} from "./custom-html-document.ts";
 import { customHtmlProductsSlice } from "./custom-html-products-slice.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
+import { pagePreviewDocument } from "./user-page-documents.ts";
 import { requireHtml } from "./users-controller.ts";
 
 const FOUND = 302;
@@ -34,6 +54,7 @@ const NOT_FOUND = 404;
 const PAGES_PATH = "/pages";
 const NEW_PAGE_PATH = "/pages/new";
 const PROFILE_SLUG = "profile";
+const HTML = "text/html; charset=utf-8";
 // Page::MAX_SEO_TITLE_LENGTH, MAX_SEO_DESCRIPTION_LENGTH and MAX_CONTENT_LENGTH
 const MAX_SEO_TITLE_LENGTH = 70;
 const MAX_SEO_DESCRIPTION_LENGTH = 320;
@@ -241,9 +262,59 @@ async function preview(input: MutationInput): Promise<ActionResult> {
   if ("redirect" in result) return result.redirect;
   const { profile, page, sellerContext } = result.found;
 
-  const customHtml = profile ? await profileCustomHtml(sellerContext.seller!.id) : page!.custom_html;
+  const seller = sellerContext.seller!;
+  const customHtml = profile ? await profileCustomHtml(seller.id) : page!.custom_html;
   if (isBlank(customHtml) && profile) return headNotFound;
-  throw new HandBackToRails("a rendered page preview");
+  const record = Users.load(seller);
+  const config = domainConfig(process.env);
+  const customHeaders = {
+    "Content-Security-Policy": customHtmlCsp(),
+    "X-Frame-Options": "SAMEORIGIN",
+    "Referrer-Policy": "no-referrer",
+  };
+
+  if (isBlank(customHtml)) {
+    const [row] = await selectRows<{ title: string | null; seo_title: string | null; content: string | null }>(
+      Prisma.sql`SELECT ${column("pages", "title")}, ${column("pages", "seo_title")}, ${column("pages", "content")} FROM ${table("pages")} WHERE ${column("pages", "id")} = ${page!.id}`,
+    );
+    // `current_seller.profile_url` is a URI of nil without a subdomain, which raises.
+    const profileHref = subdomainWithProtocol(record);
+    if (profileHref === null) throw new HandBackToRails("a seller with no profile subdomain");
+    const body = richTextDocument({ page: row!, sellerName: nameOrUsername(record), profileHref, headExtra: "" });
+    return { status: 200, body, contentType: HTML, paramsRead: true };
+  }
+
+  const fields = { name_or_username: nameOrUsername(record), bio: seller.bio };
+  const tailwindHead = pagesTailwindHead(`${config.protocol}://${config.assetDomain}`);
+  if (!profile) {
+    const interpolated = interpolateProfile(customHtml!, { profile: fields });
+    const body = pagePreviewDocument(interpolated, { tailwindHead });
+    return { status: 200, body, contentType: HTML, paramsRead: true, optOutOfCsp: true, headers: customHeaders };
+  }
+
+  // The prices come from the visitor's IP and currency, which Rails derives.
+  if (referencedInPrices(customHtml)) throw new HandBackToRails("a profile preview that references product prices");
+  const interpolated = interpolateProfile(customHtml!, { profile: fields, prices: {} });
+  const facts = await loadProfileDataFacts(
+    { id: seller.id, username: seller.username, external_id: seller.external_id },
+    input.chain.now,
+  );
+  const body = profileCustomHtmlDocument(interpolated, {
+    dataJson: profileDataJson(facts),
+    pricesJson: null,
+    followBridge: FOLLOW_BRIDGE_SCRIPT,
+    productsBridge: PRODUCTS_BRIDGE_SCRIPT,
+    tailwindHead,
+  });
+  await enqueueRoutabilityRefresh(facts.routabilityRefresh);
+  return {
+    status: 200,
+    body,
+    contentType: HTML,
+    paramsRead: true,
+    optOutOfCsp: true,
+    headers: { ...customHeaders, "Cache-Control": "private, no-store" },
+  };
 }
 
 // GET /pages/:slug/products
