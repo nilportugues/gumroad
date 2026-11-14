@@ -838,11 +838,16 @@ describe("Purchase#utm_link", () => {
     ...overrides,
   });
 
-  function answering(driven: Record<string, unknown>[], links: Record<string, unknown>[]) {
+  function answering(
+    driven: Record<string, unknown>[],
+    links: Record<string, unknown>[],
+    sellers: Record<string, unknown>[] = [],
+  ) {
     setSqlClient(() => ({
       $queryRaw: (async (query: { sql: string }) => {
         if (query.sql.includes("FROM `utm_link_driven_sales`")) return driven;
         if (query.sql.includes("FROM `utm_links`")) return links;
+        if (query.sql.includes("FROM `users`")) return sellers;
         throw new Error(`unexpected statement: ${query.sql}`);
       }) as never,
       $executeRaw: (async () => 0) as never,
@@ -866,7 +871,17 @@ describe("Purchase#utm_link", () => {
     });
   });
 
-  it("hands back a purchase driven through several visits, a vanished link, and another seller's link", async () => {
+  it("builds the url of another seller's link from that seller", async () => {
+    answering([{ purchase_id: 5, utm_link_id: 3 }], [utmLink({ seller_id: 8 })], [{ id: 8, username: "elsewhere" }]);
+
+    const readings = await utmLinkReadings([5], seller);
+
+    expect(readings.get("5")).toMatchObject({
+      utm_url: "http://elsewhere.localhost:3000?utm_campaign=Spring%26Sale&utm_medium=email&utm_source=news%20letter",
+    });
+  });
+
+  it("hands back a purchase driven through several visits, a vanished link, and a link of a seller who is gone", async () => {
     answering(
       [
         { purchase_id: 5, utm_link_id: 3 },

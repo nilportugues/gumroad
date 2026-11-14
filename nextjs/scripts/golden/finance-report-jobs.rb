@@ -2,8 +2,10 @@
 
 # Produces nextjs/src/worker/jobs/__fixtures__/finance-report-jobs.golden.json: the finance report jobs that only mail a report in
 # production (EmailOutstandingBalancesCsvWorker, SendStripeCurrencyBalancesReportJob, SendDeferredRefundsReportWorker,
-# SendFinancesReportWorker, SendDailyFinanceLedgerReportJob, SendStripeBalanceSummariesReportJob), run by the real app as Sidekiq jobs
-# (support/sidekiq_executor.rb), and the block of their sidekiq_retries_exhausted (FinanceReportFailureAlert).
+# SendFinancesReportWorker, SendDailyFinanceLedgerReportJob, SendStripeBalanceSummariesReportJob, UploadUsStatesSalesTaxToTaxjarJob),
+# run by the real app as Sidekiq jobs (support/sidekiq_executor.rb), and the block of their sidekiq_retries_exhausted
+# (FinanceReportFailureAlert). UploadUsStatesSalesTaxToTaxjarJob has a block of its own (a TaxJar upload failure mail), which Node
+# hands back, so it records no hook cases.
 #
 # `redis_ops` are the calls the job makes on `$redis` (LongRunningJobTracking's eval and zrem, FinanceReportCompletionTracking's set);
 # `redis` is the scratch Redis afterwards, where REDIS_HOST and SIDEKIQ_REDIS_HOST are one database. Outside production perform returns
@@ -57,6 +59,10 @@ end)
     def generate(*) = $production ? raise(HandBackMarker) : super
   end)
 end
+# In production UploadUsStatesSalesTaxToTaxjarJob goes on to push to TaxJar through the uploader.
+UsStateSalesTaxUploader.singleton_class.prepend(Module.new do
+  def new(*, **) = $production ? raise(HandBackMarker) : super
+end)
 $production = false
 
 def in_production
@@ -108,6 +114,7 @@ CLASSES = {
   SendFinancesReportWorker => { arities: PERIODS + [[1, [2, 3]], [true, "a"], ["é", nil], [nil, nil], [[], [[4], 5]], [2 ** 40, -3]] },
   SendStripeBalanceSummariesReportJob => { arities: PERIODS },
   SendDailyFinanceLedgerReportJob => { arities: [[], ["2026-10-31"], ["not a date"], [nil]] },
+  UploadUsStatesSalesTaxToTaxjarJob => { arities: [[], ["2026-10-31"], ["not a date"], [nil], [20_261_031], ["2026-03-01", "x"]], hook: false },
 }.freeze
 
 cases = []
@@ -119,6 +126,7 @@ CLASSES.each do |klass, config|
   cases << run(klass, "#{klass.name} with an argument of nil among others", [nil, 5])
   cases << run(klass, "#{klass.name} in production", [], production: true)
   cases << run(klass, "#{klass.name} in production with arguments", [5, 2026], production: true)
+  next if config[:hook] == false
 
   base_job = { "class" => klass.name, "args" => [], "jid" => "abc", "queue" => "default" }
   cases << exhausted(klass, "#{klass.name} exhausted with no arguments and no timestamps", base_job)

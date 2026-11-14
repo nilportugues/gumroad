@@ -1286,6 +1286,22 @@ describe("get_subscriptions", () => {
     });
   });
 
+  it("reports the giftee's address of a gift sender's subscription and hands back several gift rows", async () => {
+    const sender = (giftee_emails: (string | null)[]) => purchase(1, { flags: (1n << 2n) | (1n << 6n), giftee_emails });
+    const emailOf = async (giftees: (string | null)[]) => {
+      const body = (await toolBody(
+        "get_subscriptions",
+        {},
+        subscriptionsContext([subscription()], [sender(giftees)]),
+      )) as { subscriptions: { email: string | null }[] };
+      return body.subscriptions[0]!.email;
+    };
+    expect(await emailOf(["giftee@example.com"])).toBe("giftee@example.com");
+    expect(await emailOf([])).toBeNull();
+    expect(await emailOf([""])).toBeNull();
+    await expect(emailOf(["a@example.com", "b@example.com"])).rejects.toThrow(HandBackToRails);
+  });
+
   it("prefers the subscriber's account email and gives the cursor in microseconds when another page exists", async () => {
     const context = subscriptionsContext(
       [
@@ -1355,11 +1371,16 @@ describe("get_subscriptions", () => {
     });
   });
 
-  it("hands back a mandate, a gift, several original purchases and tied newest purchases", async () => {
+  it("hands back a mandate, several gift rows, several original purchases and tied newest purchases", async () => {
     const hands = async (context: ReturnType<typeof subscriptionsContext>, args = {}) =>
       expect(toolBody("get_subscriptions", args, context)).rejects.toBeInstanceOf(HandBackToRails);
     await hands(subscriptionsContext([subscription({ flags: 1n << 7n })], [purchase(1)]));
-    await hands(subscriptionsContext([subscription()], [purchase(1, { flags: (1n << 2n) | (1n << 6n) })]));
+    await hands(
+      subscriptionsContext(
+        [subscription()],
+        [purchase(1, { flags: (1n << 2n) | (1n << 6n), giftee_emails: ["a@example.com", "b@example.com"] })],
+      ),
+    );
     await hands(subscriptionsContext([subscription()], [purchase(1), purchase(2)]));
     await hands(
       subscriptionsContext([subscription()], [purchase(1), purchase(2, { flags: 0n, created_micros: 1_000_000n })]),
