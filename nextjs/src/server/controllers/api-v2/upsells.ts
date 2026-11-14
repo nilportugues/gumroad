@@ -1,11 +1,12 @@
-// Api::V2::UpsellsController (app/controllers/api/v2/upsells_controller.rb). Node answers #index, #show and the 404 of #update and #destroy.
-// Create, update and destroy run SaveUpsellService and soft-delete the code and its versions, whose validations and callbacks are not ported,
-// so Rails takes them whole.
+// Api::V2::UpsellsController (app/controllers/api/v2/upsells_controller.rb). Node answers #index, #show, the 404 of #update and #destroy,
+// and #destroy of an upsell without a discount code. Create and update run SaveUpsellService, and deleting a code runs OfferCode callbacks;
+// neither is ported, so Rails takes them whole.
 import { Prisma, type Upsell } from "@prisma/client";
 
 import { IS_CONTENT_UPSELL, UPSELLS, upsellJson } from "../../models/upsell.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { HandBackToRails } from "../application-controller.ts";
+import { softDeleteUpsell } from "../checkout-upsells.ts";
 import { type ApiV2Input, EDIT_PRODUCTS_SCOPES, errorWithObject, fromExternalId, PUBLIC_READ_SCOPES, registerApiV2, successWithObject } from "./base.ts";
 
 // current_resource_owner.upsells.alive.not_is_content_upsell
@@ -48,5 +49,14 @@ registerApiV2(
   { method: "POST", pattern: "/v2/upsells", scopes: EDIT_PRODUCTS_SCOPES, run: writeToRails },
   { method: "PATCH", pattern: "/v2/upsells/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadUpsell, run: writeToRails },
   { method: "PUT", pattern: "/v2/upsells/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadUpsell, run: writeToRails },
-  { method: "DELETE", pattern: "/v2/upsells/:id", scopes: EDIT_PRODUCTS_SCOPES, before: loadUpsell, run: writeToRails },
+  {
+    method: "DELETE",
+    pattern: "/v2/upsells/:id",
+    scopes: EDIT_PRODUCTS_SCOPES,
+    before: loadUpsell,
+    async run({ owner, routeParams }) {
+      await softDeleteUpsell((await findUpsell(owner.id, routeParams.id))!);
+      return successWithObject("upsell", null);
+    },
+  },
 );
