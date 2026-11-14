@@ -25,9 +25,10 @@ const SHORT_QUERY_PARAM = "a";
 
 export type AffiliatedParams = { query: string | null; page: string | null; sort: { key: string | null; direction: string | null } | null };
 
-// Rack parses `sort[key]` and `sort[direction]` into a hash. A hash under another name is not permitted, so it is dropped, unless the
-// same name also appears as a plain value (Rack raises) and any other bracket shape is left to Rails.
-const IGNORED_HASH = /^([^[\]]+)\[[^[\]]+\]$/u;
+// `params.permit(:query, :page, sort: [:key, :direction])` over what Rack builds from the query string. A hash or array under another
+// name, and a `query`, `page` or `sort` that is not the permitted shape, are dropped by `permit`. Rack raises (a 400) when one name is
+// used as both a value and a container, or as an array and a hash; those, and any shape not recorded, go to Rails.
+const BRACKETED = /^([^[\]]+)((?:\[[^[\]]*\])+)$/u;
 export function affiliatedParams(queryString: string): AffiliatedParams {
   let query: string | null = null;
   let page: string | null = null;
@@ -35,29 +36,44 @@ export function affiliatedParams(queryString: string): AffiliatedParams {
   let direction: string | null = null;
   let sorted = false;
   const plain = new Set<string>();
-  const hashes = new Set<string>();
+  const shapes = new Map<string, Set<string>>();
   for (const pair of queryString.split("&")) {
     if (pair === "") continue;
     const index = pair.indexOf("=");
     const name = decode(index === -1 ? pair : pair.slice(0, index));
     const value = index === -1 ? "" : decode(pair.slice(index + 1));
-    if (name === "query") query = value;
-    else if (name === "page") page = value;
-    else if (name === "sort[key]") {
+    if (name === "query") {
+      query = value;
+      plain.add(name);
+    } else if (name === "page") {
+      page = value;
+      plain.add(name);
+    } else if (name === "sort[key]") {
       key = value;
       sorted = true;
     } else if (name === "sort[direction]") {
       direction = value;
       sorted = true;
-    } else if (name === "sort") throw new HandBackToRails();
-    else if (name.includes("[")) {
-      const root = IGNORED_HASH.exec(name)?.[1];
-      if (root === undefined || root === "query" || root === "page" || root === "sort") throw new HandBackToRails();
-      hashes.add(root);
+    } else if (name.includes("[")) {
+      const match = BRACKETED.exec(name);
+      if (!match) throw new HandBackToRails("a parameter name Rack parses in a way the port does not model");
+      const [, root = "", brackets = ""] = match;
+      if (root === "sort") throw new HandBackToRails("a sort that is not sort[key] or sort[direction]");
+      const parts = brackets.slice(1, -1).split("][");
+      // `filter[][a]` is an array of hashes; Rack nests it in ways the recordings do not cover.
+      if (parts.length > 1 && parts.includes("")) throw new HandBackToRails("an array of hashes");
+      if (parts.length > 2) throw new HandBackToRails("a hash nested more than two levels");
+      const shape = parts[0] === "" ? "array" : parts.length === 1 ? "hash" : "nested";
+      const seen = shapes.get(root) ?? new Set<string>();
+      seen.add(shape);
+      shapes.set(root, seen);
     } else plain.add(name);
   }
-  if ([...hashes].some((root) => plain.has(root))) throw new HandBackToRails();
-  return { query, page, sort: sorted ? { key, direction } : null };
+  for (const [root, seen] of shapes)
+    if (plain.has(root) || seen.size > 1) throw new HandBackToRails("a parameter used as two shapes");
+  // `sort=name` next to `sort[key]=` is Rack's TypeError.
+  if (plain.has("sort") && sorted) throw new HandBackToRails("sort as a value and a hash");
+  return { query: shapes.has("query") ? null : query, page: shapes.has("page") ? null : page, sort: sorted ? { key, direction } : null };
 }
 
 function decode(value: string): string {
