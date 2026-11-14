@@ -61,7 +61,8 @@ function jsonDataOf(note: Comment): RubyHash {
   throw new NotPortedError("json_data of a payout note that is a boolean or a float", "json_data.rb");
 }
 
-export const isBlankJson = (value: unknown) => isBlank(value) || (value instanceof RubyHash && value.entries.length === 0);
+export const isBlankJson = (value: unknown) =>
+  isBlank(value) || (value instanceof RubyHash && value.entries.length === 0);
 
 // `note.json_data["retry_count"].to_i`
 function retryCount(hash: RubyHash): number | bigint {

@@ -7,7 +7,10 @@ import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 
 import { recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids } from "./__fixtures__/golden.ts";
 import { loadGolden, replayJobGolden } from "./__fixtures__/replay-job-golden.ts";
-import { partnerMigrationImportJobRetriesExhausted, partnerMigrationImportJobWith } from "./partner-migration-import-job.ts";
+import {
+  partnerMigrationImportJobRetriesExhausted,
+  partnerMigrationImportJobWith,
+} from "./partner-migration-import-job.ts";
 
 const golden = loadGolden(new URL("./__fixtures__/partner-migration-import-job.golden.json", import.meta.url));
 
@@ -17,7 +20,12 @@ const castByRails = (value: unknown) =>
   !(typeof value === "number" && Number.isInteger(value)) &&
   !(typeof value === "string" && /^[0-9]{1,15}$/u.test(value));
 
-replayJobGolden("PartnerMigrationImportJob", golden, partnerMigrationImportJobWith(), (c) => c.args.length === 1 && castByRails(c.args[0]));
+replayJobGolden(
+  "PartnerMigrationImportJob",
+  golden,
+  partnerMigrationImportJobWith(),
+  (c) => c.args.length === 1 && castByRails(c.args[0]),
+);
 
 // The exhausted block is not recorded (it writes and ends in ErrorNotifier); it must hand back before any read or push.
 describe("PartnerMigrationImportJob retries exhausted", () => {

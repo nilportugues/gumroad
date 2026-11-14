@@ -16,13 +16,18 @@ vi.mock("../../server/infra/flipper.ts", async (importOriginal) => ({
 
 type FlagCase = JobCase & { merchant_migration: boolean };
 
-const golden = loadGolden(new URL("./__fixtures__/retry-stripe-rejected-payout-setup-for-seller-job.golden.json", import.meta.url));
+const golden = loadGolden(
+  new URL("./__fixtures__/retry-stripe-rejected-payout-setup-for-seller-job.golden.json", import.meta.url),
+);
 
 const NOT_A_HASH = /holding (json that is not json|a json array|a json string|a json number)/u;
 // Rails ends these without a write, but only after a read Node does not port: the payout email of a PayPal merchant account and the
 // Connect routing country of a seller on merchant_migration.
-const UNPORTED_READ = /^a seller with (the merchant migration feature on and no notes|a PayPal merchant account and no notes)$/u;
-const cases = golden.cases.map((c) => (NOT_A_HASH.test(c.name) || UNPORTED_READ.test(c.name) ? { ...c, hands_back: true } : c));
+const UNPORTED_READ =
+  /^a seller with (the merchant migration feature on and no notes|a PayPal merchant account and no notes)$/u;
+const cases = golden.cases.map((c) =>
+  NOT_A_HASH.test(c.name) || UNPORTED_READ.test(c.name) ? { ...c, hands_back: true } : c,
+);
 
 // Rails casts a word to NULL and a float to an integer; Node hands those arguments back instead.
 const castByRails = (value: unknown) =>

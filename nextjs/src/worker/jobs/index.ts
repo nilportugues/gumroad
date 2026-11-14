@@ -135,6 +135,10 @@ import { alertOnStripeDobDriftJob, sweepClosedSellerConnectAccountsJob } from ".
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
+import {
+  partnerMigrationImportJob,
+  partnerMigrationImportJobRetriesExhausted,
+} from "./partner-migration-import-job.ts";
 import { partnerMigrationNotificationJob } from "./partner-migration-notification-job.ts";
 import {
   executeScheduledPayoutsJob,
@@ -238,13 +242,12 @@ import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-cert
 import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
 import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
 import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
-import { partnerMigrationImportJob, partnerMigrationImportJobRetriesExhausted } from "./partner-migration-import-job.ts";
-import { retryStripeRejectedPayoutSetupForSellerJob } from "./retry-stripe-rejected-payout-setup-for-seller-job.ts";
 import { resumeStalledPartnerMigrationsJob } from "./resume-stalled-partner-migrations-job.ts";
 import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
 import { retryPendingMandateChargeJob } from "./retry-pending-mandate-charge-job.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
+import { retryStripeRejectedPayoutSetupForSellerJob } from "./retry-stripe-rejected-payout-setup-for-seller-job.ts";
 import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
 import {
   reverseDeferredInternalTransferJob,
