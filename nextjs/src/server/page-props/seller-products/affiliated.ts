@@ -7,15 +7,15 @@ import { Prisma, type User } from "@prisma/client";
 
 import { encryptNumeric } from "../../../lib/obfuscate-ids.ts";
 import { HandBackToRails } from "../../controllers/application-controller.ts";
-import { selectRows, table } from "../../models/sql.ts";
-import type { SellerContext } from "../../policies/seller-context.ts";
-import { piracyReportsTabVisible, productsAffiliatedDirectAffiliatePolicy } from "../../policies/link.ts";
-import { formatMoney } from "../audience/filters.ts";
-import { paramToI } from "../audience/support.ts";
-import { domainConfig } from "../domain.ts";
-import { hasBrazilianStripeConnectAccount } from "../dashboard/payout-info.ts";
-import { externalId } from "../audience/support.ts";
 import { formattedDollarAmount } from "../../models/concerns/currency-helper.ts";
+import { selectRows, table } from "../../models/sql.ts";
+import { piracyReportsTabVisible, productsAffiliatedDirectAffiliatePolicy } from "../../policies/link.ts";
+import type { SellerContext } from "../../policies/seller-context.ts";
+import { formatMoney } from "../audience/filters.ts";
+import { paramToI, externalId } from "../audience/support.ts";
+import { hasBrazilianStripeConnectAccount } from "../dashboard/payout-info.ts";
+import { domainConfig } from "../domain.ts";
+
 import { archivedProductsCount } from "./dashboard-products.ts";
 
 export const AFFILIATED_PER_PAGE = 20;
@@ -23,7 +23,11 @@ export const AFFILIATED_PER_PAGE = 20;
 const GLOBAL_AFFILIATE_COOKIE_LIFETIME_DAYS = 7;
 const SHORT_QUERY_PARAM = "a";
 
-export type AffiliatedParams = { query: string | null; page: string | null; sort: { key: string | null; direction: string | null } | null };
+export type AffiliatedParams = {
+  query: string | null;
+  page: string | null;
+  sort: { key: string | null; direction: string | null } | null;
+};
 
 // `params.permit(:query, :page, sort: [:key, :direction])` over what Rack builds from the query string. A hash or array under another
 // name, and a `query`, `page` or `sort` that is not the permitted shape, are dropped by `permit`. Rack raises (a 400) when one name is
@@ -73,7 +77,11 @@ export function affiliatedParams(queryString: string): AffiliatedParams {
     if (plain.has(root) || seen.size > 1) throw new HandBackToRails("a parameter used as two shapes");
   // `sort=name` next to `sort[key]=` is Rack's TypeError.
   if (plain.has("sort") && sorted) throw new HandBackToRails("sort as a value and a hash");
-  return { query: shapes.has("query") ? null : query, page: shapes.has("page") ? null : page, sort: sorted ? { key, direction } : null };
+  return {
+    query: shapes.has("query") ? null : query,
+    page: shapes.has("page") ? null : page,
+    sort: sorted ? { key, direction } : null,
+  };
 }
 
 function decode(value: string): string {
@@ -100,7 +108,8 @@ const affiliationIds = (userId: bigint) =>
   Prisma.sql`SELECT id FROM affiliates WHERE type IN ('DirectAffiliate', 'GlobalAffiliate') AND deleted_at IS NULL AND affiliate_user_id = ${userId}`;
 
 function scopeSql(userId: bigint, query: string | null): { from: Prisma.Sql; where: Prisma.Sql } {
-  const filter = query !== null && query.trim() !== "" ? Prisma.sql` AND links.name LIKE ${`%${query.trim()}%`}` : Prisma.empty;
+  const filter =
+    query !== null && query.trim() !== "" ? Prisma.sql` AND links.name LIKE ${`%${query.trim()}%`}` : Prisma.empty;
   return {
     from: Prisma.sql`affiliates_links INNER JOIN links ON links.id = affiliates_links.link_id INNER JOIN affiliates ON affiliates.id = affiliates_links.affiliate_id`,
     where: Prisma.sql`affiliates_links.affiliate_id IN (${affiliationIds(userId)}) AND links.deleted_at IS NULL AND links.banned_at IS NULL${filter}`,
@@ -115,7 +124,9 @@ const REQUEST_TIMEOUT_MS = 3_000;
 const CHARGEBACK_REVERSED_FLAG = 512;
 
 async function globalAffiliateId(userId: bigint): Promise<bigint | null> {
-  const [row] = await selectRows<{ id: bigint }>(Prisma.sql`SELECT id FROM ${table("affiliates")} WHERE type = 'GlobalAffiliate' AND deleted_at IS NULL AND affiliate_user_id = ${userId} ORDER BY id ASC LIMIT 1`);
+  const [row] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT id FROM ${table("affiliates")} WHERE type = 'GlobalAffiliate' AND deleted_at IS NULL AND affiliate_user_id = ${userId} ORDER BY id ASC LIMIT 1`,
+  );
   return row ? BigInt(row.id) : null;
 }
 
@@ -136,7 +147,9 @@ async function totalCentsEarned(affiliateId: bigint): Promise<number> {
 // User#should_be_shown_currencies_always?
 async function showCurrencyAlways(user: User): Promise<boolean> {
   if ((user.currency_type ?? "usd") !== "usd") return true;
-  const [payment] = await selectRows<{ currency: string | null }>(Prisma.sql`SELECT currency FROM ${table("payments")} WHERE user_id = ${user.id} ORDER BY id DESC LIMIT 1`);
+  const [payment] = await selectRows<{ currency: string | null }>(
+    Prisma.sql`SELECT currency FROM ${table("payments")} WHERE user_id = ${user.id} ORDER BY id DESC LIMIT 1`,
+  );
   return payment !== undefined && payment.currency !== null && payment.currency !== "usd";
 }
 
@@ -147,7 +160,12 @@ export async function assertAffiliatedSupported(user: User, queryString: string)
 }
 
 // Active Support's BigDecimal#as_json is its string form; an Integer stays a number.
-export async function affiliatedProductsProps(user: User, context: SellerContext, params: AffiliatedParams, canRemoveAffiliations: boolean) {
+export async function affiliatedProductsProps(
+  user: User,
+  context: SellerContext,
+  params: AffiliatedParams,
+  canRemoveAffiliations: boolean,
+) {
   const query = params.query !== null && params.query.trim() !== "" ? params.query : null;
   const { from, where } = scopeSql(user.id, query);
   const total = await count(
@@ -159,11 +177,16 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
   const direction = params.sort?.direction?.toUpperCase() === "DESC" ? "DESC" : "ASC";
   const orderBy = (() => {
     switch (params.sort?.key) {
-      case "product_name": return `links.name ${direction}`;
-      case "revenue": return `revenue ${direction}`;
-      case "sales_count": return `sales_count ${direction}`;
-      case "commission": return `basis_points ${direction}`;
-      default: return "affiliates.created_at ASC";
+      case "product_name":
+        return `links.name ${direction}`;
+      case "revenue":
+        return `revenue ${direction}`;
+      case "sales_count":
+        return `sales_count ${direction}`;
+      case "commission":
+        return `basis_points ${direction}`;
+      default:
+        return "affiliates.created_at ASC";
     }
   })();
   const rows = await selectRows<GroupedRow>(
@@ -177,18 +200,27 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
   );
 
   const removable = new Map<bigint, { sellerName: string | null }>();
-  const directIds = rows.filter((row) => row.affiliate_type === "DirectAffiliate").map((row) => BigInt(row.affiliate_id));
+  const directIds = rows
+    .filter((row) => row.affiliate_type === "DirectAffiliate")
+    .map((row) => BigInt(row.affiliate_id));
   if (canRemoveAffiliations && directIds.length > 0) {
-    const sellers = await selectRows<{ id: bigint; name: string | null; username: string | null; external_id: string | null }>(
+    const sellers = await selectRows<{
+      id: bigint;
+      name: string | null;
+      username: string | null;
+      external_id: string | null;
+    }>(
       Prisma.sql`SELECT affiliates.id AS id, users.name AS name, users.username AS username, users.external_id AS external_id FROM affiliates LEFT JOIN users ON users.id = affiliates.seller_id WHERE affiliates.id IN (${Prisma.join(directIds)})`,
     );
-    for (const row of sellers) removable.set(BigInt(row.id), { sellerName: row.name && row.name !== "" ? row.name : row.username });
+    for (const row of sellers)
+      removable.set(BigInt(row.id), { sellerName: row.name && row.name !== "" ? row.name : row.username });
   }
 
   const protocol = domainConfig(process.env).protocol;
   const rootDomain = domainConfig(process.env).rootDomain;
   const products = rows.map((row) => {
-    const revenue = row.revenue === null ? 0 : typeof row.revenue === "bigint" ? Number(row.revenue) : Number(row.revenue);
+    const revenue =
+      row.revenue === null ? 0 : typeof row.revenue === "bigint" ? Number(row.revenue) : Number(row.revenue);
     const direct = removable.get(BigInt(row.affiliate_id));
     return {
       product_name: row.name,
@@ -206,12 +238,18 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
   const globalId = await globalAffiliateId(user.id);
   // Unfiltered on purpose: the account's headline totals.
   const unfiltered = scopeSql(user.id, null);
-  const [credits] = await selectRows<{ total: bigint | string | null; count: bigint }>(Prisma.sql`SELECT SUM(amount_cents) AS total, COUNT(*) AS count FROM affiliate_credits WHERE affiliate_user_id = ${user.id}`);
+  const [credits] = await selectRows<{ total: bigint | string | null; count: bigint }>(
+    Prisma.sql`SELECT SUM(amount_cents) AS total, COUNT(*) AS count FROM affiliate_credits WHERE affiliate_user_id = ${user.id}`,
+  );
   const stats = {
     total_revenue: credits?.total == null ? 0 : Number(credits.total),
     total_sales: Number(credits?.count ?? 0),
-    total_products: await count(Prisma.sql`SELECT COUNT(DISTINCT affiliates_links.link_id) AS count FROM ${unfiltered.from} WHERE ${unfiltered.where}`),
-    total_affiliated_creators: await count(Prisma.sql`SELECT COUNT(DISTINCT links.user_id) AS count FROM ${unfiltered.from} WHERE ${unfiltered.where}`),
+    total_products: await count(
+      Prisma.sql`SELECT COUNT(DISTINCT affiliates_links.link_id) AS count FROM ${unfiltered.from} WHERE ${unfiltered.where}`,
+    ),
+    total_affiliated_creators: await count(
+      Prisma.sql`SELECT COUNT(DISTINCT links.user_id) AS count FROM ${unfiltered.from} WHERE ${unfiltered.where}`,
+    ),
   };
 
   return {
@@ -220,15 +258,21 @@ export async function affiliatedProductsProps(user: User, context: SellerContext
     stats,
     global_affiliates_data: {
       global_affiliate_id: globalId === null ? null : encryptNumeric(Number(globalId)),
-      global_affiliate_sales: globalId === null ? null : formattedDollarAmount(await totalCentsEarned(globalId), { withCurrency: await showCurrencyAlways(user) }),
+      global_affiliate_sales:
+        globalId === null
+          ? null
+          : formattedDollarAmount(await totalCentsEarned(globalId), { withCurrency: await showCurrencyAlways(user) }),
       cookie_expiry_days: GLOBAL_AFFILIATE_COOKIE_LIFETIME_DAYS,
       affiliate_query_param: SHORT_QUERY_PARAM,
     },
     discover_url: `${protocol}://${domainConfig(process.env).discoverDomain}`,
     archived_tab_visible: (await archivedProductsCount(user)) > 0,
-    affiliates_disabled_reason: (await hasBrazilianStripeConnectAccount(user.id)) ? "Affiliates with Brazilian Stripe accounts are not supported." : null,
+    affiliates_disabled_reason: (await hasBrazilianStripeConnectAccount(user.id))
+      ? "Affiliates with Brazilian Stripe accounts are not supported."
+      : null,
     piracy_reports_tab_visible: await piracyReportsTabVisible(context),
   };
 }
 
-export const canRemoveAffiliations = (context: SellerContext) => productsAffiliatedDirectAffiliatePolicy.destroy(context);
+export const canRemoveAffiliations = (context: SellerContext) =>
+  productsAffiliatedDirectAffiliatePolicy.destroy(context);

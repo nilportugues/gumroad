@@ -161,7 +161,8 @@ const CUT_EXTRA_JOINS = Prisma.sql` INNER JOIN affiliates_links product_affiliat
 
 async function tableRows(seller: User, params: ListingParams, kind: Kind) {
   const { from, where } = collabsQuery(seller.id, params, kind);
-  if (params[kind].sort?.key !== "cut") return sortAndPaginate({ from, where, table: params[kind], sellerId: seller.id });
+  if (params[kind].sort?.key !== "cut")
+    return sortAndPaginate({ from, where, table: params[kind], sellerId: seller.id });
   const cut = Prisma.sql`CASE WHEN links.user_id = ${seller.id} THEN 10000 - affiliates_links.affiliate_basis_points ELSE affiliates_links.affiliate_basis_points END`;
   return sortAndPaginate({
     from: Prisma.sql`${from}${CUT_EXTRA_JOINS}`,

@@ -149,7 +149,8 @@ export async function softDeleteUpsell(
     await UpsellVariantDeletable.markDeleted(UpsellVariants.load(castRow<UpsellVariant>("UpsellVariant", variant)));
   if (await UpsellDeletable.markDeleted(upsell)) return null;
   const message = upsell.errors.details[0]?.message;
-  if (message === undefined) throw new NotPortedError("An upsell that fails to delete", "Checkout::UpsellsController#destroy");
+  if (message === undefined)
+    throw new NotPortedError("An upsell that fails to delete", "Checkout::UpsellsController#destroy");
   return message;
 }
 
