@@ -9,12 +9,17 @@ import { getRedis } from "../../server/infra/redis.ts";
 import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { RecordNotFound } from "../../server/models/runtime/errors.ts";
+import type { RetryIn } from "../retry.ts";
 
 import { type JobDeps, modelJob } from "./support/job-deps.ts";
 
 const FEATURE_FLAG = "submit_paypal_dispute_evidence";
 const PAYPAL = "paypal";
 const PERCENT = 100;
+const RETRY_STEP_SECONDS = 5 * 60;
+
+// `sidekiq_retry_in { |count| 5.minutes.to_i * (count + 1) }`: a PayPal outage outlasts the default backoff.
+export const submitPaypalDisputeEvidenceJobRetryIn: RetryIn = (count) => RETRY_STEP_SECONDS * (count + 1);
 
 export type FeatureRedis = { hgetall(key: string): Promise<Record<string, string>> };
 

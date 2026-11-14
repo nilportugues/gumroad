@@ -160,13 +160,13 @@ export async function amountRefundedCentsByPurchase(purchaseIds: bigint[]): Prom
   return totals;
 }
 
-// Purchase#original_product_review.try(:rating) for a purchase that is neither a gift sender's nor a membership's: its own review
+// Purchase#alive_original_product_review.try(:rating) for a purchase that is neither a gift sender's nor a membership's: its own review
 // (product_reviews.purchase_id is unique). A purchase without a review is absent from the map.
 export async function ratingByPurchase(purchaseIds: bigint[]): Promise<Map<bigint, number | null>> {
   const ratings = new Map<bigint, number | null>();
   if (purchaseIds.length === 0) return ratings;
   const rows = await selectRows<{ purchase_id: bigint; rating: number | null }>(
-    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(purchaseIds)})`,
+    Prisma.sql`SELECT ${column("product_reviews", "purchase_id")}, ${column("product_reviews", "rating")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} IN (${Prisma.join(purchaseIds)}) AND ${column("product_reviews", "deleted_at")} IS NULL`,
   );
   for (const row of rows) ratings.set(BigInt(row.purchase_id), row.rating === null ? null : Number(row.rating));
   return ratings;

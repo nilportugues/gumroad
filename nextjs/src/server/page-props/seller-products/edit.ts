@@ -24,6 +24,7 @@ import type { LinkRow, UserRow } from "../../presenters/product-reads.ts";
 import { jsonDataHash, authorBylineProps } from "../../presenters/product.ts";
 import { fromAddressWithName } from "../audience/mail-addresses.ts";
 import { domainConfig } from "../domain.ts";
+import { assertNoPublishSchedule, publishScheduleEditorProps } from "../publish-schedule-props.ts";
 
 import data from "./edit-data.generated.json" with { type: "json" };
 import {
@@ -46,6 +47,13 @@ const INTEGRATION_NAMES = ["circle", "discord", "zoom", "google_calendar"] as co
 // BaseVariant::MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE
 const MINIMUM_DAYS_TIL_EXISTING_MEMBERSHIP_PRICE_CHANGE = 7;
 const DAY_MS = 86_400_000;
+async function productHasBuilds(productId: bigint | number): Promise<boolean> {
+  const [row] = await selectRows<{ found: number | bigint }>(
+    Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("product_builds")} WHERE ${column("product_builds", "product_id")} = ${productId}) AS found`,
+  );
+  return Number(row?.found ?? 0) > 0;
+}
+
 const EDITOR_REVISION_VERSION = "v4";
 // User::LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY (`Time.new(2025, 3, 31).end_of_day`, in the server's zone: UTC)
 const LAST_ALLOWED_TIME_FOR_PRODUCT_LEVEL_REFUND_POLICY = Date.UTC(2025, 2, 31, 23, 59, 59, 999);
@@ -200,6 +208,9 @@ export async function editBlockers(product: LinkRow, seller: UserRow, collaborat
 export async function assertEditSupported(product: LinkRow, seller: UserRow, currentSellerId: bigint): Promise<void> {
   if (product.user_id === null || product.user_id !== seller.id) throw new HandBackToRails();
   if ((await editBlockers(product, seller, currentSellerId !== seller.id)).length > 0) throw new HandBackToRails();
+  await assertNoPublishSchedule(product);
+  if ((await productHasBuilds(product.id)) && (await isFeatureEnabled("product_build_player", userActor(seller.id))))
+    throw new HandBackToRails("a product with web builds");
 }
 
 // Port of app/services/product/editor_revision.rb `fingerprint`/`digest`, for a product whose rich content, files, public
@@ -480,6 +491,8 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
   const otherRefundPolicies = await otherProductRefundPolicies(product.id, seller.id);
   const sections = await profileSections(seller);
   const actor = userActor(seller.id);
+  // Link#build_player_enabled?; has_web_builds is true only for a product with builds, which Rails renders.
+  const buildPlayerEnabled = await isFeatureEnabled("product_build_player", actor);
   const sellerRecord = Users.load(castRow<User>("User", seller as never));
   const config = domainConfig(process.env);
   const subdomainName = userSubdomain(sellerRecord);
@@ -543,6 +556,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
       first_published_at: product.first_published_at
         ? instantInTimeZoneIso8601("UTC", product.first_published_at as Date)
         : null,
+      ...(await publishScheduleEditorProps(product, seller.id)),
       require_shipping: false,
       integrations: Object.fromEntries(INTEGRATION_NAMES.map((name) => [name, null])),
       variants: await variantProps(versions, sharesRichContent),
@@ -620,6 +634,7 @@ export async function editProps({ product, seller, sellerExternalId, aiGenerated
     cancellation_discounts_enabled: await isFeatureEnabled("cancellation_discounts", actor),
     receipt_email_from: fromAddressWithName(seller.name, `noreply@${mailDomain}`),
     price_checker_enabled: await isFeatureEnabled("price_checker", actor),
+    web_build_player_enabled: buildPlayerEnabled,
     has_web_builds: false,
     custom_html_pages_enabled: await isFeatureEnabled("custom_html_pages", actor),
     auto_marketing_enabled: await autoMarketingEnabled(seller),

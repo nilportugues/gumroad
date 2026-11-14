@@ -17,7 +17,10 @@ import {
   type RedisSnapshot,
 } from "./__fixtures__/golden.ts";
 import { sqlReplay, type Statement } from "./__fixtures__/sql-replay.ts";
-import { submitPaypalDisputeEvidenceJobWith } from "./submit-paypal-dispute-evidence-job.ts";
+import {
+  submitPaypalDisputeEvidenceJobRetryIn,
+  submitPaypalDisputeEvidenceJobWith,
+} from "./submit-paypal-dispute-evidence-job.ts";
 
 type Case = {
   name: string;
@@ -96,5 +99,10 @@ describe("SubmitPaypalDisputeEvidenceJob", () => {
 
     expect(error?.name).toBe("HandBackToRuby");
     expect(sql.log).toEqual([]);
+  });
+
+  it("waits five minutes more on every retry", () => {
+    const wait = (count: number) => submitPaypalDisputeEvidenceJobRetryIn(count, new Error("boom"), {} as never);
+    expect([0, 1, 2].map(wait)).toEqual([300, 600, 900]);
   });
 });

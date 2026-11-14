@@ -15,6 +15,7 @@ import { avatarUrl } from "../page-props/signed-in/presenters.ts";
 import { mobilePreview } from "../presenters/mobile-preview.ts";
 import { thumbnailUrlsByProduct } from "../presenters/mobile-serializer-reads.ts";
 import { jsonTime, linkAsJsonMobile } from "../presenters/mobile-serializers.ts";
+import { urlRedirectMobileData } from "../presenters/mobile-url-redirect.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
@@ -56,8 +57,12 @@ async function preorderAttributes(input: MobileInput) {
   const last = purchases[purchases.length - 1];
   if (first === undefined || last === undefined) throw new NotPortedError("a preorder without purchases");
   const charged = last.purchase_state === "successful";
-  if (charged && (await db.urlRedirect.count({ where: { purchase_id: BigInt(last.id) } })) > 0)
-    throw new HandBackToRails("the url redirect of a preorder's charge purchase");
+  // has_one :url_redirect reads an arbitrary row when there are several
+  const chargeRedirects = charged
+    ? await db.urlRedirect.findMany({ where: { purchase_id: BigInt(last.id) }, take: 2 })
+    : [];
+  if (chargeRedirects.length > 1) throw new HandBackToRails("a preorder's charge purchase with several url redirects");
+  const chargeRedirect = chargeRedirects[0];
   const source = charged ? last : first;
 
   const [preorderLink] = await selectRows<{ link_id: bigint | null; release_at: Date | null }>(
@@ -87,11 +92,26 @@ async function preorderAttributes(input: MobileInput) {
     thumbnailOrCoverUrl,
     preview,
   });
+  if (chargeRedirect !== undefined) {
+    // UrlRedirect#product_json_data of the charge purchase
+    const data = await urlRedirectMobileData({
+      redirect: chargeRedirect,
+      purchase,
+      purchaser,
+      subscription: null,
+      product: link,
+      seller: creator,
+    });
+    json.url_redirect_external_id = data.urlRedirectExternalId;
+    json.url_redirect_token = data.urlRedirectToken;
+    json.file_data = data.fileData;
+  }
   json.purchase_id = encrypt(purchase.id);
   json.purchased_at = jsonTime(purchase.created_at);
   if (purchaser) json.user_id = purchaser.external_id;
   json.product_updates_data = [];
   json.is_archived = PurchaseFlags.isSet(purchase.flags, "is_archived");
+  if (chargeRedirect !== undefined) json.custom_delivery_url = null;
   if (!charged)
     json.preorder_data = { external_id: encrypt(preorder.id), release_at: jsonTime(preorderLink.release_at) };
   return renderJson({ success: true, product: json });

@@ -32,7 +32,7 @@ const STRING_COLUMN_LIMIT = 255;
 // `fetch_offer_codes` reads these from the same params; a request that carries them gets another page.
 const LISTING_KEYS = ["page", "query", "sort", "column"];
 // Params the dashboard form sends as lists of ids.
-const ID_LIST_KEYS = ["selected_option_ids", "excluded_product_ids", "ownership_product_ids"];
+const ID_LIST_KEYS = ["selected_option_ids", "excluded_product_ids", "ownership_product_ids", "ownership_option_ids"];
 const MS_PER_MINUTE = 60_000;
 const MINUTES_PER_HOUR = 60;
 const MAX_HOUR = 23;

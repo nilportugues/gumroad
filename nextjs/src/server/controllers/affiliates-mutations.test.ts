@@ -227,8 +227,16 @@ describe("POST /affiliates", () => {
     await expect(call(create, undefined)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands a flag that is a string to Rails", async () => {
-    await expect(call(create, affiliate({ apply_to_all_products: "false" }))).rejects.toBeInstanceOf(HandBackToRails);
+  it("reads a flag that is the text false as true, as Ruby does, and asks for the fee", async () => {
+    expect(await call(create, affiliate({ apply_to_all_products: "false" }))).toEqual(
+      refusal("/affiliates/new", "Invalid affiliate parameters"),
+    );
+  });
+
+  it("drops a fee that is a hash, which reads as blank", async () => {
+    expect(await call(create, affiliate({ products: [{ ...product, fee_percent: { amount: 10 } }] }))).toEqual(
+      refusal("/affiliates/new", "Invalid affiliate parameters"),
+    );
   });
 });
 

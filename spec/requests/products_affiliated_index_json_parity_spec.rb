@@ -133,4 +133,107 @@ describe "Products::AffiliatedController#index as JSON", type: :request do
     expect(response).to be_successful
     expect(response.parsed_body["affiliated_products"]).to eq([])
   end
+
+  describe "with three promoted products" do
+    before do
+      bravo = create(:product, user: creator, name: "Bravo", price_cents: 2000)
+      alpha = create(:product, user: creator, name: "Alpha", price_cents: 2000)
+      charlie = create(:product, user: creator, name: "Charlie", price_cents: 2000)
+      direct = promote(bravo, basis_points: 2000)
+      promote(alpha, basis_points: 3000, direct:)
+      promote(charlie, basis_points: 1000, direct:)
+      earn(direct, alpha, amount_cents: 400)
+      earn(direct, alpha, amount_cents: 100)
+      earn(direct, charlie, amount_cents: 900)
+      log_in(affiliate_user)
+    end
+
+    def names
+      response.parsed_body["affiliated_products"].map { _1["product_name"] }
+    end
+
+    it "sorts by product name, descending", parity: true do
+      fetch(sort: { key: "product_name", direction: "desc" })
+
+      expect(names).to eq(%w[Charlie Bravo Alpha])
+    end
+
+    it "sorts by product name, ascending, when the direction is spelled in capitals", parity: true do
+      fetch(sort: { key: "product_name", direction: "ASC" })
+
+      expect(names).to eq(%w[Alpha Bravo Charlie])
+    end
+
+    it "sorts by sales count, descending", parity: true do
+      fetch(sort: { key: "sales_count", direction: "desc" })
+
+      expect(names).to eq(%w[Alpha Charlie Bravo])
+    end
+
+    it "sorts by revenue, ascending, with unsold products first", parity: true do
+      fetch(sort: { key: "revenue", direction: "asc" })
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "sorts by commission, descending, when the direction is capitalised", parity: true do
+      fetch(sort: { key: "commission", direction: "DESC" })
+
+      expect(names).to eq(%w[Alpha Bravo Charlie])
+    end
+
+    it "keeps the default order for a sort key it does not know", parity: true do
+      fetch(sort: { key: "bogus", direction: "desc" })
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "treats a sort direction without a key as the default order", parity: true do
+      fetch(sort: { direction: "desc" })
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "ignores a sort that is not a hash", parity: true do
+      fetch(sort: "product_name")
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "ignores a search that is not text", parity: true do
+      fetch(query: { name: "Alpha" })
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "ignores a page that is not text", parity: true do
+      fetch(page: ["2"])
+
+      expect(response.parsed_body["pagination"]).to eq("pages" => 1, "page" => 1)
+    end
+
+    it "ignores a nested hash parameter the action does not permit", parity: true do
+      fetch(filter: { a: { b: "1" } })
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "ignores an array parameter the action does not permit", parity: true do
+      fetch(filter: ["1"])
+
+      expect(names).to eq(%w[Bravo Alpha Charlie])
+    end
+
+    it "reads a page of zero or less as the first page", parity: true do
+      fetch(page: "-4")
+
+      expect(response.parsed_body["pagination"]).to eq("pages" => 1, "page" => 1)
+    end
+
+    it "searches with the surrounding spaces of the query trimmed", parity: true do
+      fetch(query: "  alph ")
+
+      expect(names).to eq(%w[Alpha])
+    end
+  end
 end

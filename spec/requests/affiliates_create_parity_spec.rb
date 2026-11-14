@@ -97,6 +97,51 @@ describe "Affiliates create", type: :request, parity_timeline: true, parity_mail
     expect(created_affiliate.product_affiliates.pluck(:link_id)).to eq([product.id])
   end
 
+  it "reads the text false as an enabled product, as Ruby does", parity: true do
+    affiliate_user
+    product
+    log_in(seller)
+
+    send_create(body(products: [listed(enabled: "false")]))
+
+    expect(response).to have_http_status(:see_other)
+    expect(created_affiliate.product_affiliates.pluck(:link_id)).to eq([product.id])
+  end
+
+  it "reads the number zero as an enabled product", parity: true do
+    affiliate_user
+    product
+    log_in(seller)
+
+    send_create(body(products: [listed(enabled: 0)]))
+
+    expect(response).to have_http_status(:see_other)
+    expect(created_affiliate.product_affiliates.pluck(:link_id)).to eq([product.id])
+  end
+
+  it "drops an enabled flag that is a list and keeps the product that is enabled", parity: true do
+    affiliate_user
+    product
+    other_product
+    log_in(seller)
+
+    send_create(body(products: [listed(enabled: ["yes"]), listed(other_product, fee_percent: 30)]))
+
+    expect(response).to have_http_status(:see_other)
+    expect(created_affiliate.product_affiliates.pluck(:link_id)).to eq([other_product.id])
+  end
+
+  it "drops a top-level fee that is a hash", parity: true do
+    affiliate_user
+    product
+    log_in(seller)
+
+    send_create(body(fee_percent: { amount: 25 }))
+
+    expect(response).to have_http_status(:see_other)
+    expect(created_affiliate.affiliate_basis_points).to eq(1000)
+  end
+
   it "adds the affiliate to the audience member of someone who already follows the seller", parity: true do
     affiliate_user
     product

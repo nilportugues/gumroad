@@ -15,6 +15,7 @@ import { findLink, type LinkRow, type UserRow } from "../../presenters/product-r
 import { cardForWeb } from "../../presenters/product.ts";
 import { deferMerge } from "../lazy-props.ts";
 import { NotPortedError } from "../not-ported.ts";
+import { assertNoPublishSchedule, publishScheduleEditorProps } from "../publish-schedule-props.ts";
 import {
   accountLevelRefundPolicyEnabled,
   ALLOWED_REFUND_PERIODS_IN_DAYS,
@@ -70,6 +71,7 @@ export async function assertBundleEditSupported(bundle: LinkRow, seller: UserRow
   // A collaborator edits the owner's bundle through the same props: the presenter never reads `pundit_user`.
   if (bundle.user_id === null || bundle.user_id !== seller.id) throw new HandBackToRails();
   if ((await bundleBlockers(bundle, seller, tab)).length > 0) throw new HandBackToRails();
+  await assertNoPublishSchedule(bundle);
   // Bundles::ShareController#ensure_published redirects with a flash alert; `Link#published?`.
   if (tab === "share" && (bundle.draft || bundle.purchase_disabled_at !== null || bundle.deleted_at !== null))
     throw new HandBackToRails();
@@ -180,6 +182,7 @@ async function sharedProps(
         bundle.purchase_disabled_at === null &&
         bundle.banned_at === null &&
         bundle.deleted_at === null,
+      ...(await publishScheduleEditorProps(bundle, seller.id)),
       products: await bundleProducts(bundle.id),
       collaborating_user: await collaboratingUserProps(bundle),
       public_files: [],

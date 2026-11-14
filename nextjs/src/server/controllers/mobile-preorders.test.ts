@@ -4,15 +4,16 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 
 import type { MobileAction, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, db, mobilePreview } = vi.hoisted(() => ({
+const { actions, selectRows, db, mobilePreview, urlRedirectMobileData } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   mobilePreview: vi.fn(),
+  urlRedirectMobileData: vi.fn(),
   db: {
     link: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
     purchase: { findUnique: vi.fn() },
-    urlRedirect: { count: vi.fn() },
+    urlRedirect: { findMany: vi.fn() },
   },
 }));
 
@@ -32,6 +33,7 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
 vi.mock("../page-props/signed-in/presenters.ts", () => ({ avatarUrl: async () => "https://example.com/avatar.png" }));
 vi.mock("../page-props/buyer/users.ts", () => ({ profileUrl: () => "https://seller.example.com" }));
 vi.mock("../presenters/mobile-preview.ts", () => ({ mobilePreview }));
+vi.mock("../presenters/mobile-url-redirect.ts", () => ({ urlRedirectMobileData }));
 vi.mock("../presenters/mobile-serializer-reads.ts", () => ({ thumbnailUrlsByProduct: async () => new Map() }));
 
 await import("./mobile-preorders.ts");
@@ -87,7 +89,13 @@ function stub({
     where.id === 7n ? creator : { id: 5n, external_id: "buyer-ext" },
   );
   db.purchase.findUnique.mockResolvedValue(buyer);
-  db.urlRedirect.count.mockResolvedValue(redirects);
+  db.urlRedirect.findMany.mockResolvedValue(
+    Array.from({ length: redirects }, (_, index) => ({
+      id: BigInt(30 + index),
+      token: `tok${index}`,
+      installment_id: null,
+    })),
+  );
 }
 
 beforeEach(() => {
@@ -154,9 +162,22 @@ describe("GET /mobile/preorders/preorder_attributes/:id", () => {
     expect(db.purchase.findUnique).toHaveBeenCalledWith({ where: { id: 12n } });
   });
 
-  it("hands back a charge purchase with a url redirect", async () => {
-    stub({ states: ["preorder_authorization_successful", "successful"], redirects: 1 });
-    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/url redirect of a preorder's charge/u);
+  it("serves a charge purchase with a url redirect through the redirect's keys", async () => {
+    stub({ states: ["preorder_authorization_successful", "successful"], redirects: 1, buyer: purchase({ id: 12n }) });
+    urlRedirectMobileData.mockResolvedValue({ urlRedirectExternalId: "enc30", urlRedirectToken: "tok0", fileData: [] });
+    const json = body(await action.run(input({ id: "4" }), null));
+    expect(json.product).toMatchObject({
+      purchase_id: "enc12",
+      url_redirect_external_id: "enc30",
+      url_redirect_token: "tok0",
+      file_data: [],
+    });
+    expect(json.product).not.toHaveProperty("preorder_data");
+  });
+
+  it("hands back a charge purchase with several url redirects", async () => {
+    stub({ states: ["preorder_authorization_successful", "successful"], redirects: 2 });
+    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/several url redirects/u);
   });
 
   it("hands back a seller with posts and a product with previews", async () => {
