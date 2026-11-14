@@ -69,9 +69,9 @@ describe("waitlistProductFromParams", () => {
     await expect(waitlistProductFromParams("unknown", seller)).resolves.toBeNull();
   });
 
-  it("hands back a deleted product and a product id that is not a string", async () => {
+  it("ignores a deleted product and hands back a product id that is not a string", async () => {
     selectRows.mockResolvedValueOnce([row({ deleted_at: new Date() })]);
-    await expect(waitlistProductFromParams("known", seller)).rejects.toThrow(/waitlist/u);
+    await expect(waitlistProductFromParams("known", seller)).resolves.toBeNull();
     await expect(waitlistProductFromParams(["x"], seller)).rejects.toThrow(/waitlist/u);
   });
 });
