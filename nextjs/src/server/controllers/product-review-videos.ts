@@ -1,7 +1,8 @@
 // ProductReviewVideos::{Streams,StreamingUrls,UploadContexts}Controller (app/controllers/product_review_videos/): the buyer review form's
 // video player and upload form. Reads only.
 //
-// Not ported: a request for the stream or the urls in a format Rails answers with a redirect to the dashboard (a refused HTML visit).
+// Not ported: a request for the stream or the urls in a format other than HTML and JSON, and an allowed request that carries a digest
+// which is not text (the urls echo it back through a route helper).
 import { timingSafeEqual } from "node:crypto";
 
 import type { ProductReviewVideo, VideoFile } from "@prisma/client";
@@ -60,8 +61,8 @@ function anonymousAccess({ video, purchase }: Found, digest: unknown): boolean {
   if (video.approval_status === "approved") return true;
   const expected = emailDigest(purchase);
   if (expected === null) throw new HandBackToRails("a purchase without an email, whose digest comparison raises");
-  if (digest !== undefined && digest !== null && typeof digest !== "string")
-    throw new HandBackToRails("a digest that is not text");
+  // `params[...].to_s` of a list or a hash is its inspect text, which is never the digest.
+  if (digest !== undefined && digest !== null && typeof digest !== "string") return false;
   return secureCompare(expected, digest ?? "");
 }
 
@@ -92,11 +93,18 @@ async function streamingUrls(input: MutationInput): Promise<ActionResult> {
   if (!anonymousAccess(found, digest)) {
     const access = await streamAccess(input, found);
     if (!access.allowed) {
-      if (requestFormat(input.request) !== "json")
-        throw new HandBackToRails("a refused streaming_urls request that is not JSON");
+      const format = requestFormat(input.request);
+      if (format === "other") throw new HandBackToRails("a refused streaming_urls request in a format that is not modelled");
+      if (format === "html") {
+        // PunditAuthorization#default_user_not_authorized
+        const switching = input.request.queryString.includes("account_switched");
+        return { status: 302, location: "/dashboard", ...(switching ? {} : { flash: { alert: access.message } }), rescued: true };
+      }
       return { ...jsonResponse({ success: false, error: access.message }, 401), rescued: true };
     }
   }
+  if (digest !== undefined && digest !== null && typeof digest !== "string")
+    throw new HandBackToRails("an allowed request with a digest that is not text");
   const { key, filename } = await fileOf(found);
   const externalId = encrypt(found.video.id);
   const query =

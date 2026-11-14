@@ -5,12 +5,19 @@
 // address) and hands every other request back whole.
 import { Prisma } from "@prisma/client";
 
+import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { completionOutcome } from "../models/commission-completion.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { present } from "../search/ruby-params.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
-import { fetchError, NOT_FOUND, registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
+import {
+  fetchError,
+  NOT_FOUND,
+  registerMobile,
+  renderJson,
+  UNPROCESSABLE_ENTITY, type MobileAuth, type MobileInput } from "./mobile-api.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 
@@ -42,15 +49,21 @@ async function refund(input: MobileInput, auth: MobileAuth | null) {
   throw new HandBackToRails("a refund");
 }
 
-// CommissionsController#complete: the completion purchase is a charge.
+// Api::Mobile::CommissionsController#complete. The completion purchase is a charge, so what Node answers is what Commission#create_completion_purchase!
+// does before it (nothing to do, or a RecordInvalid the action renders as a 422); the charge itself is Rails'.
 async function completeCommission(input: MobileInput, auth: MobileAuth | null) {
   const id = idOf(input);
-  const owned =
-    id !== null &&
-    (await rowExists(
-      Prisma.sql`SELECT 1 FROM ${table("commissions")} INNER JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("commissions", "deposit_purchase_id")} WHERE ${column("commissions", "id")} = ${id} AND ${column("purchases", "seller_id")} = ${auth!.owner.id} LIMIT 1`,
-    ));
-  if (!owned) return fetchError("Could not find commission");
+  const commission = id === null ? null : await db.commission.findUnique({ where: { id } });
+  const deposit =
+    commission?.deposit_purchase_id == null
+      ? null
+      : await db.purchase.findUnique({ where: { id: commission.deposit_purchase_id } });
+  if (commission === null || deposit === null || deposit.seller_id !== auth!.owner.id)
+    return fetchError("Could not find commission");
+
+  const outcome = await completionOutcome(commission, deposit);
+  if (outcome === "done") return renderJson({ success: true });
+  if (outcome !== null) return renderJson({ success: false, message: outcome }, UNPROCESSABLE_ENTITY);
   throw new HandBackToRails("a commission completion");
 }
 
