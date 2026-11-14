@@ -314,7 +314,8 @@ export async function register(call: ApiCall): Promise<ActionResult> {
     parsed = JSON.parse(source);
   } catch {
     // Ruby's parser reads comments and rejects bytes JavaScript's does not.
-    if (!isCertainlyNotJson(source)) throw new HandBackToRails("a registration body that is not JSON");
+    // A JSON content type fails in Rails' parameter parser before the action runs, with an answer this port does not give.
+    if (/json/iu.test(call.request.headers.get("content-type") ?? "") || !isCertainlyNotJson(source)) throw new HandBackToRails("a registration body that is not JSON");
     return invalid("JSON parse error");
   }
   const params =
