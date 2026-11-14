@@ -10,12 +10,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import type { JobsChannel, RawJob } from "../src/channels";
-import { withDriftedDates } from "../src/date-drift";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
-import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { assertParity, httpTransport, replayFixtureExchange, withResolvedDates } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the specs of the third rest sweep (the purchases export), with the same method as dashboard-json.replay.test.ts: each fixture is a login,
@@ -200,18 +199,20 @@ describe.skipIf(!url)("rest sweep 3", () => {
     process.env = saved;
   });
 
-  // A seed token ("<now-2995h>") keeps only the hours between the sale and the recording, so a sale replays at the replay's clock time
-  // and the CSV's dates and the day boundaries of the time zone examples drift with it. Seeding at the clock time of the recording
-  // (15:26:00 UTC on 2026-11-13, the middle of the recording run) and moving the expected dates by the days since keeps both.
+  // A seed token ("<now-2995h>") keeps only the hours between the sale and the recording, so the CSV's dates, the `<today-306d>` days of the
+  // query and the day boundaries of the time zone examples all follow the replay's clock. Seeding and resolving the query at the clock time
+  // of the recording (15:26:00 UTC on the day it was recorded, the middle of the recording run) puts every one back where Rails had it, so
+  // nothing is moved and the recorded CSV is compared as it was.
   const RECORDED_CLOCK_UTC = [15, 26, 0] as const;
-  const seedClock = () => {
-    const pinned = new Date();
+  const seedClock = (recordedOn: string) => {
+    const pinned = new Date(`${recordedOn}T00:00:00Z`);
     pinned.setUTCHours(...RECORDED_CLOCK_UTC, 0);
     return pinned;
   };
 
-  const options = (name = "") => ({
-    seedClock: seedClock(),
+  const options = (name = "", recordedOn = "2026-11-13") => ({
+    seedClock: seedClock(recordedOn),
+    driftDates: false,
     sql,
     redis: {
       reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {
@@ -228,7 +229,7 @@ describe.skipIf(!url)("rest sweep 3", () => {
       request: Parameters<typeof reencryptCookies>[0],
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
-    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    ) => reencryptCookies(withResolvedDates(request, seedClock(recordedOn)), loaded, SECRET_KEY_BASE, now),
     // Rails renders its debug page for these 404s in the test environment; only the status is compared.
     compare: name.includes("404")
       ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
@@ -244,7 +245,8 @@ describe.skipIf(!url)("rest sweep 3", () => {
   it(
     "compiles the handlers",
     async () => {
-      for (const [, file, index] of cases) await replayFixtureExchange(file, index, options()).catch(() => undefined);
+      for (const [, file, index] of cases)
+        await replayFixtureExchange(file, index, options("", loadFixture(file).recordedOn)).catch(() => undefined);
     },
     FIRST_COMPILE_TIMEOUT_MS * 3,
   );
@@ -253,10 +255,10 @@ describe.skipIf(!url)("rest sweep 3", () => {
     "%s",
     async (name, file, index) => {
       try {
-        const fixture = withDriftedDates(loadFixture(file), index, new Date(), ["body"]);
+        const fixture = loadFixture(file);
         if (HANDED_BACK.test(name)) {
           handedBack.length = 0;
-          const handed = await replayFixtureExchange(fixture, index, options(name));
+          const handed = await replayFixtureExchange(fixture, index, options(name, fixture.recordedOn));
           const request = fixture.exchanges[index]!.request;
           expect(handedBack).toHaveLength(1);
           expect(handedBack[0]).toMatchObject({ method: request.method });
@@ -272,7 +274,7 @@ describe.skipIf(!url)("rest sweep 3", () => {
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const recorded = fixture.exchanges[index]!;
         recorded.jobs = [...(recorded.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        const result = await replayFixtureExchange(fixture, index, options(name));
+        const result = await replayFixtureExchange(fixture, index, options(name, fixture.recordedOn));
         assertParity(result);
         const exchange = result.exchanges[0]!;
         expect(masked(exchange.actual.response.body)).toBe(masked(exchange.expected.response.body));

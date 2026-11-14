@@ -216,6 +216,43 @@ describe "Product editor JSON endpoints", type: :request do
 
       expect(response).to have_http_status(:ok)
     end
+
+    it "lists the tiers of a membership with their recurrence prices", parity: true do
+      membership = create(:membership_product, user: seller, name: "Club", unique_permalink: "clubprod", created_at: Time.utc(2025, 1, 1))
+      tier = membership.tiers.first
+      tier.update!(name: "Gold", description: "All access", max_purchase_count: 10)
+      log_in(seller)
+
+      get_json link_variants_path(membership.unique_permalink)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body.map { _1["name"] }).to eq(["Gold"])
+      expect(response.parsed_body.first["recurrence_price_values"]).to be_a(Hash)
+    end
+
+    it "answers 0 left for a tier closed to new purchases", parity: true do
+      membership = create(:membership_product, user: seller, name: "Club", unique_permalink: "clubprod", created_at: Time.utc(2025, 1, 1))
+      Feature.activate_user(:close_membership_tier_to_new_buyers, seller)
+      membership.tiers.first.update!(name: "Gold", closed_to_new_purchases: true)
+      log_in(seller)
+
+      get_json link_variants_path(membership.unique_permalink)
+
+      expect(response.parsed_body.first["quantity_left"]).to eq(0)
+    end
+
+    it "lists the live non-default SKUs when the product sells by SKU", parity: true do
+      product.update!(skus_enabled: true)
+      create(:sku, link: product, name: "Large", price_difference_cents: 300, max_purchase_count: 4, description: "The big one")
+      create(:sku, link: product, name: "Small")
+      create(:sku, link: product, name: "Gone", deleted_at: Time.current)
+      log_in(seller)
+
+      get_json link_variants_path(product.unique_permalink)
+
+      expect(response.parsed_body.map { _1["name"] }).to eq(%w[Large Small])
+      expect(response.parsed_body.first["is_pwyw"]).to eq(false)
+    end
   end
 
   describe "other refund policies" do

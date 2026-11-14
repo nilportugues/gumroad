@@ -71,13 +71,50 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a delete to Rails", parity: true do
+    it "deletes a product and records the delete event", parity: true do
       product = create(:product, user: seller)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller), headers: { "HTTP_USER_AGENT" => "GumroadMobile/1.0", "HTTP_REFERER" => "https://example.com/app" }
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(product.reload.deleted?).to eq(true)
+      expect(Event.where(event_name: "delete_product_mobile_app", user_id: seller.id, link_id: product.id).count).to eq(1)
+    end
+
+    it "does not find a product of another seller on delete", parity: true do
+      product = create(:product)
 
       delete "/mobile/products/#{product.unique_permalink}", params: auth(seller)
 
-      expect(response).to be_successful
-      expect(product.reload.deleted?).to eq(true)
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Product not found")
+      expect(product.reload.deleted?).to eq(false)
+    end
+
+    it "does not find a deleted product on delete", parity: true do
+      product = create(:product, user: seller)
+      product.mark_deleted!
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "refuses a delete with a token that lacks the mobile_api scope", parity: true do
+      product = create(:product, user: seller)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller, scopes: "creator_api")
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "deletes a product with a custom domain", parity: true do
+      product = create(:product, user: seller)
+      create(:custom_domain, domain: "shop.example.com", product:)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller), headers: { "HTTP_USER_AGENT" => "GumroadMobile/1.0" }
+
+      expect(response.parsed_body).to eq("success" => true)
     end
   end
 
@@ -236,7 +273,7 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
         expect(response.parsed_body["product"]).not_to have_key("preorder_data")
       end
 
-      it "hands a charged preorder whose charge purchase has a url redirect to Rails", parity: true do
+      it "serves a charged preorder whose charge purchase has a url redirect", parity: true do
         create(:url_redirect, purchase: charge, link: product)
 
         get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }

@@ -87,6 +87,8 @@ export type EventSource = {
   params?: Record<string, unknown>;
   // `@product`: the event carries its id and price (ProductsController-style actions that fetch one).
   product?: { id: bigint | number; price_cents: number | null };
+  // `user_id:` passed to `create_user_event`, for a request with no web session (the mobile API acts as its token's owner).
+  userId?: bigint | number;
   // SignupEvent: the `signup_events` table, for the account the request just created (it is not yet the signed-in user of `context`).
   signup?: { userId: bigint | number };
 };
@@ -104,7 +106,7 @@ const isBlankString = (value: unknown): boolean => typeof value === "string" && 
 // Events#create_user_event(name): nothing while impersonating.
 export async function createUserEvent(
   name: string,
-  { context, headers, url, state, params, product, signup }: EventSource,
+  { context, headers, url, state, params, product, signup, userId }: EventSource,
 ): Promise<number | null> {
   if (context.impersonatedUser) return null;
   const user = railsLoggedInUser(context);
@@ -153,7 +155,7 @@ export async function createUserEvent(
     visit_id: visitId,
     ip_address: ip,
     event_name: name,
-    user_id: signup ? signup.userId : (user?.id ?? null),
+    user_id: signup ? signup.userId : (userId ?? user?.id ?? null),
     link_id: product?.id ?? null,
     created_at: now,
     updated_at: now,

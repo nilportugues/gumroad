@@ -23,11 +23,13 @@ describe("listParams", () => {
   it("reads the sort key and direction", () => {
     expect(listParams("sort[key]=name&sort[direction]=desc")).toMatchObject({ sortKey: "name", direction: "desc" });
     expect(listParams("sort[key]=status&sort[direction]=sideways").direction).toBe("asc");
+    expect(listParams("sort[key]=revenue&sort[direction]=desc")).toMatchObject({
+      sortKey: "revenue",
+      direction: "desc",
+    });
   });
 
-  it("hands back sorts by purchases and parameters that are not text", () => {
-    expect(() => listParams("sort[key]=revenue")).toThrow(HandBackToRails);
-    expect(() => listParams("sort[key]=uses")).toThrow(HandBackToRails);
+  it("hands back parameters that are not text", () => {
     expect(() => listParams("sort=name")).toThrow(HandBackToRails);
     expect(() => listParams("page[]=2")).toThrow(HandBackToRails);
     expect(() => listParams("query[]=a")).toThrow(HandBackToRails);

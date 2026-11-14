@@ -141,16 +141,34 @@ describe("PUT /settings", () => {
   it.each([
     ["a new email address", { email: "new@example.com" }],
     ["a blank email address", { email: "" }],
-    ["a username change", { username: "renamed" }],
   ])("hands %s to Rails before saving", async (_label, overrides) => {
     await expect(update.run(input(form(overrides)))).rejects.toBeInstanceOf(HandBackToRails);
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it("hands a seller with an email change awaiting confirmation to Rails", async () => {
+  it("hands a seller with an email change awaiting confirmation to Rails when the form sends no email", async () => {
+    seller.values.unconfirmed_email = "pending@example.com";
+    const { email: _email, ...withoutEmail } = form();
+
+    await expect(update.run(input(withoutEmail))).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("clears the pending email change when the form sends the confirmed address", async () => {
     seller.values.unconfirmed_email = "pending@example.com";
 
-    await expect(update.run(input(form()))).rejects.toBeInstanceOf(HandBackToRails);
+    expect(await update.run(input(form()))).toMatchObject({
+      status: 303,
+      flash: { notice: "Your account has been updated!" },
+    });
+    expect(seller.set).toHaveBeenCalledWith("unconfirmed_email", null);
+    expect(mocks.save).toHaveBeenCalledTimes(2);
+  });
+
+  it("assigns a username change", async () => {
+    await update.run(input(form({ username: "renamed" })));
+
+    expect(seller.set).toHaveBeenCalledWith("username", "renamed");
   });
 
   it.each([
