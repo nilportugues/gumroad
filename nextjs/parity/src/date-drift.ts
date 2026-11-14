@@ -1,5 +1,5 @@
-import type { Json } from "./canonical";
-import type { Fixture } from "./fixture";
+import { type Json, timeToken } from "./canonical";
+import type { Exchange, Fixture } from "./fixture";
 
 // A page that formats dates ("March 7th, 2026") from rows seeded relative to the replay's clock shows a different
 // day than the one recorded. These helpers move the recorded strings by the days between the recording and the
@@ -175,4 +175,37 @@ export function withDriftedDates(
     };
   });
   return { ...fixture, exchanges };
+}
+
+// A request that names an instant years away (`expires_at: "2099-02-01T08:00:00Z"`) is recorded as hours from the recording, which the replay's
+// clock has since left behind. Instants this far out can only come from such a literal, so each one is re-measured from `now` as the same
+// absolute instant; near tokens (`<now-48h>`, a seeded row) belong to the seed and stay.
+const FAR_INSTANT_HOURS = 24 * 365 * 10;
+const HOUR_TOKEN = /<now\+(\d+)h>/gu;
+
+const rebaseString = (text: string, recordedAt: Date, now: Date) =>
+  text.replace(HOUR_TOKEN, (token, hours: string) =>
+    Number(hours) < FAR_INSTANT_HOURS ? token : timeToken(new Date(recordedAt.getTime() + Number(hours) * 3_600_000), now),
+  );
+
+const rebaseJson = (value: Json, recordedAt: Date, now: Date): Json => {
+  if (typeof value === "string") return rebaseString(value, recordedAt, now);
+  if (Array.isArray(value)) return value.map((item) => rebaseJson(item, recordedAt, now));
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value as Record<string, Json>).map(([key, item]) => [key, rebaseJson(item, recordedAt, now)]),
+    );
+  return value;
+};
+
+export function rebaseFarInstants(exchange: Exchange, recordedAt: Date, now: Date): Exchange {
+  const { response } = exchange;
+  return {
+    ...exchange,
+    ...(exchange.db === undefined ? {} : { db: rebaseJson(exchange.db as unknown as Json, recordedAt, now) as unknown as typeof exchange.db }),
+    response: {
+      ...response,
+      ...(response.json === undefined ? {} : { json: rebaseJson(response.json, recordedAt, now) }),
+    },
+  };
 }
