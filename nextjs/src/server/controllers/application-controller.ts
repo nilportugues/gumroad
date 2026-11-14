@@ -792,9 +792,10 @@ export function publicException(request: RailsRequest, status: number): { header
   } catch (error) {
     if (!(error instanceof InvalidMimeType)) throw error;
   }
-  // Test environment only (consider_all_requests_local): DebugExceptions answers a rescuable error (404, 422) with its HTML page
+  // Test environment only (consider_all_requests_local): DebugExceptions answers an exception (400, 404, 422, 500) with its HTML page
   // whatever the Accept header says, or its plain-text report for an XHR. A HEAD request is still answered by PublicExceptions.
-  const debugPage = railsEnv() === "test" && (status === 400 || status === 404 || status === 422) && request.method !== "HEAD";
+  const debugPage =
+    railsEnv() === "test" && (status === 400 || status === 404 || status === 422 || status === 500) && request.method !== "HEAD";
   // An Inertia XHR (X-Inertia) still gets the HTML page: every recorded debug-page 404/500 with X-Inertia is text/html.
   if (
     debugPage &&
