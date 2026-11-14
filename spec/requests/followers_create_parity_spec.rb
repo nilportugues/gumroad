@@ -254,6 +254,35 @@ describe "Subscribing to a seller", type: :request do
       expect(embed_form_props).to eq("success" => false, "message" => "Please subscribe from #{seller.external_id}'s subscribe page so we can confirm you're not a bot.", "subscribe_url" => "#{seller.subdomain_with_protocol}/subscribe", "waitlist_url" => nil)
     end
 
+    # The JSON answer carries the destination in the sentence: the custom-page follow bridge relays it as plain text.
+    it "refuses a seller who is not reviewed with the subscribe page in the JSON message", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Please subscribe from Followed Seller's subscribe page so we can confirm you're not a bot. #{seller.subdomain_with_protocol}/subscribe")
+      expect(Follower.where(followed_id: seller.id)).to be_empty
+    end
+
+    it "refuses a seller with no name or username in the JSON message, naming the account by its external id", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed", username: nil, name: nil)
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com" })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Please subscribe from #{seller.external_id}'s subscribe page so we can confirm you're not a bot. #{seller.subdomain_with_protocol}/subscribe")
+    end
+
+    it "hands a JSON CAPTCHA refusal for a waitlist product to Rails", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+      product = create(:product, user: seller, draft: true, waitlist_enabled: true)
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: product.external_id })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
     it "answers an unknown seller with a JSON 404", parity: true do
       subscribe(follow_user_from_embed_form_path, { seller_id: "unknownseller", email: "visitor@example.com" })
 

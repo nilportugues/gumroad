@@ -71,7 +71,7 @@ describe "Wishlists mutations when signed in", type: :request do
     expect(Wishlist.last.name).to eq("Loose")
   end
 
-  it "hands a request with an empty body to Rails", parity: true do
+  it "answers 400 to a JSON body without wishlist attributes", parity: true do
     log_in(buyer)
 
     send_form(:post, wishlists_path, { other: 1 }, json_headers)
