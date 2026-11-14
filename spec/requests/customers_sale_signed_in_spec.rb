@@ -218,7 +218,7 @@ describe "Customers sale panel when signed in", type: :request, elasticsearch_wa
     expect(response).to be_successful
   end
 
-  it "hands a sale whose receipt went out through a charge to Rails", parity: true do
+  it "lists the receipt of a sale whose charge belongs to an order that has no receipt record", parity: true do
     purchase = sell(product, days_ago: 3)
     charge = create(:charge, seller:, purchases: [purchase])
     charge.order.purchases << purchase
@@ -226,7 +226,20 @@ describe "Customers sale panel when signed in", type: :request, elasticsearch_wa
 
     fetch_json(customer_emails_path(purchase.external_id))
 
-    expect(response).to be_successful
+    expect(response.parsed_body.map { _1["type"] }).to eq(%w[receipt])
+    expect(response.parsed_body.first["state"]).to eq("Delivered")
+  end
+
+  it "lists the receipt of a sale that belongs to an order without a charge", parity: true do
+    purchase = sell(product, days_ago: 3)
+    create(:order, purchases: [purchase])
+    create(:customer_email_info_opened, purchase:, sent_at: at_midday(3), delivered_at: at_midday(3), opened_at: at_midday(2))
+    log_in(seller)
+
+    fetch_json(customer_emails_path(purchase.external_id))
+
+    expect(response.parsed_body.map { _1["type"] }).to eq(%w[receipt])
+    expect(response.parsed_body.first["state"]).to eq("Opened")
   end
 
   it "lists the posts a customer has not been sent", parity: true do

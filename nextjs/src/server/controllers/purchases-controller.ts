@@ -76,17 +76,35 @@ function publicPurchaseAction(reason: string) {
   };
 }
 
-// `receipt`: a visitor who is not signed in and sends no `email` is redirected to the form that asks for it. A signed-in viewer
-// (the purchaser or a team member) or an `email` to compare renders the mailer, which Node leaves to Rails.
+const CONFIRM_RECEIPT_EMAIL_ALERT = "Wrong email. Please try again.";
+const ASCII_PRINTABLE = /^[\x20-\x7e]*$/u;
+
+// `receipt`: a visitor who is not signed in and sends no `email`, or an `email` that is not the buyer's, is redirected to the form that
+// asks for it (the second with a flash alert). A signed-in viewer (the purchaser or a team member) or the buyer's own `email` renders
+// the mailer, which Node leaves to Rails. The comparison is `secure_compare(email.downcase, params[:email].to_s.strip.downcase)`;
+// only ASCII is compared here, since Ruby's `downcase` is not JavaScript's `toLowerCase` beyond it.
 async function receipt(input: MutationInput): Promise<ActionResult> {
   const purchase = await setPurchase(input.routeParams.id!);
   const email = input.params.email;
-  if (railsLoggedInUser(input.context) !== null || (email !== undefined && email !== null && email !== ""))
+  const location = `/purchases/${encrypt(purchase.id)}/confirm_receipt_email`;
+  if (railsLoggedInUser(input.context) !== null) throw new HandBackToRails("a receipt, rendered from the mailer");
+  if (email === undefined || email === null || email === "")
+    return { status: 302, location, headers: { "x-robots-tag": "noindex" } };
+  if (
+    typeof email !== "string" ||
+    email.trim() === "" ||
+    purchase.email == null ||
+    !ASCII_PRINTABLE.test(email) ||
+    !ASCII_PRINTABLE.test(purchase.email)
+  )
+    throw new HandBackToRails("a receipt email Node does not compare");
+  if (purchase.email.toLowerCase() === email.trim().toLowerCase())
     throw new HandBackToRails("a receipt, rendered from the mailer");
   return {
     status: 302,
-    location: `/purchases/${encrypt(purchase.id)}/confirm_receipt_email`,
+    location,
     headers: { "x-robots-tag": "noindex" },
+    flash: { alert: CONFIRM_RECEIPT_EMAIL_ALERT },
   };
 }
 
