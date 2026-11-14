@@ -72,7 +72,8 @@ type Prelude = { user: User | null; sellerContext: SellerContext; post: Installm
 async function prelude(input: MutationInput): Promise<Prelude | ActionResult> {
   const { context, routeParams } = input;
   const user = railsLoggedInUser(context);
-  if (user !== null && context.currentSeller === null) throw new HandBackToRails("a signed-in request without a seller");
+  if (user !== null && context.currentSeller === null)
+    throw new HandBackToRails("a signed-in request without a seller");
   const post = await findPost(routeParams.post_id!);
   if (post === null) return { ...jsonResponse({ success: false, error: "Not found" }, NOT_FOUND), rescued: true };
   return { user, sellerContext: await loadSellerContext(context), post };
@@ -91,7 +92,9 @@ async function assertNoPurchase(input: MutationInput, { user, post }: Prelude): 
     const id = decrypt(purchaseId);
     if (
       id !== null &&
-      (await one(Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`))
+      (await one(
+        Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`,
+      ))
     )
       throw new HandBackToRails("a purchase_id that names a purchase");
     return;

@@ -1,9 +1,10 @@
 // Users::ReviewRemindersController: the subscribe and unsubscribe links of review reminder emails. They change the opt-out flag in
 // the controller and then render a page with (almost) no props, so the writes run as the page's filters (ActionOptions.filters).
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { decryptSecureExternalId } from "../models/secure-external-id.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
+import { decryptSecureExternalId } from "../models/secure-external-id.ts";
 import { findUser, setFlag, Users, type UserRecord } from "../models/user.ts";
+
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } from "./application-controller.ts";
 import { railsSegment } from "./mutation.ts";
 import { cgiEscape } from "./rails-params.ts";
@@ -60,4 +61,5 @@ export const REVIEW_REMINDER_OPTIONS = {
   unsubscribeByToken: { filters: filters(true, true) } satisfies ActionOptions,
 };
 
-export const reviewReminderProps = (state: Record<string, unknown>) => (typeof state.subscribe_url === "string" ? { subscribe_url: state.subscribe_url } : {});
+export const reviewReminderProps = (state: Record<string, unknown>) =>
+  typeof state.subscribe_url === "string" ? { subscribe_url: state.subscribe_url } : {};
