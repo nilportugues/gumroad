@@ -268,7 +268,6 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
       ? {
           ignore: [
             ...COMPARE.ignore,
-            "response.headers.content-type",
             "response.json",
             "response.body",
             "response.cookies",

@@ -153,7 +153,6 @@ describe.skipIf(!url)("Checkout processor guards", () => {
             "response.cookies",
             "response.body",
             "response.json",
-            "response.headers.content-type",
           ],
         }
       : COMPARE;

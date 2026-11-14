@@ -154,7 +154,6 @@ describe.skipIf(!url)("Purchases::RefundRequestsController", () => {
             "response.cookies",
             "response.body",
             "response.json",
-            "response.headers.content-type",
           ],
         }
       : COMPARE;

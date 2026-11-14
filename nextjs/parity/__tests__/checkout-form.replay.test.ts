@@ -260,7 +260,7 @@ describe.skipIf(!url)("checkout form", () => {
     compare: {
       ignore: [
         ...COMPARE.ignore,
-        ...(name.includes("404") ? ["response.body", "response.json", "response.headers.content-type"] : []),
+        ...(name.includes("404") ? ["response.body", "response.json"] : []),
       ],
     },
   });

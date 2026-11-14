@@ -137,7 +137,6 @@ describe.skipIf(!url)("checkout discounts", () => {
       ? {
           ignore: [
             ...COMPARE.ignore,
-            "response.headers.content-type",
             "response.json",
             "response.body",
             "response.cookies",

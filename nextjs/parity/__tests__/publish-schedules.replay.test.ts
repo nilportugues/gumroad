@@ -207,7 +207,7 @@ describe.skipIf(!url)("Product publish schedules", () => {
     const ignore = [...COMPARE.ignore];
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
-      ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
+      ignore.push("response.cookies", "response.body", "response.json");
     // The label and `publish_at` follow the replay's clock; `checkScheduledTime` judges them against the request instead.
     // A fixed time keeps its recorded label; only its stored instant moves with the clock.
     const recorded = readFileSync(file, "utf8");

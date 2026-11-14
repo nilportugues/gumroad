@@ -353,7 +353,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
               compare: {
                 ignore: [
                   ...sequenceIgnore,
-                  ...(notFound ? ["response.body", "response.json", "response.headers.content-type"] : []),
+                  ...(notFound ? ["response.body", "response.json"] : []),
                 ],
               },
             };

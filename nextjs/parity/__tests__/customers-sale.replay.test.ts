@@ -58,7 +58,7 @@ const NEXT_VARY = /(?:rsc|next-router-state-tree|next-router-prefetch|next-route
 const withoutNextVary = (vary: unknown) => (typeof vary === "string" ? vary.replace(NEXT_VARY, "") : vary);
 // The test environment answers a 404 with its exception debug page (HTML), whatever the Accept header says.
 const NOT_FOUND_COMPARE = {
-  ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"],
+  ignore: [...COMPARE.ignore, "response.body", "response.json"],
 };
 const HANDED_BACK = /hands-a-|through-rails/u;
 

@@ -94,4 +94,25 @@ describe("publicException", () => {
       expect(JSON.parse(answer.body)).toEqual({ status: 400, error: "Bad Request" });
     });
   });
+
+  describe("an XHR in the test environment", () => {
+    const xhr = (extra: Record<string, string>) =>
+      railsRequest(
+        new Request("http://app.test.gumroad.com/x", {
+          headers: { host: "app.test.gumroad.com", accept: "application/json", "x-requested-with": "XMLHttpRequest", ...extra },
+        }),
+      );
+
+    beforeEach(() => {
+      process.env.RAILS_ENV = "test";
+    });
+
+    it("answers a plain-text report", () => {
+      expect(publicException(xhr({}), 404).headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    });
+
+    it("answers the HTML page when the XHR is an Inertia visit", () => {
+      expect(publicException(xhr({ "x-inertia": "true" }), 404).headers.get("content-type")).toBe("text/html; charset=utf-8");
+    });
+  });
 });
