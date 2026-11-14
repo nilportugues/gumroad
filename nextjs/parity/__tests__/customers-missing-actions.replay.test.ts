@@ -195,7 +195,7 @@ describe.skipIf(!url)("CustomersController routes without an action", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] },
+    compare: { ignore: [...COMPARE.ignore, "response.body", "response.json"] },
     file,
   });
 
