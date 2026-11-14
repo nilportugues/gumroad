@@ -140,6 +140,24 @@ describe "API v2 product enable", type: :request, parity_timeline: true do
     expect(response.parsed_body["success"]).to be(true)
   end
 
+  it "refuses an enable when a discount code puts the price under the minimum", parity: true do
+    offer_code = create(:offer_code, user: seller, products: [product], amount_cents: 1)
+    offer_code.update_column(:amount_cents, 60)
+
+    enable
+
+    expect(response.parsed_body).to eq("success" => false, "message" => "An existing discount code puts the price of this product below the $0.99 minimum after discount.")
+    expect(product.reload.purchase_disabled_at).to be_present
+  end
+
+  it "refuses an enable when a universal discount code puts the price under the minimum", parity: true do
+    create(:universal_offer_code, user: seller, amount_cents: nil, amount_percentage: 100).update_columns(amount_percentage: 70)
+
+    enable
+
+    expect(response.parsed_body["message"]).to start_with("An existing discount code puts the price of this product below")
+  end
+
   it "hands an enable of an unverified seller's product back to Rails while content moderation is on", parity: true do
     Feature.activate(:content_moderation)
     allow(ContentModeration::ModerateRecordService).to receive(:check).and_return(passed)
