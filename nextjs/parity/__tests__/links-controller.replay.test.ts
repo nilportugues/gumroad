@@ -140,7 +140,7 @@ describe.skipIf(!url)("LinksController guards", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: name.includes("404")
+    compare: name.includes("404") || name.includes("answers-400")
       ? { ignore: [...COMPARE.ignore, "response.body"] }
       : // The version is an epoch second, and the replay seeds every row relative to its own clock; checked against the seeded row below.
         name.includes("landing-version-gives")

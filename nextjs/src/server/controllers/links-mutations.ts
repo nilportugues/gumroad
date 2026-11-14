@@ -19,7 +19,7 @@ import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
 import { type LinkRow } from "../presenters/product-reads.ts";
 
-import { HandBackToRails, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { fetchProductForShow } from "./product-page.ts";
 import { find } from "./products-mutations.ts";
@@ -177,8 +177,9 @@ function isoDate(value: string): string | null {
 async function sendSamplePriceChangeEmail(input: MutationInput): Promise<ActionResult> {
   const guard = await uniquePermalinkGuard(input, "update");
   if (guard.halt) return guard.halt;
-  // `params.require(:tier_id)` answers 400 for a missing, blank or structured value.
+  // `params.require(:tier_id)` answers 400 for a missing, blank or structured value; only the missing one is recorded.
   const tierId = input.params.tier_id;
+  if (tierId === undefined) throw new ParameterMissing();
   if (typeof tierId !== "string" || !present(tierId))
     throw new HandBackToRails("a tier_id that params.require rejects");
   const id = decrypt(tierId);
@@ -192,6 +193,7 @@ async function sendSamplePriceChangeEmail(input: MutationInput): Promise<ActionR
   if (!tier || id === null) return notFoundJson();
 
   const { amount, recurrence, effective_date: effectiveParam, custom_message: messageParam } = input.params;
+  if (amount === undefined) throw new ParameterMissing();
   if (typeof amount !== "string" || !present(amount))
     throw new HandBackToRails("an amount that params.require rejects");
   const price = priceCentsFromUnits(amount, guard.product.price_currency_type);
