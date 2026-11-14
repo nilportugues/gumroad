@@ -147,11 +147,25 @@ describe("GET /purchases/:id/receipt", () => {
     expect(result.headers).toEqual({ "x-robots-tag": "noindex" });
   });
 
-  it("hands a visitor who sends an email, and a signed-in viewer, back to Rails", async () => {
-    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
-    await expect(action.run(visit({ email: "buyer@example.com" }))).rejects.toThrow(/receipt/u);
-    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+  it("hands a visitor who sends the buyer's email, and a signed-in viewer, back to Rails", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n, email: "buyer@example.com" }]);
+    await expect(action.run(visit({ email: " Buyer@example.com " }))).rejects.toThrow(/receipt/u);
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n, email: "buyer@example.com" }]);
     await expect(action.run(visit({}, true))).rejects.toThrow(/receipt/u);
+  });
+
+  it("redirects a visitor who sends another email with a wrong email alert", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n, email: "buyer@example.com" }]);
+    const result = (await action.run(visit({ email: "someone@example.com" }))) as { status: number; flash?: unknown };
+    expect(result.status).toBe(302);
+    expect(result.flash).toEqual({ alert: "Wrong email. Please try again." });
+  });
+
+  it("hands back an email it does not compare", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n, email: "buyer@example.com" }]);
+    await expect(action.run(visit({ email: "   " }))).rejects.toThrow(/compare/u);
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n, email: "bùyer@example.com" }]);
+    await expect(action.run(visit({ email: "someone@example.com" }))).rejects.toThrow(/compare/u);
   });
 });
 

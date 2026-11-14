@@ -8,7 +8,7 @@ import { getRedis } from "../infra/redis.ts";
 import { type ActionOptions, type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
 import { type PageMeta, renderHomePage } from "./erb-pages.ts";
 import { numberWithDelimiter } from "./number-with-delimiter.ts";
-import { rackTopLevelParams } from "./rails-params.ts";
+import { isRackBadRequest, rackTopLevelParams } from "./rails-params.ts";
 import type { RailsRequest } from "./rails-request.ts";
 
 // HomeController#set_edge_cache_headers: `expires_in 1.minute, public: true, "s-maxage": 5.minutes, stale_while_revalidate: 1.hour`.
@@ -134,8 +134,38 @@ function edgeCacheable(request: RailsRequest): boolean {
   return ![...rackTopLevelParams(request.queryString).keys()].some((key) => key.startsWith(UTM_PARAM_PREFIX));
 }
 
+// Rack raises on the query before any cookie or cache header exists (CatchBadRequestErrors), so the answer carries none of the session's.
+function isBadRackQuery(request: RailsRequest): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  try {
+    rackTopLevelParams(request.queryString);
+    return false;
+  } catch (error) {
+    if (isRackBadRequest(error)) return true;
+    throw error;
+  }
+}
+
+// CatchBadRequestErrors: an empty 400 (`{"success":false}` for a JSON Accept); Rack::ETag leaves `no-cache` on a body-less answer.
+function badRequest(request: RailsRequest): Rendered {
+  const json = request.headers.get("accept")?.includes("application/json") ?? false;
+  return {
+    status: 400,
+    body: json ? '{"success":false}' : "",
+    contentType: json ? "application/json" : "text/html",
+  };
+}
+
 // The session is skipped, no guid is minted and forgery protection is off for an edge cacheable response: the pair of `bare` filters.
-export const homePageOptions = (request: RailsRequest): ActionOptions => (edgeCacheable(request) ? { bare: true } : {});
+export function homePageOptions(request: RailsRequest): ActionOptions {
+  try {
+    return { lenientQuery: true, ...(isBadRackQuery(request) || edgeCacheable(request) ? { bare: true } : {}) };
+  } catch (error) {
+    // The same query makes Rack::Attack's stage hand the request back, before the action runs.
+    if (error instanceof HandBackToRails) return { lenientQuery: true };
+    throw error;
+  }
+}
 
 export async function homePage(request: RailsRequest, action: ActionContext, name: string): Promise<Rendered> {
   const page = HOME_PAGES[name];
@@ -144,7 +174,7 @@ export async function homePage(request: RailsRequest, action: ActionContext, nam
   if (request.method !== "GET" && request.method !== "HEAD")
     throw new HandBackToRails("a home page that is not a GET or HEAD");
   // The only query reads are edge_cacheable_request?'s and as_embed.
-  rackTopLevelParams(request.queryString);
+  if (isBadRackQuery(request)) return badRequest(request);
   const cacheable = edgeCacheable(request);
   const payout = name === "about" ? await prevWeekPayout() : "";
   return renderHomePage(

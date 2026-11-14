@@ -340,8 +340,25 @@ describe "Customers table JSON when signed in", type: :request, elasticsearch_wa
     expect(response.parsed_body["count"]).to eq(2)
   end
 
-  it "hands a minimum amount with decimals to Rails", parity: true do
+  it "compares a minimum amount with decimals as given for a seller paid in dollars", parity: true do
     seed
+
+    fetch(page: 1, minimum_amount_cents: "1399.5")
+
+    expect(response.parsed_body["count"]).to eq(1)
+  end
+
+  it "compares a maximum amount with decimals as given for a seller paid in dollars", parity: true do
+    seed
+
+    fetch(page: 1, maximum_amount_cents: "1400.5")
+
+    expect(response.parsed_body["count"]).to eq(3)
+  end
+
+  it "hands a minimum amount with decimals of a seller paid in another currency to Rails", parity: true do
+    seed
+    seller.update_columns(currency_type: "eur")
 
     fetch(page: 1, minimum_amount_cents: "10.5")
 

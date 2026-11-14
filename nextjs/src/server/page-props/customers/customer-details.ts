@@ -2,7 +2,7 @@
 // props `show` adds to the customer (build_charges, build_customer_emails and CustomerPresenter#charge / #missed_posts).
 //
 // Handed back to Rails (HandBackToRails) when the sale needs a reading the port does not make: a receipt sent through a Charge
-// (`uses_charge_receipt?`), a post whose email info is missing, a subscription purchase without a subscription, and a post whose
+// that has a receipt record or a second item, a post whose email info is missing, a subscription purchase without a subscription, and a post whose
 // filters Node cannot evaluate.
 import { Prisma, type Installment, type Purchase, type User } from "@prisma/client";
 
@@ -189,16 +189,25 @@ export async function buildCustomerEmails(
       Prisma.sql`SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} = ${original.subscription_id} AND ${column("purchases", "purchase_state")} IN (${list(ALL_SUCCESS_STATES_EXCEPT_PREORDER_AUTH_AND_GIFT)}) ORDER BY ${column("purchases", "id")} ASC`,
     );
   }
-  // `uses_charge_receipt?` reads the receipt off the Charge instead.
+  // `uses_charge_receipt?` is true for a purchase on a Charge that belongs to an Order, and the receipt then comes off the Charge
+  // (its `email_info_charges`, or one receipt per purchase of a two-item charge). A purchase on an Order without a Charge, or on no
+  // order, reads its own email infos. Only a charge with no receipt record of its own and no second item is read here.
+  const purchaseIds = list(allPurchases.map((purchase) => purchase.id));
   const charged = await rows(
-    Prisma.sql`SELECT ${column("charge_purchases", "purchase_id")} FROM ${table("charge_purchases")} WHERE ${column("charge_purchases", "purchase_id")} IN (${list(allPurchases.map((purchase) => purchase.id))}) LIMIT 1`,
+    Prisma.sql`SELECT ${column("charges", "id")}, ${column("charge_purchases", "purchase_id")} FROM ${table("charge_purchases")} INNER JOIN ${table("charges")} ON ${column("charges", "id")} = ${column("charge_purchases", "charge_id")} INNER JOIN ${table("orders")} ON ${column("orders", "id")} = ${column("charges", "order_id")} WHERE ${column("charge_purchases", "purchase_id")} IN (${purchaseIds})`,
   );
-  if (charged.length > 0) throw new HandBackToRails("a receipt sent through a charge");
-  const orderLinked = await rows(
-    Prisma.sql`SELECT ${column("order_purchases", "purchase_id")} FROM ${table("order_purchases")} WHERE ${column("order_purchases", "purchase_id")} IN (${list(allPurchases.map((purchase) => purchase.id))}) LIMIT 1`,
-  );
-  if (orderLinked.length > 0) throw new HandBackToRails("a receipt sent through an order");
-
+  for (const charge of charged) {
+    const [infoCharge] = await rows(
+      Prisma.sql`SELECT ${column("email_info_charges", "id")} FROM ${table("email_info_charges")} WHERE ${column("email_info_charges", "charge_id")} = ${charge.id} LIMIT 1`,
+    );
+    if (infoCharge) throw new HandBackToRails("a receipt sent through a charge");
+    const chargeItems = await rows(
+      Prisma.sql`SELECT ${column("charge_purchases", "purchase_id")} FROM ${table("charge_purchases")} WHERE ${column("charge_purchases", "charge_id")} = ${charge.id}`,
+    );
+    if (chargeItems.length >= 2) throw new HandBackToRails("a charge with more than one item");
+  }
+  // `charge.receipt_email_infos` is empty, so these purchases take the receipt's defaults whatever email infos they hold themselves.
+  const throughCharge = new Set(charged.map((row) => String(row.purchase_id)));
   const receiptInfos = await rows(
     Prisma.sql`SELECT ${Prisma.raw("`email_infos`.*")} FROM ${table("email_infos")} WHERE ${column("email_infos", "type")} = 'CustomerEmailInfo' AND ${column("email_infos", "purchase_id")} IN (${list(allPurchases.map((purchase) => purchase.id))}) ORDER BY ${column("email_infos", "id")} DESC`,
   );
@@ -207,7 +216,7 @@ export async function buildCustomerEmails(
     if (!latestReceipt.has(String(info.purchase_id))) latestReceipt.set(String(info.purchase_id), info);
 
   const receipts: Email[] = allPurchases.map((purchase) => {
-    const info = latestReceipt.get(String(purchase.id));
+    const info = throughCharge.has(String(purchase.id)) ? undefined : latestReceipt.get(String(purchase.id));
     const stateAt = info ? mostRecentStateAt(info) : purchase.created_at;
     if (stateAt === null) throw new HandBackToRails("a receipt email info without a timestamp");
     return {
