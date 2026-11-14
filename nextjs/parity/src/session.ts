@@ -84,10 +84,35 @@ export function reencryptCookies(
   return { ...request, cookies };
 }
 
+// A replay run owns its Redis database: the seeder flushes it before every exchange and the jobs channel reads every queue key in it,
+// so a second run on the same database erases the first one's jobs (a missing SubmitToIndexnowJob) or leaks its own into it (an extra one).
+export const REDIS_LEASE_KEY = "parity:lease";
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+// The vitest process that owns the run is the worker's parent, which stays the same across the files of one run.
+export async function leaseRedisDatabase(redis: Redis, owner = process.ppid): Promise<void> {
+  const holder = Number(await redis.get(REDIS_LEASE_KEY));
+  if (holder && holder !== owner && isAlive(holder))
+    throw new Error(
+      `Redis database ${redis.options.db ?? 0} is leased by process ${holder}: pick another PARITY_REDIS_HOST database for this run`,
+    );
+  await redis.set(REDIS_LEASE_KEY, String(owner));
+}
+
 export function redisSeeder(redis: Redis): RedisSeeder {
   return {
     async reset(entries: Record<string, RedisEntry>) {
+      await leaseRedisDatabase(redis);
       await redis.flushdb();
+      await redis.set(REDIS_LEASE_KEY, String(process.ppid));
       for (const [key, entry] of Object.entries(entries)) {
         if (entry.type === "string") await redis.set(key, entry.value as string);
         else if (entry.type === "hash") await redis.hset(key, entry.value as Record<string, string>);

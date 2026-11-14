@@ -398,10 +398,24 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     FIRST_COMPILE_TIMEOUT_MS,
   );
 
+  // The first request to a route compiles it (10 s or more), which would age the seeded timestamps past the replayer's tolerance
+  // (<now+10s> against <now>). Each route is replayed once, unchecked, ahead of its first fixture, so a filtered run is as steady as a full one.
+  const warmed = new Set<string>();
+  async function warmRoute(file: string, index: number, name: string) {
+    const { method, path: requestPath } = loadFixture(file).exchanges[index]!.request;
+    const route = `${method} ${requestPath.replace(/[?].*/u, "").replace(/\/[^/]*(?:==|[a-z]\d)[^/]*(?=\/|$)/gu, "/:id")}`;
+    if (warmed.has(route)) return;
+    warmed.add(route);
+    const { file: _file, ...options } = replayOptions(file, name);
+    await replayFixtureExchange(file, index, options).catch(() => undefined);
+    handedBack.length = 0;
+  }
+
   it.each(cases)(
     "%s",
     async (name, file, index) => {
       try {
+        await warmRoute(file, index, name);
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;

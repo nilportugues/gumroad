@@ -117,7 +117,7 @@ A request spec that logs in through `POST /login` records the session, remember 
 `secret_key_base` (random per checkout in the test environment), which the fixture carries as
 `secretKeyBase`: `reencryptCookies` (`src/session.ts`) re-encrypts them for the server under test and
 refreshes the remember cookie's timestamp. `redisSeeder` flushes the replay's Redis database and puts
-the recorded keys back. Fixtures with setup requests (the CSRF fetch, the login) keep every exchange;
+the recorded keys back. A run owns its database: `redisSeeder` leases it (`parity:lease` holds the vitest process id) and refuses to flush one that a live run holds, since two runs on one database erase each other's queued jobs or read each other's (an extra or missing `SubmitToIndexnowJob`). Fixtures with setup requests (the CSRF fetch, the login) keep every exchange;
 `replayFixtureExchange(fixture, index, options)` replays one.
 
 ```ts

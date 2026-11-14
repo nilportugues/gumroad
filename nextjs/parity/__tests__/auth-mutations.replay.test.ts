@@ -14,8 +14,8 @@ import { decryptSecureExternalId, secureExternalId } from "@/server/models/secur
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { loadFixture, type Fixture } from "../src/fixture";
-import { withoutRailsOnly } from "../src/rails-only";
 import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
@@ -353,10 +353,24 @@ describe.skipIf(!url)("mutations of the authentication pages", () => {
     FIRST_COMPILE_TIMEOUT_MS,
   );
 
+  // The first request to a route compiles it (10 s or more), which would age the seeded timestamps past the replayer's tolerance
+  // (<now+10s> against <now>). Each route is replayed once, unchecked, ahead of its first fixture, so a filtered run is as steady as a full one.
+  const warmed = new Set<string>();
+  async function warmRoute(file: string, index: number) {
+    const { method, path: requestPath } = loadFixture(file).exchanges[index]!.request;
+    const route = `${method} ${requestPath.replace(/[?].*/u, "").replace(/\/[^/]*(?:==|[a-z]\d)[^/]*(?=\/|$)/gu, "/:id")}`;
+    if (warmed.has(route)) return;
+    warmed.add(route);
+    const { file: _file, ...options } = replayOptions(file);
+    await replayFixtureExchange(file, index, options).catch(() => undefined);
+    handedBack.length = 0;
+  }
+
   it.each(cases)(
     "%s",
     async (name, file, index) => {
       try {
+        await warmRoute(file, index);
         const fixture = loadFixture(file);
         const { file: _file, ...options } = replayOptions(file);
         if (/-hands-an?-/u.test(name)) {
