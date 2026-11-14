@@ -242,7 +242,7 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
         expect(response).to have_http_status(:not_found)
       end
 
-      it "hands a post that excludes buyers who clicked another post to Rails", parity: true do
+      it "answers null for a post that excludes the clickers of a post when the audience is empty", parity: true do
         earlier = post_for(name: "Earlier")
         installment = post_for(not_clicked_post_id: earlier.external_id)
         log_in(seller)
@@ -277,25 +277,25 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
           response.parsed_body
         end
 
-        it "hands a post filtered by openers that leaves out fewer than five of the audience to Rails", parity: true do
+        it "answers null for a post filtered by openers that leaves out fewer than five of the audience", parity: true do
           engage(buyers: 6, opened: 5)
 
           expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => nil)
         end
 
-        it "hands a post filtered by openers with five on both sides of the floor to Rails", parity: true do
+        it "counts a post filtered by openers with five on both sides of the floor", parity: true do
           engage(buyers: 12, opened: 7)
 
           expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => 7)
         end
 
-        it "hands a post filtered by openers below the floor to Rails", parity: true do
+        it "answers null for a post filtered by openers below the floor", parity: true do
           engage(buyers: 6, opened: 4)
 
           expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => nil)
         end
 
-        it "hands a post filtered by openers who are all of the audience to Rails", parity: true do
+        it "counts a post filtered by openers who are all of the audience", parity: true do
           engage(buyers: 5, opened: 5)
 
           expect(count_for(opened_post_id: earlier.external_id)).to eq("count" => 5)
@@ -314,31 +314,31 @@ describe "Internal API", type: :request, elasticsearch_wait_for_refresh: true do
           expect(count_for(opened_post_id: "not-an-id")).to eq("count" => nil)
         end
 
-        it "hands a post that excludes one clicker of six to Rails", parity: true do
+        it "answers null for a post that excludes one clicker of six", parity: true do
           engage(buyers: 6, opened: 6, clicked: 1)
 
           expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => nil)
         end
 
-        it "hands a post that excludes two clickers of eight to Rails", parity: true do
+        it "answers null for a post that excludes two clickers of eight", parity: true do
           engage(buyers: 8, opened: 8, clicked: 2)
 
           expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => nil)
         end
 
-        it "hands a post that excludes five clickers of twelve to Rails", parity: true do
+        it "counts a post that excludes five clickers of twelve", parity: true do
           engage(buyers: 12, opened: 12, clicked: 5)
 
           expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => 7)
         end
 
-        it "hands a post that excludes nobody to Rails", parity: true do
+        it "counts a post that excludes nobody", parity: true do
           engage(buyers: 5, opened: 5)
 
           expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => 5)
         end
 
-        it "hands a post that excludes clickers below the floor to Rails", parity: true do
+        it "answers null for a post that excludes clickers below the floor", parity: true do
           engage(buyers: 5, opened: 5, clicked: 1)
 
           expect(count_for(not_clicked_post_id: earlier.external_id)).to eq("count" => nil)

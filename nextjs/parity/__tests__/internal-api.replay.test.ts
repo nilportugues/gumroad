@@ -144,6 +144,29 @@ async function dynamo(operation: string, payload: unknown): Promise<Record<strin
   return (await response.json()) as Record<string, unknown>;
 }
 
+// The items Rails read from the engagement table in the recorded request (opens, clickers): the partition holds exactly those.
+function recordedEngagementItems(file: string, index: number): Record<string, unknown>[] {
+  const items: Record<string, unknown>[] = [];
+  for (const exchange of loadFixture(file).exchanges.at(index)!.http) {
+    if (!exchange.url.startsWith("http://dynamodb:8000")) continue;
+    const body = JSON.parse(exchange.response.body ?? "{}") as { Items?: Record<string, unknown>[] };
+    items.push(...(body.Items ?? []));
+  }
+  return items;
+}
+
+async function seedItems(installmentId: number, items: Record<string, unknown>[]): Promise<void> {
+  const TableName = `${DYNAMODB_TABLE_PREFIX}email_engagement`;
+  const existing = await dynamo("Query", {
+    TableName,
+    KeyConditionExpression: "pk = :pk",
+    ExpressionAttributeValues: { ":pk": { S: String(installmentId) } },
+  });
+  for (const item of (existing.Items as Record<string, { S: string }>[] | undefined) ?? [])
+    await dynamo("DeleteItem", { TableName, Key: { pk: item.pk, sk: item.sk } });
+  for (const item of items) await dynamo("PutItem", { TableName, Item: { ...item, pk: { S: String(installmentId) } } });
+}
+
 // The partition of `installmentId` holds exactly `clicks` (URL# items), as the spec's put_item calls left it.
 async function seedClicks(installmentId: number, clicks: [string, number][]): Promise<void> {
   const TableName = `${DYNAMODB_TABLE_PREFIX}email_engagement`;
@@ -176,6 +199,8 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
   let server: NextServer;
   let rails: Server;
   let currentCase = "";
+  let currentFile = "";
+  let currentIndex = 0;
   const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
@@ -270,7 +295,9 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
         await reindexPurchases(es, purchases.name, sql);
         const [installment] = await sql.query("SELECT id FROM installments ORDER BY id LIMIT 1");
         const clicks = Object.entries(CLICKS).find(([name]) => currentCase.endsWith(name))?.[1] ?? [];
-        if (installment) await seedClicks(Number(installment.id), clicks);
+        if (installment && clicks.length === 0 && currentCase.includes("audience-count"))
+          await seedItems(Number(installment.id), recordedEngagementItems(currentFile, currentIndex));
+        else if (installment) await seedClicks(Number(installment.id), clicks);
       },
     },
     transport: httpTransport(server.baseUrl),
@@ -312,6 +339,8 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
         if (warmed.has(route)) continue;
         warmed.add(route);
         currentCase = name;
+        currentFile = file;
+        currentIndex = index;
         await replayFixtureExchange(file, index, options()).catch(() => undefined);
       }
     },
@@ -325,6 +354,8 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
     async (name, file, index) => {
       if (name.includes("home-page-numbers") && !name.includes(HOME_PAGE_CASE)) return;
       currentCase = name;
+      currentFile = file;
+      currentIndex = index;
       try {
         const fixture = loadFixture(file);
         if (name.includes("hands-a-")) {
