@@ -183,33 +183,40 @@ export function withDriftedDates(
 const FAR_INSTANT_HOURS = 24 * 365 * 10;
 const HOUR_TOKEN = /<now\+(\d+)h>/gu;
 
-const rebaseString = (text: string, recordedAt: Date, now: Date) =>
+const rebaseString = (text: string, recordedAt: Date, now: Date, minHours: number) =>
   text.replace(HOUR_TOKEN, (token, hours: string) =>
-    Number(hours) < FAR_INSTANT_HOURS
-      ? token
-      : timeToken(new Date(recordedAt.getTime() + Number(hours) * 3_600_000), now),
+    Number(hours) < minHours ? token : timeToken(new Date(recordedAt.getTime() + Number(hours) * 3_600_000), now),
   );
 
-const rebaseJson = (value: Json, recordedAt: Date, now: Date): Json => {
-  if (typeof value === "string") return rebaseString(value, recordedAt, now);
-  if (Array.isArray(value)) return value.map((item) => rebaseJson(item, recordedAt, now));
+const rebaseJson = (value: Json, recordedAt: Date, now: Date, minHours: number): Json => {
+  if (typeof value === "string") return rebaseString(value, recordedAt, now, minHours);
+  if (Array.isArray(value)) return value.map((item) => rebaseJson(item, recordedAt, now, minHours));
   if (value !== null && typeof value === "object")
     return Object.fromEntries(
-      Object.entries(value as Record<string, Json>).map(([key, item]) => [key, rebaseJson(item, recordedAt, now)]),
+      Object.entries(value as Record<string, Json>).map(([key, item]) => [
+        key,
+        rebaseJson(item, recordedAt, now, minHours),
+      ]),
     );
   return value;
 };
 
-export function rebaseFarInstants(exchange: Exchange, recordedAt: Date, now: Date): Exchange {
+// `minHours` lowers the bar for a literal that is only a few years out (a 2031 `local_time`), when the exchange holds no seeded token that far.
+export function rebaseFarInstants(
+  exchange: Exchange,
+  recordedAt: Date,
+  now: Date,
+  minHours = FAR_INSTANT_HOURS,
+): Exchange {
   const { response } = exchange;
   return {
     ...exchange,
     ...(exchange.db === undefined
       ? {}
-      : { db: rebaseJson(exchange.db as unknown as Json, recordedAt, now) as unknown as typeof exchange.db }),
+      : { db: rebaseJson(exchange.db as unknown as Json, recordedAt, now, minHours) as unknown as typeof exchange.db }),
     response: {
       ...response,
-      ...(response.json === undefined ? {} : { json: rebaseJson(response.json, recordedAt, now) }),
+      ...(response.json === undefined ? {} : { json: rebaseJson(response.json, recordedAt, now, minHours) }),
     },
   };
 }

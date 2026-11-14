@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/piracy_reports_mutations_signed_in_spec.rb",
-  "example": "Piracy report mutations when signed in POST /dashboard/piracy_reports/:id/sign hands a report with a name that is not text to Rails",
+  "spec": "spec/requests/product_builds_promote_parity_spec.rb",
+  "example": "Promoting a product build hands a promotion of a product with no pages to Rails",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -106,8 +106,8 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Design course",
-                "unique_permalink": "v",
+                "name": "Build product",
+                "unique_permalink": "y",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
@@ -163,91 +163,6 @@
               }
             ]
           },
-          "piracy_reports": {
-            "columns": {
-              "id": "bigint",
-              "external_id": "varchar",
-              "seller_id": "bigint",
-              "product_id": "bigint",
-              "source": "varchar",
-              "ticket_url": "varchar",
-              "state": "varchar",
-              "url": "varchar",
-              "normalized_url_digest": "varchar",
-              "recipient_name": "varchar",
-              "recipient_email": "varchar",
-              "recipient_source_url": "varchar",
-              "screening_verdict": "varchar",
-              "screening_checks": "json",
-              "screened_at": "datetime",
-              "notice_text": "text",
-              "notice_digest": "varchar",
-              "signed_at": "datetime",
-              "signed_by_name": "varchar",
-              "signature_statement_version": "varchar",
-              "signed_ip": "varchar",
-              "reply_token": "varchar",
-              "sent_at": "datetime",
-              "sent_message_id": "varchar",
-              "sent_to_email": "varchar",
-              "last_contact_email": "varchar",
-              "delivered_at": "datetime",
-              "delivery_failed_at": "datetime",
-              "counter_notice_body": "text",
-              "counter_notice_received_on": "date",
-              "counter_notice_forwarded_at": "datetime",
-              "outcome": "varchar",
-              "outcome_reason": "text",
-              "resolved_at": "datetime",
-              "outcome_notified_at": "datetime",
-              "created_at": "datetime",
-              "updated_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "external_id": "goyy5GzM0tFn06VAHBoqL",
-                "seller_id": 1,
-                "product_id": 1,
-                "source": "dashboard",
-                "ticket_url": null,
-                "state": "awaiting_signature",
-                "url": "https://example.net/design-course",
-                "normalized_url_digest": "649e5dbbfe7a6cadec297bf5bf45ab86e5ff98859b02c82d5639436de7adc33e",
-                "recipient_name": "Example Net Inc.",
-                "recipient_email": "copyright@example.net",
-                "recipient_source_url": "https://dmca.copyright.gov/osp/example",
-                "screening_verdict": "pass",
-                "screening_checks": null,
-                "screened_at": null,
-                "notice_text": "Notice text",
-                "notice_digest": "ec3d1d69b1430c8fe7637d23134c294a4952eb06c3fd3a239fa5f8c592f418cf",
-                "signed_at": null,
-                "signed_by_name": null,
-                "signature_statement_version": null,
-                "signed_ip": null,
-                "reply_token": null,
-                "sent_at": null,
-                "sent_message_id": null,
-                "sent_to_email": null,
-                "last_contact_email": null,
-                "delivered_at": null,
-                "delivery_failed_at": null,
-                "counter_notice_body": null,
-                "counter_notice_received_on": null,
-                "counter_notice_forwarded_at": null,
-                "outcome": null,
-                "outcome_reason": null,
-                "resolved_at": null,
-                "outcome_notified_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>"
-              }
-            ]
-          },
           "prices": {
             "columns": {
               "id": "int",
@@ -278,6 +193,51 @@
                 "flags": 0,
                 "variant_id": null,
                 "suggested_price_cents": null
+              }
+            ]
+          },
+          "product_builds": {
+            "columns": {
+              "id": "bigint",
+              "product_id": "bigint",
+              "public_id": "varchar",
+              "number": "int",
+              "status": "varchar",
+              "source_url": "varchar",
+              "storage_key": "varchar",
+              "byte_size": "bigint",
+              "product_file_id": "bigint",
+              "promoted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "site_unpacked_at": "datetime",
+              "site_file_count": "int",
+              "site_byte_size": "bigint",
+              "site_unpack_error": "text",
+              "demo_selected_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "product_id": 1,
+                "public_id": "y5zcyJ1M6TE5tkM2rBCAK",
+                "number": 1,
+                "status": "uploaded",
+                "source_url": "https://example.com/uploads/11f4af0c2c7bedfd/original/game.zip",
+                "storage_key": "builds/1/1/build.zip",
+                "byte_size": 1024,
+                "product_file_id": null,
+                "promoted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "site_unpacked_at": null,
+                "site_file_count": null,
+                "site_byte_size": null,
+                "site_unpack_error": null,
+                "demo_selected_at": null
               }
             ]
           },
@@ -383,20 +343,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgarac0b2cda_63@gumroad.com",
-                "encrypted_password": "$2a$04$GVMMs9et0g68gCKcAQiCL..GbfmsJ6bQ/1gNt8NHgn9nIzo./9QxS",
+                "email": "edgarf7bffd42_1@gumroad.com",
+                "encrypted_password": "$2a$04$l8eHBGJl5WDutP9knuDyf.4cQIay8oUJsvbnJ9DtSw7sLnSxej2v2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "102.37.232.209",
-                "last_sign_in_ip": "51.16.215.229",
+                "current_sign_in_ip": "104.105.151.63",
+                "last_sign_in_ip": "51.14.244.171",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Piracy Seller",
-                "payment_address": "edgar67add3d9_64@gumroad.com",
+                "name": "Build Seller",
+                "payment_address": "edgar0a4741dd_2@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -408,7 +368,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgare91d887832",
+                "username": "edgarfbb9918e1",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -421,8 +381,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5021918191896",
-                "account_created_ip": "216.239.78.26",
+                "external_id": "4476042403091",
+                "account_created_ip": "163.52.36.68",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -440,7 +400,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "XW4LQ24GIKF6OJCOSJZON2ODPQUUYARZ",
+                "otp_secret_key": "QCTBDAN7Y334I3ODYTQKNNXMZOQSI27D",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -455,8 +415,8 @@
         "autoIncrement": {
           "affiliates": 2,
           "links": 2,
-          "piracy_reports": 2,
           "prices": 2,
+          "product_builds": 2,
           "refund_policies": 2,
           "users": 2
         }
@@ -473,7 +433,7 @@
           "value": [
             "disable_braintree_sales",
             "paypal_payout_fee",
-            "piracy_reports",
+            "product_build_player",
             "seller_refund_policy_new_users_enabled",
             "store_discover_searches"
           ]
@@ -484,7 +444,7 @@
             "boolean": "true"
           }
         },
-        "piracy_reports": {
+        "product_build_player": {
           "type": "hash",
           "value": {
             "actors/User;1": "1"
@@ -530,13 +490,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "sYtSy37gof-KIhIfJNAsHG9dmAarBBKSN4GJkMESZX5mCMWXgZRpJA7vLLbzGeVo6hAV6WF2j57xkd3VTlm96Q",
+            "value": "CyJpIVkifNsr978NOggzag2Qd90QK3YuboMKQ-FMVJ2DwIDrT-BotEawP-2X_kqYc5Lq0rWDsnkuphq57JBGSw",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "7Y/cDvKJai/Ni38+M89m1eyzLaLN2iDhNcjTiOqVe+dm5gcEvHHrY7IE4sYSsGQRNwwxR6fq/3m1xa/qH1Vwuj00j9qukF3nV6sRPnMcRwhCJv/EcJyGGtvMJ5ApG4EzUCYRs5Nd8Dc7iY9wxdfWNjxAy8OIhHEzK9eSyfEHkXPYZOT5kuXFphkXZ4PCXv+/lnZoF0TIhGA88xHXaDIxClz5KMXWSE3yq022f2IKjBH7swkgoQPPvcdAHVrg2J5dkH5jFYAHGopA/DeWdqA0xw7mkWnIOiUyeWyzvjt8pWj/h3gKF0qB4ksd4CuQ4EdGz8yL8WDUu29/r1hYbePNN8Yi+dDiXEqsyXIyIsJ12p1QdcBH0HLsbwy1qTlQkJDfKiPa--IZ0WSQ46buEWTM32--FGa8yMhnn23Fx56UEuE/CQ==",
+            "value": "59xm8KaG112TaCFc4K1Mnzu+o2C8qAk7vLtwJAwkm0TsZlLp8byAt9nKRjiQBs0LXYFD4T7+pN44Edt9nvguxKhoBoz3K2d4dZvr6CDj7Aj1EAS6jIcXtPSwb49OGqBCEKGE+aUbfMNbwRjoZWnlXJjyif46VN9U3hxp+72MT5z1pCWcClxWl0ZjvSf3TjFqFhNVlT4TGZpNsI71xdYAu9IuxJkCAL95cXkM3bTNBDdMwxOcB1qXx30rW9WVosiEoXWrsL7szcWizJ98QGxBx8bvX1YVOYLm7/fNZJavTlR1FLH7R2kqMoM5CZWr9THWsww2chv3YBmRnX3xG8GqR25j8N63EPHrMtqCZH1nx+kfthqj76oEiaz99Pk1tPWhwifJ--5wqQSIODUpIcVjHE--xBuGXYLkfTgiSq0L0xvuBw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -576,12 +536,12 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "VMVyFre0LhOrTWn7PeBZ2lm+JMSZS7AQmb76Y3f+jdI=",
+            "csp_nonce": "Ss9xkSqwUN7zkkHiwEv0T9k2VXKgqOdz3SIkx6+Rq50=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "QYUxfwg1nvFrcoyYoVU1NVSiS8Lra4u8W-i2Fiy-vzuWBqYj90FWKu-_sjF2nPxB0e_GLSEZFrCd-OJTo_VnrA",
+            "authenticity_token": "y5I1b6GxjA-vzgO_Mgr35tEIktiqMcEmgXSL_8vaFM5DcNylt3OYYMKJg1-f_I4UrwoP1w-ZBXHBUZsFxgYGGA",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "category": {
@@ -664,7 +624,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "pWaOKqO3LFAGjeYZ7BgsxKYlZGoAXl0tqZQ5CbiZdB9y5Rl2XMPki4JA2LA70eWwI2jphcoswCFvhG1MN9KsiA"
+                "content": "yuRJIZz__OSxitJa8xg6OTaPXyVwawKzSEl_koJHd_NCBqDrij3oi9zNUrpe7kPLSI3CKtXDxuQIbG9oj5tlJQ"
               },
               {
                 "tagName": "meta",
@@ -704,7 +664,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-og-title",
                 "property": "og:title",
-                "content": "Gumroad"
+                "content": "Accessing your purchase - Gumroad Help Center"
               },
               {
                 "tagName": "meta",
@@ -801,6 +761,36 @@
                 "headKey": "canonical",
                 "rel": "canonical",
                 "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-description",
+                "name": "description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-description",
+                "property": "og:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-url",
+                "property": "og:url",
+                "content": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-title",
+                "name": "twitter:title",
+                "content": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-description",
+                "name": "twitter:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
               }
             ]
           },
@@ -915,8 +905,8 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Design course",
-                "unique_permalink": "v",
+                "name": "Build product",
+                "unique_permalink": "y",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
@@ -972,91 +962,6 @@
               }
             ]
           },
-          "piracy_reports": {
-            "columns": {
-              "id": "bigint",
-              "external_id": "varchar",
-              "seller_id": "bigint",
-              "product_id": "bigint",
-              "source": "varchar",
-              "ticket_url": "varchar",
-              "state": "varchar",
-              "url": "varchar",
-              "normalized_url_digest": "varchar",
-              "recipient_name": "varchar",
-              "recipient_email": "varchar",
-              "recipient_source_url": "varchar",
-              "screening_verdict": "varchar",
-              "screening_checks": "json",
-              "screened_at": "datetime",
-              "notice_text": "text",
-              "notice_digest": "varchar",
-              "signed_at": "datetime",
-              "signed_by_name": "varchar",
-              "signature_statement_version": "varchar",
-              "signed_ip": "varchar",
-              "reply_token": "varchar",
-              "sent_at": "datetime",
-              "sent_message_id": "varchar",
-              "sent_to_email": "varchar",
-              "last_contact_email": "varchar",
-              "delivered_at": "datetime",
-              "delivery_failed_at": "datetime",
-              "counter_notice_body": "text",
-              "counter_notice_received_on": "date",
-              "counter_notice_forwarded_at": "datetime",
-              "outcome": "varchar",
-              "outcome_reason": "text",
-              "resolved_at": "datetime",
-              "outcome_notified_at": "datetime",
-              "created_at": "datetime",
-              "updated_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "external_id": "goyy5GzM0tFn06VAHBoqL",
-                "seller_id": 1,
-                "product_id": 1,
-                "source": "dashboard",
-                "ticket_url": null,
-                "state": "awaiting_signature",
-                "url": "https://example.net/design-course",
-                "normalized_url_digest": "649e5dbbfe7a6cadec297bf5bf45ab86e5ff98859b02c82d5639436de7adc33e",
-                "recipient_name": "Example Net Inc.",
-                "recipient_email": "copyright@example.net",
-                "recipient_source_url": "https://dmca.copyright.gov/osp/example",
-                "screening_verdict": "pass",
-                "screening_checks": null,
-                "screened_at": null,
-                "notice_text": "Notice text",
-                "notice_digest": "ec3d1d69b1430c8fe7637d23134c294a4952eb06c3fd3a239fa5f8c592f418cf",
-                "signed_at": null,
-                "signed_by_name": null,
-                "signature_statement_version": null,
-                "signed_ip": null,
-                "reply_token": null,
-                "sent_at": null,
-                "sent_message_id": null,
-                "sent_to_email": null,
-                "last_contact_email": null,
-                "delivered_at": null,
-                "delivery_failed_at": null,
-                "counter_notice_body": null,
-                "counter_notice_received_on": null,
-                "counter_notice_forwarded_at": null,
-                "outcome": null,
-                "outcome_reason": null,
-                "resolved_at": null,
-                "outcome_notified_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>"
-              }
-            ]
-          },
           "prices": {
             "columns": {
               "id": "int",
@@ -1087,6 +992,51 @@
                 "flags": 0,
                 "variant_id": null,
                 "suggested_price_cents": null
+              }
+            ]
+          },
+          "product_builds": {
+            "columns": {
+              "id": "bigint",
+              "product_id": "bigint",
+              "public_id": "varchar",
+              "number": "int",
+              "status": "varchar",
+              "source_url": "varchar",
+              "storage_key": "varchar",
+              "byte_size": "bigint",
+              "product_file_id": "bigint",
+              "promoted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "site_unpacked_at": "datetime",
+              "site_file_count": "int",
+              "site_byte_size": "bigint",
+              "site_unpack_error": "text",
+              "demo_selected_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "product_id": 1,
+                "public_id": "y5zcyJ1M6TE5tkM2rBCAK",
+                "number": 1,
+                "status": "uploaded",
+                "source_url": "https://example.com/uploads/11f4af0c2c7bedfd/original/game.zip",
+                "storage_key": "builds/1/1/build.zip",
+                "byte_size": 1024,
+                "product_file_id": null,
+                "promoted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "site_unpacked_at": null,
+                "site_file_count": null,
+                "site_byte_size": null,
+                "site_unpack_error": null,
+                "demo_selected_at": null
               }
             ]
           },
@@ -1192,20 +1142,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgarac0b2cda_63@gumroad.com",
-                "encrypted_password": "$2a$04$GVMMs9et0g68gCKcAQiCL..GbfmsJ6bQ/1gNt8NHgn9nIzo./9QxS",
+                "email": "edgarf7bffd42_1@gumroad.com",
+                "encrypted_password": "$2a$04$l8eHBGJl5WDutP9knuDyf.4cQIay8oUJsvbnJ9DtSw7sLnSxej2v2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "102.37.232.209",
-                "last_sign_in_ip": "51.16.215.229",
+                "current_sign_in_ip": "104.105.151.63",
+                "last_sign_in_ip": "51.14.244.171",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Piracy Seller",
-                "payment_address": "edgar67add3d9_64@gumroad.com",
+                "name": "Build Seller",
+                "payment_address": "edgar0a4741dd_2@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -1217,7 +1167,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgare91d887832",
+                "username": "edgarfbb9918e1",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -1230,8 +1180,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5021918191896",
-                "account_created_ip": "216.239.78.26",
+                "external_id": "4476042403091",
+                "account_created_ip": "163.52.36.68",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1249,7 +1199,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "XW4LQ24GIKF6OJCOSJZON2ODPQUUYARZ",
+                "otp_secret_key": "QCTBDAN7Y334I3ODYTQKNNXMZOQSI27D",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1264,8 +1214,8 @@
         "autoIncrement": {
           "affiliates": 2,
           "links": 2,
-          "piracy_reports": 2,
           "prices": 2,
+          "product_builds": 2,
           "refund_policies": 2,
           "users": 2
         }
@@ -1282,7 +1232,7 @@
           "value": [
             "disable_braintree_sales",
             "paypal_payout_fee",
-            "piracy_reports",
+            "product_build_player",
             "seller_refund_policy_new_users_enabled",
             "store_discover_searches"
           ]
@@ -1293,7 +1243,7 @@
             "boolean": "true"
           }
         },
-        "piracy_reports": {
+        "product_build_player": {
           "type": "hash",
           "value": {
             "actors/User;1": "1"
@@ -1322,12 +1272,12 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "sYtSy37gof-KIhIfJNAsHG9dmAarBBKSN4GJkMESZX5mCMWXgZRpJA7vLLbzGeVo6hAV6WF2j57xkd3VTlm96Q",
-          "_gumroad_app_session_test": "7Y/cDvKJai/Ni38+M89m1eyzLaLN2iDhNcjTiOqVe+dm5gcEvHHrY7IE4sYSsGQRNwwxR6fq/3m1xa/qH1Vwuj00j9qukF3nV6sRPnMcRwhCJv/EcJyGGtvMJ5ApG4EzUCYRs5Nd8Dc7iY9wxdfWNjxAy8OIhHEzK9eSyfEHkXPYZOT5kuXFphkXZ4PCXv+/lnZoF0TIhGA88xHXaDIxClz5KMXWSE3yq022f2IKjBH7swkgoQPPvcdAHVrg2J5dkH5jFYAHGopA/DeWdqA0xw7mkWnIOiUyeWyzvjt8pWj/h3gKF0qB4ksd4CuQ4EdGz8yL8WDUu29/r1hYbePNN8Yi+dDiXEqsyXIyIsJ12p1QdcBH0HLsbwy1qTlQkJDfKiPa--IZ0WSQ46buEWTM32--FGa8yMhnn23Fx56UEuE/CQ==",
-          "_gumroad_guid": "ca921b96-0924-42c2-b768-db38f6ab0128"
+          "XSRF-TOKEN": "CyJpIVkifNsr978NOggzag2Qd90QK3YuboMKQ-FMVJ2DwIDrT-BotEawP-2X_kqYc5Lq0rWDsnkuphq57JBGSw",
+          "_gumroad_app_session_test": "59xm8KaG112TaCFc4K1Mnzu+o2C8qAk7vLtwJAwkm0TsZlLp8byAt9nKRjiQBs0LXYFD4T7+pN44Edt9nvguxKhoBoz3K2d4dZvr6CDj7Aj1EAS6jIcXtPSwb49OGqBCEKGE+aUbfMNbwRjoZWnlXJjyif46VN9U3hxp+72MT5z1pCWcClxWl0ZjvSf3TjFqFhNVlT4TGZpNsI71xdYAu9IuxJkCAL95cXkM3bTNBDdMwxOcB1qXx30rW9WVosiEoXWrsL7szcWizJ98QGxBx8bvX1YVOYLm7/fNZJavTlR1FLH7R2kqMoM5CZWr9THWsww2chv3YBmRnX3xG8GqR25j8N63EPHrMtqCZH1nx+kfthqj76oEiaz99Pk1tPWhwifJ--5wqQSIODUpIcVjHE--xBuGXYLkfTgiSq0L0xvuBw==",
+          "_gumroad_guid": "78caa245-1cab-4722-9d29-347bc617accd"
         },
         "remoteIp": "127.0.0.1",
-        "body": "authenticity_token=QYUxfwg1nvFrcoyYoVU1NVSiS8Lra4u8W-i2Fiy-vzuWBqYj90FWKu-_sjF2nPxB0e_GLSEZFrCd-OJTo_VnrA&user[login_identifier]=edgarac0b2cda_63%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+        "body": "authenticity_token=y5I1b6GxjA-vzgO_Mgr35tEIktiqMcEmgXSL_8vaFM5DcNylt3OYYMKJg1-f_I4UrwoP1w-ZBXHBUZsFxgYGGA&user[login_identifier]=edgarf7bffd42_1%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
       },
       "response": {
         "status": 302,
@@ -1346,13 +1296,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "iJ90QQBLe07juGSeH1FQE4QiNy20R8Yswqnek8dXiUhfHOMd_z-zlWd1WjfImJlnAW-6wn41WyAEuYrWSBxR3w",
+            "value": "CbHz3Rv2kf78Iu-bDBugOrjg-XPthiukxP2sUn54jQWBUxoXDTSFkZFlb3uh7dnIxuJkfEgu7_OE2Lyoc6Sf0w",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "czrYz39Gw0rZQEA8LTsA778amDZUtPImhZe4CnCol0ShB5EZjbaFrW0eIzM02hqiltoAD7nBX0GhArY6nfi5xB5h26wS636McRwXFkCOHsx3lR03HnpPpGsr3Y6IKWfIQKYeCVMXqjtBddJYAXKugzXNf/2y9u8Khp5QkUB4bG7Sah4kvnzs1VfeXjLdu+6FGYwLL0ijjB3vg7717c25nc19kc0yHedd0/9Ktmw6ppVU8h3akS/nyA5SRlL93u9nOANIV65TYb8+Vm44fbOHSvA3Y+3/F3XZahDZROrZ0r9ub+CyY7NxIoaHP7ZwhOLpY/F/RBuNauvG0Nepc7O0KdDFZEdDrafBpNT7fe5OPUCp08/cLVJyQhVsB95hoIPh9BWlE+Z9zYPj08PGwlwyP0CbfGxLhHpBaeqsjk69DKJTRV7UNwiU4zr7mnWSsdJsT6tAa+br/xOkqrE1JNsG3AOlheOHCeXTv5QBMwT6sqdKGr80PL9BjLEy5G3tfjSF5001zCBgdQUuLG4S9Soc7x4p81IJGTLiw4JOjv5gNffi7vpIsp6E5XRwi2WAFCFeZ/fOtZCR8cJ/mknthjXD/UrXW3S/tuOtWKcI3+WBc+JBFcLzSxL//UuAmUNGDMDNcqMR--JzXGeR/W8FNB0eeu--x1ZvDvmQsjedRNLuAK25Gg==",
+            "value": "UYG3I2gOy2JdzeOVcvsVMDkFH6WsbytsuESFxMspbBcuiqx3lmGJvILzV/yg/6axJQV33hE0bA6Y5BVQhmmKBAfoXgyXC4u7JBpU/M4P9FPEtbesESMLXhuakwN6ui3gprQ+1o/CE4iNV7hT2aqAej3VY6HBVPmeEtMJFysSGWj0P77ieHtYYgkVB8oz/5dP0Pys3JZKZwcW/UKQDTIyfXwzu38vHOnmB4krwpUB6cZw0CjzkIAClVPK2J1d+3Jd0RryTmN8caM8o18AQuOYJ43MxeQ3t7takyMvYib0Vqw8S3drSZeI4yNB8PAC2dMstViqEneJXc+VS6JVPkxm0bivOgfkcEaq/2hCFMyqPbpnofzmHsVx58zHy/CJ3v1S6fIsKsS72OTYsfh28fqnMmP+fG3J6VCsiic5ZsuRfaOLcweGONTP1eXtzJzEtk8z5CmNbuxWBmXLShW5/5hJU6eFThK4LdCFy2s4uX3BaRIsZ6oCgh4JJPSKFyrf2rTt6Ak0iigovuM3lurg99QAq18WaFWiw3Z7qis7r0ZCQsuS/bFxgyL622l9tBG8PDVrsCLselNXiTq1YVBqNdrMsx+oTI+rG+H1DoVyxjcPD8oRyNqLm33OW5Jx/iJt3pz6rDUt--8fwXXBKxEW6tzZ2A--odScMUap+st7RAXI+YClaw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -1360,7 +1310,7 @@
             "samesite": "lax"
           },
           "remember_user_token": {
-            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRWRXVFUxek9XVjBNR2MyT0dkRFMyTkJVV2xEVEM0aUxDSXhOemswTXpjMU9EYzBMalkzTVRFNE56SWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQwNTo0NDozNC42NzFaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--7a70e3eaeb82c0f643de01b277f0547028ebc85d",
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKR3c0WlVoQ1IwcHNOVmRFZFhSUU9XdHVkVVI1Wmk0aUxDSXhOemswTmpNMk1qZ3lMamsyT1RZM016a2lYUT09IiwiZXhwIjoiMjAyNi0xMi0xNFQwNjowNDo0Mi45NjlaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--82e1164b62620b8477891c0d26e014c4f04e7498",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+720h>",
@@ -1412,12 +1362,12 @@
                   "<now>"
                 ],
                 "current_sign_in_ip": [
-                  "102.37.232.209",
+                  "104.105.151.63",
                   "127.0.0.1"
                 ],
                 "last_sign_in_ip": [
-                  "51.16.215.229",
-                  "102.37.232.209"
+                  "51.14.244.171",
+                  "104.105.151.63"
                 ],
                 "updated_at": [
                   "<now>",
@@ -1446,6 +1396,31 @@
             "status": 200,
             "body": ""
           }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "seller_profiles"
+        },
+        {
+          "type": "job",
+          "index": 0
         }
       ]
     },
@@ -1549,8 +1524,8 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Design course",
-                "unique_permalink": "v",
+                "name": "Build product",
+                "unique_permalink": "y",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
@@ -1606,91 +1581,6 @@
               }
             ]
           },
-          "piracy_reports": {
-            "columns": {
-              "id": "bigint",
-              "external_id": "varchar",
-              "seller_id": "bigint",
-              "product_id": "bigint",
-              "source": "varchar",
-              "ticket_url": "varchar",
-              "state": "varchar",
-              "url": "varchar",
-              "normalized_url_digest": "varchar",
-              "recipient_name": "varchar",
-              "recipient_email": "varchar",
-              "recipient_source_url": "varchar",
-              "screening_verdict": "varchar",
-              "screening_checks": "json",
-              "screened_at": "datetime",
-              "notice_text": "text",
-              "notice_digest": "varchar",
-              "signed_at": "datetime",
-              "signed_by_name": "varchar",
-              "signature_statement_version": "varchar",
-              "signed_ip": "varchar",
-              "reply_token": "varchar",
-              "sent_at": "datetime",
-              "sent_message_id": "varchar",
-              "sent_to_email": "varchar",
-              "last_contact_email": "varchar",
-              "delivered_at": "datetime",
-              "delivery_failed_at": "datetime",
-              "counter_notice_body": "text",
-              "counter_notice_received_on": "date",
-              "counter_notice_forwarded_at": "datetime",
-              "outcome": "varchar",
-              "outcome_reason": "text",
-              "resolved_at": "datetime",
-              "outcome_notified_at": "datetime",
-              "created_at": "datetime",
-              "updated_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "external_id": "goyy5GzM0tFn06VAHBoqL",
-                "seller_id": 1,
-                "product_id": 1,
-                "source": "dashboard",
-                "ticket_url": null,
-                "state": "awaiting_signature",
-                "url": "https://example.net/design-course",
-                "normalized_url_digest": "649e5dbbfe7a6cadec297bf5bf45ab86e5ff98859b02c82d5639436de7adc33e",
-                "recipient_name": "Example Net Inc.",
-                "recipient_email": "copyright@example.net",
-                "recipient_source_url": "https://dmca.copyright.gov/osp/example",
-                "screening_verdict": "pass",
-                "screening_checks": null,
-                "screened_at": null,
-                "notice_text": "Notice text",
-                "notice_digest": "ec3d1d69b1430c8fe7637d23134c294a4952eb06c3fd3a239fa5f8c592f418cf",
-                "signed_at": null,
-                "signed_by_name": null,
-                "signature_statement_version": null,
-                "signed_ip": null,
-                "reply_token": null,
-                "sent_at": null,
-                "sent_message_id": null,
-                "sent_to_email": null,
-                "last_contact_email": null,
-                "delivered_at": null,
-                "delivery_failed_at": null,
-                "counter_notice_body": null,
-                "counter_notice_received_on": null,
-                "counter_notice_forwarded_at": null,
-                "outcome": null,
-                "outcome_reason": null,
-                "resolved_at": null,
-                "outcome_notified_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>"
-              }
-            ]
-          },
           "prices": {
             "columns": {
               "id": "int",
@@ -1721,6 +1611,51 @@
                 "flags": 0,
                 "variant_id": null,
                 "suggested_price_cents": null
+              }
+            ]
+          },
+          "product_builds": {
+            "columns": {
+              "id": "bigint",
+              "product_id": "bigint",
+              "public_id": "varchar",
+              "number": "int",
+              "status": "varchar",
+              "source_url": "varchar",
+              "storage_key": "varchar",
+              "byte_size": "bigint",
+              "product_file_id": "bigint",
+              "promoted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "site_unpacked_at": "datetime",
+              "site_file_count": "int",
+              "site_byte_size": "bigint",
+              "site_unpack_error": "text",
+              "demo_selected_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "product_id": 1,
+                "public_id": "y5zcyJ1M6TE5tkM2rBCAK",
+                "number": 1,
+                "status": "uploaded",
+                "source_url": "https://example.com/uploads/11f4af0c2c7bedfd/original/game.zip",
+                "storage_key": "builds/1/1/build.zip",
+                "byte_size": 1024,
+                "product_file_id": null,
+                "promoted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "site_unpacked_at": null,
+                "site_file_count": null,
+                "site_byte_size": null,
+                "site_unpack_error": null,
+                "demo_selected_at": null
               }
             ]
           },
@@ -1861,8 +1796,8 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgarac0b2cda_63@gumroad.com",
-                "encrypted_password": "$2a$04$GVMMs9et0g68gCKcAQiCL..GbfmsJ6bQ/1gNt8NHgn9nIzo./9QxS",
+                "email": "edgarf7bffd42_1@gumroad.com",
+                "encrypted_password": "$2a$04$l8eHBGJl5WDutP9knuDyf.4cQIay8oUJsvbnJ9DtSw7sLnSxej2v2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -1870,11 +1805,11 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "102.37.232.209",
+                "last_sign_in_ip": "104.105.151.63",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Piracy Seller",
-                "payment_address": "edgar67add3d9_64@gumroad.com",
+                "name": "Build Seller",
+                "payment_address": "edgar0a4741dd_2@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -1886,7 +1821,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgare91d887832",
+                "username": "edgarfbb9918e1",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -1899,8 +1834,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5021918191896",
-                "account_created_ip": "216.239.78.26",
+                "external_id": "4476042403091",
+                "account_created_ip": "163.52.36.68",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1918,7 +1853,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "XW4LQ24GIKF6OJCOSJZON2ODPQUUYARZ",
+                "otp_secret_key": "QCTBDAN7Y334I3ODYTQKNNXMZOQSI27D",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1933,8 +1868,8 @@
         "autoIncrement": {
           "affiliates": 2,
           "links": 2,
-          "piracy_reports": 2,
           "prices": 2,
+          "product_builds": 2,
           "refund_policies": 2,
           "seller_profiles": 2,
           "users": 2
@@ -1952,7 +1887,7 @@
           "value": [
             "disable_braintree_sales",
             "paypal_payout_fee",
-            "piracy_reports",
+            "product_build_player",
             "seller_refund_policy_new_users_enabled",
             "store_discover_searches"
           ]
@@ -1963,7 +1898,7 @@
             "boolean": "true"
           }
         },
-        "piracy_reports": {
+        "product_build_player": {
           "type": "hash",
           "value": {
             "actors/User;1": "1"
@@ -1991,10 +1926,10 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "iJ90QQBLe07juGSeH1FQE4QiNy20R8Yswqnek8dXiUhfHOMd_z-zlWd1WjfImJlnAW-6wn41WyAEuYrWSBxR3w",
-          "_gumroad_app_session_test": "czrYz39Gw0rZQEA8LTsA778amDZUtPImhZe4CnCol0ShB5EZjbaFrW0eIzM02hqiltoAD7nBX0GhArY6nfi5xB5h26wS636McRwXFkCOHsx3lR03HnpPpGsr3Y6IKWfIQKYeCVMXqjtBddJYAXKugzXNf/2y9u8Khp5QkUB4bG7Sah4kvnzs1VfeXjLdu+6FGYwLL0ijjB3vg7717c25nc19kc0yHedd0/9Ktmw6ppVU8h3akS/nyA5SRlL93u9nOANIV65TYb8+Vm44fbOHSvA3Y+3/F3XZahDZROrZ0r9ub+CyY7NxIoaHP7ZwhOLpY/F/RBuNauvG0Nepc7O0KdDFZEdDrafBpNT7fe5OPUCp08/cLVJyQhVsB95hoIPh9BWlE+Z9zYPj08PGwlwyP0CbfGxLhHpBaeqsjk69DKJTRV7UNwiU4zr7mnWSsdJsT6tAa+br/xOkqrE1JNsG3AOlheOHCeXTv5QBMwT6sqdKGr80PL9BjLEy5G3tfjSF5001zCBgdQUuLG4S9Soc7x4p81IJGTLiw4JOjv5gNffi7vpIsp6E5XRwi2WAFCFeZ/fOtZCR8cJ/mknthjXD/UrXW3S/tuOtWKcI3+WBc+JBFcLzSxL//UuAmUNGDMDNcqMR--JzXGeR/W8FNB0eeu--x1ZvDvmQsjedRNLuAK25Gg==",
-          "_gumroad_guid": "ca921b96-0924-42c2-b768-db38f6ab0128",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRWRXVFUxek9XVjBNR2MyT0dkRFMyTkJVV2xEVEM0aUxDSXhOemswTXpjMU9EYzBMalkzTVRFNE56SWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQwNTo0NDozNC42NzFaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--7a70e3eaeb82c0f643de01b277f0547028ebc85d"
+          "XSRF-TOKEN": "CbHz3Rv2kf78Iu-bDBugOrjg-XPthiukxP2sUn54jQWBUxoXDTSFkZFlb3uh7dnIxuJkfEgu7_OE2Lyoc6Sf0w",
+          "_gumroad_app_session_test": "UYG3I2gOy2JdzeOVcvsVMDkFH6WsbytsuESFxMspbBcuiqx3lmGJvILzV/yg/6axJQV33hE0bA6Y5BVQhmmKBAfoXgyXC4u7JBpU/M4P9FPEtbesESMLXhuakwN6ui3gprQ+1o/CE4iNV7hT2aqAej3VY6HBVPmeEtMJFysSGWj0P77ieHtYYgkVB8oz/5dP0Pys3JZKZwcW/UKQDTIyfXwzu38vHOnmB4krwpUB6cZw0CjzkIAClVPK2J1d+3Jd0RryTmN8caM8o18AQuOYJ43MxeQ3t7takyMvYib0Vqw8S3drSZeI4yNB8PAC2dMstViqEneJXc+VS6JVPkxm0bivOgfkcEaq/2hCFMyqPbpnofzmHsVx58zHy/CJ3v1S6fIsKsS72OTYsfh28fqnMmP+fG3J6VCsiic5ZsuRfaOLcweGONTP1eXtzJzEtk8z5CmNbuxWBmXLShW5/5hJU6eFThK4LdCFy2s4uX3BaRIsZ6oCgh4JJPSKFyrf2rTt6Ak0iigovuM3lurg99QAq18WaFWiw3Z7qis7r0ZCQsuS/bFxgyL622l9tBG8PDVrsCLselNXiTq1YVBqNdrMsx+oTI+rG+H1DoVyxjcPD8oRyNqLm33OW5Jx/iJt3pz6rDUt--8fwXXBKxEW6tzZ2A--odScMUap+st7RAXI+YClaw==",
+          "_gumroad_guid": "78caa245-1cab-4722-9d29-347bc617accd",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKR3c0WlVoQ1IwcHNOVmRFZFhSUU9XdHVkVVI1Wmk0aUxDSXhOemswTmpNMk1qZ3lMamsyT1RZM016a2lYUT09IiwiZXhwIjoiMjAyNi0xMi0xNFQwNjowNDo0Mi45NjlaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--82e1164b62620b8477891c0d26e014c4f04e7498"
         },
         "remoteIp": "127.0.0.1"
       },
@@ -2015,13 +1950,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "gjVLcv8Fo9kvPPYrF1SZoj_Y-9NarItiWtBYN7u7FMJVttwuAHFrAqvxyILAnVDWupV2PJDeFm6cwAxyNPDMVQ",
+            "value": "oKKVoLEamIqoHyUwfd0DD6RUArRgJH9thnfhXn6LBAYoQHxqp9iM5cVYpdDQK3r92lafu8WMuzrGUvGkc1cW0A",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "U5eH0d8JYyxRX0TJUNL9GgBn0GAytSxXq/Kw0nVKRVfH81hASRkLPJZCV/7f+bl2xjdSC+m/bZqOkEvuC8m2Rq7FVlK2UhPvPi7Ysi6odqhbhDj74v7yFarcpt/qgS0xCM7akM0+wzhIKnuHfx9keNVjWOYBdeml0CIlSm/amS+AQhuO81b7ZREJFzsk9bscJh3jWXpwykae+aMDni/yshSlec/MJ6fqNstVoWCODGuiBy2Bu6WGLBxPp6QdqfNGQtGylCkZcfTvBlqOIngtx9eaihlQ3qfvfVd5GB/M5ZleO8oKzUgPn+2oMCYJLofsrtCxiDBZrpBs13MiQelQzyT6wspI4FdMCX8cR7fumgIOTO65+PtDmC8YEsrUhHaDGN6Hmt55uAy2A86XJ9rqRBRcTujWuK22TMOI3qqnUEJzkJJ9TlQWLx4MDnKQ3/pRCVFN6/sYSYIf89f7PUWfnEHEoo8UTfHWq69a/2/pP6vAwxxji3HaDMPaEdJs7Vb1pMsWos9Bmb4u/Bv1jgu49Dqy/5VpmGSY0XiByWtfRRye8FHEc3Ado0EGKbToj6PyOwDabMjdW2VXeKpHS9J57j0eFrA2YtlFXTtw226EBXNUy73f2C+7fmhBKTsnoJx3f7IU--Erg7VkMU7mcjI+xV--J73nO/UjfIM6c00Dd21thg==",
+            "value": "FpLUdxwy0/HLHI4Xx95WFhKwRF9Na/QmRKIOhFsHVyn1x2YSHCvwZxOQSDEkiw3tYYWGstmHR5P+giU4IATQaGwQRQ9GDRq5uOXBAtf6DByh31XEAq8BeprSRkZeIquUekRc/fW98F/hPT7JgA84Gx2emqjxb04MEnXXmMIKJ00c2bqYLEoRIPw132oh3ePMfLJJR39B4MA1PlDJzQ66qt2S600ClbfIAOBIDoObhsVURGmceWm9ndCWGNg148oeVIBJ08JtXcXbQifukyvt138n950FLe1nvjWXekIILTRbmsg49tnfZsTYANT9YgXDgpwEtTzVUg+5TI3OveerPpvR0iGKJg1dMcuqLJy74OIF5rT2OcNmwVPjZpiRXt69tk8nE8FFTR0AMwTWDMqUr7/u3OEXOp9jexN+zhpORq7tIgP7HxZgLSva0pH7KLdXmzI5lvbJ6boyFD6nkTEIQlF9xtVPpPmFiU7RtGEDskObHBkz5cypq/Z4qlqnR9QWo28xqW8b3M5ifmks7TModWRAvJkEjxUf8Ij7xcus5jc2eY/zI1csoZ9I21Nr2O0B9nkPjVsJ9U7UUrA0ugZOtpV6/G9ALgUfXD6U7da2f60zObW1G6sWI9DQQ+SLl2xv6x0j--yi4pQjHyXS6gdIQu--GHtOOea/qoZhzbullKzGNQ==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -2052,9 +1987,9 @@
               "is_mobile": false
             },
             "logged_in_user": {
-              "id": "5021918191896",
-              "email": "edgarac0b2cda_63@gumroad.com",
-              "name": "Piracy Seller",
+              "id": "4476042403091",
+              "email": "edgarf7bffd42_1@gumroad.com",
+              "name": "Build Seller",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
               "confirmed": true,
               "team_memberships": [],
@@ -2132,10 +2067,10 @@
               "lazy_load_offscreen_discover_images": false
             },
             "current_seller": {
-              "id": "5021918191896",
-              "email": "edgarac0b2cda_63@gumroad.com",
-              "name": "Piracy Seller",
-              "subdomain": "edgare91d887832.test.gumroad.com:31337",
+              "id": "4476042403091",
+              "email": "edgarf7bffd42_1@gumroad.com",
+              "name": "Build Seller",
+              "subdomain": "edgarfbb9918e1.test.gumroad.com:31337",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
               "is_buyer": false,
               "time_zone": {
@@ -2153,16 +2088,16 @@
               "profile_highlight_color": "#ff90e8",
               "profile_font": "ABC Favorit"
             },
-            "csp_nonce": "DyjZNaAKWlYmkMqnRZclNJLhbdyLF7XrjHFfnfZHWdY=",
+            "csp_nonce": "hiWQFR+m43PyMFoQJi9dXHm+lpariF4gebfnsfssSFU=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "15ln5fM7Cn6en4LcrCXdqDmFM5z5HqY1tK9GCQ8ux-YAGvC5DE_CpRpSvHV77BTcvMi-czNsOzlyvxJMgGUfcQ",
+            "authenticity_token": "V94LwI2jPxOOIXnYSangCSeRhQpvApwEcdbDPhsjFk_fPOIKm2ErfONm-TjkX5n7WZMYBcqqWFMx89PEFv8EmQ",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "current_user": {
-              "name": "Piracy Seller",
+              "name": "Build Seller",
               "avatar_url": "/images/gumroad-default-avatar-5.png",
               "impersonated_user": null
             },
@@ -2247,7 +2182,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "8GwdUOUp9AkAtW77KDqqC5nILyc75FDSlKKeMNsiWtkn74oMGl080oR4UFL_82N_HIWiyPGWzd5Sssp1VGmCTg"
+                "content": "o7ep8U0YnHEu5jhsxANSYr4aCIN6GFJdACFhnmU9600rVUA7W9qIHkOhuIxp9SuQwBiVjN-wlgpABHFkaOH5mw"
               },
               {
                 "tagName": "meta",
@@ -2287,7 +2222,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-og-title",
                 "property": "og:title",
-                "content": "Gumroad"
+                "content": "Accessing your purchase - Gumroad Help Center"
               },
               {
                 "tagName": "meta",
@@ -2361,7 +2296,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-gr-logged_in_user-id",
                 "property": "gr:logged_in_user:id",
-                "content": "5021918191896"
+                "content": "4476042403091"
               },
               {
                 "tagName": "meta",
@@ -2385,6 +2320,36 @@
                 "headKey": "canonical",
                 "rel": "canonical",
                 "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-description",
+                "name": "description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-description",
+                "property": "og:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-url",
+                "property": "og:url",
+                "content": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-title",
+                "name": "twitter:title",
+                "content": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-description",
+                "name": "twitter:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
               }
             ]
           },
@@ -2546,8 +2511,8 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Design course",
-                "unique_permalink": "v",
+                "name": "Build product",
+                "unique_permalink": "y",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
@@ -2603,91 +2568,6 @@
               }
             ]
           },
-          "piracy_reports": {
-            "columns": {
-              "id": "bigint",
-              "external_id": "varchar",
-              "seller_id": "bigint",
-              "product_id": "bigint",
-              "source": "varchar",
-              "ticket_url": "varchar",
-              "state": "varchar",
-              "url": "varchar",
-              "normalized_url_digest": "varchar",
-              "recipient_name": "varchar",
-              "recipient_email": "varchar",
-              "recipient_source_url": "varchar",
-              "screening_verdict": "varchar",
-              "screening_checks": "json",
-              "screened_at": "datetime",
-              "notice_text": "text",
-              "notice_digest": "varchar",
-              "signed_at": "datetime",
-              "signed_by_name": "varchar",
-              "signature_statement_version": "varchar",
-              "signed_ip": "varchar",
-              "reply_token": "varchar",
-              "sent_at": "datetime",
-              "sent_message_id": "varchar",
-              "sent_to_email": "varchar",
-              "last_contact_email": "varchar",
-              "delivered_at": "datetime",
-              "delivery_failed_at": "datetime",
-              "counter_notice_body": "text",
-              "counter_notice_received_on": "date",
-              "counter_notice_forwarded_at": "datetime",
-              "outcome": "varchar",
-              "outcome_reason": "text",
-              "resolved_at": "datetime",
-              "outcome_notified_at": "datetime",
-              "created_at": "datetime",
-              "updated_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "external_id": "goyy5GzM0tFn06VAHBoqL",
-                "seller_id": 1,
-                "product_id": 1,
-                "source": "dashboard",
-                "ticket_url": null,
-                "state": "awaiting_signature",
-                "url": "https://example.net/design-course",
-                "normalized_url_digest": "649e5dbbfe7a6cadec297bf5bf45ab86e5ff98859b02c82d5639436de7adc33e",
-                "recipient_name": "Example Net Inc.",
-                "recipient_email": "copyright@example.net",
-                "recipient_source_url": "https://dmca.copyright.gov/osp/example",
-                "screening_verdict": "pass",
-                "screening_checks": null,
-                "screened_at": null,
-                "notice_text": "Notice text",
-                "notice_digest": "ec3d1d69b1430c8fe7637d23134c294a4952eb06c3fd3a239fa5f8c592f418cf",
-                "signed_at": null,
-                "signed_by_name": null,
-                "signature_statement_version": null,
-                "signed_ip": null,
-                "reply_token": null,
-                "sent_at": null,
-                "sent_message_id": null,
-                "sent_to_email": null,
-                "last_contact_email": null,
-                "delivered_at": null,
-                "delivery_failed_at": null,
-                "counter_notice_body": null,
-                "counter_notice_received_on": null,
-                "counter_notice_forwarded_at": null,
-                "outcome": null,
-                "outcome_reason": null,
-                "resolved_at": null,
-                "outcome_notified_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>"
-              }
-            ]
-          },
           "prices": {
             "columns": {
               "id": "int",
@@ -2718,6 +2598,51 @@
                 "flags": 0,
                 "variant_id": null,
                 "suggested_price_cents": null
+              }
+            ]
+          },
+          "product_builds": {
+            "columns": {
+              "id": "bigint",
+              "product_id": "bigint",
+              "public_id": "varchar",
+              "number": "int",
+              "status": "varchar",
+              "source_url": "varchar",
+              "storage_key": "varchar",
+              "byte_size": "bigint",
+              "product_file_id": "bigint",
+              "promoted_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "site_unpacked_at": "datetime",
+              "site_file_count": "int",
+              "site_byte_size": "bigint",
+              "site_unpack_error": "text",
+              "demo_selected_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "product_id": 1,
+                "public_id": "y5zcyJ1M6TE5tkM2rBCAK",
+                "number": 1,
+                "status": "uploaded",
+                "source_url": "https://example.com/uploads/11f4af0c2c7bedfd/original/game.zip",
+                "storage_key": "builds/1/1/build.zip",
+                "byte_size": 1024,
+                "product_file_id": null,
+                "promoted_at": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "site_unpacked_at": null,
+                "site_file_count": null,
+                "site_byte_size": null,
+                "site_unpack_error": null,
+                "demo_selected_at": null
               }
             ]
           },
@@ -2858,8 +2783,8 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgarac0b2cda_63@gumroad.com",
-                "encrypted_password": "$2a$04$GVMMs9et0g68gCKcAQiCL..GbfmsJ6bQ/1gNt8NHgn9nIzo./9QxS",
+                "email": "edgarf7bffd42_1@gumroad.com",
+                "encrypted_password": "$2a$04$l8eHBGJl5WDutP9knuDyf.4cQIay8oUJsvbnJ9DtSw7sLnSxej2v2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -2867,11 +2792,11 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "102.37.232.209",
+                "last_sign_in_ip": "104.105.151.63",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Piracy Seller",
-                "payment_address": "edgar67add3d9_64@gumroad.com",
+                "name": "Build Seller",
+                "payment_address": "edgar0a4741dd_2@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -2883,7 +2808,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgare91d887832",
+                "username": "edgarfbb9918e1",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -2896,8 +2821,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5021918191896",
-                "account_created_ip": "216.239.78.26",
+                "external_id": "4476042403091",
+                "account_created_ip": "163.52.36.68",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -2915,7 +2840,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "XW4LQ24GIKF6OJCOSJZON2ODPQUUYARZ",
+                "otp_secret_key": "QCTBDAN7Y334I3ODYTQKNNXMZOQSI27D",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -2931,8 +2856,8 @@
           "affiliates": 2,
           "dashboard_nav_promotions": 3,
           "links": 2,
-          "piracy_reports": 2,
           "prices": 2,
+          "product_builds": 2,
           "refund_policies": 2,
           "seller_profiles": 2,
           "users": 2
@@ -2950,7 +2875,7 @@
           "value": [
             "disable_braintree_sales",
             "paypal_payout_fee",
-            "piracy_reports",
+            "product_build_player",
             "seller_refund_policy_new_users_enabled",
             "store_discover_searches"
           ]
@@ -2961,7 +2886,7 @@
             "boolean": "true"
           }
         },
-        "piracy_reports": {
+        "product_build_player": {
           "type": "hash",
           "value": {
             "actors/User;1": "1"
@@ -2983,32 +2908,25 @@
       "request": {
         "source": "request",
         "method": "POST",
-        "path": "/dashboard/piracy_reports/goyy5GzM0tFn06VAHBoqL/sign",
+        "path": "/products/y/builds/y5zcyJ1M6TE5tkM2rBCAK/promote.json",
         "headers": {
-          "accept": "text/html, application/xhtml+xml",
+          "accept": "application/json",
           "content-type": "application/json",
           "host": "app.test.gumroad.com:31337",
-          "referer": "http://app.test.gumroad.com:31337/dashboard/piracy_reports",
-          "x-csrf-token": "15ln5fM7Cn6en4LcrCXdqDmFM5z5HqY1tK9GCQ8ux-YAGvC5DE_CpRpSvHV77BTcvMi-czNsOzlyvxJMgGUfcQ",
-          "x-forwarded-for": "203.0.113.7",
-          "x-inertia": "true",
-          "x-requested-with": "XMLHttpRequest"
+          "x-csrf-token": "V94LwI2jPxOOIXnYSangCSeRhQpvApwEcdbDPhsjFk_fPOIKm2ErfONm-TjkX5n7WZMYBcqqWFMx89PEFv8EmQ"
         },
         "cookies": {
-          "XSRF-TOKEN": "gjVLcv8Fo9kvPPYrF1SZoj_Y-9NarItiWtBYN7u7FMJVttwuAHFrAqvxyILAnVDWupV2PJDeFm6cwAxyNPDMVQ",
-          "_gumroad_app_session_test": "U5eH0d8JYyxRX0TJUNL9GgBn0GAytSxXq/Kw0nVKRVfH81hASRkLPJZCV/7f+bl2xjdSC+m/bZqOkEvuC8m2Rq7FVlK2UhPvPi7Ysi6odqhbhDj74v7yFarcpt/qgS0xCM7akM0+wzhIKnuHfx9keNVjWOYBdeml0CIlSm/amS+AQhuO81b7ZREJFzsk9bscJh3jWXpwykae+aMDni/yshSlec/MJ6fqNstVoWCODGuiBy2Bu6WGLBxPp6QdqfNGQtGylCkZcfTvBlqOIngtx9eaihlQ3qfvfVd5GB/M5ZleO8oKzUgPn+2oMCYJLofsrtCxiDBZrpBs13MiQelQzyT6wspI4FdMCX8cR7fumgIOTO65+PtDmC8YEsrUhHaDGN6Hmt55uAy2A86XJ9rqRBRcTujWuK22TMOI3qqnUEJzkJJ9TlQWLx4MDnKQ3/pRCVFN6/sYSYIf89f7PUWfnEHEoo8UTfHWq69a/2/pP6vAwxxji3HaDMPaEdJs7Vb1pMsWos9Bmb4u/Bv1jgu49Dqy/5VpmGSY0XiByWtfRRye8FHEc3Ado0EGKbToj6PyOwDabMjdW2VXeKpHS9J57j0eFrA2YtlFXTtw226EBXNUy73f2C+7fmhBKTsnoJx3f7IU--Erg7VkMU7mcjI+xV--J73nO/UjfIM6c00Dd21thg==",
-          "_gumroad_guid": "ca921b96-0924-42c2-b768-db38f6ab0128",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRWRXVFUxek9XVjBNR2MyT0dkRFMyTkJVV2xEVEM0aUxDSXhOemswTXpjMU9EYzBMalkzTVRFNE56SWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQwNTo0NDozNC42NzFaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--7a70e3eaeb82c0f643de01b277f0547028ebc85d"
+          "XSRF-TOKEN": "oKKVoLEamIqoHyUwfd0DD6RUArRgJH9thnfhXn6LBAYoQHxqp9iM5cVYpdDQK3r92lafu8WMuzrGUvGkc1cW0A",
+          "_gumroad_app_session_test": "FpLUdxwy0/HLHI4Xx95WFhKwRF9Na/QmRKIOhFsHVyn1x2YSHCvwZxOQSDEkiw3tYYWGstmHR5P+giU4IATQaGwQRQ9GDRq5uOXBAtf6DByh31XEAq8BeprSRkZeIquUekRc/fW98F/hPT7JgA84Gx2emqjxb04MEnXXmMIKJ00c2bqYLEoRIPw132oh3ePMfLJJR39B4MA1PlDJzQ66qt2S600ClbfIAOBIDoObhsVURGmceWm9ndCWGNg148oeVIBJ08JtXcXbQifukyvt138n950FLe1nvjWXekIILTRbmsg49tnfZsTYANT9YgXDgpwEtTzVUg+5TI3OveerPpvR0iGKJg1dMcuqLJy74OIF5rT2OcNmwVPjZpiRXt69tk8nE8FFTR0AMwTWDMqUr7/u3OEXOp9jexN+zhpORq7tIgP7HxZgLSva0pH7KLdXmzI5lvbJ6boyFD6nkTEIQlF9xtVPpPmFiU7RtGEDskObHBkz5cypq/Z4qlqnR9QWo28xqW8b3M5ifmks7TModWRAvJkEjxUf8Ij7xcus5jc2eY/zI1csoZ9I21Nr2O0B9nkPjVsJ9U7UUrA0ugZOtpV6/G9ALgUfXD6U7da2f60zObW1G6sWI9DQQ+SLl2xv6x0j--yi4pQjHyXS6gdIQu--GHtOOea/qoZhzbullKzGNQ==",
+          "_gumroad_guid": "78caa245-1cab-4722-9d29-347bc617accd",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKR3c0WlVoQ1IwcHNOVmRFZFhSUU9XdHVkVVI1Wmk0aUxDSXhOemswTmpNMk1qZ3lMamsyT1RZM016a2lYUT09IiwiZXhwIjoiMjAyNi0xMi0xNFQwNjowNDo0Mi45NjlaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--82e1164b62620b8477891c0d26e014c4f04e7498"
         },
-        "remoteIp": "203.0.113.7",
-        "body": "{\"signed_by_name\":[\"Jane Doe\"],\"confirmations\":[\"details_shared\",\"own_statements\",\"misrepresentation_liability\",\"fair_use_considered\",\"authorize_gumroad\"],\"confirmations_version\":\"2026-10-07\"}"
+        "remoteIp": "127.0.0.1"
       },
       "response": {
-        "status": 302,
-        "location": "http://app.test.gumroad.com:31337/dashboard/piracy_reports/goyy5GzM0tFn06VAHBoqL",
+        "status": 204,
         "headers": {
           "cache-control": "no-cache",
-          "content-type": "text/html; charset=utf-8",
           "vary": "Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
@@ -3020,13 +2938,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "r-wq2HKonQfUGCWNn46CAM5zWBctsZkUgAudXa-k7n54b72EjdxV3FDVGyRIR0t0Sz7V-OfDBBhGG8kYIO826Q",
+            "value": "wZQF_D5ZyLqR03dYR60g7LZtKtia48Ggey_UvLGzAvZJduw2KJvc1fyU97jqW1keyG-31z9LBfc7CsRGvG8QIA",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "vAsuLVgqvYEAyV/5rhX8umZuiBjSpPJLXM/wUq55pacvdJGaGYsSQ6U6GCEatMGcT75L6ODaNp5KcPZrrIHLjQdqU6P4dFS9OP/SMoA4h/SHinO9i0gUjFI/JufLIFaPsNNb4C6ms3s+USPyzKFKazhlq/QYpKbqrpURG1w6rJLvSSJL8cTMKywH7ot4h1uKY1c26NqWh2TkLf3XNW6FjUIriQeQvIAVo5mnl7mmFu3AzysheEB4dliLKazJCVBkIXFfYf1YjyB8KFUNHFEDXf9EzgQxc9XJinsVcuQ7NaXjqbBHKD9n+BlYaApekg0QXmW/3H3Sgk1UxUN8W9r1oTFKRWBzHg/UCIWYSP35L8cJP07bW5pph0sAYw+FXfAzgH4UKpl7hezh78YY8XUydDvnbNfmiogX7Rd9sXH6zh2mvxOXEKh2vmqgL+roi+9c47LjTYtr0zRnSjG5pxRHKnonq+WL3+Eec48v+AclcwJrxqDBbKdEc+vyb1aSQRfraPlDSKTwhiooN/DqssveiZdfHHH2diUbl4vXEnz3jiWsDg5sU9GUiFpM/hEaEUjad4kYKlwbJqA44YFL+ZCfDyNhE7fPRvhbTLUx+ny357Rl9HW4Ios7fNEBcQEzlc6wH2vLuhhXTS7nPzrY6co9gbeuwCGpEiEu4dLKs7KbwrneGU39R6boubOa5IXRTRid6LLEoyjm7km+yiberaUWb/6SfDbmHfVr5Dfo8K97jGwqnqFWMcXl4hD4QprLrj4aVvj7AFt5+rjWbdM=--g+9lUqEDW1wj/kjg--p+KE8APK5ImKVk+wlOc6oQ==",
+            "value": "2Oaxg4ZIW5L0tDFp84Ggszqn/oBxh6LUgySrqYte0WI3QBhQILPB6pZ8I4qLkzCFFcvcDsxh0I0DohX+lBl9wUwdH34gFfTI7xJFEN9Zqau/X2LCqPrOoO0nM1/ugdFU39xKIjU8qZc1VLhtrGlqM3fIg2193iB2xlo10MVr+YbByQVNs7e3Q174O0t9jE6Z1uY1rKbCMNZSNt70XvHFqw4iyLVa8YN0I4IooAI2PwB/19fz0j/jR27yIcd4HUGbWVvZ65fc+xUKuTG4isw9gO2jvwmdcvcQHWalXbqNYAUnXHYJBeBtDk1Zs0H9yvfrNZRBcm4yjgmU+zMeUuXQQeWk7AgsiPf35qkUS3Vk+W4xWIjmLQhBJWR0/SXC2oAI6TnJUPrQ6QJSzZNMjmQqpxpCDR7mU/tzC2Vn4JyFCgf2/HtvHbL7EAbDe6y0N56OBrdnFCx9yRm9DSJ1PsPxbTys/KcgOQzGUnZZFNNaYZ20yqA/sGW24I5KybDhyrwAPkDjcT8XYKydvSlgx8BWo4RTz/AgLl6ss4ba0BXNnmfVMU9ar+DrnEzMpo022EYLXZE2nm77eFKNWTxwM1W6OYAj9CgwQy9Zdfr/ToqsHLPoYhiBvVz3H9BLhE8snRy7Lesm--tVS2Nbza9MjLQPfX--ZIu6AotlBfDUiuXn9pbFWQ==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -3036,40 +2954,24 @@
         }
       },
       "db": {
-        "piracy_reports": {
+        "product_builds": {
           "updated": [
             {
               "key": {
                 "id": 1
               },
               "changes": {
-                "state": [
-                  "awaiting_signature",
-                  "signed"
+                "status": [
+                  "uploaded",
+                  "live"
                 ],
-                "notice_text": [
-                  "Notice text",
-                  "Notice text\n\nSigned: /s/ [\"Jane Doe\"], November 11, 2026\n"
+                "product_file_id": [
+                  null,
+                  1
                 ],
-                "notice_digest": [
-                  "ec3d1d69b1430c8fe7637d23134c294a4952eb06c3fd3a239fa5f8c592f418cf",
-                  "0c585f9a47c37648471450f5034f7fd0fe562de6af40b547fd8216d965991318"
-                ],
-                "signed_at": [
+                "promoted_at": [
                   null,
                   "<now>"
-                ],
-                "signed_by_name": [
-                  null,
-                  "[\"Jane Doe\"]"
-                ],
-                "signature_statement_version": [
-                  null,
-                  "2026-10-07"
-                ],
-                "signed_ip": [
-                  null,
-                  "203.0.113.7"
                 ],
                 "updated_at": [
                   "<now>",
@@ -3078,9 +2980,72 @@
               }
             }
           ]
+        },
+        "product_files": {
+          "inserted": [
+            {
+              "id": 1,
+              "link_id": 1,
+              "url": "http://localhost:9010/gumroad-specs/builds/1/1/build.zip",
+              "filetype": "zip",
+              "filegroup": "archive",
+              "size": null,
+              "bitrate": null,
+              "framerate": null,
+              "pagelength": null,
+              "duration": null,
+              "width": null,
+              "height": null,
+              "flags": 0,
+              "json_data": null,
+              "deleted_at": null,
+              "created_at": "<now>",
+              "updated_at": "<now>",
+              "position": null,
+              "installment_id": null,
+              "display_name": "Build product build 1.zip",
+              "deleted_from_cdn_at": null,
+              "description": null,
+              "folder_id": null,
+              "stampable_pdf": null,
+              "isbn": null
+            }
+          ]
+        },
+        "rich_contents": {
+          "inserted": [
+            {
+              "id": 1,
+              "entity_id": 1,
+              "entity_type": "Link",
+              "description": "[{\"type\": \"fileEmbed\", \"attrs\": {\"id\": \"1UokxkyxJ__gd-gssE0g7w==\", \"uid\": \"5991a821-925d-44ab-8806-42f41399774d\"}}]",
+              "created_at": "<now>",
+              "updated_at": "<now>",
+              "deleted_at": null,
+              "title": null,
+              "position": 0
+            }
+          ]
         }
       },
-      "jobs": [],
+      "jobs": [
+        {
+          "class": "AnalyzeFileWorker",
+          "args": [
+            1,
+            "ProductFile"
+          ],
+          "queue": "low",
+          "at": "<now+5s>"
+        },
+        {
+          "class": "ProductBuildUnpackJob",
+          "args": [
+            1
+          ],
+          "queue": "low"
+        }
+      ],
       "mails": [],
       "http": []
     }
