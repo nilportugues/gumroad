@@ -60,7 +60,8 @@ export type RackTopLevelParam = { nested: false; value: string | null } | { nest
 // A hand-back tagged with what Rack raised. Not a subclass: application-controller imports rack-attack, which imports this module, so
 // `extends HandBackToRails` would run before the class exists.
 type RackErrorKind = "bad-request" | "parameter-type";
-const rackError = (kind: RackErrorKind, message: string) => Object.assign(new HandBackToRails(message), { rackKind: kind });
+const rackError = (kind: RackErrorKind, message: string) =>
+  Object.assign(new HandBackToRails(message), { rackKind: kind });
 export const isRackBadRequest = (error: unknown): boolean =>
   error instanceof HandBackToRails && (error as { rackKind?: RackErrorKind }).rackKind === "bad-request";
 
@@ -75,7 +76,8 @@ type RackHash = Map<string, RackValue>;
 
 // URI.decode_www_form_component: "+" is a space, "%XX" a byte, any other "%" raises.
 function rackUnescape(text: string): string {
-  if (/%(?![0-9a-fA-F]{2})/u.test(text)) throw rackError("bad-request", "a query string with an invalid percent escape");
+  if (/%(?![0-9a-fA-F]{2})/u.test(text))
+    throw rackError("bad-request", "a query string with an invalid percent escape");
   const bytes = Buffer.from(text.replaceAll("+", " "), "latin1");
   const decoded: number[] = [];
   for (let index = 0; index < bytes.length; index++) {
@@ -103,11 +105,19 @@ function rackHashHasKey(hash: RackHash, key: string): boolean {
 }
 
 function wrongType(expected: "Array" | "Hash"): never {
-  throw rackError("parameter-type", `a query parameter used as a flat value and as ${expected === "Array" ? "a list" : "a hash"}`);
+  throw rackError(
+    "parameter-type",
+    `a query parameter used as a flat value and as ${expected === "Array" ? "a list" : "a hash"}`,
+  );
 }
 
 // Rack::QueryParser#_normalize_params. Returns what Ruby returns: the params, `[v]` for a bare "[]" below the top, nil for an empty key.
-function normalizeParams(params: RackHash, name: string, v: string | null, depth: number): RackHash | RackValue[] | undefined {
+function normalizeParams(
+  params: RackHash,
+  name: string,
+  v: string | null,
+  depth: number,
+): RackHash | RackValue[] | undefined {
   if (depth >= RACK_DEPTH_LIMIT) throw new HandBackToRails("a query parameter nested too deeply");
   let key: string;
   let after: string;
@@ -138,7 +148,8 @@ function normalizeParams(params: RackHash, name: string, v: string | null, depth
     list.push(v);
   } else if (after.startsWith("[]")) {
     let childKey = after.slice(3, -1);
-    const hashInList = after[2] === "[" && after.endsWith("]") && childKey !== "" && !childKey.includes("[") && !childKey.includes("]");
+    const hashInList =
+      after[2] === "[" && after.endsWith("]") && childKey !== "" && !childKey.includes("[") && !childKey.includes("]");
     if (!hashInList) childKey = after.slice(2);
     const list = listAt(params, key);
     const last = list.at(-1);

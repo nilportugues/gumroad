@@ -56,26 +56,34 @@ describe("rackTopLevelParams", () => {
     expect(params.get("b")).toEqual({ nested: true });
   });
 
-  it.each(["a=1&a[b]=2", "a[]=1&a[b]=2", "a[b]=1&a[]=2", "a[b]=1&a[b][c]=2", "a=1&a[]=2", "a=&a[]=1", "utm_a[b]=1&utm_a[b][c]=1"])(
-    "hands back %s, which Rack raises a ParameterTypeError for",
+  it.each([
+    "a=1&a[b]=2",
+    "a[]=1&a[b]=2",
+    "a[b]=1&a[]=2",
+    "a[b]=1&a[b][c]=2",
+    "a=1&a[]=2",
+    "a=&a[]=1",
+    "utm_a[b]=1&utm_a[b][c]=1",
+  ])("hands back %s, which Rack raises a ParameterTypeError for", (query) => {
+    expect(() => rackTopLevelParams(query)).toThrow(/used as a flat value/u);
+    try {
+      rackTopLevelParams(query);
+    } catch (error) {
+      expect(isRackBadRequest(error)).toBe(false);
+    }
+  });
+
+  it.each(["a=%zz", "a=%", "a%ZZ=1", "a=%E0%A4%A", "a=%4"])(
+    "tells %s apart as the 400 of an invalid percent escape",
     (query) => {
-      expect(() => rackTopLevelParams(query)).toThrow(/used as a flat value/u);
       try {
         rackTopLevelParams(query);
+        expect.unreachable();
       } catch (error) {
-        expect(isRackBadRequest(error)).toBe(false);
+        expect(isRackBadRequest(error)).toBe(true);
       }
     },
   );
-
-  it.each(["a=%zz", "a=%", "a%ZZ=1", "a=%E0%A4%A", "a=%4"])("tells %s apart as the 400 of an invalid percent escape", (query) => {
-    try {
-      rackTopLevelParams(query);
-      expect.unreachable();
-    } catch (error) {
-      expect(isRackBadRequest(error)).toBe(true);
-    }
-  });
 
   it("hands back a name nested past Rack's depth limit", () => {
     expect(() => rackTopLevelParams(`a${"[b]".repeat(40)}=1`)).toThrow(/nested too deeply/u);
