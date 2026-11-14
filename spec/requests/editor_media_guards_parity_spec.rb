@@ -21,6 +21,12 @@ describe "Editor media guards", type: :request do
     switch_to(membership)
   end
 
+  # Aged, so that the touch moves `updated_at` instead of landing in the second the rows were created.
+  def age(*records)
+    aged = 10.minutes.ago
+    records.each { _1.update_columns(created_at: aged, updated_at: aged) }
+  end
+
   def send_json(method, path, body = {})
     public_send(method, path, params: body.to_json, headers: json_headers.merge("X-CSRF-Token" => csrf_token))
   end
@@ -52,7 +58,7 @@ describe "Editor media guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a request without an asset preview to Rails, whose JSON wrapping makes it an empty object", parity: true do
+    it "refuses a request without an asset preview, whose JSON wrapping makes it an empty object", parity: true do
       log_in(seller)
 
       send_json(:post, "/links/#{product.unique_permalink}/asset_previews")
@@ -76,7 +82,7 @@ describe "Editor media guards", type: :request do
       expect(response.parsed_body["success"]).to eq(false)
     end
 
-    it "hands a preview with an unverifiable blob to Rails", parity: true do
+    it "refuses a preview with an unverifiable blob", parity: true do
       log_in(seller)
 
       send_json(:post, "/links/#{product.unique_permalink}/asset_previews", asset_preview: { signed_blob_id: "forged" })
@@ -119,13 +125,29 @@ describe "Editor media guards", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it "hands a deletion of an existing preview to Rails", parity: true do
+    it "soft-deletes the only preview and answers an empty list", parity: true do
       preview = create(:asset_preview_youtube, link: product)
+      age(product, preview)
       log_in(seller)
 
       send_json(:delete, "/links/#{product.unique_permalink}/asset_previews/#{preview.guid}")
 
       expect(response.parsed_body["success"]).to eq(true)
+    end
+
+    it "answers the previews left, in order, with the first as the active one", parity: true do
+      first = create(:asset_preview_youtube, link: product)
+      second = create(:asset_preview_youtube, link: product)
+      third = create(:asset_preview_youtube, link: product)
+      second.update_columns(position: 5)
+      third.update_columns(position: 9)
+      age(product, first, second, third)
+      log_in(seller)
+
+      send_json(:delete, "/links/#{product.unique_permalink}/asset_previews/#{first.guid}")
+
+      expect(response.parsed_body["asset_previews"].map { _1["id"] }).to eq([second.guid, third.guid])
+      expect(response.parsed_body["active_preview_id"]).to eq(second.guid)
     end
   end
 
@@ -146,7 +168,7 @@ describe "Editor media guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a request without a thumbnail to Rails, whose JSON wrapping makes it an empty object", parity: true do
+    it "refuses a request without a thumbnail, whose JSON wrapping makes it an empty object", parity: true do
       log_in(seller)
 
       send_json(:post, "/links/#{product.unique_permalink}/thumbnails")
@@ -171,7 +193,7 @@ describe "Editor media guards", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a thumbnail with an unverifiable blob to Rails", parity: true do
+    it "refuses a thumbnail with an unverifiable blob", parity: true do
       log_in(seller)
 
       send_json(:post, "/links/#{product.unique_permalink}/thumbnails", thumbnail: { signed_blob_id: "forged" })

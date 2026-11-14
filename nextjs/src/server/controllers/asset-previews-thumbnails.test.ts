@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   castRow: vi.fn((_model: string, row: unknown) => row),
   load: vi.fn((row: unknown) => row),
   markDeleted: vi.fn(),
+  uploadedFiles: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -28,6 +29,12 @@ vi.mock("../models/thumbnail.ts", () => ({
   Thumbnails: { load: mocks.load },
   softDeletion: { markDeletedBang: mocks.markDeleted },
 }));
+vi.mock("../presenters/asset-preview-upload.ts", () => ({ uploadedFiles: mocks.uploadedFiles }));
+vi.mock("../models/asset-preview.ts", () => ({
+  AssetPreviews: { load: mocks.load },
+  softDeletion: { markDeletedBang: mocks.markDeleted },
+}));
+vi.mock("../presenters/product-props-extras.ts", () => ({ coverProps: vi.fn() }));
 vi.mock("../policies/authorize.ts", () => ({ authorize: () => undefined }));
 vi.mock("../policies/link.ts", () => ({ linkPolicy: { create: () => true } }));
 vi.mock("./seller-json.ts", () => ({
@@ -39,8 +46,17 @@ await import("./asset-previews-thumbnails.ts");
 
 const run = (method: string, pattern: string) =>
   mocks.specs.find((spec) => spec.method === method && spec.pattern === pattern)!.run;
-const call = (spec: MutationSpec["run"], params: Record<string, unknown> = {}, id: string | undefined = "guid") =>
-  spec({ params, routeParams: { link_id: "permalink", ...(id ? { id } : {}) } } as unknown as MutationInput);
+const call = (
+  spec: MutationSpec["run"],
+  params: Record<string, unknown> = {},
+  id: string | undefined = "guid",
+  contentType = "application/x-www-form-urlencoded",
+) =>
+  spec({
+    params,
+    request: { headers: new Headers({ "content-type": contentType }) },
+    routeParams: { link_id: "permalink", ...(id ? { id } : {}) },
+  } as unknown as MutationInput);
 
 const halted = { status: 404, body: "halted" };
 
@@ -58,8 +74,23 @@ describe("AssetPreviewsController#create", () => {
     expect(await call(create, { asset_preview: { url: "x" } })).toBe(halted);
   });
 
-  it("hands a missing asset_preview back to Rails, where JSON wrapping fills it in", async () => {
+  it("hands a missing asset_preview back to Rails when the body is not JSON", async () => {
     await expect(call(create)).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("rejects a JSON body that wraps to nothing as a missing parameter", async () => {
+    await expect(call(create, {}, "guid", "application/json")).rejects.toBeInstanceOf(ParameterMissing);
+  });
+
+  it("hands a JSON body that carries a wrapped attribute back to Rails", async () => {
+    await expect(call(create, { position: 1 }, "guid", "application/json")).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("refuses a blob id whose signature does not verify", async () => {
+    expect(await call(create, { asset_preview: { signed_blob_id: "forged" } })).toEqual({
+      status: 400,
+      body: { success: false, error: "Invalid signed_blob_id." },
+    });
   });
 
   it("refuses an asset_preview that is not an object", async () => {
@@ -93,8 +124,9 @@ describe("AssetPreviewsController#destroy", () => {
     expect(await call(destroy)).toBe(halted);
   });
 
-  it("hands the deletion of an authorized preview back to Rails", async () => {
+  it("hands the deletion of a preview with an upload back to Rails", async () => {
     mocks.selectRows.mockResolvedValue([{ id: 1n }]);
+    mocks.uploadedFiles.mockResolvedValue(new Map([[1n, [{}]]]));
     await expect(call(destroy)).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
@@ -109,12 +141,23 @@ describe("ThumbnailsController#create", () => {
     });
   });
 
-  it("hands a missing thumbnail back to Rails, where JSON wrapping fills it in", async () => {
+  it("hands a missing thumbnail back to Rails when the body is not JSON", async () => {
     await expect(call(create)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands an object back to Rails", async () => {
-    await expect(call(create, { thumbnail: { signed_blob_id: "x" } })).rejects.toBeInstanceOf(HandBackToRails);
+  it("rejects a JSON body that wraps to nothing as a missing parameter", async () => {
+    await expect(call(create, {}, "guid", "application/json")).rejects.toBeInstanceOf(ParameterMissing);
+  });
+
+  it("refuses a blob id whose signature does not verify", async () => {
+    expect(await call(create, { thumbnail: { signed_blob_id: "x" } })).toEqual({
+      status: 400,
+      body: { success: false, error: "Invalid signed_blob_id." },
+    });
+  });
+
+  it("hands an object without a blob id back to Rails", async () => {
+    await expect(call(create, { thumbnail: { other: "x" } })).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 

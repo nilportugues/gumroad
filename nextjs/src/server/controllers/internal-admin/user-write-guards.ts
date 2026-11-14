@@ -1,9 +1,12 @@
 // Api::Internal::Admin::UsersController: the writes that send mail, move a user through the risk state machine, queue a refund job or
 // create a credit. Each answers its parameter and lookup refusals and the branches that change nothing (an account already in the
 // state asked for, a refund whose expected figures are off), then hands the write back to Rails whole before the first change.
+// The two-factor toggle and the plain risk transitions (mark compliant, suspend) run here: a verified account and an admin note
+// still go to Rails.
 import { db } from "../../../lib/db.ts";
 import { rubyStrip } from "../../content-moderation/ruby.ts";
-import { NotPortedError } from "../../models/user.ts";
+import { fireRiskEventBang, InvalidTransition, SuspensionClearNotAuthorizedError } from "../../models/user-risk.ts";
+import { findUserBang, NotPortedError, setFlag, Users } from "../../models/user.ts";
 
 import { failure, isBlank, jsonRendered, paramToS, recordAdminWrite, type AdminRequest } from "./base.ts";
 import { emailFormatValid } from "./email-format.ts";
@@ -93,6 +96,41 @@ const alreadySuspended = (state: string, message: string) => (user: Looked) =>
     current === state ? jsonRendered(ok(user, { status: "already_suspended", message })) : null,
   );
 
+// A verified account halts a suspension with a different InvalidTransition, and a note is a second write ordered around the
+// transition: both stay with Rails, before anything is written.
+async function riskTransition(
+  user: Looked,
+  admin: AdminRequest,
+  event: "mark_compliant" | "suspend_for_fraud" | "suspend_for_tos_violation",
+  noteParam: string,
+  params: { clear_suspension?: boolean },
+  answer: Record<string, unknown>,
+) {
+  if (!isBlank(admin.params[noteParam])) await handBack("an admin note beside the transition", SOURCE);
+  const record = await findUserBang(user.id);
+  if (event !== "mark_compliant" && record.get("verified"))
+    await handBack("a suspension of a verified account", SOURCE);
+  try {
+    await fireRiskEventBang(record, event, { author_id: admin.admin.actor.id, ...params });
+  } catch (error) {
+    if (error instanceof InvalidTransition) return failure(error.message, 422);
+    if (error instanceof SuspensionClearNotAuthorizedError) return failure(error.message, 409);
+    throw error;
+  }
+  return jsonRendered(ok(user, answer));
+}
+
+const suspension = (
+  event: "suspend_for_fraud" | "suspend_for_tos_violation",
+  state: string,
+  already: string,
+  answer: Record<string, unknown>,
+) => {
+  const alreadyDone = alreadySuspended(state, already);
+  return async (user: Looked, admin: AdminRequest) =>
+    (await alreadyDone(user)) ?? riskTransition(user, admin, event, "suspension_note", {}, answer);
+};
+
 defineAdminRoute(
   {
     method: "POST",
@@ -120,7 +158,23 @@ defineAdminRoute(
     pattern: "/internal/admin/users/two_factor_authentication",
     run: async (admin) => {
       if (isBlank(paramToS(admin.params.enabled, SOURCE))) return failure("enabled is required", 400);
-      return forUser("users.two_factor_authentication", "a two-factor change")(admin);
+      return forUser("users.two_factor_authentication", "a two-factor change", async (user) => {
+        const raw = admin.params.enabled;
+        if (typeof raw !== "string" && typeof raw !== "boolean" && typeof raw !== "number")
+          await handBack("a two-factor flag that is not a scalar", SOURCE);
+        const enabled = truthy(raw);
+        const record = await findUserBang(user.id);
+        setFlag(record, "two_factor_authentication_enabled", enabled);
+        // An account that fails validation answers 422 in Rails; nothing was written to get here.
+        if (!(await Users.save(record))) await handBack("an account that fails validation", SOURCE);
+        if (!enabled) await db.totpCredential.deleteMany({ where: { user_id: user.id } });
+        return jsonRendered(
+          ok(user, {
+            message: `Two-factor authentication ${enabled ? "enabled" : "disabled"}`,
+            two_factor_authentication_enabled: enabled,
+          }),
+        );
+      })(admin);
     },
   },
   {
@@ -130,9 +184,17 @@ defineAdminRoute(
       const state = await riskState(user);
       if (state === "compliant")
         return jsonRendered(ok(user, { status: "already_compliant", message: "User is already compliant" }));
-      if (state !== null && SUSPENDED_STATES.includes(state) && !truthy(admin.params.clear_suspension))
+      const clearSuspension = truthy(admin.params.clear_suspension);
+      if (state !== null && SUSPENDED_STATES.includes(state) && !clearSuspension)
         return failure(`User is ${state}; pass clear_suspension=true to lift the suspension as well`, 422);
-      return null;
+      return riskTransition(
+        user,
+        admin,
+        "mark_compliant",
+        "note",
+        { clear_suspension: clearSuspension },
+        { status: "marked_compliant", message: "User marked compliant" },
+      );
     }),
   },
   {
@@ -141,7 +203,10 @@ defineAdminRoute(
     run: forUser(
       "users.suspend_for_fraud",
       "a fraud suspension",
-      alreadySuspended("suspended_for_fraud", "User is already suspended for fraud"),
+      suspension("suspend_for_fraud", "suspended_for_fraud", "User is already suspended for fraud", {
+        status: "suspended_for_fraud",
+        message: "User suspended for fraud",
+      }),
     ),
   },
   {
@@ -150,7 +215,12 @@ defineAdminRoute(
     run: forUser(
       "users.suspend_for_tos_violation",
       "a policy suspension",
-      alreadySuspended("suspended_for_tos_violation", "User is already suspended for a policy violation"),
+      suspension(
+        "suspend_for_tos_violation",
+        "suspended_for_tos_violation",
+        "User is already suspended for a policy violation",
+        { status: "suspended_for_tos_violation", message: "User suspended for a policy violation" },
+      ),
     ),
   },
   {

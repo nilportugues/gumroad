@@ -9,9 +9,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
-import type { JobsChannel, RawJob } from "../src/channels";
+import type { JobsChannel } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import { jobKey, redisJobsChannel } from "../src/active-job";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -43,6 +44,7 @@ const MID_REQUEST_RACE_CASE =
 // Stripe path is covered in user-info.test.ts from the response bodies the request spec recorded.
 const RUBY_STUB_CASE =
   /user-info-stripe-|get-info-computes-sales-count-and-total-earnings-formatted|get-info-surfaces-the-stripe-connect-account-id|get-info-makes-at-most-one-stripe-call|get-info-adds-the-view-stripe-account-link/u;
+const USER_WRITE_GUARDS_CASE = /user-write-guards-post-/u;
 const USER_INFO_CASE = /get-info|user-info/u;
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const ROUTE_FLAGS = [
@@ -188,24 +190,9 @@ const withApiHost = (headers: Record<string, string>): Record<string, string> =>
     Object.entries({ ...headers, host: API_HOST }).filter(([name, value]) => name !== "authorization" || value !== ""),
   );
 
-type SidekiqItem = { class: string; args: unknown[]; queue: string };
-
-function redisJobs(redis: Redis): JobsChannel {
-  return {
-    async reset() {},
-    async drain(): Promise<RawJob[]> {
-      const items: SidekiqItem[] = [];
-      for (const key of await redis.keys("bull:*")) {
-        if ((await redis.type(key)) !== "hash") continue;
-        const data = await redis.hget(key, "data");
-        if (data !== null) items.push(JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as SidekiqItem);
-      }
-      for (const key of await redis.keys("queue:*"))
-        for (const raw of await redis.lrange(key, 0, -1)) items.push(JSON.parse(raw) as SidekiqItem);
-      return items.map((item) => ({ class: item.class, args: item.args, queue: item.queue }));
-    },
-  };
-}
+// Rails' user factories took the until_executed lock of GenerateSubscribePreviewJob before the request, and spec_helper stubs the push; Node takes it as production does.
+const STUBBED_JOBS = new Set(["GenerateSubscribePreviewJob"]);
+const redisJobs = (redis: Redis): JobsChannel => redisJobsChannel(redis, STUBBED_JOBS);
 
 // A cursor is signed and holds the created_at of the row it follows, so the clock has to stand where it stood when the rows were made:
 // that row's age in minutes after its created_at. Date is pinned to that instant for the examples listed.
@@ -426,7 +413,10 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
           toFake: ["Date"],
           shouldAdvanceTime: true,
         });
-      const result = await replayFixtureExchange(fixturePath, index, {
+      // The drain sorts what Node queued (the stores keep no common order); the recorded jobs are in Rails' push order.
+      const fixture = loadFixture(fixturePath);
+      fixture.exchanges[index]!.jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      const result = await replayFixtureExchange(fixture, index, {
         ...(pinned ? { driftDates: false } : {}),
         sql,
         redis: seeder(name),
@@ -440,6 +430,8 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
             ...(fromRequestSpec ? ["response.cookies._gumroad_app_session_test.value"] : ["response.cookies"]),
             // The sales totals ask Elasticsearch from the server process, which the replayer cannot observe; the totals are compared in the body.
             ...(USER_INFO_CASE.test(name) ? ["http"] : []),
+            // The seeded user's updated_at moves within the second or across it depending on when the recording ran.
+            ...(USER_WRITE_GUARDS_CASE.test(name) ? ["db.users.updated.*.changes.updated_at"] : []),
             // The server stamps the token with its own, unpinned clock.
             ...(pinned
               ? [

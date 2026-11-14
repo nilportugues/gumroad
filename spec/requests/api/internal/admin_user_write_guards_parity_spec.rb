@@ -5,8 +5,9 @@ require "spec_helper"
 # The writes of Api::Internal::Admin::UsersController that send mail, move a user through the risk state machine, queue a refund job
 # or create a credit, through the whole stack on the API host with a per-actor token. Recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws17e-admin-api.replay.test.ts. Node answers the parameter and lookup
-# refusals and the branches that change nothing; the "hands a ..." examples are requests that clear them, which the replay asserts
-# reach the stand-in Rails untouched and write nothing. The services behind them are stubbed so recording needs no processor.
+# refusals, the branches that change nothing, the two-factor toggle and the risk transitions without a note; the "hands a ..."
+# examples are requests that clear those, which the replay asserts reach the stand-in Rails untouched and write nothing. The
+# services behind them are stubbed so recording needs no processor.
 describe "Internal admin API user write guards", type: :request do
   let(:admin) { create(:admin_user, name: "Admin User", email: "admin@example.com") }
   let(:headers) { { "Authorization" => "Bearer per-actor-token", "Host" => API_DOMAIN } }
@@ -110,10 +111,23 @@ describe "Internal admin API user write guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a change to Rails, even when it turns the flag off", parity: true do
+    it "turns two-factor authentication on", parity: true do
+      user.update!(two_factor_authentication_enabled: false)
+
+      post_json("two_factor_authentication", user_id: user.external_id, enabled: true)
+
+      expect(response.parsed_body).to include("message" => "Two-factor authentication enabled", "two_factor_authentication_enabled" => true)
+      expect(user.reload.two_factor_authentication_enabled?).to be(true)
+    end
+
+    it "turns it off and removes the authenticator credential", parity: true do
+      user.update!(two_factor_authentication_enabled: true)
+      create(:totp_credential, user:)
+
       post_json("two_factor_authentication", user_id: user.external_id, enabled: false)
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("message" => "Two-factor authentication disabled", "two_factor_authentication_enabled" => false)
+      expect(user.reload.totp_credential).to be_nil
     end
   end
 
@@ -149,13 +163,20 @@ describe "Internal admin API user write guards", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
-    it "hands a user who is not compliant to Rails", parity: true do
+    it "marks a user who is not compliant as compliant", parity: true do
+      post_json("mark_compliant", user_id: user.external_id)
+
+      expect(response.parsed_body).to include("status" => "marked_compliant")
+      expect(user.reload.compliant?).to be(true)
+    end
+
+    it "hands a compliance note to Rails", parity: true do
       post_json("mark_compliant", user_id: user.external_id, note: "Reviewed")
 
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a lifted suspension to Rails", parity: true do
+    it "lifts a suspension when asked to", parity: true do
       user.update_columns(user_risk_state: "suspended_for_fraud")
 
       post_json("mark_compliant", user_id: user.external_id, clear_suspension: "yes")
@@ -179,7 +200,7 @@ describe "Internal admin API user write guards", type: :request do
       expect(response.parsed_body).to include("status" => "already_suspended", "message" => "User is already suspended for fraud")
     end
 
-    it "hands a suspension to Rails, also for an account suspended for a policy violation", parity: true do
+    it "refuses a fraud suspension for an account suspended for a policy violation", parity: true do
       user.update_columns(user_risk_state: "suspended_for_tos_violation")
 
       post_json("suspend_for_fraud", user_id: user.external_id)
@@ -187,7 +208,15 @@ describe "Internal admin API user write guards", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
-    it "hands a suspension of a compliant account to Rails", parity: true do
+    it "hands a suspension of a verified account to Rails", parity: true do
+      user.update_columns(verified: true)
+
+      post_json("suspend_for_fraud", user_id: user.external_id)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+
+    it "suspends an account for fraud", parity: true do
       post_json("suspend_for_fraud", user_id: user.external_id)
 
       expect(response).to have_http_status(:ok)
@@ -203,7 +232,7 @@ describe "Internal admin API user write guards", type: :request do
       expect(response.parsed_body).to include("status" => "already_suspended", "message" => "User is already suspended for a policy violation")
     end
 
-    it "hands a suspension to Rails", parity: true do
+    it "suspends an account for a policy violation", parity: true do
       post_json("suspend_for_tos_violation", user_id: user.external_id)
 
       expect(response).to have_http_status(:ok)
