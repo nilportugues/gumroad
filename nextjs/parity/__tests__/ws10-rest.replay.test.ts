@@ -351,10 +351,7 @@ describe.skipIf(!url)("WS-10 remaining ports", () => {
             const options = {
               ...replayOptions(),
               compare: {
-                ignore: [
-                  ...sequenceIgnore,
-                  ...(notFound ? ["response.body", "response.json"] : []),
-                ],
+                ignore: [...sequenceIgnore, ...(notFound ? ["response.body", "response.json"] : [])],
               },
             };
             const replayed = await replayFixtureExchange(fixture, at, options);

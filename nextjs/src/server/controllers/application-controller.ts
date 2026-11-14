@@ -796,7 +796,11 @@ export function publicException(request: RailsRequest, status: number): { header
   // whatever the Accept header says, or its plain-text report for an XHR. A HEAD request is still answered by PublicExceptions.
   const debugPage = railsEnv() === "test" && (status === 400 || status === 404 || status === 422) && request.method !== "HEAD";
   // An Inertia XHR (X-Inertia) still gets the HTML page: every recorded debug-page 404/500 with X-Inertia is text/html.
-  if (debugPage && /XMLHttpRequest/iu.test(request.headers.get("x-requested-with") ?? "") && !request.headers.has("x-inertia"))
+  if (
+    debugPage &&
+    /XMLHttpRequest/iu.test(request.headers.get("x-requested-with") ?? "") &&
+    !request.headers.has("x-inertia")
+  )
     return { headers: new Headers({ "content-type": "text/plain; charset=utf-8" }), body: message };
   if (request.method === "HEAD")
     return { headers: new Headers({ "content-type": `${first?.string ?? ""}; charset=utf-8` }), body: "" };

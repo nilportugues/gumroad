@@ -266,12 +266,7 @@ describe.skipIf(!url)("Api::Internal endpoints", () => {
     const body = loadFixture(file).exchanges.at(index)!.response.body;
     return typeof body === "string" && body.startsWith("<rails exception debug page")
       ? {
-          ignore: [
-            ...COMPARE.ignore,
-            "response.json",
-            "response.body",
-            "response.cookies",
-          ],
+          ignore: [...COMPARE.ignore, "response.json", "response.body", "response.cookies"],
         }
       : COMPARE;
   };

@@ -258,10 +258,7 @@ describe.skipIf(!url)("checkout form", () => {
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
     // The 404 page body is not recorded.
     compare: {
-      ignore: [
-        ...COMPARE.ignore,
-        ...(name.includes("404") ? ["response.body", "response.json"] : []),
-      ],
+      ignore: [...COMPARE.ignore, ...(name.includes("404") ? ["response.body", "response.json"] : [])],
     },
   });
 
