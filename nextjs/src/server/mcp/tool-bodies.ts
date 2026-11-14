@@ -60,6 +60,8 @@ import { longUrl } from "../presenters/product.ts";
 import { TimeZoneNotPortedError } from "../search/civil-time.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
+import { LEGACY_SCOPES, MCP_SCOPES } from "./constants.ts";
+
 const INVALID_PARAMS = -32602;
 const MICROSECONDS_PER_SECOND = 1_000_000n;
 // Mcp::Server::MAX_DATETIME_YEAR, as the first second of the year after it.
@@ -275,11 +277,46 @@ export const readPayouts: PayoutReader = (userId, limit, after) =>
         WHERE user_id = ${userId} AND (created_at < ${after.at} OR (created_at = ${after.at} AND id < ${after.id}))
         ORDER BY created_at DESC, id DESC LIMIT ${limit}`;
 
-// Mcp::Server#require_scopes!, for a token that passes. A failure is Rails's to answer.
-function requireScopes(token: OauthAccessToken, scopes: string[]): void {
+// Mcp::Server#require_scopes! failing: `scope` is what a client steps up to (the scopes the token holds plus the first one it may
+// request), or null when it registered none of the accepted scopes and the caller gets a plain error with no challenge.
+export class ScopeError extends Error {
+  constructor(
+    message: string,
+    readonly scope: string | null,
+  ) {
+    super(message);
+  }
+}
+
+// Array#to_sentence with " or " for both connectors.
+function orSentence(words: string[]): string {
+  if (words.length <= 2) return words.join(" or ");
+  return `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]!}`;
+}
+
+// Mcp::Server#obtainable_scope: DynamicClientOauth.requestable_scopes of the token's application, blank meaning any.
+async function obtainableScope(token: OauthAccessToken, scopes: string[]): Promise<string | null> {
+  const application = await db.oauthApplication.findUnique({
+    where: { id: token.application_id },
+    select: { scopes: true, mcp_dynamic_client: true },
+  });
+  if (application === null) throw new HandBackToRails("an MCP token whose application is missing");
+  const own = application.scopes.split(" ").filter((scope) => scope !== "");
+  const registered = application.mcp_dynamic_client ? [...own, ...MCP_SCOPES, ...LEGACY_SCOPES] : own;
+  return scopes.find((scope) => registered.length === 0 || registered.includes(scope)) ?? null;
+}
+
+// Mcp::Server#require_scopes!, for a token that passes; a failure raises the ScopeError the server answers.
+async function requireScopes(token: OauthAccessToken, scopes: string[], subject = "This tool"): Promise<void> {
   const held = (token.scopes ?? "").split(/\s+/u).filter((scope) => scope !== "");
-  if (!scopes.some((scope) => held.includes(scope)))
-    throw new HandBackToRails("an MCP tool call without the scope the tool needs");
+  if (scopes.some((scope) => held.includes(scope))) return;
+  // Doorkeeper lists a scope once; a repeated one is left to Rails.
+  if (new Set(held).size !== held.length) throw new HandBackToRails("a token whose scopes repeat");
+  const missing = await obtainableScope(token, scopes);
+  throw new ScopeError(
+    `${subject} requires the ${orSentence(scopes)} scope.`,
+    missing === null ? null : [...held, missing].join(" "),
+  );
 }
 
 const iso8601 = (time: Date): string => `${time.toISOString().slice(0, 19)}Z`;
@@ -1343,7 +1380,7 @@ async function createDraftProduct(args: Hash, context: ToolContext): Promise<Has
     throw new HandBackToRails("a suggested price that is not a whole number");
   if (suggested !== undefined && payWhatYouWant !== true)
     throw new ToolRpcError("suggested_price_cents needs pay_what_you_want: true in the same call", INVALID_PARAMS);
-  requireScopes(context.token, ["edit_products", "account"]);
+  await requireScopes(context.token, ["edit_products", "account"]);
   const rawName = args.name as string;
   if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
   const name = rubyStrip(rawName);
@@ -2275,57 +2312,57 @@ async function getAnalytics(args: Hash, context: ToolContext): Promise<Hash> {
 export async function toolBody(name: string, args: Hash, context: ToolContext): Promise<Hash | undefined> {
   switch (name) {
     case "get_account":
-      requireScopes(context.token, ["view_profile", "view_public", "view_sales", "account"]);
+      await requireScopes(context.token, ["view_profile", "view_public", "view_sales", "account"]);
       return getAccount(context.user);
     case "list_payouts":
-      requireScopes(context.token, ["view_payouts", "account"]);
+      await requireScopes(context.token, ["view_payouts", "account"]);
       return listPayouts(args, context);
     case "get_customers":
-      requireScopes(context.token, ["view_sales", "account"]);
+      await requireScopes(context.token, ["view_sales", "account"]);
       return getCustomers(args, context);
     case "get_sales_totals":
-      requireScopes(context.token, ["view_sales", "account"]);
+      await requireScopes(context.token, ["view_sales", "account"]);
       return getSalesTotals(args, context);
     case "list_products":
-      requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
+      await requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return listProducts(args, context);
     case "list_sales":
-      requireScopes(context.token, ["view_sales", "account"]);
+      await requireScopes(context.token, ["view_sales", "account"]);
       return listSales(args, context);
     case "get_product":
-      requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
+      await requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);
     case "list_categories":
-      requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
+      await requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return listCategories();
     case "create_draft_product":
       return createDraftProduct(args, context);
     case "update_product":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return updateProduct(args, context);
     case "create_discount_code":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return createDiscountCode(args, context);
     case "update_discount_code":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return updateDiscountCode(args, context);
     case "expire_discount_code":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return expireDiscountCode(args, context);
     case "publish_product":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return setPublication(args, context, true);
     case "unpublish_product":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return setPublication(args, context, false);
     case "get_subscriptions":
-      requireScopes(context.token, ["view_sales", "account"]);
+      await requireScopes(context.token, ["view_sales", "account"]);
       return getSubscriptions(args, context);
     case "get_analytics":
-      requireScopes(context.token, ["view_sales", "account"]);
+      await requireScopes(context.token, ["view_sales", "account"]);
       return getAnalytics(args, context);
     case "list_files":
-      requireScopes(context.token, ["edit_products", "account"]);
+      await requireScopes(context.token, ["edit_products", "account"]);
       return listFiles(args, context);
     default:
       return undefined;

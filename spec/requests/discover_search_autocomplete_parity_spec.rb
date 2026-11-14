@@ -131,13 +131,38 @@ describe "Discover search suggestions", type: :request do
     expect(suggestion.reload).to be_deleted
   end
 
-  it "hands a query that is a list to Rails", parity: true do
+  it "removes the suggestions of a query sent as a one-element list", parity: true do
     log_in(user)
     suggestion = suggest("listed", user:)
 
     forget({ query: ["listed"] })
 
+    expect(response).to have_http_status(:no_content)
     expect(suggestion.reload).to be_deleted
+  end
+
+  it "removes the suggestions of every query in a list and keeps the others", parity: true do
+    log_in(user)
+    first = suggest("Listed One", user:)
+    second = suggest("listed two", user:)
+    kept = suggest("listed three", user:)
+
+    forget({ query: ["listed one", "listed two"] })
+
+    expect(response).to have_http_status(:no_content)
+    expect(first.reload).to be_deleted
+    expect(second.reload).to be_deleted
+    expect(kept.reload).not_to be_deleted
+  end
+
+  it "removes nothing for an empty list of queries", parity: true do
+    log_in(user)
+    suggestion = suggest("listed", user:)
+
+    forget({ query: [] })
+
+    expect(response).to have_http_status(:no_content)
+    expect(suggestion.reload).not_to be_deleted
   end
 
   it "hands a request without a CSRF token to Rails", parity: true do

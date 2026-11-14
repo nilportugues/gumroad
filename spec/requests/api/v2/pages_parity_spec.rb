@@ -113,7 +113,7 @@ describe "API v2 pages", type: :request do
       patch "/v2/pages/nope", params: { title: "x" }, headers: auth("edit_profile")
     end
 
-    it "hands back a deletion", parity: true do
+    it "deletes a page", parity: true do
       page_row(slug: "about", title: "About", content: "Hello")
       delete "/v2/pages/about", headers: auth("edit_profile")
     end

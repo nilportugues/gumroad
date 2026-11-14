@@ -154,7 +154,7 @@ describe "Profile sections when signed in", type: :request do
       expect(response.parsed_body).to eq("error" => "Invalid section type")
     end
 
-    it "hands a section whose data breaks its schema", parity: true do
+    it "answers 422 with the schema messages for a products section whose show_filters is not a boolean", parity: true do
       log_in(seller)
 
       send_json(:post, profile_sections_path, type: "SellerProfileProductsSection", show_filters: "i hack u :)")
@@ -286,7 +286,7 @@ describe "Profile sections when signed in", type: :request do
       expect(stranger.reload.header).to eq("Theirs")
     end
 
-    it "hands a section update whose data breaks the schema", parity: true do
+    it "answers 422 with the schema message for an update whose show_filters is not a boolean", parity: true do
       log_in(seller)
 
       send_json(:patch, profile_section_path(section.external_id), show_filters: "i hack u :)")

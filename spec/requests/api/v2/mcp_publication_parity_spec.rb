@@ -118,7 +118,7 @@ describe "API v2 MCP product publication", type: :request, parity_timeline: true
       publish
     end
 
-    it "hands back a publish with a token that cannot edit products", parity: true do
+    it "asks a publish with a token that cannot edit products to step up", parity: true do
       publish(scopes: "view_public")
     end
   end
@@ -155,7 +155,7 @@ describe "API v2 MCP product publication", type: :request, parity_timeline: true
       unpublish(membership.unique_permalink)
     end
 
-    it "hands back an unpublish with a token that cannot edit products", parity: true do
+    it "asks an unpublish with a token that cannot edit products to step up", parity: true do
       unpublish(scopes: "view_public")
     end
   end

@@ -1,6 +1,9 @@
 import type { OauthAccessToken, User } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 
+const { findApplication } = vi.hoisted(() => ({ findApplication: vi.fn() }));
+vi.mock("../../lib/db.ts", () => ({ db: { oauthApplication: { findUnique: findApplication } } }));
+
 import { HandBackToRails } from "../controllers/application-controller.ts";
 
 import { RpcSession } from "./server.ts";
@@ -8,6 +11,7 @@ import {
   FloatValue,
   toolBody,
   toolText,
+  ScopeError,
   ToolError,
   ToolRpcError,
   type CustomerReader,
@@ -38,7 +42,9 @@ const user = (attributes: Partial<User> = {}) =>
     timezone: "UTC",
     ...attributes,
   }) as User;
-const token = (scopes: string) => ({ scopes }) as OauthAccessToken;
+const token = (scopes: string) => ({ scopes, application_id: 3 }) as OauthAccessToken;
+const registered = (scopes: string, dynamic = false) =>
+  findApplication.mockResolvedValue({ scopes, mcp_dynamic_client: dynamic });
 
 const payout = (id: number, createdAt: string, attributes: Partial<PayoutRow> = {}): PayoutRow => ({
   id: BigInt(id),
@@ -78,8 +84,38 @@ describe("get_account", () => {
     await expect(toolBody("get_account", {}, context(scope))).resolves.toBeDefined();
   });
 
-  it("hands back to Rails when no accepted scope is held", async () => {
-    await expect(toolBody("get_account", {}, context("edit_products view_payouts"))).rejects.toBeInstanceOf(
+  it("asks a token with no accepted scope to step up to the first accepted scope, keeping the scopes it holds", async () => {
+    registered("");
+    await expect(toolBody("get_account", {}, context("edit_products view_payouts"))).rejects.toEqual(
+      new ScopeError(
+        "This tool requires the view_profile, view_public, view_sales or account scope.",
+        "edit_products view_payouts view_profile",
+      ),
+    );
+  });
+
+  it("steps up to the first accepted scope the application registered", async () => {
+    registered("account view_sales");
+    await expect(toolBody("get_account", {}, context("view_payouts"))).rejects.toMatchObject({
+      scope: "view_payouts view_sales",
+    });
+  });
+
+  it("offers no step-up when the application registered none of the accepted scopes", async () => {
+    registered("view_payouts");
+    await expect(toolBody("get_account", {}, context("view_library"))).rejects.toMatchObject({ scope: null });
+  });
+
+  it("adds the connector scopes to those a dynamic client registered", async () => {
+    registered("view_payouts", true);
+    await expect(toolBody("get_account", {}, context("view_library"))).rejects.toMatchObject({
+      scope: "view_library view_profile",
+    });
+  });
+
+  it("hands back a token whose scopes repeat", async () => {
+    registered("");
+    await expect(toolBody("get_account", {}, context("view_payouts view_payouts"))).rejects.toBeInstanceOf(
       HandBackToRails,
     );
   });
@@ -186,10 +222,9 @@ describe("list_payouts", () => {
     });
   });
 
-  it("hands back to Rails without the payouts scope", async () => {
-    await expect(toolBody("list_payouts", {}, context("view_profile", vi.fn()))).rejects.toBeInstanceOf(
-      HandBackToRails,
-    );
+  it("refuses without the payouts scope", async () => {
+    registered("");
+    await expect(toolBody("list_payouts", {}, context("view_profile", vi.fn()))).rejects.toBeInstanceOf(ScopeError);
   });
 });
 
@@ -391,10 +426,11 @@ describe("get_customers", () => {
     ).rejects.toMatchObject({ message: "limit must be between 1 and 50", code: -32602 });
   });
 
-  it("hands back to Rails without a sales scope", async () => {
+  it("refuses without a sales scope", async () => {
+    registered("");
     await expect(
       toolBody("get_customers", {}, customerContext("view_payouts", customerReader())),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+    ).rejects.toBeInstanceOf(ScopeError);
   });
 });
 
@@ -628,10 +664,11 @@ describe("get_sales_totals", () => {
     ).rejects.toMatchObject({ message: "start_date must not be after end_date", code: -32602 });
   });
 
-  it("hands back to Rails without a sales scope", async () => {
+  it("refuses without a sales scope", async () => {
+    registered("");
     await expect(
       toolBody("get_sales_totals", {}, totalsContext(totalsReader(), "view_profile")),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+    ).rejects.toBeInstanceOf(ScopeError);
   });
 });
 
@@ -662,6 +699,28 @@ describe("tools/call through the session", () => {
 
     expect(reply.result.structuredContent).toEqual({ payouts: [] });
     expect(reply.result.content).toEqual([{ type: "text", text: '{\n  "payouts": []\n}' }]);
+  });
+
+  it("answers a missing scope as a -32000 error and keeps the step-up for the challenge", async () => {
+    registered("");
+    const mcp = session("view_sales");
+    const reply = await mcp.handle(call("list_payouts", {}));
+
+    expect(reply).toMatchObject({
+      error: { code: -32000, message: "This tool requires the view_payouts or account scope." },
+    });
+    expect(mcp.insufficientScope).toEqual({
+      scope: "view_sales view_payouts",
+      message: "This tool requires the view_payouts or account scope.",
+    });
+  });
+
+  it("gives a batch the plain error with no step-up", async () => {
+    registered("");
+    const mcp = session("view_sales");
+    await mcp.handle([call("list_payouts", {})]);
+
+    expect(mcp.insufficientScope).toBeNull();
   });
 
   it("answers a limit error as a JSON-RPC error", async () => {
@@ -1316,12 +1375,13 @@ describe("publish_product and unpublish_product", () => {
       ).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("answer a product that is not found as a tool error and a token without the scope as a hand-back", async () => {
+  it("answer a product that is not found as a tool error and a token without the scope as a step-up", async () => {
+    registered("");
     await expect(toolBody("publish_product", { id: "x" }, detailContext("edit_products", null))).rejects.toBeInstanceOf(
       ToolError,
     );
     await expect(
       toolBody("unpublish_product", { id: "x" }, detailContext("view_public", productRow(1))),
-    ).rejects.toBeInstanceOf(HandBackToRails);
+    ).rejects.toBeInstanceOf(ScopeError);
   });
 });

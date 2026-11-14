@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(() => {
     throw new Error("the validation answers come before the product is locked");
   }),
-  selectRows: vi.fn(() => Promise.resolve([{ product_id: 5n }])),
+  selectRows: vi.fn((): Promise<Record<string, unknown>[]> => Promise.resolve([{ product_id: 5n }])),
 }));
 vi.mock("./product-json.ts", () => ({ productsApiJson: mocks.productsApiJson }));
 vi.mock("../products-mutations.ts", () => ({ deleteProductBang: vi.fn() }));
@@ -92,9 +92,17 @@ describe("PUT /v2/products/:id/sections validation", () => {
 
   it("hands an entry that creates or changes a section to Rails", async () => {
     await expect(run({ sections: [{ type: "products" }] })).rejects.toThrow(/new profile section/u);
-    await expect(run({ sections: [{ id: encrypt(7), header: "New" }] })).rejects.toThrow(
+    await expect(run({ sections: [{ id: encrypt(7), show_filters: true }] })).rejects.toThrow(
       /contents of a profile section/u,
     );
+  });
+
+  it("hands a header change of a section that is not a plain rich text one to Rails", async () => {
+    await expect(run({ sections: [{ id: encrypt(7), header: "New" }] })).rejects.toThrow(/header change/u);
+    mocks.selectRows.mockResolvedValueOnce([
+      { product_id: 5n, type: "SellerProfileRichTextSection", header: "Old", flags: 2n, json_data: '{"text": {}}' },
+    ]);
+    await expect(run({ sections: [{ id: encrypt(7), header: "New" }] })).rejects.toThrow(/header change/u);
   });
 
   it("reports an id that does not decrypt", async () => {
