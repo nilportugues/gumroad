@@ -56,3 +56,28 @@ describe("profile section schemas", () => {
     );
   });
 });
+
+describe("products section schema messages", () => {
+  const messages = (hash: Record<string, unknown>) =>
+    SECTION_KINDS.get("SellerProfileProductsSection")!.messages!(hash as never);
+
+  it("lists the type error first and one message per missing required key", () => {
+    expect(messages({ show_filters: "yes" })).toEqual([
+      "The property '#/show_filters' of type string did not match the following type: boolean",
+      "The property '#/' did not contain a required property of 'default_product_sort'",
+      "The property '#/' did not contain a required property of 'shown_products'",
+      "The property '#/' did not contain a required property of 'add_new_products'",
+    ]);
+  });
+
+  it("answers only the type error when the other keys are present and valid", () => {
+    expect(
+      messages({ default_product_sort: "newest", shown_products: [], show_filters: "yes", add_new_products: true }),
+    ).toHaveLength(1);
+  });
+
+  it("leaves any other break to Rails", () => {
+    expect(messages({ show_filters: true })).toBeNull();
+    expect(messages({ show_filters: "yes", default_product_sort: "oldest" })).toBeNull();
+  });
+});

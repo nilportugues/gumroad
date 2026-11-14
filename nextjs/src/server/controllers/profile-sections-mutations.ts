@@ -1,10 +1,11 @@
 // ProfileSectionsController (app/controllers/profile_sections_controller.rb) with SellerProfileSections::SaveService: the profile editor's
 // per-section create, update and destroy. Rich text sections (SaveContentUpsellsService), a section whose data breaks its schema
-// (JSON::Validator's messages) and any attribute the section's class does not have (UnknownAttributeError) stay in Rails.
+// other than by a non-boolean show_filters (JSON::Validator's messages) and any attribute the section's class does not have (UnknownAttributeError) stay in Rails.
 import { Prisma, type SellerProfileSection } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { hashOf } from "../models/seller-profile-products-sections.ts";
 import { SECTION_KINDS, sectionModelFor } from "../models/seller-profile-section-kinds.ts";
@@ -48,7 +49,9 @@ export function permitted(params: Params, create: boolean): Params {
     take("product_id", (value) => value === null || typeof value === "string");
   }
   for (const key of STRING_KEYS) take(key, (value) => value === null || typeof value === "string");
-  for (const key of BOOLEAN_KEYS) take(key, (value) => typeof value === "boolean");
+  // A string `show_filters` is permitted (a scalar) and then breaks the products schema, which the model answers with its messages.
+  for (const key of BOOLEAN_KEYS)
+    take(key, (value) => typeof value === "boolean" || (key === "show_filters" && typeof value === "string"));
   for (const key of LIST_KEYS)
     take(key, (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
   if ("text" in params) throw unsupported("a rich text section's text");
@@ -56,7 +59,8 @@ export function permitted(params: Params, create: boolean): Params {
 }
 
 // String#blank?
-export const blank = (value: unknown) => value === null || (typeof value === "string" && /^\p{White_Space}*$/u.test(value));
+export const blank = (value: unknown) =>
+  value === null || (typeof value === "string" && /^\p{White_Space}*$/u.test(value));
 
 // SaveService#decrypt_ids: an id that does not decrypt becomes nil, which the schema then refuses.
 const decryptedList = (value: unknown) => (value as string[]).map((item) => decrypt(item));
@@ -120,7 +124,7 @@ async function findSection(input: MutationInput) {
 // `ActiveRecord::SubclassNotFound` from SaveService#create!, which the batched profile editor shares: the caller answers it.
 export class InvalidSectionType extends Error {}
 
-export async function createSection(sellerId: bigint | number, attributes: Params) {
+export async function createSection(sellerId: bigint | number, attributes: Params, explainBreaks = false) {
   const type = attributes.type;
   if (typeof type !== "string" || blank(type) || type === BASE_CLASS || type.includes("::"))
     throw unsupported("a section without a usable type");
@@ -131,20 +135,27 @@ export async function createSection(sellerId: bigint | number, attributes: Param
   }
   if (type === "SellerProfileRichTextSection") throw unsupported("a rich text section");
 
-  const model = sectionModelFor(type);
+  const model = sectionModelFor(type, explainBreaks);
   const record = model.build({ seller_id: sellerId, type, json_data: {} } as never);
   assign(record, SECTION_KINDS.get(type)!, attributes);
   await model.saveBang(record);
   return record.get("id");
 }
 
+// `render json: { error: e.record.errors.full_messages.to_sentence }, status: :unprocessable_entity`
+const toSentence = (items: string[]) =>
+  items.length <= 2 ? items.join(" and ") : `${items.slice(0, -1).join(", ")}, and ${items.at(-1)!}`;
+const invalidRecord = (error: RecordInvalid) =>
+  json({ error: toSentence(error.errors.fullMessages()) }, UNPROCESSABLE_ENTITY);
+
 async function create(input: MutationInput): Promise<ActionResult> {
   const denied = await guard(input, profileSectionPolicy.create);
   if (denied) return denied;
   try {
-    const id = await createSection(input.context.currentSeller!.id, permitted(input.params, true));
+    const id = await createSection(input.context.currentSeller!.id, permitted(input.params, true), true);
     return json({ id: encrypt(id) });
   } catch (error) {
+    if (error instanceof RecordInvalid) return invalidRecord(error);
     if (error instanceof InvalidSectionType) return json({ error: "Invalid section type" }, UNPROCESSABLE_ENTITY);
     throw error;
   }
@@ -157,11 +168,16 @@ async function update(input: MutationInput): Promise<ActionResult> {
   // The legacy endpoint does not mutate shown_posts, and `type` and `product_id` are excepted.
   const { shown_posts: _posts, ...attributes } = permitted(input.params, false);
   if (row.json_data === null) throw unsupported("a section with no json_data");
-  const model = sectionModelFor(row.type);
+  const model = sectionModelFor(row.type, true);
   // The driver may hand the JSON column back as text; change tracking compares parsed values.
   const record = model.load({ ...row, json_data: hashOf(row.json_data) as never });
   assign(record, SECTION_KINDS.get(row.type)!, attributes);
-  await model.saveBang(record);
+  try {
+    await model.saveBang(record);
+  } catch (error) {
+    if (error instanceof RecordInvalid) return invalidRecord(error);
+    throw error;
+  }
   return noContent();
 }
 
