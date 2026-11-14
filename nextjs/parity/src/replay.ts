@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { diff, resolveDateToken, resolveTimeToken } from "./canonical";
 import { canonicalJob, canonicalMail, type JobsChannel, type MailChannel } from "./channels";
 import { type CompareOptions, compareExchange, type Difference, formatDifferences } from "./compare";
-import { withDriftedDates } from "./date-drift";
+import { rebaseFarInstants, withDriftedDates } from "./date-drift";
 import { dump, nonEmptyTables, readSchema, seedDatabase, type SqlExecutor } from "./db";
 import {
   type CapturedExchange,
@@ -72,6 +72,11 @@ export type ReplayOptions = {
   // The instant the seed's tokens resolve against, for a request that carries a literal date the rows are measured
   // against. The request and the port still run on the replay's clock.
   seedClock?: Date;
+  // For a request that names an instant far from the recording (a 2099 `expires_at`): the instant the fixture was recorded at.
+  // The recorded `<now+632328h>` is hours from then, so it is re-measured from the replay's clock before the comparison.
+  recordedAt?: Date;
+  // The instant tokens resolve against; replayFixtureExchange fixes it so the expected side is rebased on the same one.
+  now?: Date;
   // Runs once the database is seeded and before the request is sent: where a stand-in outbound server takes the baseline it
   // measures writes against.
   beforeRequest?: () => void | Promise<void>;
@@ -87,7 +92,7 @@ export async function replayExchange(
   // normalised against it, as the recorder did with the moment its request started.
   // Whole seconds: a time in the query (a cursor) is written without fractions, so rows seeded from the same
   // token must not carry any either.
-  const now = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const now = options.now ?? new Date(Math.floor(Date.now() / 1000) * 1000);
   const seedNow = options.seedClock ?? now;
   await seedDatabase(sql, exchange.seed, seedNow);
   await redis?.reset(exchange.redis ?? {}, exchange, seedNow);
@@ -162,16 +167,18 @@ export async function replayFixtureExchange(
   const loaded = typeof fixture === "string" ? loadFixture(fixture) : fixture;
   const expected = loaded.exchanges.at(index);
   if (!expected) throw new Error(`${loaded.spec}: ${loaded.example} has no exchange ${index}`);
-  const actual = await replayExchange(expected, options, loaded);
+  const now = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const actual = await replayExchange(expected, { ...options, now }, loaded);
   const compareOptions = {
     ...options.compare,
     ...(loaded.sessionCookie ? { sessionCookie: loaded.sessionCookie } : {}),
   };
   // The seed is resolved against the replay's clock; the recorded strings are moved by the days since the recording.
-  const drifted =
+  const moved =
     options.driftDates === false
       ? expected
       : withDriftedDates(loaded, index, new Date(), options.driftAlso).exchanges[index]!;
+  const drifted = options.recordedAt ? rebaseFarInstants(moved, options.recordedAt, now) : moved;
   return {
     fixture: loaded,
     exchanges: [{ expected: drifted, actual, differences: compareExchange(drifted, actual, compareOptions) }],

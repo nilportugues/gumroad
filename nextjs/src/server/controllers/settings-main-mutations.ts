@@ -2,8 +2,9 @@
 //
 // An update that sends no mail and needs nothing Node cannot prove is served here: the notification flags, locale, timezone, currency,
 // the PPP settings, the support email, the account-level refund policy, the PPP exclusions, product-level support emails and the
-// feature-announcements consent. A new or pending email address (Devise mails the seller), a username change and a refund policy whose
-// fine print needs the LLM classifier go to Rails whole. The steps run in one transaction that only a hand-back rolls back: Rails commits
+// feature-announcements consent, a username change and the clearing of a pending email change when the form sends the confirmed address.
+// A new email address (Devise mails the seller), a pending change the form does not resend and a refund policy whose fine print needs
+// the LLM classifier go to Rails whole. The steps run in one transaction that only a hand-back rolls back: Rails commits
 // each step before the next, so a step that fails the way Rails rescues keeps the ones before it.
 import { Prisma, type Link, type RefundPolicy, type User } from "@prisma/client";
 
@@ -78,11 +79,11 @@ const FLAG_PARAMS: readonly UserFlag[] = [
   "show_nsfw_products",
   "disable_affiliate_requests",
 ];
-const STRING_PARAMS = ["support_email", "locale", "timezone", "currency_type"] as const;
+const STRING_PARAMS = ["support_email", "locale", "timezone", "currency_type", "username"] as const;
 // A NOT NULL column: the test database coerces a null to "" where production raises, so the recording cannot prove the answer.
 // `locale` is nullable and is served.
 const NOT_NULL_PARAMS: readonly string[] = ["timezone"];
-// `email` and `username` are permitted but only served unchanged (`assertUnchangedIdentity`).
+// `email` is permitted but only served unchanged (`assertUnchangedIdentity`).
 const PERMITTED_USER_KEYS = new Set<string>([...FLAG_PARAMS, ...STRING_PARAMS, "purchasing_power_parity_limit"]);
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
@@ -96,12 +97,13 @@ function requireUser(params: Record<string, unknown>): Record<string, unknown> |
   return isHash(user) && Object.keys(user).length > 0 ? user : null;
 }
 
+// An email that differs from the stored one sends Devise's confirmation mail, and a pending change is only served when the form sends
+// the confirmed address back (the save then clears it).
 function assertUnchangedIdentity(seller: UserRecord, user: Record<string, unknown>): void {
-  if (!isBlank(seller.get("unconfirmed_email")))
-    throw new HandBackToRails("a seller with an email change awaiting confirmation");
-  if ("email" in user && !(typeof user.email === "string" && user.email !== "" && user.email === seller.get("email")))
-    throw new HandBackToRails("an email address that differs from the stored one");
-  if ("username" in user && user.username !== seller.get("username")) throw new HandBackToRails("a username change");
+  const unchanged = typeof user.email === "string" && user.email !== "" && user.email === seller.get("email");
+  if ("email" in user && !unchanged) throw new HandBackToRails("an email address that differs from the stored one");
+  if (!isBlank(seller.get("unconfirmed_email")) && !unchanged)
+    throw new HandBackToRails("a seller with an email change awaiting confirmation and no email in the form");
 }
 
 // A 4-byte integer column: ActiveModel raises a RangeError past it when the row is saved.
@@ -439,6 +441,12 @@ async function update(input: MutationInput): Promise<ActionResult> {
         return true;
       });
       if (!saved) return redirect(toSentence(seller.errors.fullMessages()));
+
+      // `update!(unconfirmed_email: nil)` when the form's email is the stored one.
+      if (user.email === seller.get("email") && !isBlank(seller.get("unconfirmed_email"))) {
+        seller.set("unconfirmed_email", null);
+        if (!(await Users.save(seller))) return redirect(toSentence(seller.errors.fullMessages()));
+      }
 
       if (editable) {
         const failure = await updateRefundPolicy(seller, user);

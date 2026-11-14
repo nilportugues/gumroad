@@ -263,7 +263,7 @@ describe "Mobile API library writes", type: :request, parity_timeline: true do
       expect(authorization.reload.is_deleted_by_buyer).to eq(true)
     end
 
-    it "hands an archive of a preorder whose charge purchase has a url redirect to Rails", parity: true do
+    it "archives a preorder whose charge purchase has a url redirect", parity: true do
       charge = purchase_row(link: preorder_product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "successful", stripe_transaction_id: "ch_#{SecureRandom.hex(6)}", stripe_fingerprint: "fp_library", charge_processor_id: StripeChargeProcessor.charge_processor_id, merchant_account:)
       create(:url_redirect, purchase: charge, link: preorder_product)
 

@@ -5,7 +5,7 @@
 // purchase_attributes, archive, unarchive and destroy of a purchase that is not a membership or a gift (refunds, a review, a url
 // redirect and a preorder are serialized) whose seller and product have no post. Everything else (the rest of those, a non-empty
 // library page, sales#show) goes to Rails whole, because the posts of the product-updates preloader are not ported.
-import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
+import { Prisma, type Link, type Purchase, type Subscription, type User } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
@@ -270,9 +270,10 @@ async function fetchPurchase(input: MobileInput, auth: MobileAuth | null): Promi
   return purchase;
 }
 
-// Preorder#mobile_json_data for a purchase without a url redirect: the latest purchase when it was charged (its own url redirect,
-// which Node does not serialize here, hands back), else the authorization purchase with the release date.
-async function preorderSource(purchase: Purchase, productId: bigint, purchaser: User) {
+// Preorder#mobile_json_data for a purchase without a url redirect: the latest purchase when it was charged (serialized through its own
+// url redirect when it has one), else the authorization purchase with the release date.
+async function preorderSource(purchase: Purchase, link: Link, seller: User, purchaser: User) {
+  const productId = link.id;
   const [preorder] = await selectRows<{ id: bigint; preorder_link_id: bigint | null }>(
     Prisma.sql`SELECT ${column("preorders", "id")}, ${column("preorders", "preorder_link_id")} FROM ${table("preorders")} WHERE ${column("preorders", "id")} = ${purchase.preorder_id} LIMIT 1`,
   );
@@ -292,8 +293,6 @@ async function preorderSource(purchase: Purchase, productId: bigint, purchaser: 
   const last = purchases[purchases.length - 1];
   if (first === undefined || last === undefined) throw new NotPortedError("a preorder without purchases");
   const charged = last.purchase_state === "successful";
-  if (charged && (await db.urlRedirect.count({ where: { purchase_id: last.id } })) > 0)
-    throw new HandBackToRails("the url redirect of a preorder's charge purchase");
   const source = charged ? last : first;
   const sourcePurchaser =
     source.purchaser_id === null
@@ -301,9 +300,25 @@ async function preorderSource(purchase: Purchase, productId: bigint, purchaser: 
       : source.purchaser_id === purchaser.id
         ? purchaser
         : await db.user.findUnique({ where: { id: source.purchaser_id } });
+  // has_one :url_redirect reads an arbitrary row when there are several
+  const chargeRedirects = charged ? await db.urlRedirect.findMany({ where: { purchase_id: last.id }, take: 2 }) : [];
+  if (chargeRedirects.length > 1) throw new HandBackToRails("a preorder's charge purchase with several url redirects");
+  const chargeRedirect = chargeRedirects[0];
+  const urlRedirect =
+    chargeRedirect === undefined
+      ? undefined
+      : await urlRedirectMobileData({
+          redirect: chargeRedirect,
+          purchase: last,
+          purchaser: sourcePurchaser,
+          subscription: null,
+          product: link,
+          seller,
+        });
   return {
     source,
     sourcePurchaser,
+    urlRedirect,
     preorderData: charged
       ? null
       : { external_id: encrypt(BigInt(preorder.id)), release_at: jsonTime(preorderLink.release_at) },
@@ -429,7 +444,7 @@ async function plainPurchaseJson(
           });
   const preorder =
     urlRedirect === undefined && purchase.preorder_id !== null
-      ? await preorderSource(purchase, link.id, buyer ?? failNotPorted("a preorder of a guest buyer"))
+      ? await preorderSource(purchase, link, seller, buyer ?? failNotPorted("a preorder of a guest buyer"))
       : undefined;
   const updatesFor = preorder?.source ?? purchase;
   let productUpdates: Record<string, unknown>[] | null = null;
@@ -461,7 +476,7 @@ async function plainPurchaseJson(
         productRating,
         amountRefundedCents,
         productUpdatesData: productUpdates,
-        urlRedirect,
+        urlRedirect: urlRedirect ?? preorder?.urlRedirect,
         subscriptionData: subscription === null ? undefined : subscriptionData(subscription),
         // The write left this row as it is; the preorder's source purchase is read after it, so it is this row when it is the same one.
         preorder:
