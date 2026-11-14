@@ -156,8 +156,14 @@ describe("PUT /settings", () => {
   it.each([
     ["a null timezone", { timezone: null }],
     ["a PPP limit with trailing text", { purchasing_power_parity_limit: "12abc" }],
-    ["excluded products that are not a list", { purchasing_power_parity_excluded_product_ids: "abc" }],
-    ["a support email entry without a list", { product_level_support_emails: [{ email: "a@example.com" }] }],
+    ["excluded products that are not a list, a string or null", { purchasing_power_parity_excluded_product_ids: true }],
+    ["excluded products that mix types", { purchasing_power_parity_excluded_product_ids: ["abc", 5] }],
+    [
+      "a support email entry with a boolean email",
+      { product_level_support_emails: [{ email: true, product_ids: [] }] },
+    ],
+    ["a support email entry that is a number", { product_level_support_emails: [5] }],
+    ["an empty feature announcements flag", { feature_announcements_subscribed: [] }],
     [
       "an octal feature announcements version",
       { feature_announcements_subscribed: true, feature_announcements_version: "010" },
@@ -165,6 +171,20 @@ describe("PUT /settings", () => {
   ])("hands %s to Rails", async (_label, overrides) => {
     await expect(update.run(input(form(overrides)))).rejects.toBeInstanceOf(HandBackToRails);
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["support emails sent as a string", { product_level_support_emails: "help@example.com" }],
+    ["a support email entry that is a string", { product_level_support_emails: ["help@example.com"] }],
+    ["an integer support email", { product_level_support_emails: [{ email: 5, product_ids: ["abc"] }] }],
+  ])("keeps the saved user and answers the generic alert for %s", async (_label, overrides) => {
+    const result = await update.run(input(form(overrides)));
+
+    expect(result).toMatchObject({
+      location: "/settings",
+      flash: { alert: "Something broke. We're looking into what happened. Sorry about this!" },
+    });
+    expect(mocks.save).toHaveBeenCalled();
   });
 
   it("saves the unchanged identity with the flags and columns as sent", async () => {
@@ -339,8 +359,24 @@ describe("PUT /settings", () => {
       expect(mocks.policyUpdate).toHaveBeenCalledWith(row, { max_refund_period_in_days: 14, fine_print: "" });
     });
 
-    it("hands a section that is not a hash to Rails", async () => {
-      await expect(update.run(input(form({ seller_refund_policy: null })))).rejects.toBeInstanceOf(HandBackToRails);
+    it.each([
+      ["null", null],
+      ["a string", "30"],
+      ["a list", [30]],
+      ["a number", 30],
+    ])("keeps the saved user and answers the generic alert for a section that is %s", async (_label, section) => {
+      const result = await update.run(input(form({ seller_refund_policy: section })));
+
+      expect(result).toMatchObject({
+        location: "/settings",
+        flash: { alert: "Something broke. We're looking into what happened. Sorry about this!" },
+      });
+      expect(mocks.save).toHaveBeenCalled();
+      expect(mocks.policyUpdate).not.toHaveBeenCalled();
+    });
+
+    it("hands a section that is a boolean to Rails", async () => {
+      await expect(update.run(input(form({ seller_refund_policy: true })))).rejects.toBeInstanceOf(HandBackToRails);
     });
 
     it("updates the policy with the period and the fine print as sent", async () => {
