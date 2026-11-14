@@ -16,7 +16,9 @@ const FIND_EACH_BATCH_SIZE = 1000;
 const wrap = (value: JsonValue): JsonValue[] => (value === null ? [] : Array.isArray(value) ? value : [value]);
 
 export const exportPayoutDataWith = modelJob({ min: 2 }, async ([paymentIds]) => {
-  const ids = await beforeSideEffects(() => wrap(paymentIds as JsonValue).map((id) => recordIdFrom(id, "Payment.where(id:)")));
+  const ids = await beforeSideEffects(() =>
+    wrap(paymentIds as JsonValue).map((id) => recordIdFrom(id, "Payment.where(id:)")),
+  );
   if (ids.length === 0) return;
 
   await findInBatches("payments", columnIn("payments", "id", ids), FIND_EACH_BATCH_SIZE, () => {
