@@ -18,24 +18,24 @@ How to read it. Routes, pages and job classes are the headline units, but a rout
 
 14 routes: 0 listed in `routes.json` without Node code (hands back) and 14 not registered (Rails serves them).
 
-Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google, YouTube, Instagram and TikTok OmniAuth callbacks run in Node through the shared phases handler (`nextjs_omniauth_phases`) although their routes are built from the strategy name. So at least 7 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.
+Each row is a route Node does not serve, and the last column says why Rails keeps it. The scanner already counts the App Router routes under `/products/:product_id` and the Google, YouTube, Instagram and TikTok OmniAuth callbacks as native (`src/lib/backlog-routes.test.ts` pins that), so no row here is a scanner false positive. The reverse error exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.
 
-| Route | Controller#action | Status | Workstream |
-| --- | --- | --- | --- |
-| `GET /braintree/client_token` | `braintree#client_token` | not registered | WS-20 Checkout and orders |
-| `GET /paypal/connect` | `paypal#connect` | not registered | WS-20 Checkout and orders |
-| `POST /paypal/disconnect` | `paypal#disconnect` | not registered | WS-20 Checkout and orders |
-| `POST /stripe/setup_intents` | `stripe/setup_intents#create` | not registered | WS-20 Checkout and orders |
-| `POST /partner_migration/setup` | `partner_migrations#complete_setup` | not registered | Unassigned (no rule matched) |
-| `POST /partner_migration` | `partner_migrations#create` | not registered | Unassigned (no rule matched) |
-| `POST /partner_migration/create_account` | `partner_migrations#create_account` | not registered | Unassigned (no rule matched) |
-| `POST /partner_migration/resend_setup` | `partner_migrations#resend_setup` | not registered | Unassigned (no rule matched) |
-| `POST /partner_migration/switch_account` | `partner_migrations#switch_account` | not registered | Unassigned (no rule matched) |
-| `POST /products/:product_id/builds` | `products/builds#create` | not registered | WS-12 Products and bundles |
-| `GET /(*path)` | `application#e404_page` | not registered | WS-11 Help, pages, blog, profiles |
-| `GET /partner_migration/setup` | `partner_migrations#setup` | not registered | Unassigned (no rule matched) |
-| `GET /partner_migration` | `partner_migrations#show` | not registered | Unassigned (no rule matched) |
-| `GET /_/test/outgoing_traffic` | `test#outgoing_traffic` | not registered | WS-11 Help, pages, blog, profiles |
+| Route | Controller#action | Status | Workstream | Why Rails keeps it |
+| --- | --- | --- | --- | --- |
+| `GET /braintree/client_token` | `braintree#client_token` | not registered | WS-20 Checkout and orders | Generates a token with a live Braintree call; no recording of the sequence. |
+| `GET /paypal/connect` | `paypal#connect` | not registered | WS-20 Checkout and orders | Partner-onboarding call to PayPal and a redirect to it; no recording. |
+| `POST /paypal/disconnect` | `paypal#disconnect` | not registered | WS-20 Checkout and orders | Calls PayPal to revoke the seller's partner link; no recording. |
+| `POST /stripe/setup_intents` | `stripe/setup_intents#create` | not registered | WS-20 Checkout and orders | Creates a Stripe SetupIntent on every path; its Rack::Attack rule is not counted in Node. |
+| `POST /partner_migration/setup` | `partner_migrations#complete_setup` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `POST /partner_migration` | `partner_migrations#create` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `POST /partner_migration/create_account` | `partner_migrations#create_account` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `POST /partner_migration/resend_setup` | `partner_migrations#resend_setup` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `POST /partner_migration/switch_account` | `partner_migrations#switch_account` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `POST /products/:product_id/builds` | `products/builds#create` | not registered | WS-12 Products and bundles | Downloads and deploys the uploaded zip (`ProductBuilds::DeployService`), a storage and build side effect no recording proves. |
+| `GET /(*path)` | `application#e404_page` | not registered | WS-11 Help, pages, blog, profiles | Catch-all `e404_page`; registering it would send every unregistered path to Node. |
+| `GET /partner_migration/setup` | `partner_migrations#setup` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `GET /partner_migration` | `partner_migrations#show` | not registered | Unassigned (no rule matched) | Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers. |
+| `GET /_/test/outgoing_traffic` | `test#outgoing_traffic` | not registered | WS-11 Help, pages, blog, profiles | Health check that reads a real S3 object by design. |
 
 ## 3. Inertia pages without Node props
 
