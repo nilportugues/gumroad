@@ -2,7 +2,8 @@
 // Exports::PurchaseExportService.export: up to SYNCHRONOUS_EXPORT_THRESHOLD matching sales are returned as a CSV, more (or `force_async`)
 // create a SalesExport and enqueue Exports::Sales::CreateAndEnqueueChunksWorker.
 //
-// Handed to Rails whole, before any write: the mobile `access_token` form, an `in_seller_time_zone` that is not a plain word or a seller
+// Handed to Rails whole, before any write: the mobile `access_token` form with the right `mobile_token` (a wrong one falls through to
+// the login redirect, as in Rails), an `in_seller_time_zone` that is not a plain word or a seller
 // whose time zone name ActiveSupport::TimeZone::MAPPING does not hold, a date that is not an ISO day (optionally followed by a time of day),
 // and a result that holds a sale purchase-export-data.ts does not cover.
 import { db } from "../../lib/db.ts";
@@ -16,6 +17,7 @@ import {
   salesExportSearchOptions,
   type SalesExportFilters,
 } from "../exports/sales-export.ts";
+import { getConfig } from "../infra/config.ts";
 import { indexName } from "../infra/elasticsearch.ts";
 import { isKnownTimeZone } from "../models/concerns/rails-time-zone.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -91,11 +93,23 @@ const variantIds = (value: unknown) =>
     db.baseVariant.findMany({ where: { id: { in: ids } }, select: { id: true }, orderBy: { id: "asc" } }),
   );
 
+// `params[key].present?` for a string; anything else is Rails' to read.
+function presentText(value: unknown, name: string): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value !== "string") throw new HandBackToRails(`${name} that is not text`);
+  return !/^\p{White_Space}*$/u.test(value);
+}
+
 async function exportPurchases(input: MutationInput): Promise<ActionResult> {
   const { params } = input;
-  // authenticate_mobile_export! runs first and signs in a request that carries a valid token.
-  if (params.access_token !== undefined && params.access_token !== null)
-    throw new HandBackToRails("the mobile export, which signs in with an access token");
+  // authenticate_mobile_export! runs first and signs in a signed-out request that carries the mobile token and a valid access token.
+  if (railsLoggedInUser(input.context) === null && presentText(params.access_token, "an access_token")) {
+    const known = getConfig("MOBILE_TOKEN");
+    if (known === undefined) throw new HandBackToRails("MOBILE_TOKEN is not configured");
+    const given = params.mobile_token ?? "";
+    if (typeof given !== "string") throw new HandBackToRails("a mobile_token that is not text");
+    if (given === known) throw new HandBackToRails("the mobile export, which signs in with an access token");
+  }
   const signedOut = signedOutRefusal(input);
   if (signedOut !== null) return signedOut;
   const loggedIn = railsLoggedInUser(input.context);

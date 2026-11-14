@@ -8,7 +8,12 @@ const { actions, selectRows, db, mobilePreview } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   mobilePreview: vi.fn(),
-  db: { link: { findUnique: vi.fn() }, user: { findUnique: vi.fn() }, purchase: { findUnique: vi.fn() } },
+  db: {
+    link: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn() },
+    purchase: { findUnique: vi.fn() },
+    urlRedirect: { count: vi.fn() },
+  },
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -66,6 +71,7 @@ function stub({
   posts = false,
   previews = false,
   buyer = purchase(),
+  redirects = 0,
 } = {}) {
   selectRows.mockReset();
   selectRows
@@ -81,6 +87,7 @@ function stub({
     where.id === 7n ? creator : { id: 5n, external_id: "buyer-ext" },
   );
   db.purchase.findUnique.mockResolvedValue(buyer);
+  db.urlRedirect.count.mockResolvedValue(redirects);
 }
 
 beforeEach(() => {
@@ -135,11 +142,21 @@ describe("GET /mobile/preorders/preorder_attributes/:id", () => {
     expect(body(await action.run(input({ id: "4" }), null)).product).not.toHaveProperty("user_id");
   });
 
-  it("hands a charged preorder and one whose last purchase succeeded to Rails", async () => {
-    stub({ row: { ...preorder, state: "charge_successful" } });
-    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/charged preorder/u);
-    stub({ states: ["preorder_authorization_successful", "successful"] });
-    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/last purchase is successful/u);
+  it("serves the charge purchase of a preorder whose last purchase succeeded, without the release date", async () => {
+    stub({
+      row: { ...preorder, state: "charge_successful" },
+      states: ["preorder_authorization_successful", "successful"],
+      buyer: purchase({ id: 12n }),
+    });
+    const json = body(await action.run(input({ id: "4" }), null));
+    expect(json.product).toMatchObject({ purchase_id: "enc12", product_updates_data: [] });
+    expect(json.product).not.toHaveProperty("preorder_data");
+    expect(db.purchase.findUnique).toHaveBeenCalledWith({ where: { id: 12n } });
+  });
+
+  it("hands back a charge purchase with a url redirect", async () => {
+    stub({ states: ["preorder_authorization_successful", "successful"], redirects: 1 });
+    await expect(action.run(input({ id: "4" }), null)).rejects.toThrow(/url redirect of a preorder's charge/u);
   });
 
   it("hands back a seller with posts and a product with previews", async () => {

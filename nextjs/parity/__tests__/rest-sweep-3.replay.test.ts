@@ -169,6 +169,7 @@ describe.skipIf(!url)("rest sweep 3", () => {
     server = await startNextServer({
       RAILS_ENV: "test",
       OBFUSCATE_IDS_CIPHER_KEY: testEnv("OBFUSCATE_IDS_CIPHER_KEY") ?? "",
+      MOBILE_TOKEN: testEnv("MOBILE_TOKEN") ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
       ELASTICSEARCH_HOST,

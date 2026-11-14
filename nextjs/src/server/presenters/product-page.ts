@@ -507,7 +507,7 @@ async function build(
     };
   }
   if (kind !== "discover") return page;
-  // A visitor seeded by 4 or more products makes curatedTaxonomyIds throw NotPortedError (Rails samples them at random).
+  // A visitor seeded by 4 or more products makes curatedTaxonomyIds throw NotPortedError unless none of them has related products (Rails samples them at random).
   const navTaxonomies = await taxonomiesForNav(await curatedTaxonomyIds(viewer.user, viewer.browserGuid));
   return { ...page, taxonomy_path: await taxonomyPath(row), taxonomies_for_nav: navTaxonomies };
 }
