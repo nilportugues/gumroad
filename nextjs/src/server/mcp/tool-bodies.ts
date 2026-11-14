@@ -1506,11 +1506,17 @@ async function planTags(productId: bigint, tags: unknown): Promise<TagPlan> {
   }
   const unique = [...new Set(names)];
   if (unique.some((name) => name.length < MIN_TAG_LENGTH || name.length > MAX_TAG_LENGTH))
-    return { error: new ToolRpcError(`each tag must be ${MIN_TAG_LENGTH}-${MAX_TAG_LENGTH} characters`, INVALID_PARAMS) };
-  if (unique.length > MAX_TAGS && unique.length >= (await db.productTagging.count({ where: { product_id: Number(productId) } })))
+    return {
+      error: new ToolRpcError(`each tag must be ${MIN_TAG_LENGTH}-${MAX_TAG_LENGTH} characters`, INVALID_PARAMS),
+    };
+  if (
+    unique.length > MAX_TAGS &&
+    unique.length >= (await db.productTagging.count({ where: { product_id: Number(productId) } }))
+  )
     return { error: new ToolRpcError(`a product can have up to ${MAX_TAGS} tags`, INVALID_PARAMS) };
   if (unique.length > 1) throw new HandBackToRails("several tags");
-  if (unique.some((name) => !PLAIN_TAG.test(name))) throw new HandBackToRails("a tag the Tag model would change or refuse");
+  if (unique.some((name) => !PLAIN_TAG.test(name)))
+    throw new HandBackToRails("a tag the Tag model would change or refuse");
   try {
     return { work: await planTagChanges(productId, unique) };
   } catch (caught) {
