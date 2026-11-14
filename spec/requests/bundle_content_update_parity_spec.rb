@@ -287,16 +287,96 @@ describe "Bundle content update", type: :request, elasticsearch_wait_for_refresh
       expect(response).to have_http_status(:see_other)
     end
 
-    it "hands an unpublish to Rails", parity: true do
+    it "unpublishes a published bundle", parity: true do
       update_content([entry(first_member), entry(second_member)], { unpublish: true })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Unpublished!")
+      expect(bundle.reload.purchase_disabled_at).to be_present
+    end
+
+    it "unpublishes and saves the new list of products in one request", parity: true do
+      update_content([entry(first_member, quantity: 4)], { unpublish: true })
+
+      expect(response).to have_http_status(:see_other)
+      expect(bundle.reload.purchase_disabled_at).to be_present
+      expect(second_member.reload).to be_deleted
+    end
+
+    it "unpublishes back to the page the save came from", parity: true do
+      update_content([entry(first_member), entry(second_member)], { unpublish: true }, headers: { "Referer" => "#{PROTOCOL}://#{DOMAIN}/bundles/#{bundle.external_id}/content/edit" })
+
+      expect(response).to redirect_to("#{PROTOCOL}://#{DOMAIN}/bundles/#{bundle.external_id}/content/edit")
+      expect(flash[:notice]).to eq("Unpublished!")
+    end
+
+    it "keeps the time a bundle was unpublished when it is unpublished again", parity: true do
+      bundle.update_columns(purchase_disabled_at: 3.days.ago)
+
+      update_content([entry(first_member), entry(second_member)], { unpublish: true })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+    end
+
+    it "saves a draft bundle that is asked to unpublish as a plain save", parity: true do
+      bundle.update_columns(draft: true)
+
+      update_content([entry(first_member), entry(second_member)], { unpublish: true })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+      expect(bundle.reload.purchase_disabled_at).to be_nil
+    end
+
+    it "saves a published bundle that is asked to publish as a plain save", parity: true do
+      update_content([entry(first_member), entry(second_member)], { publish: true })
+
+      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Changes saved!")
+    end
+
+    it "sends the seller to the path given as the redirect target", parity: true do
+      update_content([entry(first_member), entry(second_member)], { redirect_to: "/dashboard" })
+
+      expect(response).to redirect_to("#{PROTOCOL}://#{DOMAIN}/dashboard")
+      expect(flash[:notice]).to eq("Changes saved!")
+    end
+
+    it "keeps the query of a redirect target", parity: true do
+      update_content([entry(first_member), entry(second_member)], { redirect_to: "/products?sort=name" })
+
+      expect(response).to redirect_to("#{PROTOCOL}://#{DOMAIN}/products?sort=name")
+    end
+
+    it "reduces a redirect target on another host to its path", parity: true do
+      update_content([entry(first_member), entry(second_member)], { redirect_to: "https://evil.example.com/steal?x=1" })
+
+      expect(response).to redirect_to("#{PROTOCOL}://#{DOMAIN}/steal?x=1")
+    end
+
+    it "keeps a redirect target on this host", parity: true do
+      update_content([entry(first_member), entry(second_member)], { redirect_to: "#{PROTOCOL}://#{DOMAIN}/dashboard" })
+
+      expect(response).to redirect_to("#{PROTOCOL}://#{DOMAIN}/dashboard")
+    end
+
+    it "treats a backslash in a redirect target as a slash", parity: true do
+      update_content([entry(first_member), entry(second_member)], { redirect_to: "/\\evil.example.com" })
 
       expect(response).to have_http_status(:see_other)
     end
 
-    it "hands a redirect target to Rails", parity: true do
-      update_content([entry(first_member), entry(second_member)], { redirect_to: "/dashboard" })
+    it "prefers an unpublish over a redirect target", parity: true do
+      update_content([entry(first_member), entry(second_member)], { unpublish: true, redirect_to: "/dashboard" })
 
-      expect(response).to have_http_status(:see_other)
+      expect(flash[:notice]).to eq("Unpublished!")
+    end
+
+    it "ignores a blank redirect target", parity: true do
+      update_content([entry(first_member), entry(second_member)], { redirect_to: "" })
+
+      expect(flash[:notice]).to eq("Changes saved!")
     end
 
     it "hands a bundle that is not a bundle yet to Rails", parity: true do
