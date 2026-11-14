@@ -125,6 +125,14 @@ const selectSales = (where: Prisma.Sql, tail: Prisma.Sql) =>
   );
 
 async function saleJson(rows: Row[], sellerId: bigint, listed: boolean): Promise<Record<string, unknown>[]> {
+  // The sale JSON carries `url_params` (#8861), which purchase-json.ts does not print yet.
+  if (rows.length > 0) {
+    const ids = rows.map((row) => BigInt(row.id as bigint | number));
+    const [withParams] = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${column("purchase_url_parameters", "id")} FROM ${table("purchase_url_parameters")} WHERE ${column("purchase_url_parameters", "purchase_id")} IN (${Prisma.join(ids)}) LIMIT 1`,
+    );
+    if (withParams !== undefined) throw new HandBackToRails("a sale with URL parameters");
+  }
   if (!listed) return purchasesAsJsonV2(rows);
   const following = await followingEmails(sellerId, [...new Set(rows.map((row) => String(row.email)))]);
   return purchasesAsJsonV2(rows, { isFollowing: (row) => following.has(String(row.email ?? "").toLowerCase()) });
