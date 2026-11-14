@@ -993,8 +993,17 @@ describe("fields Rails writes that Node does not", () => {
     ["update_product", { id: "x", pay_what_you_want: true }],
     ["update_product", { id: "x", suggested_price_cents: 5 }],
     ["create_draft_product", { name: "n", price_cents: 5, currency: "eur" }],
-    ["create_draft_product", { name: "n", price_cents: 5, pay_what_you_want: true }],
-    ["create_draft_product", { name: "n", price_cents: 5, suggested_price_cents: 9 }],
+    ["create_draft_product", { name: "n", price_cents: 5, pay_what_you_want: "yes" }],
+    ["create_draft_product", { name: "n", price_cents: 5, pay_what_you_want: true, suggested_price_cents: 9.5 }],
+    [
+      "create_draft_product",
+      {
+        name: "n",
+        product_type: "membership",
+        pay_what_you_want: true,
+        tiers: [{ name: "t", price_cents: 5, recurrence: "monthly" }],
+      },
+    ],
     [
       "create_draft_product",
       {
