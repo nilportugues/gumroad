@@ -222,11 +222,15 @@ export async function behaviorFilterParams(
   const wider = compactBlank(await filterParamsBeforeBehavior(post));
   const params: FilterParams = { ...wider };
   if (behavior.opened !== null) {
-    const emails = await purchaseEmails(await openedRecipientPurchaseIds(decrypt(behavior.opened) ?? refuse("an opened post id")));
+    const emails = await purchaseEmails(
+      await openedRecipientPurchaseIds(decrypt(behavior.opened) ?? refuse("an opened post id")),
+    );
     // An empty opener list must match nobody: `compact_blank!` would drop it and count everyone.
     params.include_emails = emails.length > 0 ? emails : [""];
   } else if (behavior.notClicked !== null) {
-    const emails = await purchaseEmails(await clickedRecipientPurchaseIds(decrypt(behavior.notClicked) ?? refuse("a clicked post id")));
+    const emails = await purchaseEmails(
+      await clickedRecipientPurchaseIds(decrypt(behavior.notClicked) ?? refuse("a clicked post id")),
+    );
     if (emails.length > 0) params.exclude_emails = emails;
   }
   return { params, wider };
