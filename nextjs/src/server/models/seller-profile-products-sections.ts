@@ -14,7 +14,7 @@ import { NotPortedError } from "./user.ts";
 const SELLER: BelongsTo = { name: "seller", foreignKey: "seller_id", targetTable: "users", targetModel: "User" };
 const PRODUCTS_SECTION = "SellerProfileProductsSection";
 const FEATURED_PRODUCT_SECTION = "SellerProfileFeaturedProductSection";
-const PRODUCT_SORTS = ["page_layout", "newest", "highest_rated", "most_reviewed", "price_asc", "price_desc"];
+export const PRODUCT_SORTS = ["page_layout", "newest", "highest_rated", "most_reviewed", "price_asc", "price_desc"];
 const PRODUCTS_SECTION_KEYS = 4;
 
 type Hash = Prisma.JsonObject;
