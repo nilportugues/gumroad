@@ -345,7 +345,7 @@ describe "Wishlist show page", type: :request do
       expect(props.keys).not_to include("taxonomies_for_nav")
     end
 
-    it "hands a discover-layout wishlist of a buyer with four products in the cart to Rails", parity: true do
+    it "answers a discover-layout wishlist of a buyer with four products in the cart, whose curated products are empty", parity: true do
       cart = create(:cart, user: visitor)
       Array.new(4) { |index| create(:cart_product, cart:, product: seed_product("Seed #{index}")) }
       log_in(visitor)

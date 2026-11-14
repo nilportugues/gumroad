@@ -976,7 +976,7 @@ describe "Product page", type: :request do
           expect(nav_slugs.first).to eq("design")
         end
 
-        it "hands a visitor with four products in the cart to Rails", parity: true do
+        it "answers a visitor with four products in the cart, whose curated products are empty", parity: true do
           cart = create(:cart, user: visitor)
           Array.new(4) { |index| create(:cart_product, cart:, product: seed_product("Seed #{index}")) }
 
@@ -985,7 +985,7 @@ describe "Product page", type: :request do
           expect(response).to be_successful
         end
 
-        it "hands a visitor with three purchases and a cart product to Rails", parity: true do
+        it "answers a visitor with three purchases and a cart product, whose curated products are empty", parity: true do
           Array.new(3) { |index| buy(seed_product("Bought #{index}")) }
           create(:cart_product, cart: create(:cart, user: visitor), product: seed_product("Carted"))
 
