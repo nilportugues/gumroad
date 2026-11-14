@@ -312,12 +312,14 @@ describe("downloadPageFilters", () => {
       expect(mocks.contentItems).toHaveBeenCalledWith(expect.anything(), null, [30n]);
     });
 
-    it("hands back the license key and the seller's view of the pages of a version", async () => {
+    it("shows the license key of a version with no pages and hands it back once the version has pages", async () => {
       purchasedVersion();
       licensed([{ serial: "KEY-1" }]);
-      await expect(props()).rejects.toBeInstanceOf(HandBackToRails);
+      expect((await props()).content.license).toMatchObject({ license_key: "KEY-1" });
 
       mocks.db.richContent.findMany.mockResolvedValue([page(1n, 1)]);
+      await expect(props()).rejects.toBeInstanceOf(HandBackToRails);
+
       mocks.load.mockResolvedValue(loaded());
       await expect(props({ id: 2n })).rejects.toBeInstanceOf(HandBackToRails);
       await expect(props({ id: 9n })).resolves.toBeDefined();

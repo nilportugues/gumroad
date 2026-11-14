@@ -4,7 +4,7 @@
 import { escapeHtml } from "../erb/html.ts";
 import { perFormCsrfToken } from "../page-props/csrf.ts";
 
-import { type ActionContext, HandBackToRails, type Rendered } from "./application-controller.ts";
+import { type ActionContext, HandBackToRails, NotAcceptable, type Rendered } from "./application-controller.ts";
 import { renderApplicationPage } from "./erb-pages.ts";
 import { requestFormat } from "./rails-params.ts";
 import type { RailsRequest } from "./rails-request.ts";
@@ -78,8 +78,10 @@ ${providers}
 
 // GET /users/confirmation/new
 export function confirmationNewPage(request: RailsRequest, action: ActionContext): Promise<Rendered> {
-  // Rails answers an Inertia visit or a non-HTML format (406) from the same action; neither is a page to serve here.
-  if (request.headers.has("x-inertia")) throw new HandBackToRails("an Inertia visit of a Devise view");
+  // An Inertia visit gets the same page; a lone `Accept: application/json` is a 406. Other formats are not recorded.
+  const inertia = request.headers.has("x-inertia");
+  if (!inertia && request.headers.get("accept") === "application/json" && !request.headers.has("x-requested-with"))
+    throw new NotAcceptable();
   if (requestFormat(request) !== "html") throw new HandBackToRails("a Devise view in another format");
   return renderApplicationPage(request, action, null, (_ctx, csrfToken) => confirmationNewView(csrfToken));
 }
