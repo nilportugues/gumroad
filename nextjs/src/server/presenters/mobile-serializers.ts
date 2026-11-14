@@ -257,11 +257,9 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
     if (purchaser) json.user_id = purchaser.external_id;
   }
   json.is_archived = isFlag(source, "is_archived");
-  if (input.preorder) {
-    if (input.preorder.preorderData) json.preorder_data = input.preorder.preorderData;
-  } else {
-    json.custom_delivery_url = null;
-  }
+  if (input.preorder?.preorderData) json.preorder_data = input.preorder.preorderData;
+  // UrlRedirect#product_json_data (also the charge purchase's, for a charged preorder) sets it; Preorder's own branch does not.
+  if (!input.preorder || input.urlRedirect) json.custom_delivery_url = null;
   if (input.subscriptionData) json.subscription_data = input.subscriptionData;
   json.purchase_email = presence(purchase.email) ?? presence(purchaser?.email);
   json.quantity = purchase.quantity;
