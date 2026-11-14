@@ -66,6 +66,16 @@ describe "API v2 product enable", type: :request, parity_timeline: true do
     expect(product.draft).to be(false)
   end
 
+  it "cancels the pending publish schedule of a draft it publishes", parity: true do
+    product.update_columns(draft: true, purchase_disabled_at: nil)
+    create(:product_publish_schedule, product:, scheduled_by: seller, status: "scheduled")
+
+    enable
+
+    expect(response.parsed_body["success"]).to be(true)
+    expect(ProductPublishSchedule.where(product_id: product.id)).to be_empty
+  end
+
   it "keeps the date of the first publication when a product is enabled again", parity: true do
     product.update_columns(first_published_at: Time.utc(2025, 1, 1))
 

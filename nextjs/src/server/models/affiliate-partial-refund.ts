@@ -4,8 +4,11 @@
 import type { AffiliatePartialRefund } from "@prisma/client";
 
 import { performAsync } from "./concerns/job-runtime.ts";
-import { attributesCommitted, transactionalAttributeChangeTracker } from "./concerns/transactional-attribute-change-tracker.ts";
 import { loadBelongsTo, validatesAssociationPresence, type BelongsTo } from "./concerns/rails-validations.ts";
+import {
+  attributesCommitted,
+  transactionalAttributeChangeTracker,
+} from "./concerns/transactional-attribute-change-tracker.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import { connection } from "./sql.ts";
 
@@ -52,10 +55,7 @@ export const AffiliatePartialRefunds = defineModel<AffiliatePartialRefund>({
               "direct_affiliate_credit_amount_partially_refunded_cents",
               "direct_affiliate_credit_fee_partially_refunded_cents",
             ]
-          : [
-              "affiliate_credit_amount_partially_refunded_cents",
-              "affiliate_credit_fee_partially_refunded_cents",
-            ];
+          : ["affiliate_credit_amount_partially_refunded_cents", "affiliate_credit_fee_partially_refunded_cents"];
         await performAsync(
           "ElasticsearchIndexerWorker",
           ["update", { record_id: partialRefund.get("purchase_id"), class_name: "Purchase", fields }] as never,

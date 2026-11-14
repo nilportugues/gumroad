@@ -53,7 +53,9 @@ describe("Purchase#increment_sellers_balance! with an affiliate", () => {
         sql.log.push(`JOB ${jobClass}`);
         pushed.push(args);
       };
-      const jobArgs = ordered.flatMap((entry) => ("job" in entry ? [(entry as unknown as { args: unknown }).args] : []));
+      const jobArgs = ordered.flatMap((entry) =>
+        "job" in entry ? [(entry as unknown as { args: unknown }).args] : [],
+      );
       const flips = span.filter((entry): entry is Extract<Entry, { flipper: string }> => "flipper" in entry);
       withContext(purchase, {
         ...(purchase.ivars.context as object),
