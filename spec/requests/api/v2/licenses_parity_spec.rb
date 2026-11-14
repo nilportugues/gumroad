@@ -480,6 +480,71 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]["variants"]).to eq("(Gold, PDF)")
     end
 
+    it "serializes a license of a purchase with a SKU of a SKU-enabled product", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+      sale.variant_attributes << Sku.create!(link: product, name: "Large", price_difference_cents: 0)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Large)")
+    end
+
+    it "serializes a license of a purchase with a SKU of a product with a version category", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+      create(:variant_category, link: product, title: "Edition")
+      sale.variant_attributes << Sku.create!(link: product, name: "Large", price_difference_cents: 0)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Large)")
+    end
+
+    it "serializes a license of a purchase with a SKU that has a custom name", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+      sale.variant_attributes << Sku.create!(link: product, name: "Large", custom_sku: "LRG-1", price_difference_cents: 0)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Large)", "sku_id" => "LRG-1")
+    end
+
+    it "serializes a license of a purchase with a version of a SKU-enabled product", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+      sale.variant_attributes << create(:variant, variant_category: create(:variant_category, link: product, title: "Edition"), name: "Gold")
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Gold)", "sku_id" => "pid_#{product.external_id}")
+    end
+
+    it "serializes a license of a purchase with a SKU of a product that is not SKU-enabled", parity: true do
+      sale.variant_attributes << Sku.create!(link: product, name: "Large", custom_sku: "LRG-2", price_difference_cents: 0)
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "(Large)")
+      expect(response.parsed_body["purchase"]).not_to have_key("sku_id")
+    end
+
+    it "serializes a license of a purchase with the default SKU", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+      default = Sku.create!(link: product, name: "Default", price_difference_cents: 0)
+      default.update_columns(flags: default.flags | BaseVariant.flag_mapping["flags"][:is_default_sku])
+      sale.variant_attributes << default
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "")
+    end
+
+    it "serializes a license of a purchase of a SKU-enabled product with no variant", parity: true do
+      product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]).to include("variants" => "")
+    end
+
     it "serializes a license of a purchase with a fixed offer code", parity: true do
       offer_code = create(:offer_code, user: seller, products: [product], code: "SAVE10", amount_cents: 100)
       sale.update_column(:offer_code_id, offer_code.id)
@@ -603,12 +668,12 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]).to include("Optional" => "", "custom_fields" => ["Optional: "])
     end
 
-    it "hands a license of a purchase with a numeric custom field name to Rails", parity: true do
+    it "serializes a license of a purchase with a numeric custom field name", parity: true do
       PurchaseCustomField.create!(purchase: sale, field_type: "text", name: "42", value: "answer")
 
       verify(product_id: product.external_id, license_key: key)
 
-      expect(response.parsed_body["purchase"]["42"]).to eq("answer")
+      expect(response.parsed_body["purchase"]).to include("42" => "answer", "custom_fields" => ["42: answer"])
     end
 
     it "serializes a license of a purchase with a file custom field", parity: true do
@@ -812,7 +877,7 @@ describe "API v2 licenses", type: :request do
       expect(license.reload.disabled?).to eq(false)
     end
 
-    it "hands a license of a purchase with a SKU to Rails without enabling it", parity: true do
+    it "enables a license of a purchase with a SKU", parity: true do
       product.update_column(:flags, product.flags | Link.flag_mapping["flags"][:skus_enabled])
       sku = Sku.create!(link: product, name: "Large", price_difference_cents: 0)
       sale.variant_attributes << sku

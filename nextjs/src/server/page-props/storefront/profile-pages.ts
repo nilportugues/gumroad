@@ -409,6 +409,8 @@ async function coffeeFilters(chain: Chain): Promise<FilterOutcome> {
   const email = query.purchase_email;
   if (email !== undefined && typeof email !== "string") throw new HandBackToRails();
   if (typeof email === "string" && present(email)) {
+    // The free-signup copy lives in the session flash, which no recording compares; Rails keeps writing it.
+    if (query.purchase_free === "true") throw new HandBackToRails("a free signup notice");
     const noindex = chain.headers.get("x-robots-tag");
     return {
       halt: {
