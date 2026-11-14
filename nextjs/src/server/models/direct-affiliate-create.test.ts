@@ -64,8 +64,16 @@ describe("creationBlocker", () => {
     expect(mocks.selectRows).not.toHaveBeenCalled();
   });
 
-  it.each([99, 7501, 0])("hands back a fee of %i basis points", async (basisPoints) => {
-    expect(await creationBlocker(requested, { ...affiliate, basisPoints })).not.toBeNull();
+  it.each([99, 7501, 0])("refuses a fee of %i basis points with the validation message", async (basisPoints) => {
+    reads();
+    expect(await creationBlocker(requested, { ...affiliate, basisPoints })).toEqual({
+      refusal: "Affiliate commission must be between 1% and 75%.",
+    });
+  });
+
+  it("hands back a Brazilian account before the fee range, whose validation comes later", async () => {
+    reads({ brazilian: [{ id: 1 }] });
+    expect(await creationBlocker(requested, { ...affiliate, basisPoints: 9000 })).toMatch(/Brazilian/u);
   });
 
   it.each([100, 7500])("accepts a fee of %i basis points", async (basisPoints) => {
