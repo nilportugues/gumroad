@@ -162,7 +162,7 @@ describe("licensePurchaseJson", () => {
     await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/several variants/u);
   });
 
-  it("hands back a purchase with a SKU", async () => {
+  it("names a SKU in the variants string and leaves sku_id to a SKU-enabled product", async () => {
     database({
       links: [link],
       users: [seller],
@@ -170,7 +170,10 @@ describe("licensePurchaseJson", () => {
       base_variants: [{ id: 8n, type: "Sku", variant_category_id: null, name: "Large", flags: 0 }],
     });
 
-    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/SKU/u);
+    const json = await licensePurchaseJson(purchase, license);
+
+    expect(json).toMatchObject({ variants: "(Large)" });
+    expect(json).not.toHaveProperty("sku_id");
   });
 
   it("lists the custom fields as ping keys and as name and value strings", async () => {
@@ -192,14 +195,17 @@ describe("licensePurchaseJson", () => {
     });
   });
 
-  it("hands back a custom field whose name is a number", async () => {
+  it("serializes a custom field whose name is a number", async () => {
     database({
       links: [link],
       users: [seller],
       purchase_custom_fields: [{ id: 1n, purchase_id: 3n, field_type: "text", name: "42", value: "answer" }],
     });
 
-    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/ordinary key/u);
+    expect(await licensePurchaseJson(purchase, license)).toMatchObject({
+      "42": "answer",
+      custom_fields: ["42: answer"],
+    });
   });
 
   it("serializes a file custom field by its stored value", async () => {

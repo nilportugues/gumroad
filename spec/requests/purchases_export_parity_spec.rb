@@ -229,7 +229,7 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.size).to eq(3)
   end
 
-  it "hands a mobile export with the mobile token and an access token to Rails", parity: true do
+  it "answers 401 to a mobile export with the mobile token and an unknown access token", parity: true do
     sell
 
     get "/purchases/export", params: { access_token: "unknown", mobile_token: Api::Mobile::BaseController::MOBILE_TOKEN }
@@ -986,14 +986,17 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
       expect(column("Review")).to include("Sender note")
     end
 
-    it "hands a gifted membership whose receiver is on another subscription to Rails", parity: true do
+    it "writes a gifted membership whose receiver is on another subscription without a review", parity: true do
       sender = sell(of: membership, subscription: subscribed, is_original_subscription_purchase: true, is_gift_sender_purchase: true, price_cents: 300, email: "gifter@example.com")
       receiver = sell(of: membership, subscription: subscribed, state: "gift_receiver_purchase_successful", is_gift_receiver_purchase: true, price_cents: 0, email: "giftee@example.com")
       Gift.create!(link: membership, gifter_purchase: sender, giftee_purchase: receiver, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
+      ProductReview.insert_all!([{ purchase_id: sender.id, link_id: membership.id, rating: 4, message: "Sender note" }, { purchase_id: receiver.id, link_id: membership.id, rating: 2, message: "Receiver note" }])
 
       export
 
       expect(response).to have_http_status(:ok)
+      expect(column("Giftee Email")).to include("giftee@example.com")
+      expect(column("Review")).not_to include("Sender note", "Receiver note")
     end
 
     # Rails raises on these rows (a NoMethodError the request spec cannot record as a response), so Node leaves them to it.

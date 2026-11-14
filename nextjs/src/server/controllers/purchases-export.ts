@@ -2,12 +2,13 @@
 // Exports::PurchaseExportService.export: up to SYNCHRONOUS_EXPORT_THRESHOLD matching sales are returned as a CSV, more (or `force_async`)
 // create a SalesExport and enqueue Exports::Sales::CreateAndEnqueueChunksWorker.
 //
-// Handed to Rails whole, before any write: the mobile `access_token` form with the right `mobile_token` (a wrong one falls through to
+// Handed to Rails whole, before any write: the mobile `access_token` form with the right `mobile_token` and a token that exists (an unknown one is a 401 here; a wrong `mobile_token` falls through to
 // the login redirect, as in Rails), an `in_seller_time_zone` that is not a plain word or a seller
 // whose time zone name ActiveSupport::TimeZone::MAPPING does not hold, a date that is not an ISO day (optionally followed by a time of day),
 // and a result that holds a sale purchase-export-data.ts does not cover.
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
+import { doorkeeperAuthorize, doorkeeperToken } from "../auth/api-token.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { purchaseExportData } from "../exports/purchase-export-data.ts";
 import { purchaseExportCsv } from "../exports/purchase-export.ts";
@@ -108,7 +109,27 @@ async function exportPurchases(input: MutationInput): Promise<ActionResult> {
     if (known === undefined) throw new HandBackToRails("MOBILE_TOKEN is not configured");
     const given = params.mobile_token ?? "";
     if (typeof given !== "string") throw new HandBackToRails("a mobile_token that is not text");
-    if (given === known) throw new HandBackToRails("the mobile export, which signs in with an access token");
+    if (given === known) {
+      // `doorkeeper_authorize! :creator_api` halts with `head 401` for a token that does not exist; a token that does is Rails' to read.
+      const token = await doorkeeperToken({
+        authorization: input.request.headers.get("authorization"),
+        parameters: params,
+        path: input.request.path,
+      });
+      if (token !== null) throw new HandBackToRails("the mobile export, which signs in with an access token");
+      const refused = await doorkeeperAuthorize(null, ["creator_api"]);
+      if (refused.ok) throw new HandBackToRails("the mobile export, which signs in with an access token");
+      return {
+        status: refused.status,
+        body: "",
+        contentType: "text/html",
+        headers: Object.fromEntries(
+          Object.entries(refused.headers).map(([name, value]) => [name.toLowerCase(), value]),
+        ),
+        rescued: true,
+        paramsRead: true,
+      };
+    }
   }
   const signedOut = signedOutRefusal(input);
   if (signedOut !== null) return signedOut;
