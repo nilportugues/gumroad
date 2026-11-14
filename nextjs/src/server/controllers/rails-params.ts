@@ -50,72 +50,153 @@ export function assertFlatQuery(query: string, arrayKeys: string[] = []): void {
   if (/(?:^|[&;])[^=&;]*(?:\[|%5B)/iu.test(rest)) throw new HandBackToRails();
 }
 
-// The top-level keys of `params` Rack builds from a query string, for a caller that reads only which keys exist and whether a flat
-// one has a value (`a` has none, `a=` has an empty string). `a[]`, `a[b]` and `a[b][c]` hang a list or a hash of any depth from the
-// key. A name that is only brackets, a bracket that does not close or sits before the last segment as `[]`, and a name Rack would
-// raise a 400 for (one path used as two kinds of value) go to Rails. Later pairs of a flat name win.
+// Rack 3.2's Rack::QueryParser#parse_nested_query, for a caller that reads only which top-level keys exist and whether a flat one has a
+// value (`a` has none, `a=` has an empty string). `a[]`, `a[b]` and `a[b][c]` hang a list or a hash of any depth from the key. Later pairs
+// of a flat name overwrite whatever the name held. A "%" without two hex digits after it makes Rack raise InvalidParameterError, which
+// CatchBadRequestErrors answers with a 400 (isRackBadRequest, a hand-back for a caller that has not recorded that answer). A name used as two
+// kinds of value raises ParameterTypeError, which Rack::Attack's `invalid_params` rule does not rescue: what it counts is not recorded.
 export type RackTopLevelParam = { nested: false; value: string | null } | { nested: true };
 
-type RackNode = "leaf" | "list" | Map<string, RackNode>;
+// A hand-back tagged with what Rack raised. Not a subclass: application-controller imports rack-attack, which imports this module, so
+// `extends HandBackToRails` would run before the class exists.
+type RackErrorKind = "bad-request" | "parameter-type";
+const rackError = (kind: RackErrorKind, message: string) =>
+  Object.assign(new HandBackToRails(message), { rackKind: kind });
+export const isRackBadRequest = (error: unknown): boolean =>
+  error instanceof HandBackToRails && (error as { rackKind?: RackErrorKind }).rackKind === "bad-request";
 
-const NESTED_SEGMENT = /\[([^[\]]*)\]/uy;
+// Rack's default param_depth_limit is not recorded, so a deeper name goes to Rails.
+const RACK_DEPTH_LIMIT = 32;
+// Rack's pair and byte limits (RACK_QUERY_PARSER_PARAMS_LIMIT, _BYTESIZE_LIMIT) raise past these; a query this size goes to Rails.
+const RACK_PARAMS_LIMIT = 4096;
+const RACK_BYTESIZE_LIMIT = 4_194_304;
 
-export function rackTopLevelParams(query: string): Map<string, RackTopLevelParam> {
-  const params = new Map<string, RackTopLevelParam>();
-  const trees = new Map<string, RackNode>();
-  for (const pair of query.replace(/^\?/u, "").split("&")) {
-    if (pair === "") continue;
-    const index = pair.indexOf("=");
-    let name: string;
-    let value: string | null = null;
-    try {
-      name = decodeURIComponent((index === -1 ? pair : pair.slice(0, index)).replaceAll("+", " "));
-      if (index !== -1) value = decodeURIComponent(pair.slice(index + 1).replaceAll("+", " "));
-    } catch {
-      throw new HandBackToRails("a query string with an invalid percent escape");
+type RackValue = string | null | RackValue[] | RackHash;
+type RackHash = Map<string, RackValue>;
+
+// URI.decode_www_form_component: "+" is a space, "%XX" a byte, any other "%" raises.
+function rackUnescape(text: string): string {
+  if (/%(?![0-9a-fA-F]{2})/u.test(text))
+    throw rackError("bad-request", "a query string with an invalid percent escape");
+  const bytes = Buffer.from(text.replaceAll("+", " "), "latin1");
+  const decoded: number[] = [];
+  for (let index = 0; index < bytes.length; index++) {
+    const byte = bytes[index]!;
+    if (byte === 0x25) {
+      decoded.push(Number.parseInt(bytes.toString("latin1", index + 1, index + 3), 16));
+      index += 2;
+    } else decoded.push(byte);
+  }
+  return Buffer.from(decoded).toString("utf8");
+}
+
+const isHash = (value: RackValue | undefined): value is RackHash => value instanceof Map;
+
+// The `[]` and `[a]` keys of a nested name (`params_hash_has_key?`).
+function rackHashHasKey(hash: RackHash, key: string): boolean {
+  if (key.includes("[]")) return false;
+  let current: RackValue | undefined = hash;
+  for (const part of key.split(/[[\]]+/u)) {
+    if (part === "") continue;
+    if (!isHash(current) || !current.has(part)) return false;
+    current = current.get(part);
+  }
+  return true;
+}
+
+function wrongType(expected: "Array" | "Hash"): never {
+  throw rackError(
+    "parameter-type",
+    `a query parameter used as a flat value and as ${expected === "Array" ? "a list" : "a hash"}`,
+  );
+}
+
+// Rack::QueryParser#_normalize_params. Returns what Ruby returns: the params, `[v]` for a bare "[]" below the top, nil for an empty key.
+function normalizeParams(
+  params: RackHash,
+  name: string,
+  v: string | null,
+  depth: number,
+): RackHash | RackValue[] | undefined {
+  if (depth >= RACK_DEPTH_LIMIT) throw new HandBackToRails("a query parameter nested too deeply");
+  let key: string;
+  let after: string;
+  if (depth === 0) {
+    const start = name.indexOf("[", 1);
+    key = start === -1 ? name : name.slice(0, start);
+    after = start === -1 ? "" : name.slice(start);
+  } else if (name.startsWith("[]")) {
+    key = "[]";
+    after = name.slice(2);
+  } else if (name.startsWith("[") && name.indexOf("]", 1) !== -1) {
+    const close = name.indexOf("]", 1);
+    key = name.slice(1, close);
+    after = name.slice(close + 1);
+  } else {
+    key = name;
+    after = "";
+  }
+  if (key === "") return undefined;
+
+  if (after === "") {
+    if (key === "[]" && depth !== 0) return [v];
+    params.set(key, v);
+  } else if (after === "[") {
+    params.set(name, v);
+  } else if (after === "[]") {
+    const list = listAt(params, key);
+    list.push(v);
+  } else if (after.startsWith("[]")) {
+    let childKey = after.slice(3, -1);
+    const hashInList =
+      after[2] === "[" && after.endsWith("]") && childKey !== "" && !childKey.includes("[") && !childKey.includes("]");
+    if (!hashInList) childKey = after.slice(2);
+    const list = listAt(params, key);
+    const last = list.at(-1);
+    if (isHash(last) && !rackHashHasKey(last, childKey)) normalizeParams(last, childKey, v, depth + 1);
+    else list.push(normalizeParams(new Map(), childKey, v, depth + 1) as RackValue);
+  } else {
+    let existing = params.get(key);
+    if (existing === undefined || existing === null) {
+      existing = new Map();
+      params.set(key, existing);
     }
-    const base = /^[^[\]]+/u.exec(name)?.[0];
-    if (base === undefined) throw new HandBackToRails("a query parameter name that is only brackets");
-    const segments: string[] = [];
-    let position = base.length;
-    while (position < name.length) {
-      NESTED_SEGMENT.lastIndex = position;
-      const match = NESTED_SEGMENT.exec(name);
-      if (!match) throw new HandBackToRails("a query parameter name with an unbalanced bracket");
-      segments.push(match[1]!);
-      position = NESTED_SEGMENT.lastIndex;
-    }
-    if (segments.slice(0, -1).includes("")) throw new HandBackToRails("a query parameter list of nested values");
-    const shape = segments.length === 0 ? "leaf" : segments.at(-1) === "" ? "list" : "hash";
-    if (!mergeRackNode(trees, base, segments, shape))
-      throw new HandBackToRails("a query parameter used as two kinds of value");
-    params.set(base, segments.length === 0 ? { nested: false, value } : { nested: true });
+    if (!isHash(existing)) wrongType("Hash");
+    params.set(key, normalizeParams(existing, after, v, depth + 1) as RackValue);
   }
   return params;
 }
 
-// Merges one pair into the tree Rack keeps per top-level key; false is where Rack raises ParameterTypeError.
-function mergeRackNode(trees: Map<string, RackNode>, base: string, segments: string[], shape: "leaf" | "list" | "hash") {
-  const path = segments.at(-1) === "" ? segments.slice(0, -1) : segments;
-  let parent: Map<string, RackNode> = trees;
-  let key = base;
-  for (const segment of path) {
-    let node = parent.get(key);
-    if (node === undefined) {
-      node = new Map();
-      parent.set(key, node);
-    }
-    if (!(node instanceof Map)) return false;
-    parent = node;
-    key = segment;
+// `params[k] ||= []`, then the Array check.
+function listAt(params: RackHash, key: string): RackValue[] {
+  let existing = params.get(key);
+  if (existing === undefined || existing === null) {
+    existing = [];
+    params.set(key, existing);
   }
-  const existing = parent.get(key);
-  const wanted: RackNode = shape === "list" ? "list" : "leaf";
-  if (existing === undefined) {
-    parent.set(key, wanted);
-    return true;
+  if (!Array.isArray(existing)) wrongType("Array");
+  return existing;
+}
+
+export function rackTopLevelParams(query: string): Map<string, RackTopLevelParam> {
+  const text = query.replace(/^\?/u, "");
+  if (text.length > RACK_BYTESIZE_LIMIT) throw new HandBackToRails("a query string over Rack's size limit");
+  const pairs = text.split("&");
+  if (pairs.length >= RACK_PARAMS_LIMIT) throw new HandBackToRails("a query string over Rack's pair limit");
+  const params: RackHash = new Map();
+  for (const pair of pairs) {
+    if (pair === "") continue;
+    const index = pair.indexOf("=");
+    const name = rackUnescape(index === -1 ? pair : pair.slice(0, index));
+    const value = index === -1 ? null : rackUnescape(pair.slice(index + 1));
+    normalizeParams(params, name, value, 0);
   }
-  return existing === wanted;
+  return new Map(
+    [...params].map(([key, value]): [string, RackTopLevelParam] => [
+      key,
+      typeof value === "string" || value === null ? { nested: false, value } : { nested: true },
+    ]),
+  );
 }
 
 // ActionDispatch::Request#referrer
