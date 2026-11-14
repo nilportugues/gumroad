@@ -277,12 +277,13 @@ describe "Post comments mutations when signed in", type: :request do
       end
     end
 
-    it "hands a request with a purchase id to Rails", parity: true do
+    it "reads a purchase id that names no purchase as none", parity: true, parity_mail_jobs: true do
       sign_in_on_main_domain(reader)
 
       send_json(:post, "/posts/#{post_record.external_id}/comments", { purchase_id: "unknownpurchase", comment: { content: "Hello" } })
 
-      expect(response).to have_http_status(:unprocessable_entity).or be_successful.or have_http_status(:unauthorized)
+      expect(response).to be_successful
+      expect(response.parsed_body["comment"]["content"]["original"]).to eq("Hello")
     end
   end
 
@@ -300,6 +301,15 @@ describe "Post comments mutations when signed in", type: :request do
     it "refuses the seller the edit of another person's comment", parity: true do
       comment = comment_on(post_record, author: reader)
       sign_in_on_main_domain(seller)
+
+      send_json(:put, "/posts/#{post_record.external_id}/comments/#{comment.external_id}", { comment: { content: "Edited" } })
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(comment.reload.content).to eq("Hello there")
+    end
+
+    it "refuses a signed-out visitor the edit", parity: true do
+      comment = comment_on(post_record, author: reader)
 
       send_json(:put, "/posts/#{post_record.external_id}/comments/#{comment.external_id}", { comment: { content: "Edited" } })
 
@@ -411,12 +421,13 @@ describe "Post comments mutations when signed in", type: :request do
       expect(comment.reload.deleted_at).to be_nil
     end
 
-    it "hands a signed-out visitor to Rails", parity: true do
+    it "refuses a signed-out visitor", parity: true do
       comment = comment_on(post_record, author: reader)
 
       send_json(:delete, "/posts/#{post_record.external_id}/comments/#{comment.external_id}")
 
-      expect(response).to have_http_status(:unauthorized).or have_http_status(:not_found)
+      expect(response).to have_http_status(:unauthorized)
+      expect(comment.reload.deleted_at).to be_nil
     end
   end
 

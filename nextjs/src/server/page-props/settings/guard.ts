@@ -23,6 +23,7 @@ const humanize = (role: string) => role.charAt(0).toUpperCase() + role.slice(1);
 
 // PunditAuthorization#build_error_message
 export function notAllowedMessage(context: SellerContext): string {
+  if (context.user === null) return GENERIC_NOT_ALLOWED;
   const c = requireUser(context);
   if (roleOwnerFor(c)) return GENERIC_NOT_ALLOWED;
   try {
