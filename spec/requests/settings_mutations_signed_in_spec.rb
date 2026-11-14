@@ -1044,7 +1044,7 @@ describe "Settings mutations when signed in", type: :request do
         expect(response).to have_http_status(:forbidden)
       end
 
-      it "hands a request without a team_membership hash to Rails", parity: true do
+      it "answers 400 to a request without a team_membership hash", parity: true do
         log_in(seller)
 
         send_json(:put, settings_team_member_path(membership.external_id, format: :json), {})

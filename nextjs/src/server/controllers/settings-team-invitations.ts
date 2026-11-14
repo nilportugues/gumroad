@@ -40,7 +40,7 @@ import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { NotAuthorizedError, loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 import { settingsTeamInvitationPolicy } from "../policies/settings/team-invitation.ts";
 
-import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult } from "./application-controller.ts";
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { toSentence } from "./settings-mutations.ts";
@@ -71,6 +71,8 @@ function permittedInvitation(
   keys: ("email" | "role")[],
 ): { email?: string | null; role?: string | null } {
   const value = params.team_invitation;
+  // `require` on an absent key raises ParameterMissing, a 400.
+  if (!("team_invitation" in params)) throw new ParameterMissing();
   if (!isHash(value) || Object.keys(value).length === 0)
     throw new HandBackToRails("a request without a team_invitation hash");
   const permitted: { email?: string | null; role?: string | null } = {};

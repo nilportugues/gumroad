@@ -527,7 +527,7 @@ describe "Links controller guards", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
-    it "hands a request without a tier to Rails", parity: true do
+    it "answers 400 for a request without a tier", parity: true do
       log_in(seller)
 
       send_sample({ amount: "5", recurrence: "monthly" })
@@ -535,7 +535,7 @@ describe "Links controller guards", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a request without an amount to Rails", parity: true do
+    it "answers 400 for a request without an amount", parity: true do
       log_in(seller)
 
       send_sample({ tier_id: tier.external_id, recurrence: "monthly" })

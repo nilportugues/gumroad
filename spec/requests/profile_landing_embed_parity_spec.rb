@@ -4,8 +4,8 @@ require "spec_helper"
 
 # The sandboxed document of a seller's custom HTML profile (UsersController#landing_iframe_content), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/profile-landing-embed.replay.test.ts, which sends the last request of each
-# example. Node renders the page of a seller whose `gumroad-data` payload it can build (no post, no reputation summary, products with no
-# thumbnail or cover and a plain USD price); the examples named "hands ..." are what stays in Rails.
+# example. Node renders the page of a seller whose `gumroad-data` payload it can build (posts with distinct publish times, the seller rating, products
+# with no thumbnail or cover and a plain USD price); the examples named "hands ..." are what stays in Rails.
 describe "Profile landing embed", type: :request do
   include Parity::AudienceSignedIn
 
@@ -347,16 +347,79 @@ describe "Profile landing embed", type: :request do
       expect(embedded_products["products"].first["description"]).to eq("Hello &amp; welcome")
     end
 
-    it "hands a seller with a published post to Rails", parity: true do
-      create(:audience_installment, seller:, name: "News", published_at: 1.day.ago, shown_on_profile: true)
+    it "lists a published post with its URL and publish time", parity: true do
+      create(:audience_installment, seller:, name: "News", published_at: Time.utc(2026, 1, 2, 3, 4, 5), shown_on_profile: true)
 
-      expect(embedded_products["posts"].map { |post| post["name"] }).to eq(["News"])
+      payload = embedded_products
+
+      expect(payload["posts"]).to eq([{ "name" => "News", "url" => "#{seller.subdomain_with_protocol}/p/#{Installment.last.slug}", "published_at" => "2026-01-02T03:04:05Z" }])
+      expect(payload["posts_total"]).to eq(1)
     end
 
-    it "hands a seller with the reputation summary to Rails", parity: true do
-      Feature.activate_user(:seller_reputation_summary, seller)
+    it "lists the newest posts first and leaves out what the profile does not show", parity: true do
+      create(:audience_installment, seller:, name: "Older", published_at: 3.days.ago, shown_on_profile: true)
+      create(:audience_installment, seller:, name: "Newer", published_at: 1.day.ago, shown_on_profile: true)
+      create(:audience_installment, seller:, name: "Hidden", published_at: 2.days.ago, shown_on_profile: false)
+      create(:audience_installment, seller:, name: "Draft", published_at: nil, shown_on_profile: true)
+      create(:audience_installment, seller:, name: "Deleted", published_at: 2.days.ago, shown_on_profile: true).update_columns(deleted_at: Time.current)
+      create(:audience_installment, seller:, name: "Workflow", published_at: 2.days.ago, shown_on_profile: true, workflow: create(:workflow, seller:))
+      create(:follower_installment, seller:, name: "Followers", published_at: 2.days.ago, shown_on_profile: true)
 
-      expect(embedded_products).to have_key("products")
+      payload = embedded_products
+
+      expect(payload["posts"].map { |post| post["name"] }).to eq(%w[Newer Older])
+      expect(payload["posts_total"]).to eq(2)
+    end
+
+    it "gives a post with no slug a null URL", parity: true do
+      create(:audience_installment, seller:, name: "Slugless", published_at: 1.day.ago, shown_on_profile: true).update_columns(slug: nil)
+
+      expect(embedded_products["posts"].first["url"]).to be_nil
+    end
+
+    it "counts the posts beyond the 100 it lists", parity: true do
+      101.times { |i| create(:audience_installment, seller:, name: "Post #{i}", published_at: (i + 1).minutes.ago, shown_on_profile: true) }
+
+      payload = embedded_products
+
+      expect(payload["posts"].size).to eq(100)
+      expect(payload["posts_total"]).to eq(101)
+    end
+
+    it "hands posts that share a publish time to Rails", parity: true do
+      2.times { |i| create(:audience_installment, seller:, name: "Tie #{i}", published_at: Time.utc(2026, 1, 2, 3, 4, 5), shown_on_profile: true) }
+
+      expect(embedded_products["posts"].size).to eq(2)
+    end
+
+    describe "seller rating" do
+      before { Feature.activate_user(:seller_reputation_summary, seller) }
+
+      def reviewed(name, stat)
+        create(:product, user: seller, name:, display_product_reviews: true).tap { |product| ProductReviewStat.create!(stat.merge(link: product)) }
+      end
+
+      it "is null below the display gate", parity: true do
+        reviewed("Alpha", reviews_count: 2, average_rating: 5.0, ratings_of_five_count: 2)
+
+        expect(embedded_products).to include("seller_rating" => nil)
+      end
+
+      it "summarises the reviews of the products that show them", parity: true do
+        reviewed("Alpha", reviews_count: 8, average_rating: 5.0, ratings_of_five_count: 8)
+        reviewed("Beta", reviews_count: 4, average_rating: 3.5, ratings_of_four_count: 3, ratings_of_one_count: 1)
+        create(:product, user: seller, name: "Hidden", display_product_reviews: false).tap { |product| ProductReviewStat.create!(link: product, reviews_count: 50, average_rating: 1.0, ratings_of_one_count: 50) }
+
+        expect(embedded_products["seller_rating"]).to eq("average" => 4.4, "count" => 12, "products_count" => 2)
+      end
+
+      it "keeps the fraction of a whole-number average", parity: true do
+        reviewed("Alpha", reviews_count: 6, average_rating: 5.0, ratings_of_five_count: 6)
+        reviewed("Beta", reviews_count: 6, average_rating: 5.0, ratings_of_five_count: 6)
+
+        expect(embedded_products["seller_rating"]).to eq("average" => 5.0, "count" => 12, "products_count" => 2)
+        expect(response.body).to include('"average":5.0')
+      end
     end
   end
 end

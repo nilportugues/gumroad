@@ -116,7 +116,7 @@ describe "Settings team invitations when signed in", type: :request do
       expect(invitation.reload.role).to eq(TeamInvitation::ROLES.first)
     end
 
-    it "hands a request without a team_invitation hash to Rails", parity: true do
+    it "answers 400 to a request without a team_invitation hash", parity: true do
       log_in(seller)
 
       send_json(:put, invitation_path, {})
@@ -381,7 +381,7 @@ describe "Settings team invitations when signed in", type: :request do
       expect(response.parsed_body).to eq("success" => true)
     end
 
-    it "hands a request without a team_invitation hash to Rails", parity: true do
+    it "answers 400 to a request without a team_invitation hash", parity: true do
       log_in(seller)
 
       send_json(:post, invite_path, {})

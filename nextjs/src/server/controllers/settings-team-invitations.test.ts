@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Errors } from "../models/runtime/errors.ts";
 
-import { HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const {
@@ -115,9 +115,13 @@ beforeEach(() => {
 describe("PUT /settings/team/invitations/:id", () => {
   const run = (mutation: MutationInput) => find("PUT", INVITATION).run(mutation);
 
-  it("hands back a request without a team_invitation hash after authorizing it", async () => {
-    await expect(run(input({}))).rejects.toBeInstanceOf(HandBackToRails);
+  it("answers a request without a team_invitation key with a 400 after authorizing it", async () => {
+    await expect(run(input({}))).rejects.toBeInstanceOf(ParameterMissing);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("hands back an empty team_invitation hash, which no recording covers", async () => {
+    await expect(run(input({ team_invitation: {} }))).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it.each([

@@ -272,7 +272,10 @@ describe.skipIf(!url)("rest sweep 2", () => {
     // Rails renders its debug page for these 404s in the test environment; only the status is compared.
     compare: name.includes("404")
       ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
-      : COMPARE,
+      : // A 400 gets the same page, with a content type Node now answers.
+        name.includes("answers-400")
+        ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
+        : COMPARE,
   });
 
   it("finds the fixtures", () => {
