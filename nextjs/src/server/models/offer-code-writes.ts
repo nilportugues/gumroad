@@ -128,9 +128,14 @@ const attributesOf = (record: OfferCodeWrite) => ({
 });
 
 // OfferCode#is_amount_valid? (an untiered code)
-export async function isAmountValid(record: OfferCodeWrite, product: Link): Promise<boolean> {
+// `prices` stands in for the stored buy prices of a product that is not saved yet.
+export async function isAmountValid(
+  record: OfferCodeWrite,
+  product: Link,
+  prices?: (number | null)[],
+): Promise<boolean> {
   const minPrice = currencyOf(product.price_currency_type)!.min_price;
-  for (const unitPriceCents of await availablePriceCents(product)) {
+  for (const unitPriceCents of prices ?? (await availablePriceCents(product))) {
     const eligible = (unitPriceCents ?? 0) * eligibleQuantity(record);
     const priceAfterCode = eligible - amountOff(attributesOf(record), eligible);
     if (!(priceAfterCode <= 0 || priceAfterCode >= minPrice)) return false;
