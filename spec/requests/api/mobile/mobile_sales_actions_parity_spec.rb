@@ -304,7 +304,7 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       expect(ProductReviewResponse.sole.message).to eq("First")
     end
 
-    it "hands a reply to the review of a gift sender's sale to Rails", parity: true do
+    it "does not find a review for a gift sender's sale whose giftee never bought", parity: true do
       create(:product_review, purchase: sale, link: product, rating: 4, message: "Great")
       sale.update_attribute(:is_gift_sender_purchase, true)
       create(:gift, link: product, gifter_purchase: sale)
@@ -312,6 +312,27 @@ describe "Mobile API sales actions", type: :request, elasticsearch_wait_for_refr
       put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller).merge(message: "Thanks")
 
       expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Could not find review")
+    end
+
+    it "does not find a review for a gift sender's sale without a gift", parity: true do
+      sale.update_attribute(:is_gift_sender_purchase, true)
+
+      put "/mobile/sales/#{sale.external_id}/review_response", params: auth(seller).merge(message: "Thanks")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Could not find review")
+    end
+
+    it "does not find a review for a membership sale without one", parity: true do
+      membership = create(:membership_product, user: seller)
+      subscription = create(:subscription, link: membership, user: buyer)
+      recurring = purchase_row(link: membership, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", is_original_subscription_purchase: true, subscription:)
+
+      put "/mobile/sales/#{recurring.external_id}/review_response", params: auth(seller).merge(message: "Thanks")
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Could not find review")
     end
   end
 

@@ -157,7 +157,29 @@ const isBlank = (value: unknown) =>
   (Array.isArray(value) && value.length === 0) ||
   (typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0);
 
-type ParsedEntry = { id: number } | { error: string };
+type ParsedEntry = { id: number; header?: string } | { error: string };
+
+const HIDE_HEADER_FLAG = 2n;
+// SellerProfileRichTextSection#limit_text_size is 500_000; a section near it is left to Rails, whose to_json length this does not reproduce to the character.
+const TEXT_SIZE_MARGIN = 400_000;
+
+// What a header sent for a rich text section has to be for the update to be a plain change of `header`: a visible ASCII character keeps `blank?` (and with it
+// `hide_header`) out of it, a section that already hides its header would have `hide_header` cleared, and a text near the size limit might fail validation.
+function plainHeaderChange(
+  section: { type: string | null; flags: bigint; json_data: unknown },
+  header: string,
+): boolean {
+  if (section.type !== "SellerProfileRichTextSection" || (section.flags & HIDE_HEADER_FLAG) !== 0n) return false;
+  if (!/[!-~]/u.test(header)) return false;
+  try {
+    const data = (
+      typeof section.json_data === "string" ? JSON.parse(section.json_data) : (section.json_data ?? {})
+    ) as { text?: unknown };
+    return JSON.stringify(data.text ?? null).length < TEXT_SIZE_MARGIN;
+  } catch {
+    return false;
+  }
+}
 
 // ProductSectionsWriter#parse_entry. An entry that keeps a section as it is is served here; one that creates or
 // changes a section writes, so it goes to Rails whole.
@@ -186,14 +208,23 @@ async function parseEntry(entry: unknown, product: Link, json: boolean): Promise
   if (typeof id !== "string") return { error: ENTRY_MESSAGE };
   const decrypted = decrypt(id);
   if (decrypted === null) return { error: "One or more sections were not found." };
-  const [section] = await selectRows<{ product_id: bigint | null }>(
-    Prisma.sql`SELECT ${column("seller_profile_sections", "product_id")} FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "id")} = ${decrypted}`,
+  const [section] = await selectRows<{
+    product_id: bigint | null;
+    type: string | null;
+    header: string | null;
+    flags: bigint;
+    json_data: unknown;
+  }>(
+    Prisma.sql`SELECT ${column("seller_profile_sections", "product_id")}, ${column("seller_profile_sections", "type")}, ${column("seller_profile_sections", "header")}, ${column("seller_profile_sections", "flags")}, ${column("seller_profile_sections", "json_data")} FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "id")} = ${decrypted}`,
   );
   if (section === undefined || section.product_id === null || Number(section.product_id) !== Number(product.id))
     return { error: OWNERSHIP_MESSAGE };
-  if (Object.keys(fields).some((key) => key !== "id" && key !== "type"))
+  if (Object.keys(fields).some((key) => key !== "id" && key !== "type" && key !== "header"))
     throw new HandBackToRails("a change to the contents of a profile section");
-  return { id: decrypted };
+  if (typeof header !== "string") return { id: decrypted };
+  if (!plainHeaderChange(section, header))
+    throw new HandBackToRails("a header change that is not a plain one on a rich text section");
+  return header === section.header ? { id: decrypted } : { id: decrypted, header };
 }
 
 export async function updateSections(input: ApiV2Input) {
@@ -203,10 +234,12 @@ export async function updateSections(input: ApiV2Input) {
   if (!Array.isArray(sections)) return renderResponse(false, { message: ENTRY_MESSAGE });
   const json = isJsonBody(input);
   const ids: number[] = [];
+  const headers: { id: number; header: string }[] = [];
   for (const entry of sections) {
     const parsed = await parseEntry(entry, product, json);
     if ("error" in parsed) return renderResponse(false, { message: parsed.error });
     ids.push(parsed.id);
+    if (parsed.header !== undefined) headers.push({ id: parsed.id, header: parsed.header });
   }
   if (new Set(ids).size !== ids.length)
     return renderResponse(false, { message: "sections must not list the same section twice." });
@@ -252,6 +285,11 @@ export async function updateSections(input: ApiV2Input) {
         });
         return;
       }
+      // section.update!(header:) for each entry that changes one, ahead of the product's save.
+      for (const { id, header } of headers)
+        await execute(
+          Prisma.sql`UPDATE ${table("seller_profile_sections")} SET ${column("seller_profile_sections", "header")} = ${header}, ${column("seller_profile_sections", "updated_at")} = ${new Date()} WHERE ${column("seller_profile_sections", "id")} = ${id}`,
+        );
       setJsonDataForAttr(record, "sections", ids);
       if (mainSectionIndex !== null) setJsonDataForAttr(record, "main_section_index", mainSectionIndex);
       await Links.saveBang(record);

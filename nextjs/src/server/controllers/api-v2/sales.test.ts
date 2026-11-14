@@ -45,7 +45,7 @@ describe("POST /v2/sales/exports", () => {
     expect(queueSalesExport).not.toHaveBeenCalled();
   });
 
-  it.each([["2026-01-05abc"], ["2026-01-05 25:00:00"], [20260105], [["2026-01-05"]]])(
+  it.each([["2026-01-05abx"], ["2026-1-5abc"], ["2026-01-05 25:00:00"], [20260105], [["2026-01-05"]]])(
     "hands the date %j to Rails",
     async (from) => {
       await expect(call({ from })).rejects.toBeInstanceOf(HandBackToRails);

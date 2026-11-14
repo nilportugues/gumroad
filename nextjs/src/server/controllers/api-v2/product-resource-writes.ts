@@ -49,12 +49,25 @@ const FILE_FIELD_NAME = "File upload";
 const COLLECT_PER_PRODUCT_FLAG = 2n;
 
 // String#blank?: empty or only whitespace (Unicode spaces included).
-const blank = (value: string) => /^[\s\u0085᠎]*$/u.test(value);
+const blank = (value: string) => /^[\s\u0085\u180E]*$/u.test(value);
 
 // A parameter that is a string or absent. Rails would cast another JSON type (a number, a list) in ways the port does not follow.
 function stringParam(value: unknown): string | null | undefined {
   if (value === undefined || value === null || typeof value === "string") return value;
   throw new NotPortedError("a custom field parameter that is not a string");
+}
+
+// A `name` sent as a JSON list reaches the string column as Array#to_s, which is Array#inspect. Only lists of plain strings are followed: inspect
+// escapes quotes, backslashes, `#` and anything non-ASCII, and the port does not.
+const INSPECT_PLAIN = /^[A-Za-z0-9 _-]+$/u;
+function nameParam(value: unknown): string | null | undefined {
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === "string" && INSPECT_PLAIN.test(item))
+  )
+    return `[${value.map((item) => `"${item as string}"`).join(", ")}]`;
+  return stringParam(value);
 }
 
 const presence = (value: string | null | undefined): string | null =>
@@ -102,7 +115,7 @@ registerApiV2(
     async run(input) {
       const { params, owner } = input;
       const name =
-        presence(stringParam(params.name)) ?? presence(stringParam(params.url)) ?? presence(stringParam(params.label));
+        presence(nameParam(params.name)) ?? presence(stringParam(params.url)) ?? presence(stringParam(params.label));
       if (name === null) return errorWithCreatingObject("custom_field");
       const type = stringParam(params.type);
       const draft = withDefaultName({ field_type: type ?? "text", name, flags: 0n });

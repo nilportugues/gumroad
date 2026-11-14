@@ -108,7 +108,7 @@ describe "API v2 sales export", type: :request do
     export(from: "2026-1-5", to: "2026-2-3")
   end
 
-  it "hands back a date followed by other text", parity: true do
+  it "reads a date followed by other text as the date", parity: true do
     export(from: "2026-01-05abc")
   end
 end

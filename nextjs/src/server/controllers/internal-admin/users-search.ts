@@ -475,12 +475,21 @@ defineAdminRoute(
           superseded_at: Date | null;
         }[]
       >`SELECT * FROM social_connect_verifications WHERE user_id = ${user.id} ORDER BY platform, superseded_at IS NOT NULL, last_verified_at DESC`;
-      // currently_linked? reads the YouTube, Instagram and TikTok identity tables.
-      if (verifications.some((row) => row.platform !== "twitter"))
-        throw new NotPortedError("a social connection that is not Twitter", SOURCE);
       const [twitter] = await db.$queryRaw<
         { twitter_user_id: string | null }[]
       >`SELECT twitter_user_id FROM users WHERE id = ${user.id} LIMIT 1`;
+      const [youtube, instagram, tiktok] = await Promise.all([
+        db.userYoutubeIdentity.findUnique({ where: { user_id: user.id }, select: { channel_id: true } }),
+        db.userInstagramIdentity.findUnique({ where: { user_id: user.id }, select: { instagram_user_id: true } }),
+        db.userTiktokIdentity.findUnique({ where: { user_id: user.id }, select: { tiktok_open_id: true } }),
+      ]);
+      // SocialConnectVerification#currently_linked?: the id the user's own identity holds for the platform, "" when none.
+      const linkedIds: Record<string, string | null | undefined> = {
+        twitter: twitter?.twitter_user_id,
+        youtube: youtube?.channel_id,
+        instagram: instagram?.instagram_user_id,
+        tiktok: tiktok?.tiktok_open_id,
+      };
       const shadow = await db.socialScoreShadowEvaluation.findFirst({
         where: { user_id: user.id },
         orderBy: [{ evaluated_on: "desc" }, { id: "desc" }],
@@ -492,10 +501,8 @@ defineAdminRoute(
         const shared = await db.socialConnectVerification.count({
           where: { platform: row.platform, uid: row.uid, user_id: { not: user.id } },
         });
-        const linked =
-          row.superseded_at === null &&
-          !isBlank(twitter?.twitter_user_id) &&
-          String(twitter!.twitter_user_id) === row.uid;
+        const heldId = linkedIds[row.platform];
+        const linked = row.superseded_at === null && !isBlank(heldId) && String(heldId) === row.uid;
         connections.push({
           platform: row.platform,
           uid: row.uid,

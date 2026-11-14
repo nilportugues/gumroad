@@ -21,6 +21,11 @@ describe "Internal admin API purchases", type: :request do
     build(:purchase, **defaults, **attributes).tap { _1.save!(validate: false) }
   end
 
+  # Card columns are written after the save: a card_visual on a new row runs the fraud checks, which parse it as an email.
+  def create_card_purchase(card_type:, card_visual:, stripe_fingerprint:, **attributes)
+    create_purchase(**attributes).tap { _1.update_columns(card_type:, card_visual:, stripe_fingerprint:) }
+  end
+
   def create_refund(purchase, amount_cents:, **attributes)
     build(:refund, purchase:, amount_cents:, **attributes).tap { _1.save!(validate: false) }
   end
@@ -168,8 +173,43 @@ describe "Internal admin API purchases", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a card search to Rails", parity: true do
+    it "searches by the last four digits of the card in each visual format, newest first, skipping purchases with no fingerprint", parity: true do
+      sixteen = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4062", stripe_fingerprint: "fp-1", created_at: 5.days.ago)
+      fifteen = create_card_purchase(card_type: "american_express", card_visual: "**** ****** *4062", stripe_fingerprint: "fp-2", created_at: 4.days.ago)
+      fourteen = create_card_purchase(card_type: "diners_club", card_visual: "**** ****** 4062", stripe_fingerprint: "fp-3", created_at: 3.days.ago)
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4242", stripe_fingerprint: "fp-4", created_at: 2.days.ago)
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4062", stripe_fingerprint: nil, created_at: 1.day.ago)
+
       get "/internal/admin/purchases/search", params: { email: "buyer@example.com", card_last4: "4062" }, headers: headers
+
+      expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([fourteen, fifteen, sixteen].map { _1.external_id_numeric.to_s })
+    end
+
+    it "narrows a card search by card type and by a charge amount within a quarter either side", parity: true do
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4062", stripe_fingerprint: "fp-1", price_cents: 1000, created_at: 5.days.ago)
+      match = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-2", price_cents: 2562, created_at: 4.days.ago)
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 2222", stripe_fingerprint: "fp-3", price_cents: 2563, created_at: 3.days.ago)
+      create_card_purchase(card_type: "mastercard", card_visual: "**** **** **** 3333", stripe_fingerprint: "fp-4", price_cents: 2000, created_at: 2.days.ago)
+
+      get "/internal/admin/purchases/search", params: { card_type: "visa", charge_amount: "20.50" }, headers: headers
+
+      expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([match.external_id_numeric.to_s])
+    end
+
+    it "refuses a card last four digits search with nothing to narrow it", parity: true do
+      get "/internal/admin/purchases/search", params: { card_last4: "4062" }, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "hands a card search by purchase date to Rails", parity: true do
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-01-15" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a card search by expiry date to Rails", parity: true do
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/27" }, headers: headers
 
       expect(response).to have_http_status(:ok)
     end
