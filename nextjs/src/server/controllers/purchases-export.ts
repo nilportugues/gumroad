@@ -123,7 +123,9 @@ async function exportPurchases(input: MutationInput): Promise<ActionResult> {
         status: refused.status,
         body: "",
         contentType: "text/html",
-        headers: Object.fromEntries(Object.entries(refused.headers).map(([name, value]) => [name.toLowerCase(), value])),
+        headers: Object.fromEntries(
+          Object.entries(refused.headers).map(([name, value]) => [name.toLowerCase(), value]),
+        ),
         rescued: true,
         paramsRead: true,
       };

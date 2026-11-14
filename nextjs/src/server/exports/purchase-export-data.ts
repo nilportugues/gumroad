@@ -457,7 +457,10 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   // Only a receiver on a subscription that has no original purchase is proven: the review read through it is nil, and it holds no license.
   if (foreignReceivers.size > 0) {
     for (const purchase of purchases)
-      if (foreignReceivers.has(String(purchase.id)) && LinkFlags.isSet(linkById.get(String(purchase.link_id))!.flags, "is_licensed"))
+      if (
+        foreignReceivers.has(String(purchase.id)) &&
+        LinkFlags.isSet(linkById.get(String(purchase.link_id))!.flags, "is_licensed")
+      )
         throw new HandBackToRails("a licensed gift whose receiver is on a subscription other than the sender's");
     const originals = await selectRows<{ id: bigint }>(
       Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} IN (${Prisma.join([...new Set(foreignReceivers.values())])}) AND ${PurchaseFlags.condition("is_original_subscription_purchase")} LIMIT 1`,
