@@ -179,6 +179,19 @@ const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
   ["-get-subscriptions-", "2026-11-12T11:00:00Z"],
   ["-reports-sales-totals-", "2026-11-10T16:45:00Z"],
   ["-reports-the-spend-of-a-buyer-in-a-date-range", "2026-11-10T16:45:00Z"],
+  // Hour tokens of the purchases the spec made at fixed instants (2026-03-02T10:00Z and the like) all land on this one.
+  ["-reads-a-customers-date-range-written-", "2026-11-13T04:00:00Z"],
+  ["-reads-a-sales-totals-range-written-without-dashes", "2026-11-13T04:00:00Z"],
+  ["-refuses-a-date-written-without-dashes-that-is-not-on-the-calendar", "2026-11-13T04:00:00Z"],
+  ["-writes-a-conversion-that-took-whole-days-as-a-float", "2026-11-13T04:00:00Z"],
+];
+
+// The discount code windows name 2099 instants in the request; the recorded `<now+632328h>` counts from the recording (2026-11-13T10:00Z).
+const LITERAL_INSTANT_RECORDINGS: [fragment: string, recordedAt: string][] = [
+  ["-create-discount-code-sets-the-validity-period", "2026-11-13T10:00:00Z"],
+  ["-create-discount-code-starts-a-code-that-only-has-an-end-date-now", "2026-11-13T10:00:00Z"],
+  ["-update-discount-code-sets-an-end-date-and-starts-the-code-from-its-creation", "2026-11-13T10:00:00Z"],
+  ["-update-discount-code-sets-both-ends-of-the-validity-period", "2026-11-13T10:00:00Z"],
 ];
 
 // A file attached to a new product must exist in the bucket. The recording uploaded its objects first; the replay uploads the ones the request
@@ -390,9 +403,11 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
   let seedClock: Date | undefined;
   // Runs once the seeder has reset Redis, ahead of the request under test.
   let afterRedisReset: (() => Promise<void>) | undefined;
+  let recordedAt: Date | undefined;
   const replayOptions = (random: string[] = []) => ({
     driftDates,
     ...(seedClock ? { seedClock } : {}),
+    ...(recordedAt ? { recordedAt } : {}),
     sql,
     redis: {
       reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {
@@ -424,6 +439,7 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
     if (warmed.has(route)) return;
     warmed.add(route);
     seedClock = undefined;
+    recordedAt = undefined;
     afterRedisReset = undefined;
     await uploadNamedFiles(loadFixture(file).exchanges[index]!);
     await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
@@ -485,6 +501,8 @@ describe.skipIf(!url)("WS-17c API v2 parity", () => {
         const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
         driftDates = !pinned && !name.includes("answers-a-tools-list-call");
         seedClock = pinned ? new Date(pinned[1]) : undefined;
+        const literal = LITERAL_INSTANT_RECORDINGS.find(([fragment]) => name.includes(fragment));
+        recordedAt = literal ? new Date(literal[1]) : undefined;
         const paginates = name.includes("paginates-with-a-page-key");
         // License#generate_serial is random: both sides mint a key of the same shape, and the response carries the one saved.
         const rotates = name.includes("-rotate-gives-");

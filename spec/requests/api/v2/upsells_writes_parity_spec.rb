@@ -116,11 +116,31 @@ describe "API v2 upsell writes", type: :request do
       expect(response.parsed_body["message"]).to eq("The upsell was not found.")
     end
 
-    it "hands a deletion to Rails", parity: true do
+    it "deletes an upsell", parity: true do
       change(:delete, "/upsells/#{upsell.external_id}")
 
       expect(response.parsed_body["message"]).to eq("The upsell was deleted successfully.")
       expect(upsell.reload.deleted_at).to be_present
+    end
+
+    it "deletes a version upsell with its versions", parity: true do
+      versioned = create(:product_with_digital_versions, user: seller, name: "Versioned", unique_permalink: "versionp")
+      version_upsell = create(:upsell, product: versioned, seller:, name: "Upgrade")
+      upsell_variant = create(:upsell_variant, upsell: version_upsell, selected_variant: versioned.alive_variants.first, offered_variant: versioned.alive_variants.second)
+
+      change(:delete, "/upsells/#{version_upsell.external_id}")
+
+      expect(response.parsed_body["message"]).to eq("The upsell was deleted successfully.")
+      expect(upsell_variant.reload.deleted_at).to be_present
+    end
+
+    it "hands a deletion of an upsell with a discount code to Rails", parity: true do
+      upsell.update!(offer_code: create(:offer_code, user: seller, products: [offered]))
+
+      change(:delete, "/upsells/#{upsell.external_id}")
+
+      expect(response.parsed_body["message"]).to eq("The upsell was deleted successfully.")
+      expect(upsell.offer_code.reload.deleted_at).to be_present
     end
 
     it "hands a deletion through the /api prefix on the Gumroad domain to Rails", parity: true do

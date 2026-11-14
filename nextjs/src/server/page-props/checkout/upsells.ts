@@ -9,6 +9,7 @@ import { rubyToI } from "../../models/concerns/ruby-numeric.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { IS_CONTENT_UPSELL, UPSELLS, upsellJson } from "../../models/upsell.ts";
+import { PurchaseFlags } from "../../search/flags.ts";
 
 export const UPSELLS_PER_PAGE = 20;
 const CHECKOUT_DASHBOARD_PAGES = ["discounts", "form", "upsells"];
@@ -17,6 +18,8 @@ export type ListParams = { page: number; query: string | null; sortKey: string |
 
 const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
+
+const CHARGEBACK_REVERSED = PurchaseFlags.bit("chargeback_reversed");
 
 // `params.permit(:page, sort: [:key, :direction])`, `params[:query]`. Anything `permit` or string interpolation would treat
 // differently from a scalar goes to Rails.
@@ -31,8 +34,6 @@ export function listParams(queryString: string): ListParams {
   const { key, direction } = sort ?? {};
   if ((key !== undefined && typeof key !== "string") || (direction !== undefined && typeof direction !== "string"))
     throw new HandBackToRails("a sort key that is not text");
-  // Upsell.sorted_by orders revenue and uses by the sum over joined purchases, which Node does not read.
-  if (key === "revenue" || key === "uses") throw new HandBackToRails("a sort by purchases");
   return {
     page: Math.max(rubyToI(page ?? null), 1),
     query: typeof query === "string" && query.trim() !== "" ? query : null,
@@ -41,11 +42,18 @@ export function listParams(queryString: string): ListParams {
   };
 }
 
-// `Upsell.sorted_by` (name and status; any other key is ignored), then `.order(updated_at: :desc)`.
+// `Purchase.counts_towards_volume` through upsell_purchases, summed per upsell; NULL for an upsell without such a purchase, which
+// MySQL sorts first ascending, as the left outer join does.
+const volumeSum = (field: "price_cents" | "quantity") =>
+  Prisma.sql`(SELECT SUM(${column("purchases", field)}) FROM ${table("purchases")} INNER JOIN ${table("upsell_purchases")} ON ${column("purchases", "id")} = ${column("upsell_purchases", "purchase_id")} WHERE ${column("upsell_purchases", "upsell_id")} = ${column(UPSELLS, "id")} AND ${column("purchases", "purchase_state")} = 'successful' AND (${column("purchases", "stripe_refunded")} IS NULL OR ${column("purchases", "stripe_refunded")} = 0) AND (${column("purchases", "chargeback_date")} IS NULL OR ${column("purchases", "flags")} & ${Prisma.raw(String(CHARGEBACK_REVERSED))} != 0))`;
+
+// `Upsell.sorted_by` (name, revenue, uses and status; any other key is ignored), then `.order(updated_at: :desc)`.
 function orderBy(params: ListParams): Prisma.Sql {
   const direction = Prisma.raw(params.direction);
   const updated = Prisma.sql`${column(UPSELLS, "updated_at")} DESC`;
   if (params.sortKey === "name") return Prisma.sql`${column(UPSELLS, "name")} ${direction}, ${updated}`;
+  if (params.sortKey === "revenue") return Prisma.sql`${volumeSum("price_cents")} ${direction}, ${updated}`;
+  if (params.sortKey === "uses") return Prisma.sql`${volumeSum("quantity")} ${direction}, ${updated}`;
   if (params.sortKey === "status") return Prisma.sql`${column(UPSELLS, "paused")} ${direction}, ${updated}`;
   return updated;
 }
@@ -60,8 +68,8 @@ export async function fetchUpsells(sellerId: bigint, params: ListParams): Promis
     Prisma.sql`SELECT COUNT(*) AS count FROM ${table(UPSELLS)} WHERE ${where}`,
   );
   const pages = Math.max(Math.ceil(Number(counted?.count ?? 0) / UPSELLS_PER_PAGE), 1);
-  // config/initializers/pagy.rb: overflow raises Pagy::OverflowError.
-  if (params.page > pages) throw new HandBackToRails("a page past the last one");
+  // config/initializers/pagy.rb: overflow raises Pagy::OverflowError, which no controller rescues: production answers 500.
+  if (params.page > pages) throw new Error(`expected :page in 1..${pages}; got ${params.page}`);
   const rows = await selectRows(
     Prisma.sql`SELECT ${table(UPSELLS)}.* FROM ${table(UPSELLS)} WHERE ${where} ORDER BY ${orderBy(params)} LIMIT ${UPSELLS_PER_PAGE} OFFSET ${(params.page - 1) * UPSELLS_PER_PAGE}`,
   );
