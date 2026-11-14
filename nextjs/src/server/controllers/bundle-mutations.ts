@@ -9,8 +9,12 @@
 import { Prisma, type Link } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
-import { railsLoggedInUser } from "../auth/resolve.ts";
-import { parseBundleProducts, updateBundleProducts, type BundleProductParams } from "../models/bundle-products.ts";
+import {
+  BundleProductNotFound,
+  parseBundleProducts,
+  updateBundleProducts,
+  type BundleProductParams,
+} from "../models/bundle-products.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { LinkFlags, LinkInvalid, Links } from "../models/link.ts";
 import { RecordInvalid, RecordNotSaved } from "../models/runtime/errors.ts";
@@ -24,10 +28,11 @@ import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 import type { LinkRow } from "../presenters/product-reads.ts";
 
-import { allowedReferrer, HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { allowedReferrer, HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { accountEmailRequired, authorizeJson, json, NOT_FOUND } from "./seller-json.ts";
+import { signedOutRefusal } from "./wishlists-mutations.ts";
 
 const FOUND = 302;
 const UNPUBLISHED_ALERT =
@@ -176,6 +181,7 @@ async function updateContent(input: MutationInput): Promise<ActionResult> {
   try {
     await transaction(() => updateBundleProducts(record, parsed));
   } catch (error) {
+    if (error instanceof BundleProductNotFound) throw new RoutingError("Not Found");
     if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid))
       throw error;
     const message = record.errors.fullMessages()[0] ?? error.message;
@@ -208,7 +214,8 @@ async function updatePurchasesContent(input: MutationInput): Promise<ActionResul
 async function removeFile(input: MutationInput): Promise<ActionResult> {
   if (requestFormat(input.request) !== "json")
     throw new HandBackToRails("a bundle file removal requested in another format");
-  if (!railsLoggedInUser(input.context)) throw new HandBackToRails("a signed-out request");
+  const signedOut = signedOutRefusal(input);
+  if (signedOut !== null) return signedOut;
   const refused = accountEmailRequired(input);
   if (refused !== null) return refused;
   const holder: { bundle?: LinkRow } = {};

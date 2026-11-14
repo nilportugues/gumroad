@@ -155,12 +155,15 @@ describe "Bundle writes guards", type: :request do
       expect(response).to have_http_status(:see_other)
     end
 
-    it "hands a request without products to Rails", parity: true do
+    it "refuses a request without products for a published bundle", parity: true do
+      bundle.update_columns(native_type: Link::NATIVE_TYPE_BUNDLE)
       log_in(seller)
 
       send_inertia(:patch, "/bundles/#{bundle.external_id}/content")
 
-      expect(response).to have_http_status(:see_other)
+      expect(response).to redirect_to(edit_bundle_content_path(bundle.external_id))
+      expect(flash[:alert]).to eq("Bundles must have at least one product.")
+      expect(bundle.bundle_products.alive.count).to eq(2)
     end
   end
 
@@ -186,10 +189,11 @@ describe "Bundle writes guards", type: :request do
   describe "POST /bundles/:bundle_id/product/remove_file" do
     let!(:file) { create(:product_file, link: bundle) }
 
-    it "hands a signed-out request to Rails", parity: true do
+    it "answers 404 JSON to a signed-out visitor", parity: true do
       remove_file(file.external_id)
 
-      expect(response).to be_client_error
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
     end
 
     it "refuses a support team member", parity: true do

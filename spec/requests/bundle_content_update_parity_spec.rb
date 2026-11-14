@@ -273,7 +273,7 @@ describe "Bundle content update", type: :request, elasticsearch_wait_for_refresh
       expect(bundle.bundle_products.alive.count).to eq(0)
     end
 
-    it "hands a product that does not exist to Rails", parity: true do
+    it "answers 404 for a product that does not exist", parity: true do
       update_content([entry(first_member), entry(second_member), new_entry(first_member.product, product_id: "unknownproduct")])
 
       expect(response).to have_http_status(:not_found)
