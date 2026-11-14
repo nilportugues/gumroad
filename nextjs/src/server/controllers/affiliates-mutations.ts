@@ -88,17 +88,16 @@ type Submitted = {
   products: Product[] | null;
 };
 
+// `permit` of a scalar key drops a list or hash, which then reads as nil.
+const isNonScalar = (value: unknown) => typeof value === "object" && value !== null;
 const scalar = (value: unknown): string | number | null => {
-  if (value === undefined || value === null) return null;
+  if (value === undefined || value === null || isNonScalar(value)) return null;
   if (typeof value === "string" || typeof value === "number") return value;
   throw new HandBackToRails("a parameter that is not text or a number");
 };
-const truthy = (value: unknown): boolean => {
-  if (value === undefined || value === null) return false;
-  if (typeof value === "boolean") return value;
-  // "false" is truthy in Ruby, which a form post would send.
-  throw new HandBackToRails("a flag that is not a boolean, which Rails reads by Ruby truthiness");
-};
+// Ruby truthiness: only nil and false are falsy, so the text "false" and the number 0 are true.
+const truthy = (value: unknown): boolean =>
+  value !== undefined && value !== null && value !== false && !isNonScalar(value);
 const blank = (value: string | number | null) => value === null || (typeof value === "string" && isBlank(value));
 
 function submitted(input: MutationInput): Submitted {

@@ -767,6 +767,31 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body).to include("success" => true)
       end
 
+      it "deletes the duplicate of an upsell that shares its product, since a deleted upsell is exempt from the one-per-product rule", parity: true do
+        upsell = make_upsell("Original")
+        twin = Upsell.new(seller:, product: upsell.product, name: "Twin", cross_sell: false)
+        twin.save!(validate: false)
+        variant = create(:upsell_variant, upsell: twin)
+
+        delete_json checkout_upsell_path(twin.external_id)
+
+        expect(response.parsed_body).to include("success" => true)
+        expect(variant.reload.deleted_at).to be_present
+        expect(twin.reload.deleted_at).to be_present
+      end
+
+      it "answers the error of an upsell whose product moved to another seller, after deleting its versions", parity: true do
+        upsell = make_upsell("Strayed")
+        variant = create(:upsell_variant, upsell:)
+        upsell.update_columns(product_id: create(:product).id)
+
+        delete_json checkout_upsell_path(upsell.external_id)
+
+        expect(response.parsed_body).to eq("success" => false, "error" => "The offered product must belong to the current seller.")
+        expect(variant.reload.deleted_at).to be_present
+        expect(upsell.reload.deleted_at).to be_nil
+      end
+
       it "hands an upsell with an offer code to Rails", parity: true do
         upsell = make_upsell("Discounted", product:, cross_sell: true, offer_code: create(:offer_code, user: seller, products: [product], amount_cents: 100))
 
