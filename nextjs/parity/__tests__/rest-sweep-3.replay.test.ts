@@ -232,7 +232,7 @@ describe.skipIf(!url)("rest sweep 3", () => {
     ) => reencryptCookies(withResolvedDates(request, seedClock(recordedOn)), loaded, SECRET_KEY_BASE, now),
     // Rails renders its debug page for these 404s in the test environment; only the status is compared.
     compare: name.includes("404")
-      ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
+      ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
       : { ignore: [...COMPARE.ignore, "response.body"] },
   });
 

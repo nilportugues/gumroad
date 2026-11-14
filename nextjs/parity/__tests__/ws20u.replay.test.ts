@@ -194,7 +194,7 @@ describe.skipIf(!url)("WS-20u parity", () => {
   const replayOptions = (file: string) => {
     const ignore = [...COMPARE.ignore];
     // Rails' debug exception page for a 404 sets the profiler cookie.
-    if (file.includes("not-found")) ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
+    if (file.includes("not-found")) ignore.push("response.cookies", "response.body", "response.json");
     return {
       sql,
       redis: redisSeeder(redis),

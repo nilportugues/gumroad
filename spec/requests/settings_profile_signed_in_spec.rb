@@ -75,6 +75,65 @@ describe "Profile settings when signed in", type: :request do
       expect(response.parsed_body).to eq("success" => true)
     end
 
+    it "ignores a user parameter that is not a hash", parity: true do
+      log_in(seller)
+
+      send_json(:put, user: "Not a hash")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(seller.reload.name).to eq("Profile Seller")
+    end
+
+    it "ignores a seller_profile parameter that is not a hash", parity: true do
+      log_in(seller)
+
+      send_json(:put, seller_profile: "Not a hash")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(SellerProfile.find_by!(seller_id: seller.id).json_data.to_h).not_to have_key("tabs")
+    end
+
+    it "ignores tabs sent as text", parity: true do
+      log_in(seller)
+
+      send_json(:put, tabs: "Home")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(SellerProfile.find_by!(seller_id: seller.id).json_data.to_h).not_to have_key("tabs")
+    end
+
+    it "ignores sections sent as text", parity: true do
+      log_in(seller)
+
+      send_json(:put, sections: "Products")
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(seller.seller_profile_sections.count).to eq(0)
+    end
+
+    it "treats tabs that are not hashes as an empty layout", parity: true do
+      section = products_section
+      save_tabs({ name: "Home", sections: [section.id] })
+      log_in(seller)
+
+      send_json(:put, profile_version: layout_version, tabs: ["Home"])
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(stored_tabs).to eq([])
+      expect(seller.seller_profile_sections.count).to eq(0)
+    end
+
+    it "treats sections that are not hashes as an empty list", parity: true do
+      section = products_section
+      save_tabs({ name: "Home", sections: [section.id] })
+      log_in(seller)
+
+      send_json(:put, profile_version: layout_version, sections: ["Products"])
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(stored_tabs).to eq([{ "name" => "Home", "sections" => [section.id] }])
+    end
+
     it "ignores attributes the policy does not permit", parity: true do
       log_in(seller)
 

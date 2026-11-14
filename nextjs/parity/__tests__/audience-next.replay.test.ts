@@ -167,7 +167,7 @@ function compareFor(file: string, name: string) {
       "jobs.*.args.1.fields",
     );
   if (typeof body === "string" && body.startsWith(EXCEPTION_PAGE))
-    ignore.push("response.headers.content-type", "response.json", "response.body", "response.cookies");
+    ignore.push("response.json", "response.body", "response.cookies");
   return { ignore };
 }
 

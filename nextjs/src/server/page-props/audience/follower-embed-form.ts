@@ -6,11 +6,16 @@ import { nameOrUsername, subdomain, subdomainWithProtocol, type UserRecord } fro
 
 export const FROM_EMBED_FORM_COMPONENT = "Followers/FromEmbedForm";
 
-// FollowersController#follow_confirmation_message without a waitlist product
-export const followConfirmationMessage = (seller: UserRecord, confirmed: boolean): string =>
-  confirmed
+// FollowersController#follow_confirmation_message
+export const followConfirmationMessage = (seller: UserRecord, confirmed: boolean, waitlist = false): string => {
+  if (waitlist)
+    return confirmed
+      ? `You're on the list. ${nameOrUsername(seller)} will email you when it launches.`
+      : `You're on the list for ${nameOrUsername(seller)}'s launch. Check your inbox to confirm.`;
+  return confirmed
     ? `You are now following ${nameOrUsername(seller)}!`
     : `Check your inbox to confirm your follow request to ${nameOrUsername(seller)}.`;
+};
 
 // `props: { success: true, message:, confirmed: @follower.confirmed? }`
 export const embedFormFollowedProps = (seller: UserRecord, confirmed: boolean) => ({
