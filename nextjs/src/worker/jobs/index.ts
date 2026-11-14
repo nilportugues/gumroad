@@ -243,6 +243,25 @@ import { removeDeletedFilesFromS3Job } from "./remove-deleted-files-from-s3-job.
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { renameProductFileWorker } from "./rename-product-file-worker.ts";
 import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-certificates.ts";
+import {
+  createCanadaMonthlySalesReportJob,
+  createGlobalSalesTaxSummaryReportJob,
+  createIndiaSalesReportJob,
+  createUsStateMonthlySalesReportsJob,
+  createUsStatesSalesSummaryReportJob,
+  createVatReportJob,
+  generateCanadaSalesReportJob,
+  generateFeesByCreatorLocationReportJob,
+  generateSalesReportJob,
+  createGlobalSalesTaxSummaryReportJobRetriesExhausted,
+  createUsStatesSalesSummaryReportJobRetriesExhausted,
+  createCanadaMonthlySalesReportJobRetriesExhausted,
+  createIndiaSalesReportJobRetriesExhausted,
+  createVatReportJobRetriesExhausted,
+  generateCanadaSalesReportJobRetriesExhausted,
+  generateFeesByCreatorLocationReportJobRetriesExhausted,
+  generateSalesReportJobRetriesExhausted,
+} from "./report-job-arguments.ts";
 import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
 import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
 import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
@@ -604,6 +623,15 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Exports::AudienceExportWorker": audienceExportWorker,
   "Exports::Sales::CompileChunksWorker": compileChunksWorker,
   "Exports::Sales::ProcessChunkWorker": processChunkWorker,
+  CreateCanadaMonthlySalesReportJob: createCanadaMonthlySalesReportJob,
+  CreateGlobalSalesTaxSummaryReportJob: createGlobalSalesTaxSummaryReportJob,
+  CreateIndiaSalesReportJob: createIndiaSalesReportJob,
+  CreateUsStateMonthlySalesReportsJob: createUsStateMonthlySalesReportsJob,
+  CreateUsStatesSalesSummaryReportJob: createUsStatesSalesSummaryReportJob,
+  CreateVatReportJob: createVatReportJob,
+  GenerateCanadaSalesReportJob: generateCanadaSalesReportJob,
+  GenerateFeesByCreatorLocationReportJob: generateFeesByCreatorLocationReportJob,
+  GenerateSalesReportJob: generateSalesReportJob,
   AnnualPayoutExportWorker: annualPayoutExportWorker,
   CollectUnclaimedBalancesOfInactiveStripeAccountsJob: collectUnclaimedBalancesOfInactiveStripeAccountsJob,
   PostToPingEndpointsWorker: postToPingEndpointsWorker,
@@ -680,5 +708,13 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
   GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJobRetriesExhausted,
   GenerateSslCertificate: generateSslCertificateRetriesExhausted,
+  CreateGlobalSalesTaxSummaryReportJob: createGlobalSalesTaxSummaryReportJobRetriesExhausted,
+  CreateUsStatesSalesSummaryReportJob: createUsStatesSalesSummaryReportJobRetriesExhausted,
+  CreateCanadaMonthlySalesReportJob: createCanadaMonthlySalesReportJobRetriesExhausted,
+  CreateIndiaSalesReportJob: createIndiaSalesReportJobRetriesExhausted,
+  CreateVatReportJob: createVatReportJobRetriesExhausted,
+  GenerateCanadaSalesReportJob: generateCanadaSalesReportJobRetriesExhausted,
+  GenerateFeesByCreatorLocationReportJob: generateFeesByCreatorLocationReportJobRetriesExhausted,
+  GenerateSalesReportJob: generateSalesReportJobRetriesExhausted,
   PartnerMigrationImportJob: partnerMigrationImportJobRetriesExhausted,
 };
