@@ -168,6 +168,15 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["products"].size).to eq(1)
       end
 
+      it "lists a library whose product has an unpublished post", parity: true do
+        listed(alpha)
+        create(:installment, link: alpha, published_at: nil, shown_on_profile: true, send_emails: false)
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["product_updates_data"]).to eq([])
+      end
+
       it "hands a library with a post to show to Rails", parity: true do
         listed(alpha)
         create(:installment, link: alpha, published_at: Time.current, shown_on_profile: true, send_emails: false)
@@ -516,6 +525,16 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["message"]).to eq("Could not find purchase")
     end
 
+    it "reads a purchase whose seller has a deleted post", parity: true do
+      purchase = library_purchase
+      create(:installment, link: product, published_at: 2.days.ago, deleted_at: 1.day.ago, shown_on_profile: true, send_emails: false)
+
+      get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["product"]["product_updates_data"]).to eq([])
+    end
+
     it "hands a read of a purchase whose seller has a post to Rails", parity: true do
       purchase = library_purchase
       create(:installment, link: product, published_at: Time.current, shown_on_profile: true, send_emails: false)
@@ -624,8 +643,16 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["can_ping"]).to eq(true)
       end
 
-      it "hands a sale of a seller with an unpublished post to Rails", parity: true do
+      it "serves a sale of a seller with an unpublished post", parity: true do
         create(:installment, link: product, seller:, published_at: nil, shown_on_profile: true, send_emails: false)
+
+        show
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "serves a sale of a seller with a deleted post", parity: true do
+        create(:installment, link: product, seller:, published_at: 2.days.ago, deleted_at: 1.day.ago, shown_on_profile: true, send_emails: false)
 
         show
 
@@ -765,10 +792,25 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:ok)
       end
 
-      it "hands a sale with several variants to Rails", parity: true do
+      it "serves a sale with a variant of each of two categories and the lowest variant id as the customer's option", parity: true do
+        first_category = create(:variant_category, link: product, title: "First")
+        other_category = create(:variant_category, link: product, title: "Other")
+        two = create(:variant, variant_category: other_category, name: "Two")
+        one = create(:variant, variant_category: first_category, name: "One")
+        sale.variant_attributes << one
+        sale.variant_attributes << two
+
+        show
+
+        variants = response.parsed_body["purchase"]["variants"]
+        expect(variants.keys).to contain_exactly(other_category.external_id, first_category.external_id)
+        expect(response.parsed_body["customer"]["option"]["name"]).to eq("Two")
+      end
+
+      it "hands a sale with two variants of one category to Rails", parity: true do
         category = create(:variant_category, link: product)
         sale.variant_attributes << create(:variant, variant_category: category, name: "One")
-        sale.variant_attributes << create(:variant, variant_category: create(:variant_category, link: product, title: "Other"), name: "Two")
+        sale.variant_attributes << create(:variant, variant_category: category, name: "Two")
 
         show
 
