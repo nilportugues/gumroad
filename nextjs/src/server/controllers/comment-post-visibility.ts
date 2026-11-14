@@ -3,7 +3,7 @@ import { Prisma, type Installment } from "@prisma/client";
 
 import { InstallmentFlags } from "../models/installment-post.ts";
 import { selectRows, table, column } from "../models/sql.ts";
-import { AFFILIATE_TYPE, FOLLOWER_TYPE } from "../models/with-filtering.ts";
+import { AFFILIATE_TYPE, FOLLOWER_TYPE, filterValue, parseJsonData, readFilters } from "../models/with-filtering.ts";
 import { AUDIENCE_TYPE } from "../page-props/storefront/post.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 
@@ -11,27 +11,26 @@ import { HandBackToRails } from "./application-controller.ts";
 
 export const one = async (query: Prisma.Sql): Promise<boolean> => (await selectRows(query)).length > 0;
 
-const FILTER_KEYS = ["created_after", "created_before", "waitlisted_products", "affiliate_products"];
-
-// Whether the post carries a filter of WithFiltering that `follower_passes_filters` or `affiliate_passes_filters` would weigh.
-function hasAudienceFilter(post: Installment): boolean {
-  if (post.json_data === null || post.json_data === "") return false;
-  let data: unknown;
+// `follower_passes_filters` / `affiliate_passes_filters` for the two time filters; the filters on waitlisted products and on
+// affiliate products, and any value the port cannot read, stay in Rails.
+function passesTimeFilters(post: Installment, joinedAt: Date): boolean {
+  const subject = { jsonData: () => parseJsonData(post.json_data) };
   try {
-    data = JSON.parse(post.json_data);
-  } catch {
+    if (filterValue(subject, "waitlisted_products") !== null || filterValue(subject, "affiliate_products") !== null)
+      throw new HandBackToRails("a post filtered by waitlisted or affiliate products");
+    const { createdAfter, createdBefore } = readFilters(subject);
+    if (createdAfter !== null && joinedAt < createdAfter) return false;
+    if (createdBefore !== null && joinedAt > createdBefore) return false;
     return true;
+  } catch (error) {
+    if (error instanceof HandBackToRails) throw error;
+    throw new HandBackToRails("a post whose audience filters the port cannot read");
   }
-  if (typeof data !== "object" || data === null || Array.isArray(data)) return true;
-  return FILTER_KEYS.some((key) => {
-    const value = (data as Record<string, unknown>)[key];
-    return value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
-  });
 }
 
 // `commentable.seller.visible_posts_for(pundit_user: context, shown_on_profile: false).include?(commentable)` for a published post.
 // `relations`: also weigh a visitor who is an active follower or a direct affiliate of the seller (CommentsController#create); a
-// customer, an unconfirmed or removed follower and any other affiliate row still hand back, as does a post whose filters would apply.
+// customer still hands back, as does a post filtered by anything but the two time filters.
 export async function visibleToVisitor(
   sellerContext: SellerContext,
   post: Installment,
@@ -56,40 +55,34 @@ export async function visibleToVisitor(
     )
   )
     throw new HandBackToRails("a visitor who bought from the seller");
-  const followerRows = await selectRows(
-    Prisma.sql`SELECT ${column("followers", "confirmed_at")} AS confirmed_at, ${column("followers", "deleted_at")} AS deleted_at FROM ${table("followers")} WHERE ${column("followers", "followed_id")} = ${sellerId} AND ${column("followers", "email")} = ${user.email}`,
+  const followerRows = await selectRows<{ confirmed_at: Date | null; deleted_at: Date | null; created_at: Date }>(
+    Prisma.sql`SELECT ${column("followers", "confirmed_at")} AS confirmed_at, ${column("followers", "deleted_at")} AS deleted_at, ${column("followers", "created_at")} AS created_at FROM ${table("followers")} WHERE ${column("followers", "followed_id")} = ${sellerId} AND ${column("followers", "email")} = ${user.email}`,
   );
-  const affiliateRows = await selectRows(
-    Prisma.sql`SELECT ${column("affiliates", "type")} AS type, ${column("affiliates", "deleted_at")} AS deleted_at FROM ${table("affiliates")} WHERE ${column("affiliates", "seller_id")} = ${sellerId} AND ${column("affiliates", "affiliate_user_id")} = ${user.id}`,
+  const affiliateRows = await selectRows<{ type: string | null; deleted_at: Date | null; created_at: Date }>(
+    Prisma.sql`SELECT ${column("affiliates", "type")} AS type, ${column("affiliates", "deleted_at")} AS deleted_at, ${column("affiliates", "created_at")} AS created_at FROM ${table("affiliates")} WHERE ${column("affiliates", "seller_id")} = ${sellerId} AND ${column("affiliates", "affiliate_user_id")} = ${user.id}`,
   );
   if (followerRows.length === 0 && affiliateRows.length === 0) return false;
   if (!relations) throw new HandBackToRails("a visitor who follows or is an affiliate of the seller");
 
-  if (followerRows.length > 1) throw new HandBackToRails("several follower rows of one address");
-  const follower = followerRows.length === 1;
-  if (follower && (followerRows[0]!.confirmed_at === null || followerRows[0]!.deleted_at !== null))
-    throw new HandBackToRails("a follower who is unconfirmed or removed");
-  const affiliate = affiliateRows.length > 0;
-  if (
-    affiliate &&
-    (affiliateRows.length > 1 || affiliateRows[0]!.type !== "DirectAffiliate" || affiliateRows[0]!.deleted_at !== null)
-  )
-    throw new HandBackToRails("an affiliate row that is not a live direct affiliate");
+  // `Follower.active.find_by(...)` and `direct_affiliates.alive.find_by(...)`: an unconfirmed or removed follower, a collaborator
+  // and a removed affiliate are no relation at all; two live rows would leave Rails' pick unspecified.
+  const followers = followerRows.filter((row) => row.confirmed_at !== null && row.deleted_at === null);
+  const affiliates = affiliateRows.filter((row) => row.type === "DirectAffiliate" && row.deleted_at === null);
+  if (followers.length > 1 || affiliates.length > 1) throw new HandBackToRails("several live rows of one visitor");
+  const follower = followers[0];
+  const affiliate = affiliates[0];
+  if (follower === undefined && affiliate === undefined) return false;
 
   if (post.workflow_id !== null || post.deleted_at !== null) return false;
   switch (post.installment_type) {
     case AUDIENCE_TYPE:
       return true;
     case FOLLOWER_TYPE:
-      if (!follower) return false;
-      break;
+      return follower !== undefined && passesTimeFilters(post, follower.created_at);
     case AFFILIATE_TYPE:
-      if (!affiliate) return false;
-      break;
+      return affiliate !== undefined && passesTimeFilters(post, affiliate.created_at);
     default:
       // seller, product, variant and abandoned cart posts reach a visitor through a purchase only.
       return false;
   }
-  if (hasAudienceFilter(post)) throw new HandBackToRails("a post whose audience filters would apply to the visitor");
-  return true;
 }

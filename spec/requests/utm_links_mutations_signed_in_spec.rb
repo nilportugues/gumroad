@@ -111,12 +111,22 @@ describe "UTM links mutations", type: :request do
     expect(UtmLink.last).to have_attributes(total_clicks: 0, seller_id: seller.id, permalink: "abcd1234")
   end
 
-  it "hands a request without a utm_link parameter to Rails", parity: true do
+  it "answers 400 to a create without a utm_link parameter", parity: true do
     log_in(seller)
 
     send_form(:post, dashboard_utm_links_path, { other: 1 })
 
     expect(response).to have_http_status(:bad_request)
+  end
+
+  it "answers 400 to an update without a utm_link parameter", parity: true do
+    link = create(:utm_link, seller:, title: "Old title")
+    log_in(seller)
+
+    send_form(:patch, dashboard_utm_link_path(link.external_id), { other: 1 })
+
+    expect(response).to have_http_status(:bad_request)
+    expect(link.reload.title).to eq("Old title")
   end
 
   it "updates the title and UTM parameters", parity: true do
