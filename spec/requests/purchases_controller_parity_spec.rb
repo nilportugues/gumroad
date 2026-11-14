@@ -304,8 +304,20 @@ describe "Purchases controller guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a visitor without the buyer's email to Rails, which asks for it", parity: true do
+    it "redirects a visitor without the buyer's email to the page that asks for it", parity: true do
       get "/purchases/#{purchase.external_id}/receipt"
+
+      expect(response).to redirect_to("/purchases/#{purchase.external_id}/confirm_receipt_email")
+    end
+
+    it "hands a visitor who sends the buyer's email to Rails, which renders the receipt", parity: true do
+      get "/purchases/#{purchase.external_id}/receipt", params: { email: "buyer@example.com" }
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a visitor who sends another email to Rails, which flashes the error", parity: true do
+      get "/purchases/#{purchase.external_id}/receipt", params: { email: "someone@example.com" }
 
       expect(response).to redirect_to("/purchases/#{purchase.external_id}/confirm_receipt_email")
     end
