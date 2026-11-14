@@ -69,10 +69,13 @@ describe("products the v2 API serializer hands back to Rails", () => {
     await expect(check([product({ flags: mocks.flags.is_bundle })])).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back a product-level refund policy only when it exists", async () => {
+  it("hands back a product-level refund policy only when it has no period", async () => {
     await expect(check([product({ flags: 1n })])).resolves.toBeUndefined();
 
-    mocks.db.refundPolicy.findFirst.mockResolvedValue({ id: 1n });
+    mocks.db.refundPolicy.findFirst.mockResolvedValue({ id: 1n, max_refund_period_in_days: 30 });
+    await expect(check([product({ flags: 1n })])).resolves.toBeUndefined();
+
+    mocks.db.refundPolicy.findFirst.mockResolvedValue({ id: 1n, max_refund_period_in_days: null });
     await expect(check([product({ flags: 1n })])).rejects.toBeInstanceOf(HandBackToRails);
   });
 
@@ -85,12 +88,9 @@ describe("products the v2 API serializer hands back to Rails", () => {
     ).resolves.toBeUndefined();
   });
 
-  it.each(["assetPreview", "preorderLink"] as const)(
-    "hands back a product with a row in %s",
-    async (model) => {
-      mocks.db[model].count.mockResolvedValue(1);
+  it.each(["assetPreview", "preorderLink"] as const)("hands back a product with a row in %s", async (model) => {
+    mocks.db[model].count.mockResolvedValue(1);
 
-      await expect(check([product()])).rejects.toBeInstanceOf(HandBackToRails);
-    },
-  );
+    await expect(check([product()])).rejects.toBeInstanceOf(HandBackToRails);
+  });
 });

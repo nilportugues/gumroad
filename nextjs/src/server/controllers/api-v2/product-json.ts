@@ -5,8 +5,8 @@ import type { Link, User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { signedDownloadUrlForS3KeyAndFilename } from "../../infra/signed-urls.ts";
-import { filenameWithExtension, isStreamOnly, isStreamable, s3Fields } from "../../models/product-file.ts";
 import { defaultPriceCents, LinkFlags, Links } from "../../models/link.ts";
+import { filenameWithExtension, isStreamOnly, isStreamable, s3Fields } from "../../models/product-file.ts";
 import { UserFlags } from "../../models/user.ts";
 import {
   assertPriceSupported,
@@ -18,10 +18,11 @@ import {
 import { findLink, findUserById } from "../../presenters/product-reads.ts";
 import { longUrl } from "../../presenters/product.ts";
 import { HandBackToRails } from "../application-controller.ts";
-import { categoriesById } from "./categories.ts";
 
+import { categoriesById } from "./categories.ts";
 import { variantRichContentJson } from "./product-resources.ts";
 import { externalId, timeJson } from "./records.ts";
+import { REFUND_POLICY_TITLES } from "./refund-policies.ts";
 
 const SUBSCRIPTION_DURATIONS = ["monthly", "yearly", "quarterly", "biannually", "every_two_years"] as const;
 const IS_POST_PURCHASE_FLAG = 1n;
@@ -50,6 +51,27 @@ const jsonObject = (text: string | null): Record<string, unknown> => {
     : {};
 };
 
+// `product_refund_policy_enabled? && product_refund_policy.present?`
+async function productRefundPolicy(link: Link) {
+  return flag(link, "product_refund_policy_enabled")
+    ? db.refundPolicy.findFirst({ where: { product_id: link.id } })
+    : null;
+}
+
+// Product::AsJson#product_refund_policy_api_json
+async function refundPolicyJson(link: Link) {
+  const policy = await productRefundPolicy(link);
+  if (policy === null || policy === undefined)
+    return { refund_period: "inherit", title: null, fine_print: null, inherited: true };
+  const days = policy.max_refund_period_in_days!;
+  return {
+    refund_period: days === 0 ? "none" : String(days),
+    title: REFUND_POLICY_TITLES[days] ?? null,
+    fine_print: policy.fine_print,
+    inherited: false,
+  };
+}
+
 // The shapes of a product that need what Node does not have; thrown before any write of the request.
 export async function assertProductJsonSupported(links: Link[], { owner, scopes }: ProductJsonOptions): Promise<void> {
   if (scopes.some((scope) => SALES_SCOPES.includes(scope)))
@@ -58,11 +80,9 @@ export async function assertProductJsonSupported(links: Link[], { owner, scopes 
   for (const link of links) {
     if (flag(link, "is_tiered_membership")) throw new HandBackToRails("a tiered membership");
     if (flag(link, "is_bundle")) throw new HandBackToRails("a bundle");
-    if (
-      flag(link, "product_refund_policy_enabled") &&
-      (await db.refundPolicy.findFirst({ where: { product_id: link.id } }))
-    )
-      throw new HandBackToRails("a product-level refund policy");
+    // `max_refund_period_in_days.zero?` raises on a null period.
+    if ((await productRefundPolicy(link))?.max_refund_period_in_days === null)
+      throw new HandBackToRails("a product-level refund policy without a period");
     if (
       UserFlags.isSet(owner.flags, "purchasing_power_parity_enabled") &&
       !flag(link, "purchasing_power_parity_disabled")
@@ -306,7 +326,7 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
       });
       Object.assign(json, {
         custom_html: page?.custom_html ?? null,
-        refund_policy: { refund_period: "inherit", title: null, fine_print: null, inherited: true },
+        refund_policy: await refundPolicyJson(link),
         rich_content: await richContentJson(link),
         has_same_rich_content_for_all_variants: flag(link, "has_same_rich_content_for_all_variants"),
         main_section_index: (jsonData.main_section_index as number | undefined) || 0,
