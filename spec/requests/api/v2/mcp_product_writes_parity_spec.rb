@@ -198,7 +198,7 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       create_draft({ name: "Notebook", price_cents: 500, suggested_price_cents: 900 }, scopes: "view_sales")
     end
 
-    it "hands a pay what you want draft back to Rails without the edit scope", parity: true do
+    it "asks a pay what you want draft without the edit scope to step up", parity: true do
       create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true }, scopes: "view_sales")
     end
 
@@ -211,7 +211,7 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       create_draft({ name: "Club", product_type: "membership", tiers: [{ name: "Gold", price_cents: 500, recurrence: "monthly", pay_what_you_want: true, suggested_price_cents: 900 }] })
     end
 
-    it "hands a call without the edit scope back to Rails", parity: true do
+    it "asks a call without the edit scope to step up", parity: true do
       create_draft({ name: "Notebook", price_cents: 500 }, scopes: "view_sales")
     end
   end
@@ -1004,12 +1004,12 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
         call_tool("update_product", { id: membership.external_id, pay_what_you_want: true })
       end
 
-      it "hands a pay what you want change without the edit scope back to Rails", parity: true do
+      it "asks a pay what you want change without the edit scope to step up", parity: true do
         update({ pay_what_you_want: true }, scopes: "view_sales")
       end
     end
 
-    it "hands a call without the edit scope back to Rails", parity: true do
+    it "asks a call without the edit scope to step up", parity: true do
       update({ name: "Pen" }, scopes: "view_sales")
     end
   end
