@@ -13,6 +13,7 @@ import { isValidEmailFormat } from "../models/user.ts";
 
 import { HandBackToRails, rackResponse } from "./application-controller.ts";
 import { parseBody, parseNestedQuery, type Params } from "./rails-body.ts";
+import { rackTopLevelParams } from "./rails-params.ts";
 import { type RailsRequest, railsRequest } from "./rails-request.ts";
 import { resolveRequestAuth } from "./signed-in-filters.ts";
 
@@ -39,6 +40,8 @@ export type RackRequest = {
   // `req.params` raises Rack::QueryParser::InvalidParameterError or QueryLimitError: the `invalid_params` rule counts it, and every rule that
   // reads a parameter skips it (rackParams throws RackParamsInvalid) as the exponential-backoff wrapper's rescue does.
   invalidParams: boolean;
+  // Rack parses the query but Node's parser does not: a rule that reads a parameter hands the request back.
+  queryUnparsed?: HandBackToRails;
   // `req.env["warden"]&.user&.id`: the signed-in user's id, resolved when a rule asks for it.
   wardenUserId(): Promise<string | null>;
 };
@@ -127,6 +130,7 @@ const isHash = (value: unknown): value is Record<string, unknown> =>
 // Rack::Request#params: the query string, then the form body over it.
 const rackParams = (request: RackRequest): Params => {
   if (request.invalidParams) throw new RackParamsInvalid();
+  if (request.queryUnparsed) throw request.queryUnparsed;
   return { ...request.query, ...request.form };
 };
 
@@ -162,6 +166,7 @@ function pageNumber(page: unknown): number {
 
 async function passwordResetRecipient(request: RackRequest): Promise<string> {
   if (request.invalidParams) throw new RackParamsInvalid();
+  if (request.queryUnparsed) throw request.queryUnparsed;
   const body = request.mediaType?.includes("json") ? request.json : request.form;
   const params = isHash(body) ? { ...body, ...request.query } : request.query;
   const userParams = params.user;
@@ -329,6 +334,7 @@ const wardenRule =
 function deviceCodeBucket(request: RackRequest): string | null {
   if (!OAUTH_TOKEN_PATH.test(request.path) || request.method !== "POST") return null;
   if (request.invalidParams) throw new RackParamsInvalid();
+  if (request.queryUnparsed) throw request.queryUnparsed;
   const body = request.mediaType?.includes("json") ? request.json : request.form;
   const params = isHash(body) ? { ...body, ...request.query } : request.query;
   if (params.grant_type !== DEVICE_CODE_GRANT) return null;
@@ -716,7 +722,19 @@ function unparseable(encoded: string): boolean {
   });
 }
 
-export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
+// Parses the query the way Rack::Attack's rules read it. With `lenient`, a shape Node's parser hands back that Rack parses without raising
+// leaves the query empty and hands the request back only if a rule reads it.
+function parseQuery(queryString: string, lenient: boolean): { query: Params; unparsed?: HandBackToRails } {
+  try {
+    return { query: parseNestedQuery(queryString) };
+  } catch (error) {
+    if (!lenient || !(error instanceof HandBackToRails)) throw error;
+    rackTopLevelParams(queryString);
+    return { query: {}, unparsed: error };
+  }
+}
+
+export function rackRequest(request: Request, bytes: Uint8Array, lenient = false): RackRequest {
   const rails: RailsRequest = railsRequest(request);
   const contentType = request.headers.get("content-type");
   const mediaType = contentType === null ? null : contentType.split(";")[0]!.trim().toLowerCase();
@@ -724,6 +742,7 @@ export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
   const forwarded = (request.headers.get("x-forwarded-for") ?? "").split(",").map((entry) => entry.trim());
   const invalidParams = unparseable(rails.queryString) || (isForm && unparseable(Buffer.from(bytes).toString("utf8")));
   let wardenUser: Promise<string | null> | undefined;
+  const parsedQuery = invalidParams ? { query: {} } : parseQuery(rails.queryString, lenient);
   return {
     method: rails.method,
     path: normalizePath(rails.path),
@@ -734,7 +753,8 @@ export function rackRequest(request: Request, bytes: Uint8Array): RackRequest {
       [...forwarded].reverse().find((entry) => entry !== "" && !PRIVATE_ADDRESS.test(entry)) ??
       forwarded.find((entry) => entry !== "") ??
       "",
-    query: invalidParams ? {} : parseNestedQuery(rails.queryString),
+    query: parsedQuery.query,
+    queryUnparsed: parsedQuery.unparsed,
     form: isForm && !invalidParams ? parseBody(contentType, bytes) : {},
     json: mediaType?.includes("json") ? jsonBody(bytes) : {},
     mediaType,
@@ -792,10 +812,10 @@ async function bodyBytes(request: Request): Promise<Uint8Array> {
 }
 
 // Counts `request` and answers the 429 of Rack::Attack's default responder when a rule is over its limit.
-export async function countRackAttack(request: Request): Promise<Response | null> {
+export async function countRackAttack(request: Request, lenientQuery = false): Promise<Response | null> {
   const keys: string[] = [];
   counted.set(request, keys);
-  const rack = rackRequest(request, await bodyBytes(request));
+  const rack = rackRequest(request, await bodyBytes(request), lenientQuery);
   const throttled = await evaluate(rack, redisStore, activeRules(), undefined, keys);
   if (throttled === null) return null;
   const retryAfter = throttled.period - (throttled.epochTime % throttled.period);

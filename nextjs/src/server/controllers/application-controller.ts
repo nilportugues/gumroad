@@ -136,6 +136,8 @@ export type ActionOptions = {
   // `request.session_options[:skip] = true` plus `skip_before_action :set_gumroad_guid` (RobotsController): the visitor is
   // anonymous, and the response carries no session, guid or XSRF-TOKEN cookie.
   bare?: boolean;
+  // The action answers every query Rack parses without raising, so Rack::Attack does not hand back a shape only its own parser lacks.
+  lenientQuery?: boolean;
   // `request.session_options[:skip] = true` alone: no session cookie, while the guid and XSRF-TOKEN cookies are still written.
   skipSession?: boolean;
   // With `bare`: an ActionController::API controller. No ApplicationController filter runs and the session carries nothing but its
@@ -888,7 +890,7 @@ export async function processAction(
   // Rack::Attack sits ahead of the whole chain, and counts a request that Rails then serves.
   // forwardToRails takes the count back when the action hands the request to Rails, which counts it again.
   try {
-    const throttled = await countRackAttack(incoming);
+    const throttled = await countRackAttack(incoming, options.lenientQuery);
     if (throttled !== null) return throttled;
   } catch (error) {
     if (error instanceof HandBackToRails) return forwardToRails(incoming);

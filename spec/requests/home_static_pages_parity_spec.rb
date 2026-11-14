@@ -133,6 +133,109 @@ describe "Home static pages", type: :request do
       expect(response.body).to include('style="background: transparent"')
     end
 
+    # Rack 3.2's nested query parser raises on a name used as two kinds of value; the 400 comes before any cookie or cache header exists.
+    # Rack::Attack runs ahead of it and what it counts for such a request is not recorded, so Node leaves these to Rails whole.
+    {
+      "a flat name that becomes a hash" => "a=1&a[b]=2",
+      "a list that becomes a hash" => "a[]=1&a[b]=2",
+      "a hash that becomes a list" => "a[b]=1&a[]=2",
+      "a flat hash value that becomes a hash" => "a[b]=1&a[b][c]=2",
+      "a flat name that becomes a list" => "a=2&a[]=1",
+      "a utm_ name that becomes a hash" => "utm_a[b]=1&utm_a[b][c]=1",
+    }.each do |label, query|
+      it "hands #{label} back to Rails", parity: true do
+        get "/terms?#{query}"
+
+        expect(response).to have_http_status(:bad_request)
+        expect(response.body).to be_empty
+        expect(response.headers["Content-Type"]).to eq("text/html")
+        expect(set_cookies).to be_empty
+      end
+    end
+
+    ["a=%zz", "a=%", "a%ZZ=1", "a=%E0%A4%A"].each do |query|
+      it "answers a 400 with no body for the invalid percent escape in #{query}", parity: true do
+        get "/terms", env: { "QUERY_STRING" => query }
+
+        expect(response).to have_http_status(:bad_request)
+        expect(response.body).to be_empty
+        expect(set_cookies).to be_empty
+      end
+    end
+
+    it "answers the 400 for an invalid percent escape to a visitor with a guid", parity: true do
+      get "/terms", env: { "QUERY_STRING" => "a=%zz" }, headers: { "Cookie" => "_gumroad_guid=abc123" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.body).to be_empty
+      expect(set_cookies).to be_empty
+    end
+
+    it "answers the 400 for an invalid percent escape to a JSON request with a JSON body", parity: true do
+      get "/terms", env: { "QUERY_STRING" => "a=%zz" }, headers: { "Accept" => "application/json" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body).to eq("success" => false)
+    end
+
+    it "answers the 400 for an invalid percent escape to a HEAD request with no body", parity: true do
+      head "/terms", env: { "QUERY_STRING" => "a=%zz" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.body).to be_empty
+    end
+
+    it "answers the 400 for an invalid percent escape on another page", parity: true do
+      get "/about", env: { "QUERY_STRING" => "a=%zz" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.body).to be_empty
+    end
+
+    # A plain assignment overwrites whatever the name held, so only a nested pair after a flat one can conflict.
+    ["a[b][c]=1&a[b]=2", "a[]=1&a=2", "a=1&a=2", "a[]=1&a[][b]=2", "a[][b]=1&a[][b]=2&a[][c]=3", "a[b]]=1&a[[c]=2&d]=3"].each do |query|
+      it "stays edge cacheable for #{query}", parity: true do
+        get "/terms?#{query}"
+
+        expect(response).to be_successful
+        expect(set_cookies).to be_empty
+        expect(response.headers["Cache-Control"]).to include("s-maxage=300")
+      end
+    end
+
+    ["[utm_source]=1", "[]=1", "%5Butm_source%5D=1"].each do |query|
+      it "stays edge cacheable for the name in #{query}", parity: true do
+        get "/terms", env: { "QUERY_STRING" => query }
+
+        expect(response).to be_successful
+        expect(set_cookies).to be_empty
+        expect(response.headers["Cache-Control"]).to include("s-maxage=300")
+      end
+    end
+
+    ["utm_source[b=1", "utm_source[][b]=1", "utm_source[][]=1", "utm_source[[b]=1", "utm_source]=1", "utm_source&utm_source[]=1", "utm_source&utm_source[b]=1"].each do |query|
+      it "takes the normal path for the utm_ name in #{query}", parity: true do
+        get "/terms?#{query}"
+
+        expect(response).to be_successful
+        expect(set_cookies).to include("_gumroad_guid")
+      end
+    end
+
+    ["as_embed[b=1", "as_embed[][b]=1", "as_embed[][]=1", "as_embed[]", "as_embed[a]=1&as_embed=", "as_embed[]=1&as_embed="].each do |query|
+      it "makes the body transparent for the as_embed name in #{query}", parity: true do
+        get "/terms?#{query}"
+
+        expect(response.body).to include('style="background: transparent"')
+      end
+    end
+
+    it "leaves the body alone when a later flat as_embed has no value after a flat value", parity: true do
+      get "/terms?as_embed=1&as_embed"
+
+      expect(response.body).to include('style=""')
+    end
+
     it "answers a HEAD request with the headers of the GET and no body", parity: true do
       head "/terms"
 
