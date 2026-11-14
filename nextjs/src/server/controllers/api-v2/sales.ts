@@ -9,6 +9,7 @@ import { performAsync } from "../../models/concerns/job-runtime.ts";
 import { accessRecord } from "../../models/purchase-access-record.ts";
 import { followingEmails, purchasesAsJsonV2 } from "../../models/purchase-json.ts";
 import { loadLibraryPurchase, setLibraryFlag } from "../../models/purchase-library-writes.ts";
+import { rubyStringToBigInt } from "../../models/concerns/ruby-numeric.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { audiencePurchasePolicy } from "../../policies/audience-purchase.ts";
 import { addDays, civilDateInZone, timezoneId } from "../../search/civil-time.ts";
@@ -30,6 +31,8 @@ import { MAX_HOURLY_DATE_RANGE_DAYS, salesSummary, VALID_GROUPS, type Group } fr
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const RESULTS_PER_PAGE = 10;
+// MAX_DEPRECATED_PAGE: the largest page whose offset `(page - 1) * 10` still fits a signed 64-bit integer, which MySQL parses.
+const MAX_DEPRECATED_PAGE = (2n ** 63n - 1n) / BigInt(RESULTS_PER_PAGE) + 1n;
 const present = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 
 registerApiV2({
@@ -125,17 +128,12 @@ const selectSales = (where: Prisma.Sql, tail: Prisma.Sql) =>
   );
 
 async function saleJson(rows: Row[], sellerId: bigint, listed: boolean): Promise<Record<string, unknown>[]> {
-  // The sale JSON carries `url_params` (#8861), which purchase-json.ts does not print yet.
-  if (rows.length > 0) {
-    const ids = rows.map((row) => BigInt(row.id as bigint | number));
-    const [withParams] = await selectRows<{ id: bigint }>(
-      Prisma.sql`SELECT ${column("purchase_url_parameters", "id")} FROM ${table("purchase_url_parameters")} WHERE ${column("purchase_url_parameters", "purchase_id")} IN (${Prisma.join(ids)}) LIMIT 1`,
-    );
-    if (withParams !== undefined) throw new HandBackToRails("a sale with URL parameters");
-  }
-  if (!listed) return purchasesAsJsonV2(rows);
+  if (!listed) return purchasesAsJsonV2(rows, { includeUrlParams: true });
   const following = await followingEmails(sellerId, [...new Set(rows.map((row) => String(row.email)))]);
-  return purchasesAsJsonV2(rows, { isFollowing: (row) => following.has(String(row.email ?? "").toLowerCase()) });
+  return purchasesAsJsonV2(rows, {
+    includeUrlParams: true,
+    isFollowing: (row) => following.has(String(row.email ?? "").toLowerCase()),
+  });
 }
 
 async function show({ owner, routeParams }: ApiV2Input) {
@@ -155,11 +153,14 @@ async function show({ owner, routeParams }: ApiV2Input) {
 async function index({ owner, params, request }: ApiV2Input) {
   const rawPage = params.page;
   const deprecatedPage = rawPage !== undefined && rawPage !== null;
-  let page = 1;
+  let page = 1n;
   // set_page: an Integer or String is read with to_i; anything else (a nested param) is the first page
-  if (typeof rawPage === "string") page = rubyToI(rawPage);
-  else if (typeof rawPage === "number") page = Math.trunc(rawPage);
-  if (!(page > 0)) return error400("Invalid page number. Page numbers start at 1.");
+  if (typeof rawPage === "string") page = rubyStringToBigInt(rawPage);
+  else if (typeof rawPage === "number") {
+    if (!Number.isSafeInteger(rawPage)) throw new HandBackToRails("a numeric page beyond the safe integer range");
+    page = BigInt(rawPage);
+  }
+  if (page < 1n || page > MAX_DEPRECATED_PAGE) return error400("Invalid page number. Page numbers start at 1.");
   for (const key of ["before", "after", "email", "name", "license_key", "product_id", "order_id", "page_key"]) {
     const value = params[key];
     if (value !== undefined && value !== null && typeof value !== "string")
@@ -206,7 +207,7 @@ async function index({ owner, params, request }: ApiV2Input) {
 
   let tail: Prisma.Sql;
   if (deprecatedPage) {
-    tail = Prisma.sql`${order} LIMIT ${RESULTS_PER_PAGE + 1} OFFSET ${(page - 1) * RESULTS_PER_PAGE}`;
+    tail = Prisma.sql`${order} LIMIT ${RESULTS_PER_PAGE + 1} OFFSET ${(page - 1n) * BigInt(RESULTS_PER_PAGE)}`;
   } else {
     if (present(params.page_key)) {
       const decoded = decodePageKey(params.page_key);

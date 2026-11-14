@@ -349,7 +349,7 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       show(purchase)
     end
 
-    it "hands back a sale that carries URL parameters", parity: true do
+    it "prints the URL parameters of a sale", parity: true do
       purchase = sold(priced)
       PurchaseUrlParameter.create!(purchase:, params: { "discord_id" => "42" })
 
