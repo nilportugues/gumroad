@@ -16,6 +16,7 @@ import * as Routes from "@/lib/navigation/routes";
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { validPassword } from "../auth/devise-password.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { isAccountActive, nameOrUsername, Users } from "../models/user.ts";
@@ -319,9 +320,14 @@ async function addPurchaseToLibrary(input: MutationInput): Promise<ActionResult>
   }
   // `User.alive.find_by(email: purchase.email)`; a nil email would match accounts without one.
   if (!isPresent(purchase.email ?? "")) throw new HandBackToRails("a purchase without an email");
-  const owner = await db.user.findFirst({ where: { email: purchase.email!, deleted_at: null }, select: { id: true } });
-  if (owner !== null) throw new HandBackToRails("an account whose password is checked");
-  return failure();
+  const owner = await db.user.findFirst({
+    where: { email: purchase.email!, deleted_at: null },
+    select: { id: true, encrypted_password: true },
+  });
+  if (owner === null) return failure();
+  // `user.valid_password?`: a wrong password, a blank one and a non-bcrypt hash all fall through to the failure; only a right one writes.
+  if (!(await validPassword(owner.encrypted_password, text(password)))) return failure();
+  throw new HandBackToRails("an account whose password matches, which takes the purchase and signs in");
 }
 
 // ActiveSupport::SecurityUtils.secure_compare

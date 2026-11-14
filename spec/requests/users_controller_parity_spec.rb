@@ -411,12 +411,44 @@ describe "UsersController", type: :request do
       expect(response.parsed_body["success"]).to eq(true)
     end
 
-    it "hands an email an account owns to Rails", parity: true do
-      create(:user, email: purchase.email, password: "a-correct-password-1")
+    context "when an account owns the purchase email" do
+      let!(:owner) { create(:user, email: purchase.email, password: "a-correct-password-1") }
 
-      add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "wrong")
+      it "answers failure for a wrong password", parity: true do
+        add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "wrong")
 
-      expect(response.parsed_body).to eq("success" => false)
+        expect(response.parsed_body).to eq("success" => false)
+        expect(purchase.reload.purchaser_id).to be_nil
+      end
+
+      it "answers failure when no password is sent", parity: true do
+        add_to_library
+
+        expect(response.parsed_body).to eq("success" => false)
+        expect(purchase.reload.purchaser_id).to be_nil
+      end
+
+      it "answers failure for an empty password", parity: true do
+        add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "")
+
+        expect(response.parsed_body).to eq("success" => false)
+      end
+
+      it "answers failure for an account whose stored password is not a bcrypt hash", parity: true do
+        owner.update_columns(encrypted_password: "legacy-sha256-digest")
+
+        add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "a-correct-password-1")
+
+        expect(response.parsed_body).to eq("success" => false)
+        expect(purchase.reload.purchaser_id).to be_nil
+      end
+
+      it "hands the correct password to Rails", parity: true do
+        add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "a-correct-password-1")
+
+        expect(response.parsed_body["success"]).to eq(true)
+        expect(purchase.reload.purchaser_id).to eq(owner.id)
+      end
     end
 
     it "answers failure for a purchase id that is a list", parity: true do

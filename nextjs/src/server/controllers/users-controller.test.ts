@@ -23,6 +23,7 @@ vi.mock("../models/sql.ts", () => ({
 vi.mock("../../lib/db.ts", () => ({ db: { link: { findUnique: findLink }, user: { findFirst: findUser } } }));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({ decrypt: (id: string) => (id === "unknown" ? null : 7) }));
 vi.mock("../auth/resolve.ts", () => ({ railsLoggedInUser: loggedInUser }));
+vi.mock("../auth/devise-password.ts", () => ({ validPassword: (_hash: string, password: string | undefined) => Promise.resolve(password === "secret") }));
 
 await import("./users-controller.ts");
 
@@ -90,8 +91,14 @@ describe("POST /add_purchase_to_library", () => {
     await expect(call(VALID)).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands an email an account owns to Rails", async () => {
-    findUser.mockResolvedValue({ id: 5n });
+  it("answers failure for a wrong or missing password of the account that owns the email", async () => {
+    findUser.mockResolvedValue({ id: 5n, encrypted_password: "hash" });
+    expect(await body({ ...VALID, password: "wrong" })).toEqual({ success: false });
+    expect(await body(VALID)).toEqual({ success: false });
+  });
+
+  it("hands the right password of the account that owns the email to Rails", async () => {
+    findUser.mockResolvedValue({ id: 5n, encrypted_password: "hash" });
     await expect(call({ ...VALID, password: "secret" })).rejects.toBeInstanceOf(HandBackToRails);
   });
 
