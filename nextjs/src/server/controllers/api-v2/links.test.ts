@@ -49,9 +49,12 @@ describe("PUT /v2/products/:id/sections validation", () => {
     expect(await messageOf(body)).toBe("sections must be an array of section ids or objects.");
   });
 
-  it.each([[1, 2], [[]], [true]])("refuses the entries %j that are neither an id nor an object", async (entries) => {
-    expect(await messageOf({ sections: entries })).toBe("sections must be an array of section ids or objects.");
-  });
+  it.each([[[1, 2]], [[[]]], [[true]]])(
+    "refuses the entries %j that are neither an id nor an object",
+    async (entries) => {
+      expect(await messageOf({ sections: entries })).toBe("sections must be an array of section ids or objects.");
+    },
+  );
 
   it("reads a list in the raw body even when the params dropped a null from it", async () => {
     expect(await messageOf({ sections: [null] }, { sections: [] })).toBe(
@@ -60,10 +63,16 @@ describe("PUT /v2/products/:id/sections validation", () => {
   });
 
   it.each([
-    [{ bogus: 1 }, "bogus is not a section field. Allowed: featured_product, shown_products, default_product_sort, show_filters, add_new_products, id, type, header."],
+    [
+      { bogus: 1 },
+      "bogus is not a section field. Allowed: featured_product, shown_products, default_product_sort, show_filters, add_new_products, id, type, header.",
+    ],
     [{ id: encrypt(7), header: 3 }, "header must be a string."],
     [{ id: encrypt(7), header: "x".repeat(256) }, "header must be at most 255 characters."],
-    [{ id: encrypt(7), type: "products" }, "A section entry takes either id (an existing section) or type (a new one), not both."],
+    [
+      { id: encrypt(7), type: "products" },
+      "A section entry takes either id (an existing section) or type (a new one), not both.",
+    ],
     [{}, "Each object in sections must have an id or a type."],
     [{ id: "  " }, "Each object in sections must have an id or a type."],
     [{ type: "rich_text" }, "type must be one of: featured_product, products."],
@@ -83,7 +92,9 @@ describe("PUT /v2/products/:id/sections validation", () => {
 
   it("hands an entry that creates or changes a section to Rails", async () => {
     await expect(run({ sections: [{ type: "products" }] })).rejects.toThrow(/new profile section/u);
-    await expect(run({ sections: [{ id: encrypt(7), header: "New" }] })).rejects.toThrow(/contents of a profile section/u);
+    await expect(run({ sections: [{ id: encrypt(7), header: "New" }] })).rejects.toThrow(
+      /contents of a profile section/u,
+    );
   });
 
   it("reports an id that does not decrypt", async () => {

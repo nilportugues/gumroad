@@ -309,6 +309,7 @@ registerApiV2(
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadProduct("id"),
     rawJsonBody: true,
+    rawJsonKeys: ["sections"],
     run: updateSections,
   },
 );

@@ -63,7 +63,7 @@ describe "Emails mutations when signed in", type: :request, elasticsearch_wait_f
     expect(Installment.last.slug).to start_with("launch-notes-")
   end
 
-  it "adds the post to the profile sections the seller picked", parity: true do
+  it "hands a post for the profile sections the seller picked to Rails", parity: true do
     section = create(:seller_profile_posts_section, seller:, shown_posts: [])
     log_in(seller)
 
@@ -171,7 +171,7 @@ describe "Emails mutations when signed in", type: :request, elasticsearch_wait_f
     expect(installment.reload.bought_products).to eq([product.unique_permalink])
   end
 
-  it "removes a draft from the profile sections", parity: true do
+  it "hands a draft's removal from the profile sections to Rails", parity: true do
     installment = post_for("Sectioned", slug: "sectioned")
     section = create(:seller_profile_posts_section, seller:, shown_posts: [installment.id])
     log_in(seller)

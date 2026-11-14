@@ -191,7 +191,7 @@ describe "API v2 emails", type: :request do
         schedule "tomorrow-ish"
       end
 
-      it "hands back an offset without a colon", parity: true do
+      it "schedules at an offset without a colon", parity: true do
         schedule "2099-06-01T12:00:00+0200"
       end
 

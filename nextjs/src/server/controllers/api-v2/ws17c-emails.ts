@@ -410,6 +410,8 @@ async function serviceAttributes(installment: Installment, seller: User): Promis
     not_bought_products: value("not_bought_products"),
     not_bought_variants: value("not_bought_variants"),
     waitlisted_products: value("waitlisted_products"),
+    not_clicked_post_id: value("not_clicked_post_id") ?? null,
+    opened_post_id: value("opened_post_id") ?? null,
     shown_in_profile_sections: shown.map((section) => externalId(section.id)),
     files: [],
   };
@@ -464,6 +466,8 @@ export async function schedule(call: ApiCall): Promise<ActionResult> {
     "bought_from",
     "active_customers_only",
     "minimum_license_uses",
+    "not_clicked_post_id",
+    "opened_post_id",
     "bought_products",
     "not_bought_products",
     "bought_variants",
