@@ -127,12 +127,24 @@ describe.skipIf(!url)("Checkout and customer write guards", () => {
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
-  const replayOptions = (file: string) => {
+  // These two discount windows name 2030 instants in the request, recorded as hours from the recording (2026-11-13T04:00Z); the replay
+  // re-measures them from its own clock so they stay the same instants a day later (see `rebaseFarInstants`).
+  const LITERAL_INSTANT_RECORDINGS: [fragment: string, recordedAt: string][] = [
+    ["creates-an-auto-applied-universal-code-with-a-period", "2026-11-13T04:00:00Z"],
+    ["changes-the-amount-limit-and-period-of-a-universal-code", "2026-11-13T04:00:00Z"],
+  ];
+  const LITERAL_INSTANT_MIN_HOURS = 24 * 365;
+
+  const replayOptions = (file: string, name = "") => {
+    const literal = LITERAL_INSTANT_RECORDINGS.find(([fragment]) => name.includes(fragment));
     const ignore = [...COMPARE.ignore];
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
       ignore.push("response.cookies", "response.body", "response.json");
-    return replayOptionsFor({ ignore });
+    return {
+      ...replayOptionsFor({ ignore }),
+      ...(literal ? { recordedAt: new Date(literal[1]), rebaseMinHours: LITERAL_INSTANT_MIN_HOURS } : {}),
+    };
   };
 
   const replayOptionsFor = (compare: { ignore: string[] }) => ({
@@ -197,7 +209,7 @@ describe.skipIf(!url)("Checkout and customer write guards", () => {
         }
         const expected = fixture.exchanges[index]!;
         expected.jobs = settle((expected.jobs ?? []) as QueuedJob[]);
-        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file, name)));
       } catch (error) {
         const logs = server
           .output()

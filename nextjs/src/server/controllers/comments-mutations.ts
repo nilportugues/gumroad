@@ -1,8 +1,9 @@
 // CommentsController#create, #update and #destroy (app/controllers/comments_controller.rb), for a signed-in visitor on a seller's
 // host: the post's seller (and an admin or marketing team member) and the author of a comment.
 //
-// Left to Rails, before anything is written: a signed-out visitor, a purchase_id param or a visitor who bought the post's product
-// (purchase-based access), a reader who bought from the seller, an unconfirmed or removed follower, an affiliate that is not a live
+// A signed-out visitor is refused the edit or delete of a comment (nothing ties them to it); #create hands them back.
+// Left to Rails, before anything is written: a purchase_id that names a purchase or a visitor who bought the post's product
+// (purchase-based access), a signed-out create, a reader who bought from the seller, an unconfirmed or removed follower, an affiliate that is not a live
 // direct affiliate, and a post with audience filters that a follower or affiliate would be weighed by (User#visible_posts_for).
 import { Prisma, type Comment, type Installment, type User } from "@prisma/client";
 
@@ -23,7 +24,7 @@ import { MembershipNotFoundError } from "../policies/seller-context.ts";
 import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
-import { visibleToVisitor } from "./comment-post-visibility.ts";
+import { one, visibleToVisitor } from "./comment-post-visibility.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
@@ -65,13 +66,14 @@ async function findPost(externalId: string): Promise<Installment | null> {
   return row ? castRow<Installment>("Installment", row) : null;
 }
 
-type Prelude = { user: User; sellerContext: SellerContext; post: Installment };
+type Prelude = { user: User | null; sellerContext: SellerContext; post: Installment };
 
 // authenticate-less set_post, then set_purchase: the visitor's purchase decides what Rails would let them do, and none is ported.
 async function prelude(input: MutationInput): Promise<Prelude | ActionResult> {
   const { context, routeParams } = input;
   const user = railsLoggedInUser(context);
-  if (user === null || context.currentSeller === null) throw new HandBackToRails("a signed-out request");
+  if (user !== null && context.currentSeller === null)
+    throw new HandBackToRails("a signed-in request without a seller");
   const post = await findPost(routeParams.post_id!);
   if (post === null) return { ...jsonResponse({ success: false, error: "Not found" }, NOT_FOUND), rescued: true };
   return { user, sellerContext: await loadSellerContext(context), post };
@@ -81,9 +83,23 @@ const isPrelude = (value: Prelude | ActionResult): value is Prelude => "post" in
 
 // set_purchase: the post author needs none; anyone else gets the purchase they made of the post's product, which is not ported.
 async function assertNoPurchase(input: MutationInput, { user, post }: Prelude): Promise<void> {
-  if (input.context.currentSeller!.id === BigInt(post.seller_id ?? -1)) return;
-  if ("purchase_id" in input.params) throw new HandBackToRails("a comment request with a purchase_id");
-  if (post.link_id === null) return;
+  const seller = input.context.currentSeller;
+  if (seller !== null && seller.id === BigInt(post.seller_id ?? -1)) return;
+  const purchaseId = input.params.purchase_id;
+  // `if params[:purchase_id]`: an empty string is truthy, null is not; a purchase_id replaces the visitor's own purchase lookup.
+  if (purchaseId !== undefined && purchaseId !== null) {
+    if (typeof purchaseId !== "string") throw new HandBackToRails("a purchase_id that is not text");
+    const id = decrypt(purchaseId);
+    if (
+      id !== null &&
+      (await one(
+        Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`,
+      ))
+    )
+      throw new HandBackToRails("a purchase_id that names a purchase");
+    return;
+  }
+  if (user === null || post.link_id === null) return;
   const rows = await selectRows(
     Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "purchaser_id")} = ${user.id} AND ${column("purchases", "link_id")} = ${post.link_id} LIMIT 1`,
   );
@@ -172,6 +188,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
   const found = await prelude(input);
   if (!isPrelude(found)) return found;
   const { user, sellerContext, post } = found;
+  if (user === null) throw new HandBackToRails("a signed-out comment, which needs the post's visibility to a guest");
   await assertNoPurchase(input, found);
 
   // build_post_comment

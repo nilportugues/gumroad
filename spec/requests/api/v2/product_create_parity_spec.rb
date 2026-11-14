@@ -391,12 +391,111 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.suggested_price_cents).to eq(850)
   end
 
-  it "hands a refund policy back to Rails", parity: true do
-    seller.update!(refund_policy_enabled: false)
+  describe "refund policy" do
+    before { seller.update!(refund_policy_enabled: false) }
 
-    create_product({ name: "Notebook", price: 500, refund_period: "30" })
+    def policy = created.reload.product_refund_policy
 
-    expect(response).to have_http_status(:ok)
+    it "saves a product refund policy with its period", parity: true, parity_timeline: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "30" })
+
+      expect(response.parsed_body.dig("product", "refund_policy", "refund_period")).to eq("30")
+      expect(created).to be_product_refund_policy_enabled
+      expect(policy.max_refund_period_in_days).to eq(30)
+    end
+
+    it "saves the other periods", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "183" })
+
+      expect(policy.max_refund_period_in_days).to eq(183)
+    end
+
+    it "saves a period of seven days", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "7" })
+
+      expect(policy.max_refund_period_in_days).to eq(7)
+    end
+
+    it "saves a policy that allows no refunds", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none" })
+
+      expect(response.parsed_body.dig("product", "refund_policy", "refund_period")).to eq("none")
+      expect(policy.max_refund_period_in_days).to eq(0)
+    end
+
+    it "saves the fine print beside a period that allows no refunds", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "  Digital goods  " })
+
+      expect(policy.fine_print).to eq("Digital goods")
+    end
+
+    it "saves a policy on a draft", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "14", draft: true })
+
+      expect(policy.max_refund_period_in_days).to eq(14)
+      expect(created.draft).to be true
+    end
+
+    it "treats a null fine print and a blank one as none", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "   " })
+
+      expect(policy.fine_print).to be_nil
+    end
+
+    it "leaves a product on the account policy when the period is inherit", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "inherit" })
+
+      expect(created).not_to be_product_refund_policy_enabled
+      expect(created.product_refund_policy).to be_nil
+    end
+
+    it "refuses a fine print over three thousand characters and rolls the product back", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "a" * 3_001 })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+      expect(RefundPolicy.where.not(product_id: nil)).to be_empty
+    end
+
+    it "refuses a period that is not allowed", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "90" })
+
+      expect(message).to start_with("refund_period must be one of")
+    end
+
+    it "refuses a fine print without a period", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_fine_print: "Digital goods" })
+
+      expect(message).to eq("refund_fine_print requires refund_period, or an existing product-level refund policy.")
+    end
+
+    it "refuses a fine print beside inherit", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "inherit", refund_fine_print: "Digital goods" })
+
+      expect(message).to start_with("refund_fine_print cannot be set when refund_period is 'inherit'")
+    end
+
+    it "refuses a product refund policy on an account with the account-level policy", parity: true do
+      seller.update!(refund_policy_enabled: true)
+
+      create_product({ name: "Notebook", price: 500, refund_period: "30" })
+
+      expect(message).to start_with("Product-level refund policies are not available for this account")
+    end
+
+    it "hands a fine print that the classifier judges back to Rails", parity: true do
+      allow_any_instance_of(RefundPolicy).to receive(:fine_print_claims_no_refunds?).and_return(false)
+
+      create_product({ name: "Notebook", price: 500, refund_period: "30", refund_fine_print: "Digital goods" })
+
+      expect(policy.fine_print).to eq("Digital goods")
+    end
+
+    it "hands a fine print with markup back to Rails", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "<b>Digital</b> goods" })
+
+      expect(policy.fine_print).to eq("Digital goods")
+    end
   end
 
   it "hands a membership back to Rails", parity: true do
@@ -411,10 +510,122 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response.parsed_body).to include("success" => true)
   end
 
-  it "hands a product priced in another currency back to Rails", parity: true do
-    create_product({ name: "Notebook", price: 500, price_currency_type: "eur" })
+  describe "another currency" do
+    it "creates and publishes a product priced in euros", parity: true, parity_timeline: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur" })
 
-    expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to include("success" => true)
+      expect(response.parsed_body.dig("product", "published")).to be true
+      expect(created.price_currency_type).to eq("eur")
+      expect(created.price_cents).to eq(500)
+    end
+
+    it "reads the currency without regard to case or surrounding spaces", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: " GBP " })
+
+      expect(created.price_currency_type).to eq("gbp")
+    end
+
+    it "creates a product priced in a single-unit currency", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "jpy" })
+
+      expect(response.parsed_body).to include("success" => true)
+      expect(created.price_cents).to eq(500)
+    end
+
+    it "creates a draft priced in another currency", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur", draft: true })
+
+      expect(created.draft).to be true
+    end
+
+    it "creates a free product in another currency", parity: true do
+      create_product({ name: "Notebook", price: 0, price_currency_type: "eur" })
+
+      expect(created.customizable_price).to be true
+    end
+
+    it "creates a pay-what-you-want product with a suggested price in another currency", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur", customizable_price: true, suggested_price_cents: 850 })
+
+      expect(created.suggested_price_cents).to eq(850)
+    end
+
+    it "refuses a price under the minimum of its currency", parity: true do
+      create_product({ name: "Notebook", price: 10, price_currency_type: "eur" })
+
+      expect(message).to start_with("Sorry, a product must be at least")
+    end
+
+    it "refuses a price above the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 600_000, price_currency_type: "eur" })
+
+      expect(message).to eq("Sorry, we don't support pricing products above $5,000.")
+    end
+
+    it "accepts a price just under the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 200_000, price_currency_type: "gbp" })
+
+      expect(response.parsed_body).to include("success" => true)
+    end
+
+    it "accepts a price in Canadian dollars whose dollar value is under the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 505_000, price_currency_type: "cad" })
+
+      expect(response.parsed_body).to include("success" => true)
+    end
+
+    it "refuses a price in Canadian dollars whose dollar value is above the maximum of an unverified seller", parity: true do
+      seller.update_columns(verified: false)
+
+      create_product({ name: "Notebook", price: 520_000, price_currency_type: "cad" })
+
+      expect(message).to eq("Sorry, we don't support pricing products above $5,000.")
+    end
+
+    it "publishes a product beside a discount code in the same currency", parity: true do
+      create(:universal_offer_code, user: seller, code: "euros", currency_type: "eur", amount_cents: 100)
+
+      create_product({ name: "Notebook", price: 500, price_currency_type: "eur" })
+
+      expect(response.parsed_body.dig("product", "published")).to be true
+    end
+
+    it "keeps a product a draft when a discount code in the same currency puts its price under the minimum", parity: true do
+      create(:universal_offer_code, user: seller, code: "euros", currency_type: "eur", amount_cents: 100)
+
+      create_product({ name: "Notebook", price: 150, price_currency_type: "eur" })
+
+      expect(response.parsed_body["warning"]).to start_with("Saved as a draft: An existing discount code puts the price")
+    end
+
+    it "ignores a discount code in another currency", parity: true do
+      create(:universal_offer_code, user: seller, code: "dollars", currency_type: "usd", amount_cents: 100)
+
+      create_product({ name: "Notebook", price: 150, price_currency_type: "eur" })
+
+      expect(response.parsed_body.dig("product", "published")).to be true
+    end
+
+    it "uses the default currency of the seller when none is given", parity: true do
+      seller.update!(currency_type: "gbp")
+
+      create_product({ name: "Notebook", price: 500 })
+
+      expect(created.price_currency_type).to eq("gbp")
+    end
+
+    it "refuses a currency that is not supported", parity: true do
+      create_product({ name: "Notebook", price: 500, price_currency_type: "zzz" })
+
+      expect(message).to eq("'zzz' is not a supported currency.")
+    end
   end
 
   it "hands a rich content page back to Rails", parity: true do
@@ -423,10 +634,80 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a tag that is not plain lowercase back to Rails", parity: true do
-    create_product({ name: "Notebook", price: 500, tags: ["Paper"] })
+  describe "tags that are not plain lowercase" do
+    it "lowercases a tag name", parity: true, parity_timeline: true do
+      create_product({ name: "Notebook", price: 500, tags: ["Paper", "notes"] })
 
-    expect(response.parsed_body).to include("success" => true)
+      expect(response.parsed_body.dig("product", "tags")).to match_array(%w[paper notes])
+    end
+
+    it "reuses an existing tag named in capitals", parity: true do
+      Tag.create!(name: "paper")
+
+      create_product({ name: "Notebook", price: 500, tags: ["PAPER"] })
+
+      expect(Tag.where(name: "paper").count).to eq(1)
+      expect(Tag.find_by(name: "paper").reload.taggings_count).to eq(1)
+    end
+
+    it "refuses a tag of one character and rolls the product back", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["paper", "a"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+      expect(Tag.count).to eq(0)
+    end
+
+    it "refuses a tag of one capital letter", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["A"] })
+
+      expect(response.parsed_body["success"]).to be false
+    end
+
+    it "refuses a tag with a comma", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["paper,pen"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "refuses a tag over twenty characters", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["a" * 21] })
+
+      expect(response.parsed_body["success"]).to be false
+    end
+
+    it "refuses a tag that repeats a name", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["paper", "paper"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "keeps a tag with a space and a tag with a dash", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["dot grid", "A5-size"] })
+
+      expect(response.parsed_body.dig("product", "tags")).to match_array(["dot grid", "a5-size"])
+    end
+
+    it "keeps punctuation in a tag name", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["C++", "node.js", "50%"] })
+
+      expect(response.parsed_body.dig("product", "tags")).to match_array(%w[c++ node.js 50%])
+    end
+
+    it "refuses a tag that starts with a hash", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["#paper"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "refuses two spellings of one tag", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["Paper", "paper"] })
+
+      expect(response.parsed_body["success"]).to be false
+    end
   end
 
   it "hands a description Nokogiri would rewrite back to Rails", parity: true do

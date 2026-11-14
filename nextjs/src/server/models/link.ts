@@ -14,6 +14,7 @@ import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
+import { getUsdCents as helperGetUsdCents } from "./concerns/currency-helper.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import {
@@ -127,7 +128,10 @@ const QUANTITY_ENABLED_BIT = 1n << 13n;
 const HAS_OUTDATED_PURCHASES_BIT = 1n << 14n;
 // is_collab: only Collaborator and ProductAffiliate callbacks write it, and no Link callback or search field reads it.
 const IS_COLLAB_BIT = 1n << 27n;
+// product_refund_policy_enabled: POST /v2/products switches it on with the policy it saves; no Link callback or search field reads it.
+const PRODUCT_REFUND_POLICY_ENABLED_BIT = 1n << 0n;
 const PORTED_FLAG_BITS =
+  PRODUCT_REFUND_POLICY_ENABLED_BIT |
   QUANTITY_ENABLED_BIT |
   HAS_OUTDATED_PURCHASES_BIT |
   ARCHIVED_BIT |
@@ -329,14 +333,14 @@ async function loadUser(link: LinkRecord, ctx: CallbackContext): Promise<Row | n
   return loadBelongsTo(link, USER, ctx);
 }
 
-// CurrencyHelper#get_usd_cents. A rate missing from Redis is fetched over HTTP by query_rate.
+// CurrencyHelper#get_usd_cents.
 export async function getUsdCents(currencyType: string, quantity: number): Promise<number> {
   if (currencyType === "usd") return quantity;
   const code = currencyType.toUpperCase();
   const rate = await collaborators.redis().get(`currencies:${code}`);
   const rateFloat = rate == null ? 0 : Number.parseFloat(rate);
-  if (!(rateFloat > 0))
-    throw new NotPortedError(`CurrencyHelper#query_rate(${code})`, "app/helpers/currency_helper.rb:96");
+  // query_rate: the rates document, then the cache write; the helper's port is golden-tested against Rails.
+  if (!(rateFloat > 0)) return helperGetUsdCents(currencyType, quantity);
   const converted = new Prisma.Decimal(quantity).div(rateFloat);
   return (CURRENCIES[currencyType]?.single_unit ? converted.mul(100) : converted)
     .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP)
@@ -410,7 +414,7 @@ const refuseUnportedSave: Callback<Link> = {
         throw new NotPortedError(`Link#save changing ${unported.join(", ")}`, "app/models/link.rb");
       if (link.attributeChanged("flags") && (flagsDiff(link) & ~PORTED_FLAG_BITS) !== 0n)
         throw new NotPortedError(
-          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count, transcode_videos_on_purchase, quantity_enabled, has_outdated_purchases and is_collab",
+          "Link#save changing flags other than archived, is_adult, display_product_reviews, should_show_sales_count, transcode_videos_on_purchase, quantity_enabled, has_outdated_purchases, is_collab and product_refund_policy_enabled",
           "app/models/link.rb",
         );
       if (link.get("unique_permalink") == null)

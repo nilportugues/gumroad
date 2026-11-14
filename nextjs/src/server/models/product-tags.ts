@@ -28,6 +28,8 @@ const TOO_LONG = "A tag is too long. Please try again with a shorter one, under 
 const INVALID_FORMAT = "A tag cannot start with hashes or contain commas.";
 // A name `clean_name` and `String#downcase` leave alone, that the validations accept: lowercase ASCII with single inner spaces.
 const PLAIN_TAG_NAME = /^[a-z0-9](?:[a-z0-9_-]| (?! ))*[a-z0-9]$/u;
+// Printable ASCII with single inner spaces: `clean_name` leaves it alone once lowercased.
+const SPACED_ASCII = /^[\u0021-\u007e]+(?: [\u0021-\u007e]+)*$/u;
 // Printable ASCII without a space: `clean_name` leaves it alone once lowercased.
 const UNSPACED_ASCII = /^[\u0021-\u007e]+$/u;
 
@@ -142,32 +144,30 @@ async function currentTagNames(productId: number | bigint): Promise<string[]> {
 }
 
 // The work `save_tags!` does for `tagList`, in the order it does it. Reads only; throws NotPortedError for a list outside the shapes above.
-// `plainOnly` is the creation's reading, whose recordings hold no refusal: only plain lowercase names, each once.
+// `creating` is the reading for a product that has no tags yet (POST /v2/products): a name may be any printable ASCII with single inner
+// spaces, which `clean_name` leaves as `tag!` lowercased it, and the validations judge it as they would any Tag (too short, too long, a
+// comma or a leading hash raise RecordInvalid, rolling the creation back). Distinct spellings of one name then lowercase to the same tag
+// and the second tagging fails its uniqueness validation, as a repeated name does.
 export async function planTagChanges(
   productId: number | bigint,
   tagList: string[],
-  { plainOnly = false }: { plainOnly?: boolean } = {},
+  { creating = false }: { creating?: boolean } = {},
 ): Promise<Work[]> {
-  if (plainOnly) {
-    if (new Set(tagList).size !== tagList.length) notPorted("a tag list that repeats a name");
-    for (const name of tagList)
-      if (!PLAIN_TAG_NAME.test(name) || name.length < MIN_TAG_LENGTH || name.length > MAX_TAG_LENGTH)
-        notPorted("a tag name that is not plain lowercase ASCII of 2 to 20 characters");
-  }
   const current = await currentTagNames(productId);
   const toRemove = current.filter((name) => !tagList.includes(name));
   const toAdd = tagList.filter((name) => !current.includes(name));
   // `tag!` downcases the name it is given.
   const lowered = new Map<string, string>();
   for (const name of toAdd) {
-    if (!UNSPACED_ASCII.test(name)) notPorted("a tag name that is not printable ASCII without spaces");
+    if (!(creating ? SPACED_ASCII : UNSPACED_ASCII).test(name))
+      notPorted("a tag name that is not printable ASCII without spaces");
     const lower = name.toLowerCase();
-    if (lowered.has(lower) && lowered.get(lower) !== name) notPorted("two spellings of one tag name");
+    if (!creating && lowered.has(lower) && lowered.get(lower) !== name) notPorted("two spellings of one tag name");
     lowered.set(lower, name);
   }
   for (const name of toRemove)
     if (!PLAIN_TAG_NAME.test(name)) notPorted("a current tag that is not plain lowercase ASCII");
-  for (const lower of lowered.keys()) {
+  for (const lower of creating ? [] : lowered.keys()) {
     const validated = PLAIN_TAG_NAME.test(lower) && lower.length >= MIN_TAG_LENGTH && lower.length <= MAX_TAG_LENGTH;
     // The two refusals a recording holds: a single character, and a comma inside a name that is neither too short nor too long.
     const refused =

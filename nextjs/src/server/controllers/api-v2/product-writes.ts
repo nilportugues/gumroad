@@ -20,6 +20,7 @@ import { assertPlainPublish, publishBang } from "../../models/link-publish.ts";
 import { findLinkBang, LinkFlags, Links } from "../../models/link.ts";
 import { MAX_PRICE_CENTS, planBuyPriceWrite, PRICE_TOO_LARGE, writeBuyPrice } from "../../models/price-writes.ts";
 import { saveFilesForNewProduct, type NewFileParams } from "../../models/product-file-save.ts";
+import { needsClassifier, ProductRefundPolicies } from "../../models/product-refund-policy.ts";
 import { planTagChanges, saveTags } from "../../models/product-tags.ts";
 import { RecordInvalid } from "../../models/runtime/errors.ts";
 import { transaction } from "../../models/runtime/transaction.ts";
@@ -240,6 +241,9 @@ async function uploadedFileStorageError(files: Params[]): Promise<Rendered | nul
   return null;
 }
 
+// A Tag, ProductTagging or ProductRefundPolicy that failed to save inside the create transaction: `render_response(false, message: e.record.errors.full_messages.to_sentence)`.
+class RelatedRecordRefused extends Error {}
+
 async function hasMultipleRecurrences(productId: bigint): Promise<boolean> {
   const [row] = await selectRows<{ recurrences: bigint }>(
     Prisma.sql`SELECT COUNT(DISTINCT ${column("prices", "recurrence")}) AS recurrences FROM ${table("prices")} WHERE ${column("prices", "link_id")} = ${productId} AND ${column("prices", "deleted_at")} IS NULL AND ${column("prices", "flags")} & 1 = 0`,
@@ -298,7 +302,7 @@ async function create(input: ApiV2Input) {
 }
 
 // The params #create reads that the served shape does not write: each goes to Rails whole, before the first statement.
-const UNSERVED_CREATE_KEYS = ["custom_permalink", "refund_period", "refund_fine_print", "rich_content"];
+const UNSERVED_CREATE_KEYS = ["custom_permalink", "rich_content"];
 
 // ActiveModel::Type::Boolean#cast: nil for nil and "", false for the FALSE_VALUES, true for everything else.
 function castBoolean(value: unknown): boolean | null {
@@ -344,6 +348,43 @@ function permittedNewFiles(files: Params[]): NewFileParams[] {
   });
 }
 
+type RefundPolicyWrite = { days: number; finePrint: string | null };
+
+// Api::V2::RefundPoliciesController::REFUND_PERIOD_VALUES
+const REFUND_PERIOD_DAYS: Record<string, number> = { none: 0, "7": 7, "14": 14, "30": 30, "183": 183 };
+
+// apply_product_refund_policy! for a new product (validate_product_refund_policy_params has accepted the params): "inherit" leaves the
+// flag it is already off, anything else enables it and saves the policy. Fine print the HTML sanitizer would touch, and the one the
+// LLM classifier judges (a present text beside a period that guarantees refunds), go to Rails before anything is written.
+function plannedRefundPolicy(params: Params): RefundPolicyWrite | undefined {
+  if (!has(params, "refund_period")) return undefined;
+  const period = params.refund_period as string;
+  if (period === "inherit") return undefined;
+  const days = REFUND_PERIOD_DAYS[period]!;
+  let finePrint: string | null = null;
+  if (has(params, "refund_fine_print") && params.refund_fine_print !== null) {
+    finePrint = params.refund_fine_print as string;
+    if (/[<>&]/u.test(finePrint)) throw new HandBackToRails("a refund fine print the HTML sanitizer may rewrite");
+    if (needsClassifier(finePrint, days)) throw new HandBackToRails("a refund fine print the LLM classifier judges");
+  }
+  return { days, finePrint };
+}
+
+async function applyProductRefundPolicy(productId: bigint, sellerId: bigint, policy: RefundPolicyWrite) {
+  const product = await findLinkBang(productId);
+  await Links.updateBang(product, {
+    flags: LinkFlags.set(product.get("flags"), "product_refund_policy_enabled", true),
+  });
+  await ProductRefundPolicies.saveBang(
+    ProductRefundPolicies.build({
+      seller_id: sellerId,
+      product_id: productId,
+      max_refund_period_in_days: policy.days,
+      fine_print: policy.finePrint,
+    }),
+  );
+}
+
 // create_as_draft?
 const createAsDraft = (params: Params) =>
   castBoolean(params.draft) === true || (has(params, "published") && castBoolean(params.published) === false);
@@ -358,7 +399,6 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
       "a creation with attributes beyond name, description, price, limits, taxonomy, tags and summary",
     );
   const viaCli = /^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? "");
-  if (currency !== "usd") throw new HandBackToRails("a product priced in a currency other than USD");
   if (has(params, "name") && typeof params.name !== "string") throw new HandBackToRails("a name that is not text");
 
   let priceCents: number | null = null;
@@ -407,9 +447,10 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     ? customizablePriceParam(params.customizable_price)
     : undefined;
   const tagWork = has(params, "tags")
-    ? await planTagChanges(0n, params.tags as string[], { plainOnly: true })
+    ? await planTagChanges(0n, params.tags as string[], { creating: true })
     : undefined;
   const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
+  const refundPolicy = plannedRefundPolicy(params);
 
   const draft = createAsDraft(params);
   let priceError: string | null = null;
@@ -433,29 +474,50 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     isTeamMember: UserFlags.isSet(owner.flags, "is_team_member"),
   };
   let outcome: Awaited<ReturnType<typeof createApiLink>> | undefined;
-  await transaction(async () => {
-    outcome = await createApiLink(seller, {
-      name: has(params, "name") ? (params.name as string) : null,
-      description,
-      priceCents,
-      currency,
-      taxonomyId,
-      customSummary,
-      maxPurchaseCount,
-      customizablePrice,
-      suggestedPriceCents,
-      viaCli,
+  try {
+    await transaction(async () => {
+      outcome = await createApiLink(seller, {
+        name: has(params, "name") ? (params.name as string) : null,
+        description,
+        priceCents,
+        currency,
+        taxonomyId,
+        customSummary,
+        maxPurchaseCount,
+        customizablePrice,
+        suggestedPriceCents,
+        viaCli,
+      });
+      if (!outcome.created) return;
+      const id = outcome.link.get("id");
+      // The description is saved again as SaveContentUpsellsService returns it.
+      if (description !== null) {
+        await Links.updateBang(await findLinkBang(id), { description: nokogiriRoundtrip(description) });
+      }
+      if (tagWork !== undefined) {
+        try {
+          await saveTags(id, tagWork);
+        } catch (caught) {
+          // The refused record is a Tag or ProductTagging, not the product: the action renders its own messages, not the product's.
+          if (caught instanceof RecordInvalid) throw new RelatedRecordRefused(toSentence(caught.errors.fullMessages()));
+          throw caught;
+        }
+      }
+      if (refundPolicy !== undefined) {
+        try {
+          await applyProductRefundPolicy(id, owner.id, refundPolicy);
+        } catch (caught) {
+          if (caught instanceof RecordInvalid) throw new RelatedRecordRefused(toSentence(caught.errors.fullMessages()));
+          throw caught;
+        }
+      }
+      // SaveFilesService.perform, then `@product.save!`; the product has no rich content, variant or archive to rebuild.
+      if (files !== undefined) await saveFilesForNewProduct(await findLinkBang(id), files);
     });
-    if (!outcome.created) return;
-    const id = outcome.link.get("id");
-    // The description is saved again as SaveContentUpsellsService returns it.
-    if (description !== null) {
-      await Links.updateBang(await findLinkBang(id), { description: nokogiriRoundtrip(description) });
-    }
-    if (tagWork !== undefined) await saveTags(id, tagWork);
-    // SaveFilesService.perform, then `@product.save!`; the product has no rich content, variant or archive to rebuild.
-    if (files !== undefined) await saveFilesForNewProduct(await findLinkBang(id), files);
-  });
+  } catch (caught) {
+    if (caught instanceof RelatedRecordRefused) return refuse(caught.message);
+    throw caught;
+  }
   if (!outcome!.created) return errorWithCreatingObject("product", { errors: outcome!.errors.fullMessages() });
 
   const id = outcome!.link.get("id");

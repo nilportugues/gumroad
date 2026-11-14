@@ -79,6 +79,19 @@ function textParam(value: unknown): string {
   throw new HandBackToRails("a parameter that is not text, which Rails prints with #to_s");
 }
 
+// A signature sent as a list is `name.to_s`, the list's Array#inspect. Only strings whose String#inspect is the plain quoted text are
+// printed here; any other list stays in Rails.
+const INSPECT_PLAIN = /^[ !$%'()*+,\-./0-9:;=?@A-Z[\]^_`a-z{|}~]*$/u;
+function signatureName(value: unknown): string {
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => typeof entry === "string" && INSPECT_PLAIN.test(entry))
+  )
+    return `[${value.map((entry) => `"${String(entry)}"`).join(", ")}]`;
+  return textParam(value);
+}
+
 const guardInput = (input: MutationInput) => ({
   context: input.context,
   config: domainConfig(process.env),
@@ -180,7 +193,7 @@ async function sign(input: MutationInput): Promise<ActionResult> {
   );
   if (refused) return refused;
 
-  const name = textParam(input.params.signed_by_name);
+  const name = signatureName(input.params.signed_by_name);
   const confirmations = confirmationsParam(input.params.confirmations);
   const statementVersion = textParam(input.params.confirmations_version);
   const found = (await findReport(input.context.currentSeller!, externalId))!;

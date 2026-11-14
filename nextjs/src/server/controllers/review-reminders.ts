@@ -1,11 +1,14 @@
 // Users::ReviewRemindersController: the subscribe and unsubscribe links of review reminder emails. They change the opt-out flag in
 // the controller and then render a page with (almost) no props, so the writes run as the page's filters (ActionOptions.filters).
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { decryptSecureExternalId } from "../models/secure-external-id.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
+import { decryptSecureExternalId } from "../models/secure-external-id.ts";
 import { findUser, setFlag, Users, type UserRecord } from "../models/user.ts";
+
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } from "./application-controller.ts";
 import { railsSegment } from "./mutation.ts";
+import { cgiEscape } from "./rails-params.ts";
+import { fullpath } from "./rails-request.ts";
 
 const TOKEN_SCOPE = "unsubscribe_review_reminders";
 const OPT_OUT_FLAG = "opted_out_of_review_reminders";
@@ -25,7 +28,9 @@ function filters(optedOut: boolean, byToken: boolean): (chain: Chain) => Promise
   return async (chain) => {
     if (!byToken) {
       const visitor = railsLoggedInUser(chain.auth.context);
-      if (visitor === null) throw new HandBackToRails("a signed-out visitor on a signed-in endpoint");
+      // before_action :authenticate_user!
+      if (visitor === null)
+        return { halt: { status: 302, location: `/login?next=${cgiEscape(fullpath(chain.request))}`, rescued: true } };
       const user = await findUser(visitor.id);
       if (user === null) throw new HandBackToRails("a user that vanished");
       // `update!` raises for an account that fails validation: that is Rails' error page.
@@ -56,4 +61,5 @@ export const REVIEW_REMINDER_OPTIONS = {
   unsubscribeByToken: { filters: filters(true, true) } satisfies ActionOptions,
 };
 
-export const reviewReminderProps = (state: Record<string, unknown>) => (typeof state.subscribe_url === "string" ? { subscribe_url: state.subscribe_url } : {});
+export const reviewReminderProps = (state: Record<string, unknown>) =>
+  typeof state.subscribe_url === "string" ? { subscribe_url: state.subscribe_url } : {};

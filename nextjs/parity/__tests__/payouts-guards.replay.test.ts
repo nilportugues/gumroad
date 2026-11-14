@@ -184,8 +184,9 @@ describe.skipIf(!url)("Payout guards", () => {
     async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
-        // Whatever Node cannot prove goes to Rails whole, before its first write.
-        if (name.includes("-hands-")) {
+        // Whatever Node cannot prove goes to Rails whole, before its first write. The two instant payout examples keep "hands" in their
+        // names from before Node served POST /instant_payouts; they are now compared like any other example.
+        if (name.includes("-hands-") && !name.includes("instant-payouts")) {
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, replayOptions(file));
           const request = fixture.exchanges[index]!.request;

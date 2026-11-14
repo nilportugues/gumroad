@@ -237,8 +237,8 @@ describe("POST /dashboard/piracy_reports/:id/sign", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("hands back a name that is not text and confirmations that are not a list of text", async () => {
-    await expect(call(run, signParams({ signed_by_name: ["Jane"] }))).rejects.toBeInstanceOf(HandBackToRails);
+  it("hands back a name that is not text or a list of strings and confirmations that are not a list of text", async () => {
+    await expect(call(run, signParams({ signed_by_name: [{ a: "Jane" }] }))).rejects.toBeInstanceOf(HandBackToRails);
     await expect(call(run, signParams({ confirmations: { a: "1" } }))).rejects.toBeInstanceOf(HandBackToRails);
   });
 });

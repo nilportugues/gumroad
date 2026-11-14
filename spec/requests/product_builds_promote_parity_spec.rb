@@ -5,7 +5,7 @@ require "spec_helper"
 # POST /products/:product_id/builds/:id/promote, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/rest-sweep-2.replay.test.ts, which sends the last request of each example. Node answers the 404s, the Pundit
 # refusal and the promotion of a build for a product with one set of pages (ProductBuild#promote!, `parity_timeline` records the order of
-# its writes and jobs); a build that is already live is `hands a ...`.
+# its writes and jobs); a build that is already live and a product with no page yet (Rails creates one) are `hands a ...`.
 describe "Promoting a product build", type: :request do
   include Parity::AudienceSignedIn
 
@@ -79,7 +79,7 @@ describe "Promoting a product build", type: :request do
 
   def embed(file, uid) = { "type" => "fileEmbed", "attrs" => { "id" => file.external_id, "uid" => uid } }
 
-  it "promotes the first build of a product", parity: true, parity_timeline: true do
+  it "hands a promotion of a product with no pages to Rails", parity: true do
     log_in(seller)
 
     promote

@@ -126,12 +126,22 @@ describe.skipIf(!url)("Purchase pages guards", () => {
       vi.useFakeTimers({ now: Date.parse(process.env.PARITY_PIN_NOW), toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
-  const replayOptions = (file: string) => {
+  // The invoice form prints the purchase's date, and the spec made that purchase at 2025-02-03T04:05:06Z: recorded as `<now-15543h>`, it
+  // lands on the next day once the replay's clock is more than a day past the recording. Only the seed resolves against the pinned instant.
+  const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
+    ["renders-the-invoice-form", "2026-11-12T19:05:06Z"],
+  ];
+
+  const replayOptions = (file: string, name = "") => {
+    const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
     const ignore = [...COMPARE.ignore];
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
       ignore.push("response.cookies", "response.body", "response.json");
-    return replayOptionsFor({ ignore });
+    return {
+      ...replayOptionsFor({ ignore }),
+      ...(pinned ? { driftDates: false, seedClock: new Date(pinned[1]) } : {}),
+    };
   };
 
   const replayOptionsFor = (compare: { ignore: string[] }) => ({
@@ -189,7 +199,7 @@ describe.skipIf(!url)("Purchase pages guards", () => {
           expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
           return;
         }
-        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file)));
+        assertParity(await replayFixtureExchange(fixture, index, replayOptions(file, name)));
       } catch (error) {
         const logs = server
           .output()

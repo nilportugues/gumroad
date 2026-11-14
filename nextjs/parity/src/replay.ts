@@ -75,6 +75,8 @@ export type ReplayOptions = {
   // For a request that names an instant far from the recording (a 2099 `expires_at`): the instant the fixture was recorded at.
   // The recorded `<now+632328h>` is hours from then, so it is re-measured from the replay's clock before the comparison.
   recordedAt?: Date;
+  // The smallest recorded `<now+Nh>` that `recordedAt` re-measures; defaults to ten years (see `rebaseFarInstants`).
+  rebaseMinHours?: number;
   // The instant tokens resolve against; replayFixtureExchange fixes it so the expected side is rebased on the same one.
   now?: Date;
   // Runs once the database is seeded and before the request is sent: where a stand-in outbound server takes the baseline it
@@ -178,7 +180,9 @@ export async function replayFixtureExchange(
     options.driftDates === false
       ? expected
       : withDriftedDates(loaded, index, new Date(), options.driftAlso).exchanges[index]!;
-  const drifted = options.recordedAt ? rebaseFarInstants(moved, options.recordedAt, now) : moved;
+  const drifted = options.recordedAt
+    ? rebaseFarInstants(moved, options.recordedAt, now, options.rebaseMinHours)
+    : moved;
   return {
     fixture: loaded,
     exchanges: [{ expected: drifted, actual, differences: compareExchange(drifted, actual, compareOptions) }],
