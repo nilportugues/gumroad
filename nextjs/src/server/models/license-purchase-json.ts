@@ -207,8 +207,7 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
     gift = { price: gifter.price_cents, gifterEmail: gifter.email };
   }
   if (flags("is_gift_sender_purchase") && purchase.subscription_id != null) throw notPorted("a gifted membership");
-  if (LinkFlags.isSet(link.flags, "is_physical") || truthy(link.require_shipping))
-    throw notPorted("a shipped product");
+  if (LinkFlags.isSet(link.flags, "is_physical") || truthy(link.require_shipping)) throw notPorted("a shipped product");
   const affiliate = await affiliatePayload(purchase);
   const variant = await singleVariant(purchase);
   const customFields = await customFieldsOf(purchase);
