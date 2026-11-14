@@ -43,6 +43,7 @@ const connector = (client: string): ApiV2Route[] => [
       scopes: mcp.MCP_AUTHORIZE_SCOPES,
       keepSession: true,
       rawJsonBody: true,
+      answersNonJson: true,
       preAuth: mcp.mcpPreAuth,
       unauthorized: (headers) => mcp.mcpUnauthorized(`/${client}/v1/mcp`, headers),
     }),

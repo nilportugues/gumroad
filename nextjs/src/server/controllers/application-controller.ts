@@ -70,6 +70,8 @@ export type Rendered = {
   cspNonce?: string;
   // `SecureHeaders.opt_out_of_header(request, :csp)` made by the action itself, so a route's other answers keep the default policy.
   optOutOfCsp?: boolean;
+  // Answered by a prepended filter, ahead of set_gumroad_guid: no guid cookie is minted.
+  prepended?: boolean;
 };
 // redirect_to from the action. `rescued`: from a rescue_from handler, which skips the after_actions.
 // `flash`: what the action put in flash[:alert] and friends before redirecting.
@@ -660,7 +662,7 @@ export function afterActions(chain: Chain, result: ActionResult): ControllerResp
       .join(", ");
     if (vary) headers.set("vary", vary);
   }
-  if (chain.guid) headers.append("set-cookie", chain.guid);
+  if (chain.guid && !("prepended" in result && result.prepended)) headers.append("set-cookie", chain.guid);
   if (!("location" in result)) for (const cookie of result.cookies ?? []) headers.append("set-cookie", cookie);
   if (!result.rescued) {
     for (const cookie of chain.afterCookies) headers.append("set-cookie", cookie);

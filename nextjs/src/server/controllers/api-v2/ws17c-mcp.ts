@@ -21,7 +21,7 @@ import { domainConfig } from "../../page-props/domain.ts";
 import { HandBackToRails, type ActionResult } from "../application-controller.ts";
 import { remoteIp } from "../mutation.ts";
 
-import { present } from "./base.ts";
+import { isCertainlyNotJson, present } from "./base.ts";
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
 
 // Native-app callbacks that are neither https nor loopback, accepted only as exact strings.
@@ -130,16 +130,19 @@ export const mcpUnauthorized = (path: string, headers: Record<string, string>) =
   });
 
 // validate_mcp_origin and parse_rpc_body are prepended filters: they answer ahead of the rest of the chain, which Node leaves to Rails.
-export function mcpPreAuth({ request, rawBody }: Pick<ApiCall, "request" | "rawBody">): void {
+export function mcpPreAuth({ request, rawBody }: Pick<ApiCall, "request" | "rawBody">): ActionResult | undefined {
   const origin = request.headers.get("origin");
-  if (origin !== null && origin !== baseUrl()) throw new HandBackToRails("an MCP request from a foreign origin");
+  if (origin !== null && origin !== baseUrl()) return { ...head(403), prepended: true };
   if (request.method === "POST") {
+    const text = new TextDecoder().decode(rawBody);
     try {
-      JSON.parse(new TextDecoder().decode(rawBody));
+      JSON.parse(text);
     } catch {
-      throw new HandBackToRails("an MCP request body that is not JSON");
+      if (!isCertainlyNotJson(text)) throw new HandBackToRails("an MCP request body that is not JSON");
+      return renderJson({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400, { prepended: true });
     }
   }
+  return undefined;
 }
 
 // ApplicationController#set_paper_trail_whodunnit and #info_for_paper_trail, as the REST controllers apply them: a token request holds no
@@ -310,8 +313,9 @@ export async function register(call: ApiCall): Promise<ActionResult> {
   try {
     parsed = JSON.parse(source);
   } catch {
-    // Rails answers "JSON parse error" for it, but its parser reads comments and rejects bytes JavaScript's does not.
-    throw new HandBackToRails("a registration body that is not JSON");
+    // Ruby's parser reads comments and rejects bytes JavaScript's does not.
+    if (!isCertainlyNotJson(source)) throw new HandBackToRails("a registration body that is not JSON");
+    return invalid("JSON parse error");
   }
   const params =
     parsed !== null && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
