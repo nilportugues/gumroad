@@ -1,0 +1,3927 @@
+{
+  "version": 1,
+  "spec": "spec/requests/purchases_refund_failures_parity_spec.rb",
+  "example": "Refunds after Stripe was called when Stripe refuses the refund hands a refund to Rails when Stripe reports the charge as already refunded",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-12",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "audience_members": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "email": "varchar",
+              "details": "json",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "customer": "tinyint",
+              "follower": "tinyint",
+              "affiliate": "tinyint",
+              "min_paid_cents": "int",
+              "max_paid_cents": "int",
+              "min_created_at": "datetime",
+              "max_created_at": "datetime",
+              "min_purchase_created_at": "datetime",
+              "max_purchase_created_at": "datetime",
+              "follower_created_at": "datetime",
+              "min_affiliate_created_at": "datetime",
+              "max_affiliate_created_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "email": "buyer@example.com",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-12T11:26:09Z\", \"product_id\": 1, \"price_cents\": 100}]}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "customer": 1,
+                "follower": 0,
+                "affiliate": 0,
+                "min_paid_cents": 100,
+                "max_paid_cents": 100,
+                "min_created_at": "<now>",
+                "max_created_at": "<now>",
+                "min_purchase_created_at": "<now>",
+                "max_purchase_created_at": "<now>",
+                "follower_created_at": null,
+                "min_affiliate_created_at": null,
+                "max_affiliate_created_at": null
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 200,
+                "state": "unpaid",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 200
+              }
+            ]
+          },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Refunded product",
+                "unique_permalink": "refunded",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-16331h>",
+                "updated_at": "<now>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 1,
+                "first_published_at": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": null,
+                "json_data": "{}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now>"
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
+              }
+            ]
+          },
+          "purchases": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "fee_cents": "int",
+              "link_id": "bigint",
+              "email": "text",
+              "price_cents": "int",
+              "displayed_price_cents": "int",
+              "displayed_price_currency_type": "varchar",
+              "rate_converted_to_usd": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "full_name": "varchar",
+              "credit_card_id": "bigint",
+              "purchaser_id": "bigint",
+              "purchaser_type": "varchar",
+              "session_id": "varchar",
+              "ip_address": "varchar",
+              "is_mobile": "tinyint",
+              "stripe_refunded": "tinyint",
+              "stripe_transaction_id": "varchar",
+              "stripe_fingerprint": "varchar",
+              "stripe_card_id": "varchar",
+              "can_contact": "tinyint",
+              "referrer": "varchar",
+              "stripe_status": "varchar",
+              "variants": "text",
+              "chargeback_date": "datetime",
+              "webhook_failed": "tinyint",
+              "failed": "tinyint",
+              "card_type": "varchar",
+              "card_visual": "varchar",
+              "purchase_state": "varchar",
+              "processor_fee_cents": "int",
+              "succeeded_at": "datetime",
+              "card_country": "varchar",
+              "stripe_error_code": "varchar",
+              "browser_guid": "varchar",
+              "error_code": "varchar",
+              "card_bin": "varchar",
+              "custom_fields": "text",
+              "ip_country": "varchar",
+              "ip_state": "varchar",
+              "purchase_success_balance_id": "bigint",
+              "purchase_chargeback_balance_id": "bigint",
+              "purchase_refund_balance_id": "bigint",
+              "flags": "bigint",
+              "offer_code_id": "bigint",
+              "subscription_id": "bigint",
+              "preorder_id": "bigint",
+              "card_expiry_month": "int",
+              "card_expiry_year": "int",
+              "tax_cents": "int",
+              "affiliate_credit_cents": "int",
+              "credit_card_zipcode": "varchar",
+              "json_data": "varchar",
+              "card_data_handling_mode": "varchar",
+              "charge_processor_id": "varchar",
+              "total_transaction_cents": "int",
+              "gumroad_tax_cents": "int",
+              "zip_tax_rate_id": "bigint",
+              "quantity": "int",
+              "merchant_account_id": "bigint",
+              "shipping_cents": "int",
+              "affiliate_id": "bigint",
+              "processor_fee_cents_currency": "varchar",
+              "stripe_partially_refunded": "tinyint",
+              "paypal_order_id": "varchar",
+              "rental_expired": "tinyint",
+              "processor_payment_intent_id": "varchar",
+              "processor_setup_intent_id": "varchar",
+              "price_id": "bigint",
+              "recommended_by": "varchar",
+              "deleted_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "fee_cents": 30,
+                "link_id": 1,
+                "email": "buyer@example.com",
+                "price_cents": 100,
+                "displayed_price_cents": 100,
+                "displayed_price_currency_type": "usd",
+                "rate_converted_to_usd": null,
+                "street_address": null,
+                "city": null,
+                "state": null,
+                "zip_code": null,
+                "country": null,
+                "full_name": null,
+                "credit_card_id": null,
+                "purchaser_id": null,
+                "purchaser_type": "User",
+                "session_id": null,
+                "ip_address": "151.179.168.196",
+                "is_mobile": null,
+                "stripe_refunded": null,
+                "stripe_transaction_id": "ch_parityrefund01",
+                "stripe_fingerprint": "shfbeg5142fff",
+                "stripe_card_id": null,
+                "can_contact": 1,
+                "referrer": null,
+                "stripe_status": null,
+                "variants": null,
+                "chargeback_date": null,
+                "webhook_failed": 0,
+                "failed": 0,
+                "card_type": "visa",
+                "card_visual": "**** **** **** 4062",
+                "purchase_state": "successful",
+                "processor_fee_cents": null,
+                "succeeded_at": "<now>",
+                "card_country": "US",
+                "stripe_error_code": null,
+                "browser_guid": "SDFJKLDF-1-891542-JDSFKLDSF",
+                "error_code": null,
+                "card_bin": null,
+                "custom_fields": null,
+                "ip_country": null,
+                "ip_state": null,
+                "purchase_success_balance_id": null,
+                "purchase_chargeback_balance_id": null,
+                "purchase_refund_balance_id": null,
+                "flags": 0,
+                "offer_code_id": null,
+                "subscription_id": null,
+                "preorder_id": null,
+                "card_expiry_month": null,
+                "card_expiry_year": null,
+                "tax_cents": 0,
+                "affiliate_credit_cents": 0,
+                "credit_card_zipcode": null,
+                "json_data": "{}",
+                "card_data_handling_mode": null,
+                "charge_processor_id": "stripe",
+                "total_transaction_cents": 100,
+                "gumroad_tax_cents": 0,
+                "zip_tax_rate_id": null,
+                "quantity": 1,
+                "merchant_account_id": 1,
+                "shipping_cents": 0,
+                "affiliate_id": null,
+                "processor_fee_cents_currency": "usd",
+                "stripe_partially_refunded": 0,
+                "paypal_order_id": null,
+                "rental_expired": null,
+                "processor_payment_intent_id": null,
+                "processor_setup_intent_id": null,
+                "price_id": null,
+                "recommended_by": null,
+                "deleted_at": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgared1230d0_1@gumroad.com",
+                "encrypted_password": "$2a$04$ACs5UwmQaEaYwZGm.GX.IO6amJQeEQLacjNedq36S691XIFap4dfe",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "113.13.81.168",
+                "last_sign_in_ip": "58.208.162.86",
+                "created_at": "<now-16331h>",
+                "updated_at": "<now>",
+                "name": "Refund Seller",
+                "payment_address": "edgar3d023031_2@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "refundseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "45291334991",
+                "account_created_ip": "241.91.179.182",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "JVNBNSU3G7CPPDLQ2742PBDTYO5YQIRB",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "audience_members": 2,
+          "balances": 2,
+          "links": 2,
+          "merchant_accounts": 2,
+          "prices": 2,
+          "purchases": 2,
+          "refund_policies": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/help/category/219-after-your-purchase",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "12y9wdzlUMDkYEcFTuob2mhenZMrBsYckKKjvR_tmoorkACRwrwQHt_CJQ0XvX9QCyhIMHHR-NoqCD-GxiTJ2A",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "8JYj33W9ZD20qnmVyZUgTczy4v2EQZz00Ji2K5LQiVa3JY2HpY8zm5l6FSysI8gDJXsPwINUPfEPxMxXW9X1b17dyinFsKRjVKyWGiEVKK2bA22PcbZEX0Gs887IymQExRSuB7hkddRNoutfF7R7KqUhu49TvLW2UTXu0h6lXu9VsoDXLnYajVAyu0fI/DlvcVo0AXe1G+aZ3T5vX9g6TaRzI5cNP6JOb7ludOLRdBNe6ywB08p/VA1FJyVsBcisyOJJM+MYJFf41IIaStKwnyANrAh1LnmON4w+ZbtCU+z401XejzCGscMaqrB0nISrgTu5hNdR/qSQ8vZoHttbulrvQphndew2wVKpLFaFpIQk96T1xxtBK90c+HN7fznxERQM--Fagy8XafieqJ/w4f--sbDRH47Sqr42mQ/cVjUpIg==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "HelpCenter/Categories/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://app.test.gumroad.com:31337/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": null,
+            "current_seller": null,
+            "csp_nonce": "8jpa9YJ7gaMPriDtSVphA17tMhCqwdWRB8WtlYvX7sk=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "o661nrC5-iPlW35pvLCyrImbgN9Y2m5ibf-Lf4INMkVfUgjOruC6_d75HGHl59Ym6u1VfAINUKTXVRdEW8RhFw",
+            "flash": null,
+            "title": "Accessing your purchase - Gumroad Help Center",
+            "category": {
+              "title": "Accessing your purchase",
+              "slug": "219-after-your-purchase",
+              "articles": [
+                {
+                  "title": "Your Gumroad Library",
+                  "url": "/help/article/198-your-gumroad-library"
+                },
+                {
+                  "title": "How do I access my purchase?",
+                  "url": "/help/article/199-how-do-i-access-my-purchase"
+                },
+                {
+                  "title": "How to open ZIP and RAR files",
+                  "url": "/help/article/206-how-to-open-zip-and-rar-files"
+                },
+                {
+                  "title": "How do I send my purchases to Kindle?",
+                  "url": "/help/article/208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
+                },
+                {
+                  "title": "How do I send my purchase to Dropbox?",
+                  "url": "/help/article/210-send-your-purchase-to-dropbox"
+                },
+                {
+                  "title": "When will my purchase be shipped?",
+                  "url": "/help/article/215-when-will-my-purchase-be-shipped"
+                },
+                {
+                  "title": "Guide to memberships",
+                  "url": "/help/article/278-guide-to-memberships"
+                },
+                {
+                  "title": "Rate and review your purchase",
+                  "url": "/help/article/344-rate-and-review-your-purchase"
+                },
+                {
+                  "title": "Casting videos to your TV",
+                  "url": "/help/article/350-casting-videos-to-your-tv"
+                }
+              ]
+            },
+            "sidebar_categories": [
+              {
+                "title": "Accessing your purchase",
+                "slug": "219-after-your-purchase",
+                "url": "/help/category/219-after-your-purchase"
+              },
+              {
+                "title": "Before you buy",
+                "slug": "220-before-you-buy",
+                "url": "/help/category/220-before-you-buy"
+              },
+              {
+                "title": "Receipts and refunds",
+                "slug": "337-receipts-and-refunds",
+                "url": "/help/category/337-receipts-and-refunds"
+              },
+              {
+                "title": "Issues with your purchase",
+                "slug": "338-issues-with-your-purchase",
+                "url": "/help/category/338-issues-with-your-purchase"
+              }
+            ],
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "eHki6Ifo3uipAMBHdAozVvbLkF_q2IrnugwJSBAGiEqEhZ-4mbGeNpKiok8tXVfclb1F_LAPtCEAppVzyc_bGA"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "true"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-type",
+                "property": "og:type",
+                "content": "website"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-card",
+                "name": "twitter:card",
+                "content": "summary"
+              },
+              {
+                "tagName": "link",
+                "headKey": "canonical",
+                "rel": "canonical",
+                "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              }
+            ]
+          },
+          "url": "/help/category/219-after-your-purchase",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": [],
+      "timeline": []
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "audience_members": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "email": "varchar",
+              "details": "json",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "customer": "tinyint",
+              "follower": "tinyint",
+              "affiliate": "tinyint",
+              "min_paid_cents": "int",
+              "max_paid_cents": "int",
+              "min_created_at": "datetime",
+              "max_created_at": "datetime",
+              "min_purchase_created_at": "datetime",
+              "max_purchase_created_at": "datetime",
+              "follower_created_at": "datetime",
+              "min_affiliate_created_at": "datetime",
+              "max_affiliate_created_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "email": "buyer@example.com",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-12T11:26:09Z\", \"product_id\": 1, \"price_cents\": 100}]}",
+                "created_at": "<now-5s>",
+                "updated_at": "<now-5s>",
+                "customer": 1,
+                "follower": 0,
+                "affiliate": 0,
+                "min_paid_cents": 100,
+                "max_paid_cents": 100,
+                "min_created_at": "<now-5s>",
+                "max_created_at": "<now-5s>",
+                "min_purchase_created_at": "<now-5s>",
+                "max_purchase_created_at": "<now-5s>",
+                "follower_created_at": null,
+                "min_affiliate_created_at": null,
+                "max_affiliate_created_at": null
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 200,
+                "state": "unpaid",
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 200
+              }
+            ]
+          },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Refunded product",
+                "unique_permalink": "refunded",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-16331h>",
+                "updated_at": "<now-5s>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 1,
+                "first_published_at": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": null,
+                "json_data": "{}",
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now-10s>"
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
+              }
+            ]
+          },
+          "purchases": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "fee_cents": "int",
+              "link_id": "bigint",
+              "email": "text",
+              "price_cents": "int",
+              "displayed_price_cents": "int",
+              "displayed_price_currency_type": "varchar",
+              "rate_converted_to_usd": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "full_name": "varchar",
+              "credit_card_id": "bigint",
+              "purchaser_id": "bigint",
+              "purchaser_type": "varchar",
+              "session_id": "varchar",
+              "ip_address": "varchar",
+              "is_mobile": "tinyint",
+              "stripe_refunded": "tinyint",
+              "stripe_transaction_id": "varchar",
+              "stripe_fingerprint": "varchar",
+              "stripe_card_id": "varchar",
+              "can_contact": "tinyint",
+              "referrer": "varchar",
+              "stripe_status": "varchar",
+              "variants": "text",
+              "chargeback_date": "datetime",
+              "webhook_failed": "tinyint",
+              "failed": "tinyint",
+              "card_type": "varchar",
+              "card_visual": "varchar",
+              "purchase_state": "varchar",
+              "processor_fee_cents": "int",
+              "succeeded_at": "datetime",
+              "card_country": "varchar",
+              "stripe_error_code": "varchar",
+              "browser_guid": "varchar",
+              "error_code": "varchar",
+              "card_bin": "varchar",
+              "custom_fields": "text",
+              "ip_country": "varchar",
+              "ip_state": "varchar",
+              "purchase_success_balance_id": "bigint",
+              "purchase_chargeback_balance_id": "bigint",
+              "purchase_refund_balance_id": "bigint",
+              "flags": "bigint",
+              "offer_code_id": "bigint",
+              "subscription_id": "bigint",
+              "preorder_id": "bigint",
+              "card_expiry_month": "int",
+              "card_expiry_year": "int",
+              "tax_cents": "int",
+              "affiliate_credit_cents": "int",
+              "credit_card_zipcode": "varchar",
+              "json_data": "varchar",
+              "card_data_handling_mode": "varchar",
+              "charge_processor_id": "varchar",
+              "total_transaction_cents": "int",
+              "gumroad_tax_cents": "int",
+              "zip_tax_rate_id": "bigint",
+              "quantity": "int",
+              "merchant_account_id": "bigint",
+              "shipping_cents": "int",
+              "affiliate_id": "bigint",
+              "processor_fee_cents_currency": "varchar",
+              "stripe_partially_refunded": "tinyint",
+              "paypal_order_id": "varchar",
+              "rental_expired": "tinyint",
+              "processor_payment_intent_id": "varchar",
+              "processor_setup_intent_id": "varchar",
+              "price_id": "bigint",
+              "recommended_by": "varchar",
+              "deleted_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "created_at": "<now-5s>",
+                "updated_at": "<now-5s>",
+                "fee_cents": 30,
+                "link_id": 1,
+                "email": "buyer@example.com",
+                "price_cents": 100,
+                "displayed_price_cents": 100,
+                "displayed_price_currency_type": "usd",
+                "rate_converted_to_usd": null,
+                "street_address": null,
+                "city": null,
+                "state": null,
+                "zip_code": null,
+                "country": null,
+                "full_name": null,
+                "credit_card_id": null,
+                "purchaser_id": null,
+                "purchaser_type": "User",
+                "session_id": null,
+                "ip_address": "151.179.168.196",
+                "is_mobile": null,
+                "stripe_refunded": null,
+                "stripe_transaction_id": "ch_parityrefund01",
+                "stripe_fingerprint": "shfbeg5142fff",
+                "stripe_card_id": null,
+                "can_contact": 1,
+                "referrer": null,
+                "stripe_status": null,
+                "variants": null,
+                "chargeback_date": null,
+                "webhook_failed": 0,
+                "failed": 0,
+                "card_type": "visa",
+                "card_visual": "**** **** **** 4062",
+                "purchase_state": "successful",
+                "processor_fee_cents": null,
+                "succeeded_at": "<now-5s>",
+                "card_country": "US",
+                "stripe_error_code": null,
+                "browser_guid": "SDFJKLDF-1-891542-JDSFKLDSF",
+                "error_code": null,
+                "card_bin": null,
+                "custom_fields": null,
+                "ip_country": null,
+                "ip_state": null,
+                "purchase_success_balance_id": null,
+                "purchase_chargeback_balance_id": null,
+                "purchase_refund_balance_id": null,
+                "flags": 0,
+                "offer_code_id": null,
+                "subscription_id": null,
+                "preorder_id": null,
+                "card_expiry_month": null,
+                "card_expiry_year": null,
+                "tax_cents": 0,
+                "affiliate_credit_cents": 0,
+                "credit_card_zipcode": null,
+                "json_data": "{}",
+                "card_data_handling_mode": null,
+                "charge_processor_id": "stripe",
+                "total_transaction_cents": 100,
+                "gumroad_tax_cents": 0,
+                "zip_tax_rate_id": null,
+                "quantity": 1,
+                "merchant_account_id": 1,
+                "shipping_cents": 0,
+                "affiliate_id": null,
+                "processor_fee_cents_currency": "usd",
+                "stripe_partially_refunded": 0,
+                "paypal_order_id": null,
+                "rental_expired": null,
+                "processor_payment_intent_id": null,
+                "processor_setup_intent_id": null,
+                "price_id": null,
+                "recommended_by": null,
+                "deleted_at": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now-5s>",
+                "updated_at": "<now-5s>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgared1230d0_1@gumroad.com",
+                "encrypted_password": "$2a$04$ACs5UwmQaEaYwZGm.GX.IO6amJQeEQLacjNedq36S691XIFap4dfe",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "113.13.81.168",
+                "last_sign_in_ip": "58.208.162.86",
+                "created_at": "<now-16331h>",
+                "updated_at": "<now-10s>",
+                "name": "Refund Seller",
+                "payment_address": "edgar3d023031_2@gumroad.com",
+                "confirmed_at": "<now-10s>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "refundseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "45291334991",
+                "account_created_ip": "241.91.179.182",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "JVNBNSU3G7CPPDLQ2742PBDTYO5YQIRB",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "audience_members": 2,
+          "balances": 2,
+          "links": 2,
+          "merchant_accounts": 2,
+          "prices": 2,
+          "purchases": 2,
+          "refund_policies": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "POST",
+        "path": "/login",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "content-type": "application/x-www-form-urlencoded",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "12y9wdzlUMDkYEcFTuob2mhenZMrBsYckKKjvR_tmoorkACRwrwQHt_CJQ0XvX9QCyhIMHHR-NoqCD-GxiTJ2A",
+          "_gumroad_app_session_test": "8JYj33W9ZD20qnmVyZUgTczy4v2EQZz00Ji2K5LQiVa3JY2HpY8zm5l6FSysI8gDJXsPwINUPfEPxMxXW9X1b17dyinFsKRjVKyWGiEVKK2bA22PcbZEX0Gs887IymQExRSuB7hkddRNoutfF7R7KqUhu49TvLW2UTXu0h6lXu9VsoDXLnYajVAyu0fI/DlvcVo0AXe1G+aZ3T5vX9g6TaRzI5cNP6JOb7ludOLRdBNe6ywB08p/VA1FJyVsBcisyOJJM+MYJFf41IIaStKwnyANrAh1LnmON4w+ZbtCU+z401XejzCGscMaqrB0nISrgTu5hNdR/qSQ8vZoHttbulrvQphndew2wVKpLFaFpIQk96T1xxtBK90c+HN7fznxERQM--Fagy8XafieqJ/w4f--sbDRH47Sqr42mQ/cVjUpIg==",
+          "_gumroad_guid": "9deef853-2855-4ae8-87f4-49d7cc5ea573"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "authenticity_token=o661nrC5-iPlW35pvLCyrImbgN9Y2m5ibf-Lf4INMkVfUgjOruC6_d75HGHl59Ym6u1VfAINUKTXVRdEW8RhFw&user[login_identifier]=edgared1230d0_1%40gumroad.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+      },
+      "response": {
+        "status": 302,
+        "location": "http://app.test.gumroad.com:31337/dashboard",
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "text/html; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "uflAYw6_Ra_s7TD-kJIjPDKui6m557ZtHvm6Z69n1N9FBf0zEOYFcddPUvbJxUe2UdheCuMwiKukUyZcdq6HjQ",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "k9i9oxvMWzWVBGfKgDi4W6zebFXjA8rf4JqhhWTXtkpvO4AXx++lb1PpR5ARjjBzu66cDhRYvxEZNncYmnkjH5ubtmYEq7b3R5GbC+BQY6Wk7KsNAN8wQnPM41NAuFF+n+Di21EWMcGa7KQ9CuUkIreHtqWA1NdMuxd8zkd0C0yw7J8IbZ9b0bQYsj8PV+zQMjGpghI9dSX0hO3+Aa6pt0s8uzL8gWUJFjjx3AqIo591S1+/PRCjzSoRle2czcNY6yNFhQmA5ayPIcsD3bc+NGPcUb83gv8cgHWoqDxe5+HlRdlz6wRcM8m1Y5IVdflUMc/U9/0HMMF8B9dWQYgniUq7zEYI0RDJHHToettN7raveRIPT4Lz5kw7u+z0Ot4r6kJ+kaWanBR7rViXJNGdbPJTMor2OX+EKTrpWLm98KP1PfKW0CzNgQtBJV6J8xZ70geRF1A4n2/u9o99ix3y/BqqQyyQxLgcc5kIYxNq4hZvw+oeSncgtIz8QZ7T+1qud/Kzwd71OKnpRBzmCESf4aqdxbkC/ZN2SWGY24/8IXlVwSsi9v7BZdUPLjY/hO5vqopLuhFZ/RQqmkxTw7VavMg9V0tyEpHEJYhM8qVNURC0qC3nqRS71ZCEEbCVCSqlDdRO--Hbr5ExDLra9QIl7V--O6pDUnyQfLgkl2JvBnUW6g==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "remember_user_token": {
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRUZEY3pWVmQyMVJZVVZoV1hkYVIyMHVSMWd1U1U4aUxDSXhOemswTkRneU56YzVMak0wTURBeU5qRWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMlQxMToyNjoxOS4zNDBaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--8a51c02ab5730cc1134c61b7ce5cc85ace2d42ea",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+720h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        }
+      },
+      "db": {
+        "seller_profiles": {
+          "inserted": [
+            {
+              "id": 1,
+              "seller_id": 1,
+              "highlight_color": "#ff90e8",
+              "background_color": "#ffffff",
+              "font": "ABC Favorit",
+              "created_at": "<now>",
+              "updated_at": "<now>",
+              "json_data": null,
+              "border_radius": "small",
+              "button_hover": "lift",
+              "seo_title": null,
+              "seo_description": null
+            }
+          ]
+        },
+        "users": {
+          "updated": [
+            {
+              "key": {
+                "id": 1
+              },
+              "changes": {
+                "remember_created_at": [
+                  null,
+                  "<now>"
+                ],
+                "sign_in_count": [
+                  0,
+                  1
+                ],
+                "current_sign_in_at": [
+                  null,
+                  "<now>"
+                ],
+                "last_sign_in_at": [
+                  null,
+                  "<now>"
+                ],
+                "current_sign_in_ip": [
+                  "113.13.81.168",
+                  "127.0.0.1"
+                ],
+                "last_sign_in_ip": [
+                  "58.208.162.86",
+                  "113.13.81.168"
+                ],
+                "updated_at": [
+                  "<now-10s>",
+                  "<now>"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "jobs": [
+        {
+          "class": "InvalidateProductCacheWorker",
+          "args": [
+            1
+          ],
+          "queue": "low"
+        }
+      ],
+      "mails": [],
+      "http": [
+        {
+          "method": "GET",
+          "url": "https://api.pwnedpasswords.com/range/4B33A",
+          "response": {
+            "status": 200,
+            "body": ""
+          }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "seller_profiles"
+        },
+        {
+          "type": "job",
+          "index": 0
+        }
+      ]
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "audience_members": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "email": "varchar",
+              "details": "json",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "customer": "tinyint",
+              "follower": "tinyint",
+              "affiliate": "tinyint",
+              "min_paid_cents": "int",
+              "max_paid_cents": "int",
+              "min_created_at": "datetime",
+              "max_created_at": "datetime",
+              "min_purchase_created_at": "datetime",
+              "max_purchase_created_at": "datetime",
+              "follower_created_at": "datetime",
+              "min_affiliate_created_at": "datetime",
+              "max_affiliate_created_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "email": "buyer@example.com",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-12T11:26:09Z\", \"product_id\": 1, \"price_cents\": 100}]}",
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "customer": 1,
+                "follower": 0,
+                "affiliate": 0,
+                "min_paid_cents": 100,
+                "max_paid_cents": 100,
+                "min_created_at": "<now-10s>",
+                "max_created_at": "<now-10s>",
+                "min_purchase_created_at": "<now-10s>",
+                "max_purchase_created_at": "<now-10s>",
+                "follower_created_at": null,
+                "min_affiliate_created_at": null,
+                "max_affiliate_created_at": null
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 200,
+                "state": "unpaid",
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 200
+              }
+            ]
+          },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Refunded product",
+                "unique_permalink": "refunded",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-16331h>",
+                "updated_at": "<now-10s>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 1,
+                "first_published_at": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": null,
+                "json_data": "{}",
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now-10s>"
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
+              }
+            ]
+          },
+          "purchases": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "fee_cents": "int",
+              "link_id": "bigint",
+              "email": "text",
+              "price_cents": "int",
+              "displayed_price_cents": "int",
+              "displayed_price_currency_type": "varchar",
+              "rate_converted_to_usd": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "full_name": "varchar",
+              "credit_card_id": "bigint",
+              "purchaser_id": "bigint",
+              "purchaser_type": "varchar",
+              "session_id": "varchar",
+              "ip_address": "varchar",
+              "is_mobile": "tinyint",
+              "stripe_refunded": "tinyint",
+              "stripe_transaction_id": "varchar",
+              "stripe_fingerprint": "varchar",
+              "stripe_card_id": "varchar",
+              "can_contact": "tinyint",
+              "referrer": "varchar",
+              "stripe_status": "varchar",
+              "variants": "text",
+              "chargeback_date": "datetime",
+              "webhook_failed": "tinyint",
+              "failed": "tinyint",
+              "card_type": "varchar",
+              "card_visual": "varchar",
+              "purchase_state": "varchar",
+              "processor_fee_cents": "int",
+              "succeeded_at": "datetime",
+              "card_country": "varchar",
+              "stripe_error_code": "varchar",
+              "browser_guid": "varchar",
+              "error_code": "varchar",
+              "card_bin": "varchar",
+              "custom_fields": "text",
+              "ip_country": "varchar",
+              "ip_state": "varchar",
+              "purchase_success_balance_id": "bigint",
+              "purchase_chargeback_balance_id": "bigint",
+              "purchase_refund_balance_id": "bigint",
+              "flags": "bigint",
+              "offer_code_id": "bigint",
+              "subscription_id": "bigint",
+              "preorder_id": "bigint",
+              "card_expiry_month": "int",
+              "card_expiry_year": "int",
+              "tax_cents": "int",
+              "affiliate_credit_cents": "int",
+              "credit_card_zipcode": "varchar",
+              "json_data": "varchar",
+              "card_data_handling_mode": "varchar",
+              "charge_processor_id": "varchar",
+              "total_transaction_cents": "int",
+              "gumroad_tax_cents": "int",
+              "zip_tax_rate_id": "bigint",
+              "quantity": "int",
+              "merchant_account_id": "bigint",
+              "shipping_cents": "int",
+              "affiliate_id": "bigint",
+              "processor_fee_cents_currency": "varchar",
+              "stripe_partially_refunded": "tinyint",
+              "paypal_order_id": "varchar",
+              "rental_expired": "tinyint",
+              "processor_payment_intent_id": "varchar",
+              "processor_setup_intent_id": "varchar",
+              "price_id": "bigint",
+              "recommended_by": "varchar",
+              "deleted_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "fee_cents": 30,
+                "link_id": 1,
+                "email": "buyer@example.com",
+                "price_cents": 100,
+                "displayed_price_cents": 100,
+                "displayed_price_currency_type": "usd",
+                "rate_converted_to_usd": null,
+                "street_address": null,
+                "city": null,
+                "state": null,
+                "zip_code": null,
+                "country": null,
+                "full_name": null,
+                "credit_card_id": null,
+                "purchaser_id": null,
+                "purchaser_type": "User",
+                "session_id": null,
+                "ip_address": "151.179.168.196",
+                "is_mobile": null,
+                "stripe_refunded": null,
+                "stripe_transaction_id": "ch_parityrefund01",
+                "stripe_fingerprint": "shfbeg5142fff",
+                "stripe_card_id": null,
+                "can_contact": 1,
+                "referrer": null,
+                "stripe_status": null,
+                "variants": null,
+                "chargeback_date": null,
+                "webhook_failed": 0,
+                "failed": 0,
+                "card_type": "visa",
+                "card_visual": "**** **** **** 4062",
+                "purchase_state": "successful",
+                "processor_fee_cents": null,
+                "succeeded_at": "<now-10s>",
+                "card_country": "US",
+                "stripe_error_code": null,
+                "browser_guid": "SDFJKLDF-1-891542-JDSFKLDSF",
+                "error_code": null,
+                "card_bin": null,
+                "custom_fields": null,
+                "ip_country": null,
+                "ip_state": null,
+                "purchase_success_balance_id": null,
+                "purchase_chargeback_balance_id": null,
+                "purchase_refund_balance_id": null,
+                "flags": 0,
+                "offer_code_id": null,
+                "subscription_id": null,
+                "preorder_id": null,
+                "card_expiry_month": null,
+                "card_expiry_year": null,
+                "tax_cents": 0,
+                "affiliate_credit_cents": 0,
+                "credit_card_zipcode": null,
+                "json_data": "{}",
+                "card_data_handling_mode": null,
+                "charge_processor_id": "stripe",
+                "total_transaction_cents": 100,
+                "gumroad_tax_cents": 0,
+                "zip_tax_rate_id": null,
+                "quantity": 1,
+                "merchant_account_id": 1,
+                "shipping_cents": 0,
+                "affiliate_id": null,
+                "processor_fee_cents_currency": "usd",
+                "stripe_partially_refunded": 0,
+                "paypal_order_id": null,
+                "rental_expired": null,
+                "processor_payment_intent_id": null,
+                "processor_setup_intent_id": null,
+                "price_id": null,
+                "recommended_by": null,
+                "deleted_at": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now-10s>",
+                "updated_at": "<now-10s>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "seller_profiles": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "highlight_color": "varchar",
+              "background_color": "varchar",
+              "font": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "json_data": "json",
+              "border_radius": "varchar",
+              "button_hover": "varchar",
+              "seo_title": "varchar",
+              "seo_description": "text"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "highlight_color": "#ff90e8",
+                "background_color": "#ffffff",
+                "font": "ABC Favorit",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "json_data": null,
+                "border_radius": "small",
+                "button_hover": "lift",
+                "seo_title": null,
+                "seo_description": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgared1230d0_1@gumroad.com",
+                "encrypted_password": "$2a$04$ACs5UwmQaEaYwZGm.GX.IO6amJQeEQLacjNedq36S691XIFap4dfe",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": "<now>",
+                "sign_in_count": 1,
+                "current_sign_in_at": "<now>",
+                "last_sign_in_at": "<now>",
+                "current_sign_in_ip": "127.0.0.1",
+                "last_sign_in_ip": "113.13.81.168",
+                "created_at": "<now-16331h>",
+                "updated_at": "<now>",
+                "name": "Refund Seller",
+                "payment_address": "edgar3d023031_2@gumroad.com",
+                "confirmed_at": "<now-10s>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "refundseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "45291334991",
+                "account_created_ip": "241.91.179.182",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "JVNBNSU3G7CPPDLQ2742PBDTYO5YQIRB",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "audience_members": 2,
+          "balances": 2,
+          "links": 2,
+          "merchant_accounts": 2,
+          "prices": 2,
+          "purchases": 2,
+          "refund_policies": 2,
+          "seller_profiles": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/help/category/219-after-your-purchase",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "host": "app.test.gumroad.com:31337"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "uflAYw6_Ra_s7TD-kJIjPDKui6m557ZtHvm6Z69n1N9FBf0zEOYFcddPUvbJxUe2UdheCuMwiKukUyZcdq6HjQ",
+          "_gumroad_app_session_test": "k9i9oxvMWzWVBGfKgDi4W6zebFXjA8rf4JqhhWTXtkpvO4AXx++lb1PpR5ARjjBzu66cDhRYvxEZNncYmnkjH5ubtmYEq7b3R5GbC+BQY6Wk7KsNAN8wQnPM41NAuFF+n+Di21EWMcGa7KQ9CuUkIreHtqWA1NdMuxd8zkd0C0yw7J8IbZ9b0bQYsj8PV+zQMjGpghI9dSX0hO3+Aa6pt0s8uzL8gWUJFjjx3AqIo591S1+/PRCjzSoRle2czcNY6yNFhQmA5ayPIcsD3bc+NGPcUb83gv8cgHWoqDxe5+HlRdlz6wRcM8m1Y5IVdflUMc/U9/0HMMF8B9dWQYgniUq7zEYI0RDJHHToettN7raveRIPT4Lz5kw7u+z0Ot4r6kJ+kaWanBR7rViXJNGdbPJTMor2OX+EKTrpWLm98KP1PfKW0CzNgQtBJV6J8xZ70geRF1A4n2/u9o99ix3y/BqqQyyQxLgcc5kIYxNq4hZvw+oeSncgtIz8QZ7T+1qud/Kzwd71OKnpRBzmCESf4aqdxbkC/ZN2SWGY24/8IXlVwSsi9v7BZdUPLjY/hO5vqopLuhFZ/RQqmkxTw7VavMg9V0tyEpHEJYhM8qVNURC0qC3nqRS71ZCEEbCVCSqlDdRO--Hbr5ExDLra9QIl7V--O6pDUnyQfLgkl2JvBnUW6g==",
+          "_gumroad_guid": "9deef853-2855-4ae8-87f4-49d7cc5ea573",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRUZEY3pWVmQyMVJZVVZoV1hkYVIyMHVSMWd1U1U4aUxDSXhOemswTkRneU56YzVMak0wTURBeU5qRWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMlQxMToyNjoxOS4zNDBaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--8a51c02ab5730cc1134c61b7ce5cc85ace2d42ea"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "text/html; charset=utf-8",
+          "link": "</vite-test/assets/entrypoints/design-DzT6_PG0.css>; rel=preload; as=style; crossorigin=anonymous; nopush,</vite-test/assets/entrypoints/base.ts-D5KbKx4A.js>; rel=modulepreload; as=script; crossorigin=; nopush",
+          "vary": "X-Inertia, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "k4yCat0W8UgiS0d5tCNlGXohucDbpzZteJ1QM6nq1NhvcD86w0-xlhnpJXHtdAGTGVdsY4FwCKvCN8wIcCOHig",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "Uk7jtflAsejufOHZhKVAqCZUZTsD8U2g9dsp2ERQQ47IGk6Xk6AmCNSUAToMV9RJ5GRGN9VbwOKpFboiSNzdorb6r1Me6mQt3CsjFRewnZ1NX91xEAe91pKWmURgbJt9LrXpO0DOOTDNWbArGY9q9frxM9t8xejqijImV8unVpNNz+5in5FiyJEUNwUgL7lev1gpfRg++Sn2Ka39tGj7JvbdZjtUH8SphV06a+r9cO8tXdTuAxX1vi9ijNA48LOWrmWvKI7YGShNb0Zfl+kcLG8WmbysvQwukfgaqvZdyJUOiPWxvQT993PBYh6OX36tKxV8nlH543Wub8ZW+04w+epbpKjtE7LWyQLTuOg2AryIXW1ZrTmmbmcaJK7Ico9RMscNWTyJJyKqGK7E+VkFOoNkEyWTZ1v8iyYITzb2LzI5YNSa3QqisRw2DZmouuDaM+ohFEUruFY8cn6caY38GBaUbLUTiRJS/desBkyFBihFRvj22KopUHU4Y5vxJSgtU4fDijtTZBw4kt0Bn4wPJmLEv+LnAEvDmP33PbvawePz0vHSgR606tmbalrT+9e9wG1qp9TlN/a4gSdYskPbbGmFa50BcNA9BwRVOBabXuOnN0nlWmyOxKKE5KZ43S/wdtJa--VLweBZ/+zHq/hB+x--VYODWl69K3+wvLWuAAD0vw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "inertia": {
+          "component": "HelpCenter/Categories/Show",
+          "props": {
+            "errors": {},
+            "design_settings": {
+              "font": {
+                "name": "ABC Favorit",
+                "url": "http://app.test.gumroad.com:31337/fonts/ABCFavorit-Regular.woff2"
+              }
+            },
+            "domain_settings": {
+              "scheme": "http",
+              "app_domain": "app.test.gumroad.com:31337",
+              "root_domain": "test.gumroad.com:31337",
+              "short_domain": "short-domain.test.gumroad.com:31337",
+              "discover_domain": "test.gumroad.com:31337",
+              "third_party_analytics_domain": "analytics.test.gumroad.com",
+              "api_domain": "api.test.gumroad.com:31337"
+            },
+            "user_agent_info": {
+              "is_mobile": false
+            },
+            "logged_in_user": {
+              "id": "45291334991",
+              "email": "edgared1230d0_1@gumroad.com",
+              "name": "Refund Seller",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "confirmed": true,
+              "team_memberships": [],
+              "can_create_brand_account": false,
+              "has_payout_setup_to_port": true,
+              "can_port_bank_payout_setup": true,
+              "will_copy_bank_payout": false,
+              "policies": {
+                "affiliate_requests_onboarding_form": {
+                  "update": true
+                },
+                "direct_affiliate": {
+                  "create": true,
+                  "update": true
+                },
+                "collaborator": {
+                  "create": true,
+                  "update": true
+                },
+                "product": {
+                  "create": true
+                },
+                "product_review_response": {
+                  "update": true
+                },
+                "balance": {
+                  "index": true,
+                  "export": true
+                },
+                "checkout_offer_code": {
+                  "create": true
+                },
+                "checkout_form": {
+                  "update": true
+                },
+                "upsell": {
+                  "create": true
+                },
+                "settings_payments_user": {
+                  "show": true
+                },
+                "settings_main_user": {
+                  "update_username": true
+                },
+                "settings_profile": {
+                  "manage_social_connections": true,
+                  "update": true
+                },
+                "settings_third_party_analytics_user": {
+                  "update": true
+                },
+                "installment": {
+                  "create": true
+                },
+                "workflow": {
+                  "create": true
+                },
+                "utm_link": {
+                  "index": true
+                },
+                "community": {
+                  "index": false
+                },
+                "churn": {
+                  "show": true
+                },
+                "page": {
+                  "index": true,
+                  "create": true
+                }
+              },
+              "promoted_nav_items": [
+                "analytics",
+                "profile"
+              ],
+              "lazy_load_offscreen_discover_images": false
+            },
+            "current_seller": {
+              "id": "45291334991",
+              "email": "edgared1230d0_1@gumroad.com",
+              "name": "Refund Seller",
+              "subdomain": "refundseller.test.gumroad.com:31337",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "is_buyer": false,
+              "time_zone": {
+                "name": "America/Los_Angeles",
+                "offset": "<utc_offset>"
+              },
+              "has_published_products": true,
+              "can_publish_products": true,
+              "publish_blocked_reason": null,
+              "no_payout_rail_in_compliance_country": false,
+              "legal_guardian_requirement_met": true,
+              "legal_guardian_unsupported": false,
+              "is_name_invalid_for_email_delivery": false,
+              "profile_background_color": "#ffffff",
+              "profile_highlight_color": "#ff90e8",
+              "profile_font": "ABC Favorit"
+            },
+            "csp_nonce": "sX2ec/j2pTaL+fSaIFfpZ7MH0LJ2miLWCRnTKhND3Vs=",
+            "locale": "en-US",
+            "feature_flags": {
+              "disable_stripe_signup": false
+            },
+            "authenticity_token": "imgO_Jl_Yn_m5FMzOqr3hsh8Y7GDTROd6YdxDF0Dd0J2lLOshyYiod1GMTtj_ZMMqwq2EtmaLVtTLe03hMokEA",
+            "flash": null,
+            "title": "Accessing your purchase - Gumroad Help Center",
+            "current_user": {
+              "name": "Refund Seller",
+              "avatar_url": "/images/gumroad-default-avatar-5.png",
+              "impersonated_user": null
+            },
+            "prompt_passkey_setup": true,
+            "category": {
+              "title": "Accessing your purchase",
+              "slug": "219-after-your-purchase",
+              "articles": [
+                {
+                  "title": "Your Gumroad Library",
+                  "url": "/help/article/198-your-gumroad-library"
+                },
+                {
+                  "title": "How do I access my purchase?",
+                  "url": "/help/article/199-how-do-i-access-my-purchase"
+                },
+                {
+                  "title": "How to open ZIP and RAR files",
+                  "url": "/help/article/206-how-to-open-zip-and-rar-files"
+                },
+                {
+                  "title": "How do I send my purchases to Kindle?",
+                  "url": "/help/article/208-how-do-i-send-my-gumroad-purchase-to-my-kindle"
+                },
+                {
+                  "title": "How do I send my purchase to Dropbox?",
+                  "url": "/help/article/210-send-your-purchase-to-dropbox"
+                },
+                {
+                  "title": "When will my purchase be shipped?",
+                  "url": "/help/article/215-when-will-my-purchase-be-shipped"
+                },
+                {
+                  "title": "Guide to memberships",
+                  "url": "/help/article/278-guide-to-memberships"
+                },
+                {
+                  "title": "Rate and review your purchase",
+                  "url": "/help/article/344-rate-and-review-your-purchase"
+                },
+                {
+                  "title": "Casting videos to your TV",
+                  "url": "/help/article/350-casting-videos-to-your-tv"
+                }
+              ]
+            },
+            "sidebar_categories": [
+              {
+                "title": "Accessing your purchase",
+                "slug": "219-after-your-purchase",
+                "url": "/help/category/219-after-your-purchase"
+              },
+              {
+                "title": "Before you buy",
+                "slug": "220-before-you-buy",
+                "url": "/help/category/220-before-you-buy"
+              },
+              {
+                "title": "Receipts and refunds",
+                "slug": "337-receipts-and-refunds",
+                "url": "/help/category/337-receipts-and-refunds"
+              },
+              {
+                "title": "Issues with your purchase",
+                "slug": "338-issues-with-your-purchase",
+                "url": "/help/category/338-issues-with-your-purchase"
+              }
+            ],
+            "_inertia_meta": [
+              {
+                "tagName": "title",
+                "headKey": "title",
+                "innerContent": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-param",
+                "name": "csrf-param",
+                "content": "authenticity_token"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-csrf-token",
+                "name": "csrf-token",
+                "content": "BhO23SKcT0YCRGtP9T3XST4XN_HUZAhY1Jf1uXUG-ej67wuNPMUPmDnmCUesarPDXWHiUo6zNp5uPWmCrM-qug"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-charset",
+                "charset": "utf-8"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-app_id",
+                "property": "fb:app_id"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-fb-page_id",
+                "property": "fb:page_id",
+                "content": "http://www.facebook.com/gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-environment",
+                "property": "gr:environment",
+                "content": "test"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image",
+                "property": "og:image",
+                "content": "/images/opengraph_image.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-image-alt",
+                "property": "og:image:alt",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-title",
+                "property": "og:title",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-site_name",
+                "property": "og:site_name",
+                "content": "Gumroad"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-viewport",
+                "name": "viewport",
+                "content": "initial-scale = 1.0, width = device-width"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-pk",
+                "property": "stripe:pk",
+                "value": "pk_test_51SNEgsIBOqvOFDrfzBydwy0Ca4j1Xgs7pQsbp2zsyWqHezN7yu3TRignvBqDEc6gn8y98bX8HRv8gKJ8Q45w2t6N00ofXBsMBF"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-stripe-api_version",
+                "property": "stripe:api_version",
+                "value": "2023-10-16"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-twitter-site",
+                "property": "twitter:site",
+                "content": "@gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "link-1644e96d",
+                "type": "application/opensearchdescription+xml",
+                "rel": "search",
+                "href": "/opensearch.xml",
+                "title": "Gumroad"
+              },
+              {
+                "tagName": "link",
+                "headKey": "shortcut-icon",
+                "rel": "shortcut icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "link",
+                "headKey": "apple-touch-icon",
+                "rel": "apple-touch-icon",
+                "href": "/images/pink-icon.png"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-google_analytics-enabled",
+                "property": "gr:google_analytics:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-fb_pixel-enabled",
+                "property": "gr:fb_pixel:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-tiktok_pixel-enabled",
+                "property": "gr:tiktok_pixel:enabled",
+                "content": "false"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-logged_in_user-id",
+                "property": "gr:logged_in_user:id",
+                "content": "45291334991"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-gr-page-type",
+                "property": "gr:page:type"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-type",
+                "property": "og:type",
+                "content": "website"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-card",
+                "name": "twitter:card",
+                "content": "summary"
+              },
+              {
+                "tagName": "link",
+                "headKey": "canonical",
+                "rel": "canonical",
+                "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              }
+            ]
+          },
+          "url": "/help/category/219-after-your-purchase",
+          "version": null,
+          "encryptHistory": false,
+          "clearHistory": false
+        }
+      },
+      "db": {
+        "dashboard_nav_promotions": {
+          "inserted": [
+            {
+              "id": 1,
+              "user_id": 1,
+              "nav_item": "profile",
+              "created_at": "<now>",
+              "updated_at": "<now>"
+            },
+            {
+              "id": 2,
+              "user_id": 1,
+              "nav_item": "analytics",
+              "created_at": "<now>",
+              "updated_at": "<now>"
+            },
+            {
+              "id": 3,
+              "user_id": 1,
+              "nav_item": "seeded",
+              "created_at": "<now>",
+              "updated_at": "<now>"
+            }
+          ]
+        }
+      },
+      "jobs": [],
+      "mails": [],
+      "http": [],
+      "timeline": [
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "dashboard_nav_promotions"
+        }
+      ]
+    },
+    {
+      "seed": {
+        "tables": {
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "audience_members": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "email": "varchar",
+              "details": "json",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "customer": "tinyint",
+              "follower": "tinyint",
+              "affiliate": "tinyint",
+              "min_paid_cents": "int",
+              "max_paid_cents": "int",
+              "min_created_at": "datetime",
+              "max_created_at": "datetime",
+              "min_purchase_created_at": "datetime",
+              "max_purchase_created_at": "datetime",
+              "follower_created_at": "datetime",
+              "min_affiliate_created_at": "datetime",
+              "max_affiliate_created_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "email": "buyer@example.com",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-12T11:26:09Z\", \"product_id\": 1, \"price_cents\": 100}]}",
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "customer": 1,
+                "follower": 0,
+                "affiliate": 0,
+                "min_paid_cents": 100,
+                "max_paid_cents": 100,
+                "min_created_at": "<now-15s>",
+                "max_created_at": "<now-15s>",
+                "min_purchase_created_at": "<now-15s>",
+                "max_purchase_created_at": "<now-15s>",
+                "follower_created_at": null,
+                "min_affiliate_created_at": null,
+                "max_affiliate_created_at": null
+              }
+            ]
+          },
+          "balances": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "date": "date",
+              "amount_cents": "int",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "merchant_account_id": "int",
+              "currency": "varchar",
+              "holding_currency": "varchar",
+              "holding_amount_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "date": "<today>",
+                "amount_cents": 200,
+                "state": "unpaid",
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "merchant_account_id": 1,
+                "currency": "usd",
+                "holding_currency": "usd",
+                "holding_amount_cents": 200
+              }
+            ]
+          },
+          "dashboard_nav_promotions": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "nav_item": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "nav_item": "profile",
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              },
+              {
+                "id": 2,
+                "user_id": 1,
+                "nav_item": "analytics",
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              },
+              {
+                "id": 3,
+                "user_id": 1,
+                "nav_item": "seeded",
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Refunded product",
+                "unique_permalink": "refunded",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-16331h>",
+                "updated_at": "<now-15s>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 1,
+                "first_published_at": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": null,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": null,
+                "json_data": "{}",
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "deleted_at": null,
+                "charge_processor_verified_at": null,
+                "country": "US",
+                "currency": "usd",
+                "charge_processor_deleted_at": null,
+                "charge_processor_alive_at": "<now-15s>"
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
+              }
+            ]
+          },
+          "purchases": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "fee_cents": "int",
+              "link_id": "bigint",
+              "email": "text",
+              "price_cents": "int",
+              "displayed_price_cents": "int",
+              "displayed_price_currency_type": "varchar",
+              "rate_converted_to_usd": "varchar",
+              "street_address": "varchar",
+              "city": "varchar",
+              "state": "varchar",
+              "zip_code": "varchar",
+              "country": "varchar",
+              "full_name": "varchar",
+              "credit_card_id": "bigint",
+              "purchaser_id": "bigint",
+              "purchaser_type": "varchar",
+              "session_id": "varchar",
+              "ip_address": "varchar",
+              "is_mobile": "tinyint",
+              "stripe_refunded": "tinyint",
+              "stripe_transaction_id": "varchar",
+              "stripe_fingerprint": "varchar",
+              "stripe_card_id": "varchar",
+              "can_contact": "tinyint",
+              "referrer": "varchar",
+              "stripe_status": "varchar",
+              "variants": "text",
+              "chargeback_date": "datetime",
+              "webhook_failed": "tinyint",
+              "failed": "tinyint",
+              "card_type": "varchar",
+              "card_visual": "varchar",
+              "purchase_state": "varchar",
+              "processor_fee_cents": "int",
+              "succeeded_at": "datetime",
+              "card_country": "varchar",
+              "stripe_error_code": "varchar",
+              "browser_guid": "varchar",
+              "error_code": "varchar",
+              "card_bin": "varchar",
+              "custom_fields": "text",
+              "ip_country": "varchar",
+              "ip_state": "varchar",
+              "purchase_success_balance_id": "bigint",
+              "purchase_chargeback_balance_id": "bigint",
+              "purchase_refund_balance_id": "bigint",
+              "flags": "bigint",
+              "offer_code_id": "bigint",
+              "subscription_id": "bigint",
+              "preorder_id": "bigint",
+              "card_expiry_month": "int",
+              "card_expiry_year": "int",
+              "tax_cents": "int",
+              "affiliate_credit_cents": "int",
+              "credit_card_zipcode": "varchar",
+              "json_data": "varchar",
+              "card_data_handling_mode": "varchar",
+              "charge_processor_id": "varchar",
+              "total_transaction_cents": "int",
+              "gumroad_tax_cents": "int",
+              "zip_tax_rate_id": "bigint",
+              "quantity": "int",
+              "merchant_account_id": "bigint",
+              "shipping_cents": "int",
+              "affiliate_id": "bigint",
+              "processor_fee_cents_currency": "varchar",
+              "stripe_partially_refunded": "tinyint",
+              "paypal_order_id": "varchar",
+              "rental_expired": "tinyint",
+              "processor_payment_intent_id": "varchar",
+              "processor_setup_intent_id": "varchar",
+              "price_id": "bigint",
+              "recommended_by": "varchar",
+              "deleted_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "fee_cents": 30,
+                "link_id": 1,
+                "email": "buyer@example.com",
+                "price_cents": 100,
+                "displayed_price_cents": 100,
+                "displayed_price_currency_type": "usd",
+                "rate_converted_to_usd": null,
+                "street_address": null,
+                "city": null,
+                "state": null,
+                "zip_code": null,
+                "country": null,
+                "full_name": null,
+                "credit_card_id": null,
+                "purchaser_id": null,
+                "purchaser_type": "User",
+                "session_id": null,
+                "ip_address": "151.179.168.196",
+                "is_mobile": null,
+                "stripe_refunded": null,
+                "stripe_transaction_id": "ch_parityrefund01",
+                "stripe_fingerprint": "shfbeg5142fff",
+                "stripe_card_id": null,
+                "can_contact": 1,
+                "referrer": null,
+                "stripe_status": null,
+                "variants": null,
+                "chargeback_date": null,
+                "webhook_failed": 0,
+                "failed": 0,
+                "card_type": "visa",
+                "card_visual": "**** **** **** 4062",
+                "purchase_state": "successful",
+                "processor_fee_cents": null,
+                "succeeded_at": "<now-15s>",
+                "card_country": "US",
+                "stripe_error_code": null,
+                "browser_guid": "SDFJKLDF-1-891542-JDSFKLDSF",
+                "error_code": null,
+                "card_bin": null,
+                "custom_fields": null,
+                "ip_country": null,
+                "ip_state": null,
+                "purchase_success_balance_id": null,
+                "purchase_chargeback_balance_id": null,
+                "purchase_refund_balance_id": null,
+                "flags": 0,
+                "offer_code_id": null,
+                "subscription_id": null,
+                "preorder_id": null,
+                "card_expiry_month": null,
+                "card_expiry_year": null,
+                "tax_cents": 0,
+                "affiliate_credit_cents": 0,
+                "credit_card_zipcode": null,
+                "json_data": "{}",
+                "card_data_handling_mode": null,
+                "charge_processor_id": "stripe",
+                "total_transaction_cents": 100,
+                "gumroad_tax_cents": 0,
+                "zip_tax_rate_id": null,
+                "quantity": 1,
+                "merchant_account_id": 1,
+                "shipping_cents": 0,
+                "affiliate_id": null,
+                "processor_fee_cents_currency": "usd",
+                "stripe_partially_refunded": 0,
+                "paypal_order_id": null,
+                "rental_expired": null,
+                "processor_payment_intent_id": null,
+                "processor_setup_intent_id": null,
+                "price_id": null,
+                "recommended_by": null,
+                "deleted_at": null
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now-15s>",
+                "updated_at": "<now-15s>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "seller_profiles": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "highlight_color": "varchar",
+              "background_color": "varchar",
+              "font": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "json_data": "json",
+              "border_radius": "varchar",
+              "button_hover": "varchar",
+              "seo_title": "varchar",
+              "seo_description": "text"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "highlight_color": "#ff90e8",
+                "background_color": "#ffffff",
+                "font": "ABC Favorit",
+                "created_at": "<now-5s>",
+                "updated_at": "<now-5s>",
+                "json_data": null,
+                "border_radius": "small",
+                "button_hover": "lift",
+                "seo_title": null,
+                "seo_description": null
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "edgared1230d0_1@gumroad.com",
+                "encrypted_password": "$2a$04$ACs5UwmQaEaYwZGm.GX.IO6amJQeEQLacjNedq36S691XIFap4dfe",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": "<now-5s>",
+                "sign_in_count": 1,
+                "current_sign_in_at": "<now-5s>",
+                "last_sign_in_at": "<now-5s>",
+                "current_sign_in_ip": "127.0.0.1",
+                "last_sign_in_ip": "113.13.81.168",
+                "created_at": "<now-16331h>",
+                "updated_at": "<now-5s>",
+                "name": "Refund Seller",
+                "payment_address": "edgar3d023031_2@gumroad.com",
+                "confirmed_at": "<now-15s>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "refundseller",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "45291334991",
+                "account_created_ip": "241.91.179.182",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "JVNBNSU3G7CPPDLQ2742PBDTYO5YQIRB",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "affiliates": 2,
+          "audience_members": 2,
+          "balances": 2,
+          "dashboard_nav_promotions": 4,
+          "links": 2,
+          "merchant_accounts": 2,
+          "prices": 2,
+          "purchases": 2,
+          "refund_policies": 2,
+          "seller_profiles": 2,
+          "users": 2
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "PUT",
+        "path": "/purchases/1UokxkyxJ__gd-gssE0g7w==/refund",
+        "headers": {
+          "accept": "application/json, text/html",
+          "content-type": "application/json",
+          "host": "app.test.gumroad.com:31337",
+          "referer": "http://app.test.gumroad.com:31337/customers",
+          "x-csrf-token": "imgO_Jl_Yn_m5FMzOqr3hsh8Y7GDTROd6YdxDF0Dd0J2lLOshyYiod1GMTtj_ZMMqwq2EtmaLVtTLe03hMokEA"
+        },
+        "cookies": {
+          "XSRF-TOKEN": "k4yCat0W8UgiS0d5tCNlGXohucDbpzZteJ1QM6nq1NhvcD86w0-xlhnpJXHtdAGTGVdsY4FwCKvCN8wIcCOHig",
+          "_gumroad_app_session_test": "Uk7jtflAsejufOHZhKVAqCZUZTsD8U2g9dsp2ERQQ47IGk6Xk6AmCNSUAToMV9RJ5GRGN9VbwOKpFboiSNzdorb6r1Me6mQt3CsjFRewnZ1NX91xEAe91pKWmURgbJt9LrXpO0DOOTDNWbArGY9q9frxM9t8xejqijImV8unVpNNz+5in5FiyJEUNwUgL7lev1gpfRg++Sn2Ka39tGj7JvbdZjtUH8SphV06a+r9cO8tXdTuAxX1vi9ijNA48LOWrmWvKI7YGShNb0Zfl+kcLG8WmbysvQwukfgaqvZdyJUOiPWxvQT993PBYh6OX36tKxV8nlH543Wub8ZW+04w+epbpKjtE7LWyQLTuOg2AryIXW1ZrTmmbmcaJK7Ico9RMscNWTyJJyKqGK7E+VkFOoNkEyWTZ1v8iyYITzb2LzI5YNSa3QqisRw2DZmouuDaM+ohFEUruFY8cn6caY38GBaUbLUTiRJS/desBkyFBihFRvj22KopUHU4Y5vxJSgtU4fDijtTZBw4kt0Bn4wPJmLEv+LnAEvDmP33PbvawePz0vHSgR606tmbalrT+9e9wG1qp9TlN/a4gSdYskPbbGmFa50BcNA9BwRVOBabXuOnN0nlWmyOxKKE5KZ43S/wdtJa--VLweBZ/+zHq/hB+x--VYODWl69K3+wvLWuAAD0vw==",
+          "_gumroad_guid": "9deef853-2855-4ae8-87f4-49d7cc5ea573",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKRUZEY3pWVmQyMVJZVVZoV1hkYVIyMHVSMWd1U1U4aUxDSXhOemswTkRneU56YzVMak0wTURBeU5qRWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMlQxMToyNjoxOS4zNDBaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--8a51c02ab5730cc1134c61b7ce5cc85ace2d42ea"
+        },
+        "remoteIp": "127.0.0.1",
+        "body": "{}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Accept, Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "t64m3g9TY1sug1LLQRat2r4zj8XKHEA5_VPcXc3P8_5LUpuOEQojhRUhMMMYQclQ3UVaZpDLfv9H-UBmFAagrA",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "NGKR7O0vq0fWLXXXiVF8LMJb4DjDqJXuDy0jgKnnzyaDu1Yls367YiZhAIY8ubLFuHoPf2hk6uRH7un2FbepfZJQF2BAGhuHfg8cEXmZdNPr+S/J1BniPnu10fwsYdl4CDP3R75oWIm7JChQVGDmLrutWCU8+oL+QSsbEia2X9xt0Ma0xZgJLK1ZaNP0HZOGresfwWpXCL2TTIDIy7jOhlVWu/IrHizeGjk6dmCyPQ/FGy5+X+Pr1QEPHYO9KSzCgzYmRxUtAwzO7mwivLv39Jgs1tRdYIOOo/G8yZCjMb7SgGs5cKnpFc09qpGyT+244iYY7tG2Axy6NrJrO0eWVgMwFYIl4BynKHArOdKycBlDWlq+V4pwzx2X1oIUQWh/BmzRfL8UaSOWXleOkZA46E/fieI3iGwP6d5iiIOoU8WhYNIy92cAerwxBxg56nqXgjfiq7GC5O+tdWPIuBJCnDtk5B+U6CEppezxH8d8mDF9OlEY0A/ODjU86Ef3EfXJ5icyWvm38myLPGXvrSPpRdTemF9kDAc/8/zJNHY5NiCX/5vex4B1KN3G42c28BBo/wso19g+663xlz2qtbg/N4q2w4OZ+t+9cH3W3QHdzJufcDlubt4GUgkwRs59636KDVOJ--+twlPva/dGVU+0Hm--d+lUE82/pddMD8Gnox6oQQ==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "success": false,
+          "message": "The payment processor reports this purchase as already refunded. If the refund is not reflected here, contact support."
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": [
+        {
+          "method": "GET",
+          "url": "https://api.stripe.com/v1/charges/ch_parityrefund01",
+          "contentType": "application/x-www-form-urlencoded",
+          "headers": {
+            "authorization": "sha256:1981616d4ba4ca37"
+          },
+          "response": {
+            "status": 200,
+            "contentType": "application/json",
+            "body": "{\"id\":\"ch_parityrefund01\",\"object\":\"charge\",\"amount\":100,\"amount_refunded\":0,\"currency\":\"usd\",\"livemode\":false,\"destination\":null,\"transfer\":null,\"transfer_group\":null,\"on_behalf_of\":null,\"application_fee\":null,\"balance_transaction\":\"txn_paritycharge01\"}"
+          }
+        },
+        {
+          "method": "POST",
+          "url": "https://api.stripe.com/v1/refunds",
+          "contentType": "application/x-www-form-urlencoded",
+          "headers": {
+            "idempotency-key": "<uuid>",
+            "authorization": "sha256:1981616d4ba4ca37"
+          },
+          "body": "charge=ch_parityrefund01",
+          "response": {
+            "status": 400,
+            "contentType": "application/json",
+            "body": "{\"error\":{\"message\":\"Charge ch_parityrefund01 has already been refunded.\",\"type\":\"invalid_request_error\"}}"
+          }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "http",
+          "index": 1
+        }
+      ]
+    }
+  ]
+}

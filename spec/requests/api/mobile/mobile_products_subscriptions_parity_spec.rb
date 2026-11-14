@@ -1,0 +1,318 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+
+# The Api::Mobile products, subscriptions, preorders and installments answers the Next.js port serves itself
+# (nextjs/src/server/controllers/mobile-{products,subscriptions,preorders,installments}.ts): the products listing, the 404s, and the
+# subscription payload of a membership whose seller has no posts. The examples that end in `hands a ...` are the cases it leaves to
+# Rails whole; the replay asserts Node forwards each one and writes nothing.
+describe "Mobile API products, subscriptions, preorders and installments", type: :request do
+  include Parity::MobileApi
+
+  let(:seller) { create(:user) }
+
+  describe "products" do
+    it "lists the seller's visible products newest first", parity: true do
+      older = create(:product, user: seller, name: "Older course", created_at: 2.days.ago)
+      newer = create(:product, user: seller, name: "Newer course", created_at: 1.day.ago)
+      create(:product, name: "Someone else's")
+      create(:product, user: seller, name: "Archived").update!(archived: true)
+      create(:product, user: seller, name: "Deleted").mark_deleted!
+
+      get "/mobile/products", params: auth(seller)
+
+      expect(response.parsed_body["products"].map { _1["id"] }).to eq([newer.unique_permalink, older.unique_permalink])
+      expect(response.parsed_body["pagination"]).to eq("count" => 2, "page" => 1, "pages" => 1, "next" => nil)
+    end
+
+    it "quotes products listed in euros, yen and pounds in their own currency", parity: true do
+      { "eur" => 1050, "jpy" => 1500, "gbp" => 99 }.each_with_index do |(currency, cents), i|
+        create(:product, user: seller, name: currency.upcase, created_at: (i + 1).days.ago).tap do |product|
+          product.update_columns(price_currency_type: currency, price_cents: cents)
+          product.prices.update_all(currency:, price_cents: cents)
+        end
+      end
+      create(:product, user: seller, name: "Open", customizable_price: true, created_at: 4.days.ago).tap do |product|
+        product.update_columns(price_currency_type: "eur", price_cents: 300)
+        product.prices.update_all(currency: "eur", price_cents: 300)
+      end
+
+      get "/mobile/products", params: auth(seller)
+
+      expect(response.parsed_body["products"].map { _1["price_formatted"] }).to eq(["€10.50", "¥1,500", "£0.99", "€3+"])
+    end
+
+    it "filters products by name", parity: true do
+      create(:product, user: seller, name: "Photo pack")
+      match = create(:product, user: seller, name: "Writing guide")
+
+      get "/mobile/products", params: auth(seller).merge(query: "writing")
+
+      expect(response.parsed_body["products"].map { _1["id"] }).to eq([match.unique_permalink])
+    end
+
+    it "lists nothing for a seller without products", parity: true do
+      get "/mobile/products", params: auth(seller)
+
+      expect(response.parsed_body).to include("products" => [], "pagination" => { "count" => 0, "page" => 1, "pages" => 1, "next" => nil })
+    end
+
+    it "refuses a token without the mobile_api scope", parity: true do
+      get "/mobile/products", params: auth(seller, scopes: "creator_api")
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "answers a 400 for a page past the last one", parity: true do
+      create(:product, user: seller)
+
+      get "/mobile/products", params: auth(seller).merge(page: "9")
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "deletes a product and records the delete event", parity: true do
+      product = create(:product, user: seller)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller), headers: { "HTTP_USER_AGENT" => "GumroadMobile/1.0", "HTTP_REFERER" => "https://example.com/app" }
+
+      expect(response.parsed_body).to eq("success" => true)
+      expect(product.reload.deleted?).to eq(true)
+      expect(Event.where(event_name: "delete_product_mobile_app", user_id: seller.id, link_id: product.id).count).to eq(1)
+    end
+
+    it "does not find a product of another seller on delete", parity: true do
+      product = create(:product)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller)
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Product not found")
+      expect(product.reload.deleted?).to eq(false)
+    end
+
+    it "does not find a deleted product on delete", parity: true do
+      product = create(:product, user: seller)
+      product.mark_deleted!
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller)
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "refuses a delete with a token that lacks the mobile_api scope", parity: true do
+      product = create(:product, user: seller)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller, scopes: "creator_api")
+
+      expect(response).to have_http_status(:forbidden)
+    end
+
+    it "deletes a product with a custom domain", parity: true do
+      product = create(:product, user: seller)
+      create(:custom_domain, domain: "shop.example.com", product:)
+
+      delete "/mobile/products/#{product.unique_permalink}", params: auth(seller), headers: { "HTTP_USER_AGENT" => "GumroadMobile/1.0" }
+
+      expect(response.parsed_body).to eq("success" => true)
+    end
+  end
+
+  describe "subscriptions" do
+    let(:product) { create(:subscription_product, user: seller) }
+    let(:buyer) { create(:user) }
+    let(:subscription) { create(:subscription, link: product, user: buyer) }
+
+    before do
+      purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, subscription:, is_original_subscription_purchase: true, purchase_state: "successful")
+    end
+
+    it "does not find a dead subscription", parity: true do
+      subscription.cancel_effective_immediately!
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Could not find subscription")
+    end
+
+    it "does not find an unknown subscription", parity: true do
+      get "/mobile/subscriptions/subscription_attributes/xxx", params: { mobile_token: }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "serves the payload of a live subscription", parity: true do
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response.parsed_body["subscription"]).to include("updates_data" => [], "purchase_id" => be_present)
+    end
+
+    it "serves the recurring amount of a subscription in another currency", parity: true do
+      subscription.original_purchase.update_columns(displayed_price_currency_type: "eur", displayed_price_cents: 550)
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response.parsed_body["subscription"]["subscription_data"]["recurring_amount"]).to eq("€5.50 a month")
+    end
+
+    it "serves the cover fields of a membership whose main cover is a player the apps embed", parity: true do
+      create(:asset_preview, attach: false, link: product, guid: "mobilesubplayer", oembed: {
+        "html" => "<iframe src=\"https://www.youtube.com/embed/abc123\"></iframe>",
+        "info" => { "width" => 800, "height" => 450, "thumbnail_url" => "https://i.ytimg.com/vi/abc123/hq.jpg" }
+      })
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/second.jpg", guid: "mobilesubphoto")
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response.parsed_body["subscription"]).to include("preview_oembed_url" => "https://www.youtube.com/embed/abc123", "preview_height" => 376)
+    end
+
+    it "hands a subscription whose product has an uploaded cover to Rails", parity: true do
+      create(:asset_preview_jpg, link: product, guid: "mobilesubupload")
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a subscription whose seller has posts to Rails", parity: true do
+      create(:installment, link: product, published_at: Time.current)
+
+      get "/mobile/subscriptions/subscription_attributes/#{subscription.external_id}", params: { mobile_token: }
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    # The audience projection rebuild is recorded as the job it is (RefreshAudienceMemberJob), not run inline.
+    it "cancels a member's subscription for the seller", parity: true, defer_audience_refresh: true do
+      post "/mobile/subscriptions/#{subscription.external_id}/cancel", params: auth(seller)
+
+      expect(response.parsed_body["success"]).to eq(true)
+      expect(subscription.reload.cancelled_at).to be_present
+    end
+
+    it "does not cancel another seller's subscription", parity: true do
+      post "/mobile/subscriptions/#{subscription.external_id}/cancel", params: auth(create(:user))
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Could not find subscription")
+      expect(subscription.reload.cancelled_at).to be_nil
+    end
+  end
+
+  describe "preorders" do
+    it "does not find an unknown preorder", parity: true do
+      get "/mobile/preorders/preorder_attributes/xxx", params: { mobile_token: }
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Could not find preorder")
+    end
+
+    describe "an authorized preorder" do
+      let(:buyer) { create(:user) }
+      let(:product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+      let(:preorder_link) { create(:preorder_link, link: product, release_at: Time.utc(2030, 1, 15, 12)) }
+      let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "authorization_successful") }
+
+      before do
+        purchase_row(:preorder_authorization_purchase, link: product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true)
+      end
+
+      it "serves the authorization purchase and the release date", parity: true do
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include(
+          "name" => product.name,
+          "purchase_id" => be_present,
+          "product_updates_data" => [],
+          "is_archived" => false,
+          "preorder_data" => { "external_id" => preorder.external_id, "release_at" => "2030-01-15T12:00:00Z" }
+        )
+      end
+
+      it "serves an archived authorization purchase", parity: true do
+        preorder.purchases.first.update_columns(flags: preorder.purchases.first.flags | (1 << 16))
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("is_archived" => true)
+      end
+
+      it "serves the cover fields of a preorder whose cover is a photo", parity: true do
+        AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/preorder.jpg", guid: "mobilepreorderphoto")
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("preview_url" => "https://images.example.com/preorder.jpg", "thumbnail_url" => "https://images.example.com/preorder.jpg", "preview_height" => 0)
+      end
+
+      it "hands a preorder whose seller has posts to Rails", parity: true do
+        create(:installment, link: product, published_at: Time.current)
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    describe "a charged preorder" do
+      let(:buyer) { create(:user) }
+      let(:product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+      let(:preorder_link) { create(:preorder_link, link: product, release_at: Time.utc(2030, 1, 15, 12)) }
+      let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "charge_successful") }
+      let!(:charge) do
+        purchase_row(:preorder_authorization_purchase, link: product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true)
+        purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "successful")
+      end
+
+      it "serves the charge purchase without the release date", parity: true do
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("name" => product.name, "purchase_id" => charge.external_id, "product_updates_data" => [], "is_archived" => false)
+        expect(response.parsed_body["product"]).not_to have_key("preorder_data")
+      end
+
+      it "serves a charged preorder whose charge purchase has a url redirect", parity: true do
+        create(:url_redirect, purchase: charge, link: product)
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id, "url_redirect_token" => be_present)
+      end
+    end
+  end
+
+  describe "installments" do
+    let(:product) { create(:product, user: seller) }
+    let(:post_row) { create(:installment, link: product, published_at: Time.current) }
+
+    it "does not find an unknown installment", parity: true do
+      get "/mobile/installments/xxx", params: { mobile_token: }
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Could not find installment")
+    end
+
+    it "does not find the related object when none is given", parity: true do
+      get "/mobile/installments/#{post_row.external_id}", params: { mobile_token: }
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body["message"]).to eq("Could not find related object to the installment.")
+    end
+
+    it "does not find the related object when the purchase does not exist", parity: true do
+      get "/mobile/installments/#{post_row.external_id}", params: { mobile_token:, purchase_id: "xxx" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "hands an installment with a follower to Rails", parity: true do
+      follower = create(:follower)
+
+      get "/mobile/installments/#{post_row.external_id}", params: { mobile_token:, follower_id: follower.external_id }
+
+      expect(response).to have_http_status(:ok)
+    end
+  end
+end

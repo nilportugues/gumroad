@@ -1,0 +1,364 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "an export with no chunks",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export with processed chunks",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export with a chunk not processed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export that does not exist",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=9"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 9 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        9
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id of zero",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=0"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 0 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        0
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "the export id as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        "2"
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export id of nil",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport without an ID"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        null
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an export id as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "---\n:seller: 1\n",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        1.0
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "an export id as a word",
+      "error": {
+        "class": "ActiveRecord::RecordNotFound",
+        "message": "Couldn't find SalesExport with 'id'=\"one\""
+      },
+      "statements": [
+        {
+          "sql": "SELECT `sales_exports`.* FROM `sales_exports` WHERE `sales_exports`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "recipient_id",
+              "query",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        "one"
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "two arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 2, expected 1)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "Exports::Sales::CompileChunksWorker",
+      "args": [
+        1,
+        2
+      ],
+      "hands_back": false
+    }
+  ]
+}

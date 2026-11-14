@@ -1,0 +1,58 @@
+{
+  "channel": "community",
+  "cases": [
+    {
+      "name": "plain message",
+      "payload": {
+        "type": "create_chat_message",
+        "message": {
+          "id": "abc=",
+          "content": "Hello",
+          "user": {
+            "id": "1",
+            "name": "Ann",
+            "is_seller": true
+          }
+        }
+      },
+      "stream_entries": [
+        {
+          "payload": "{\"stream\":\"golden:community_zzz\",\"data\":\"{\\\"type\\\":\\\"create_chat_message\\\",\\\"message\\\":{\\\"id\\\":\\\"abc=\\\",\\\"content\\\":\\\"Hello\\\",\\\"user\\\":{\\\"id\\\":\\\"1\\\",\\\"name\\\":\\\"Ann\\\",\\\"is_seller\\\":true}}}\"}"
+        }
+      ]
+    },
+    {
+      "name": "html and separators",
+      "payload": {
+        "type": "update_chat_message",
+        "message": {
+          "id": "abc=",
+          "content": "a < b > c & d   e   f \"q\" \\ / é 😀"
+        }
+      },
+      "stream_entries": [
+        {
+          "payload": "{\"stream\":\"golden:community_zzz\",\"data\":\"{\\\"type\\\":\\\"update_chat_message\\\",\\\"message\\\":{\\\"id\\\":\\\"abc=\\\",\\\"content\\\":\\\"a \\\\u003c b \\\\u003e c \\\\u0026 d \\\\u2028 e \\\\u2029 f \\\\\\\"q\\\\\\\" \\\\\\\\ / é 😀\\\"}}\"}"
+        }
+      ]
+    },
+    {
+      "name": "null avatar and delete",
+      "payload": {
+        "type": "delete_chat_message",
+        "message": {
+          "id": "x",
+          "user": {
+            "avatar_url": null,
+            "name": null
+          }
+        }
+      },
+      "stream_entries": [
+        {
+          "payload": "{\"stream\":\"golden:community_zzz\",\"data\":\"{\\\"type\\\":\\\"delete_chat_message\\\",\\\"message\\\":{\\\"id\\\":\\\"x\\\",\\\"user\\\":{\\\"avatar_url\\\":null,\\\"name\\\":null}}}\"}"
+        }
+      ]
+    }
+  ]
+}

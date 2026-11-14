@@ -252,7 +252,9 @@ export default function BundlesProductEdit() {
     form.transform(() => transformProductData());
     form.put(Routes.bundle_product_path(id), {
       preserveScroll: true,
-      onSuccess: () => window.open(url),
+      onSuccess: () => {
+        window.open(url);
+      },
     });
   };
   const saveBeforeNavigate = (targetPath: string) => {

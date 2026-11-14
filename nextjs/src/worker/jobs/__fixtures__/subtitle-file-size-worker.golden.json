@@ -1,0 +1,3005 @@
+{
+  "now": 1793795445.1230001,
+  "s3_base_url": "http://localhost:9000/gumroad-specs/",
+  "cases": [
+    {
+      "name": "a subtitle file with no size yet",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "bb0112c6-7142-4cf7-8302-458782f1e1de",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=50fc3bd8b7528648d7ee1c01474209300236adf84f16536f38a582fb394db986",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a size that changes",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                10,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":10,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[10,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "8f36dc69-f8ea-4c37-91f0-a3ca2ae56179",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=ce26a17d591ae1aff296baee291aa79f38f5127b947b191f3f9124997c276ca3",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a size that is already stored",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                1234,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "70945b46-f4bd-4ec4-b704-c7d22367aa4b",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=45dc04c291071f1d76f5a652a49a6f1a4d359566f6d981c6315032f24f3dcf01",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "an empty file",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 0 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,0]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "7cab8fda-1c13-43e6-a025-7e359602bf61",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=0b02af2d4d1c450fe9b889117167b9a1417a9039ec99dc15b43f0949b635e110",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "0"
+          }
+        }
+      ]
+    },
+    {
+      "name": "the largest size an integer column holds",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 2147483647 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,2147483647]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "b0a39dbc-4c24-430b-be73-065c5523b7d6",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=ef4295a71eb5d731e476184184bfc5f8f02aee5c9b96638c7f9bdc1493e04167",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "2147483647"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a size past an integer column",
+      "error": {
+        "class": "ActiveModel::RangeError",
+        "message": "2147483648 is out of range for ActiveModel::Type::Integer with limit 4 bytes"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "05811ca8-f66f-4dfc-8f6f-0aab0d68868f",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=40dddf9e5836c2cea12248814fa6eb7327799283d5b8582db7cf4ac2338070c5",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "2147483648"
+          }
+        }
+      ]
+    },
+    {
+      "name": "an answer without a content length",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                10,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = NULL WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":10,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[10,null]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "e902ea41-156c-48be-a257-d13b64bb17dc",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=0a52dfcf9abbdcff78cef56e71488b9884456b5fda34c4cf36f05efeed28642c",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {}
+        }
+      ]
+    },
+    {
+      "name": "a file that is not in storage",
+      "error": {
+        "class": "Aws::S3::Errors::NotFound",
+        "message": "Aws::S3::Errors::NotFound"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "9d7ef464-af92-4727-902e-30e29bdd1f90",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=9a5888a5ac6371e81d929db706cd21968a0485cbd137c62a34d5420f7807be4e",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 404,
+          "body": ""
+        }
+      ]
+    },
+    {
+      "name": "a file the credentials cannot read",
+      "error": {
+        "class": "Aws::S3::Errors::Forbidden",
+        "message": "Aws::S3::Errors::Forbidden"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "2c58686a-2644-48c6-a76b-7d1b33533531",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=efa79291ecbe024f9af1801c8ddf5766edc9172d651f7e4e8d52dce559e55f51",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 403,
+          "body": ""
+        }
+      ]
+    },
+    {
+      "name": "a storage error",
+      "error": {
+        "class": "Aws::Xml::Parser::ParsingError",
+        "message": "Start tag expected, '<' not found\n"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "1694981d-a45a-4808-a130-a16e01d78398",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=732f05f85327bd0c1361c98a9c7d120f875e0f6cc4d2598fbe6b7bbef7b3c9c9",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        },
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "1694981d-a45a-4808-a130-a16e01d78398",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=732f05f85327bd0c1361c98a9c7d120f875e0f6cc4d2598fbe6b7bbef7b3c9c9",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 500,
+          "body": ""
+        }
+      ]
+    },
+    {
+      "name": "a subtitle file that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 99 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        99
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a nil id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        null
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "an id given as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "061791af-b591-4aa5-be7c-68d126c26730",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=9adf537e3308986f5275d0ad7658388bd1468184d0abc598fb2c9b790bfa3498",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        "1"
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a deleted subtitle file is still measured",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "b0cc53b5-403b-4ac6-83ac-c85d6ec86ea9",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=855892d06c67dc76b078adc5ecb1967414e3eff4fee9f645cb934da6ed42918d",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a subtitle type storage does not support",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: Subtitle type not supported. Please upload only subtitles with extension .srt, .sub, .sbv, or .vtt."
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/abc/original/english.txt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/abc/original/english.txt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "c099b6da-5d7e-4c36-b8e3-4f50960cfc80",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=a4f732fa24bb5bb636060c0a5f3cabddbf6f8490db3fc22104362e335cdb342e",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a deleted subtitle file of an unsupported type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/abc/original/english.txt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/abc/original/english.txt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/abc/original/english.txt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "01020df8-85e1-4a38-9566-e816f489452f",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=e216540deb536828d9c474e5a1f0d781b2e4928015324298282e787933dfe132",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "every supported subtitle type",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/abc/original/a.vtt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/abc/original/a.vtt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/abc/original/a.vtt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "695db892-6ba7-467a-9e36-2b038aa29086",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=2a22bc79d9956adb55ea1a5de17e7721c0eae977738091120c51f33bf7b98e8b",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a subtitle file with no product file",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: Product file can't be blank"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "5c307953-8a08-445d-b2df-56c56cc805d9",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=4a60c20f934c6368b027c3f07b12407ead803ad1301e54f0af502a76efbafce1",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a subtitle file whose product file is gone",
+      "error": {
+        "class": "ActiveRecord::RecordInvalid",
+        "message": "Validation failed: Product file can't be blank"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                7,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 7 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "a6422a6f-7273-4291-986d-375e9748fa2f",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=f8b940fa711edbe7ab54f93b28ec9f0cabcc739537ff9a6c4b56fae3418611cf",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a url outside storage",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'content_length' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "https://example.com/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a url with no value",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'content_length' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a url with a key that needs escaping",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/abc/original/english subs+1.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/abc/original/english subs+1.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/abc/original/english%20subs+1.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "67d6da82-457d-4a14-95ee-43276da2aab5",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=0fe05f3bd31e46046de20a5835e8772cdff6ee6ee10cb1444bcc979bdb19c12a",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a url with a deep key",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/a/b/c/d/e/f.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/a/b/c/d/e/f.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/a/b/c/d/e/f.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "1b84b26a-dab3-4efb-bea7-6e824cbc4daa",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=9f43f61a59a990df8d9c87c223570e7b0925dd157dd93bf84b633a45bdfcf3da",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    },
+    {
+      "name": "another subtitle file is left alone",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `subtitle_files`.* FROM `subtitle_files` WHERE `subtitle_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "url",
+              "language",
+              "created_at",
+              "updated_at",
+              "product_file_id",
+              "deleted_at",
+              "size",
+              "deleted_from_cdn_at"
+            ],
+            "rows": [
+              [
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+                "English",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                1,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `product_files`.* FROM `product_files` WHERE `product_files`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "url",
+              "filetype",
+              "filegroup",
+              "size",
+              "bitrate",
+              "framerate",
+              "pagelength",
+              "duration",
+              "width",
+              "height",
+              "flags",
+              "json_data",
+              "deleted_at",
+              "created_at",
+              "updated_at",
+              "position",
+              "installment_id",
+              "display_name",
+              "deleted_from_cdn_at",
+              "description",
+              "folder_id",
+              "stampable_pdf",
+              "isbn"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "http://localhost:9000/gumroad-specs/attachments/video1/original/movie.mp4",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `subtitle_files` SET `subtitle_files`.`updated_at` = '2026-11-04 12:30:45.123000', `subtitle_files`.`size` = 1234 WHERE `subtitle_files`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "INSERT INTO `versions` (`item_type`, `item_id`, `event`, `whodunnit`, `object`, `created_at`, `remote_ip`, `request_path`, `request_uuid`, `object_changes`) VALUES ('SubtitleFile', 1, 'update', NULL, '{\\\"size\\\":null,\\\"json_data\\\":null,\\\"id\\\":1,\\\"url\\\":\\\"http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt\\\",\\\"language\\\":\\\"English\\\",\\\"created_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"updated_at\\\":\\\"2026-01-01T00:00:00Z\\\",\\\"product_file_id\\\":1,\\\"deleted_at\\\":null,\\\"deleted_from_cdn_at\\\":null}', '2026-11-04 12:30:45.123000', NULL, NULL, NULL, '{\\\"updated_at\\\":[\\\"2026-01-01T00:00:00Z\\\",\\\"2026-11-04T12:30:45Z\\\"],\\\"size\\\":[null,1234]}')",
+          "result": {
+            "affected": 1,
+            "last_id": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [
+        {
+          "method": "HEAD",
+          "url": "http://localhost:9000/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/english.srt",
+          "headers": {
+            "Accept": "*/*",
+            "Accept-Encoding": "",
+            "Amz-Sdk-Invocation-Id": "49062c20-9417-46a7-be56-e67dd0366a81",
+            "Authorization": "AWS4-HMAC-SHA256 Credential=minioadmin/20261104/us-east-1/s3/aws4_request, SignedHeaders=amz-sdk-invocation-id;host;x-amz-content-sha256;x-amz-date, Signature=4a2a1ff5f8b6120225084d3f1dd0c69fed792c110a08f4759c6ca7044ca91861",
+            "Host": "localhost:9000",
+            "User-Agent": "aws-sdk-ruby3/3.201.4 ua/2.1 api/s3#1.157.0 os/linux md/aarch64 lang/ruby#3.4.12 md/3.4.12 m/A,D",
+            "X-Amz-Content-Sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "X-Amz-Date": "20261104T123045Z"
+          },
+          "body": null
+        }
+      ],
+      "job": "SubtitleFileSizeWorker",
+      "args": [
+        1
+      ],
+      "http_responses": [
+        {
+          "status": 200,
+          "body": "",
+          "headers": {
+            "Content-Length": "1234"
+          }
+        }
+      ]
+    }
+  ]
+}

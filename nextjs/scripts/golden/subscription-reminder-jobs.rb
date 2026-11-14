@@ -1,0 +1,828 @@
+# frozen_string_literal: true
+
+# Produces nextjs/src/worker/jobs/__fixtures__/subscription-reminder-jobs.golden.json: the
+# subscription reminder jobs (and the SentEmailInfo markers they write), run by the real app against
+# a scratch database, each case as a Sidekiq job (support/sidekiq_executor.rb). Run it like
+# purchase-reads-jobs.rb:
+#
+#   RAILS_ENV=test DATABASE_NAME=gumroad_ws46 TEST_DATABASE_NAME=gumroad_ws46 DISABLE_TEST_REDIS_ISOLATION=1 \
+#     USE_DB_WORKER_REPLICAS=true REDIS_HOST=127.0.0.1:6379/12 SIDEKIQ_REDIS_HOST=127.0.0.1:6379/12 \
+#     RPUSH_REDIS_HOST=127.0.0.1:6379/12 RACK_ATTACK_REDIS_HOST=127.0.0.1:6379/12 \
+#     bundle exec rails runner nextjs/scripts/golden/subscription-reminder-jobs.rb
+#
+# Purchases and subscriptions are plain INSERTs (the purchase factory charges Stripe). Each case may
+# run at its own frozen time; the golden records it as `now`. Also writes
+# src/server/models/subscription-data.generated.json (the countries Country#can_accept_stripe_charges? refuses).
+require_relative "support/rails_cases"
+include RailsCases
+
+OUT = Rails.root.join("nextjs/src/worker/jobs/__fixtures__/subscription-reminder-jobs.golden.json")
+DATA_OUT = Rails.root.join("nextjs/src/server/models/subscription-data.generated.json")
+NOW = Time.utc(2025, 11, 1, 12, 30, 45, 123_000)
+SEEDED_AT = "2025-01-01 00:00:00"
+ORIGINAL_AT = "2020-01-01 00:00:00"
+TABLES = %w[users links subscriptions payment_options prices purchases installment_plan_snapshots product_installment_plans
+            merchant_accounts sent_email_infos billing_details charges charge_purchases orders order_purchases product_reviews
+            offer_codes offer_codes_products offer_codes_excluded_products offer_codes_ownership_products offer_codes_variants
+            purchase_offer_code_discounts base_variants base_variants_purchases variant_categories tips].freeze
+
+# WS-52: the compliance records Stripe Connect routing reads.
+EXTRA_TABLES = %w[user_compliance_info].freeze
+
+# The commands sent to the `ppp` Redis namespace while a case is recorded (PurchasingPowerParityService).
+module PppCommandLog
+  def call(command, config)
+    ($ppp_commands << command.map(&:to_s)) if $ppp_commands && RailsRecorder.log && command[1].to_s.start_with?("ppp:")
+    super
+  end
+end
+RedisClient.register(PppCommandLog)
+$ppp_commands = nil
+
+Stripe.api_base = "http://127.0.0.1:9"
+Stripe.max_network_retries = 0
+
+$uuid_seq = 0
+SecureRandom.singleton_class.prepend(Module.new do
+  def uuid
+    $uuid_seq += 1
+    format("00000000-0000-4000-8000-%012d", $uuid_seq)
+  end
+end)
+ActiveJob::Base.queue_adapter = :sidekiq
+ActiveJob::Base.logger = Logger.new(nil)
+ActionMailer::Base.deliver_later_queue_name = :default
+Rails.logger = ActiveSupport::Logger.new(nil)
+
+IS_TEST_SUBSCRIPTION = 1
+RENEWAL_DISABLED_INDIAN_MANDATE = 1 << 7
+INDIAN_MANDATE_REQUIRES_REAUTH = 1 << 8
+INDIAN_MANDATE_HOLD_PENDING = 1 << 10
+IS_INSTALLMENT_PLAN = 1 << 6
+ORIGINAL_SUBSCRIPTION_PURCHASE = 1 << 2
+ARCHIVED_ORIGINAL_SUBSCRIPTION_PURCHASE = 1 << 17
+FREE_TRIAL_PURCHASE = 1 << 18
+IS_MULTI_BUY = 1 << 4
+GIFT_SENDER_PURCHASE = 1 << 6
+SHOULD_EXCLUDE_PRODUCT_REVIEW = 1 << 22
+ACCESS_REVOKED = 1 << 24
+COMMISSION_COMPLETION = 1 << 29
+BUNDLE_PRODUCT_PURCHASE = 1 << 26
+CHARGEBACK_REVERSED = 1 << 9
+USER_CHECK_MERCHANT_ACCOUNT_IS_LINKED = 1 << 24
+USER_OPTED_OUT_OF_REVIEW_REMINDERS = 1 << 41
+USER_DISABLE_REVIEW_REMINDERS = 1 << 53
+
+def at(time) = time.utc.strftime("%Y-%m-%d %H:%M:%S.%6N")
+
+def user_row(id, **overrides)
+  {
+    id:, email: "user#{id}@example.com", username: "user#{id}", external_id: (1000 + id).to_s, recommendation_type: "own_products",
+    user_risk_state: "compliant", flags: 0, json_data: nil, confirmed_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT
+  }.merge(overrides)
+end
+
+def link_row(id = 1, **overrides)
+  { id:, name: "Product #{id}", user_id: 1, unique_permalink: "p#{id}", price_currency_type: "usd", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def purchase_row(id, **overrides)
+  { id:, link_id: 1, seller_id: 1, purchase_state: "successful", price_cents: 500, displayed_price_cents: 500, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def price_row(id, recurrence, **overrides)
+  { id:, link_id: 1, price_cents: 500, currency: "usd", recurrence:, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+def merchant_account_row(id, **overrides)
+  { id:, charge_processor_id: "stripe", charge_processor_merchant_id: "acct_#{id}", country: "US", currency: "usd", charge_processor_alive_at: SEEDED_AT, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(overrides)
+end
+
+# One membership: a price, a payment option, the subscription, its original purchase and the
+# purchases that paid for it (`paid_at` is each successful purchase's created_at and succeeded_at).
+def membership(id = 1, recurrence: "monthly", paid_at: [], free_trial_ends_at: nil, original: {}, extra_purchases: [], payment_option: {}, **subscription)
+  price_id = id
+  option_id = id
+  # The original purchase is the oldest one, so `paid_at` times decide the last paid period.
+  purchases = [purchase_row(id * 100, subscription_id: id, flags: ORIGINAL_SUBSCRIPTION_PURCHASE, created_at: ORIGINAL_AT, succeeded_at: ORIGINAL_AT, **original)]
+  paid_at.each_with_index do |time, i|
+    purchases << purchase_row(id * 100 + 1 + i, subscription_id: id, created_at: at(time), succeeded_at: at(time))
+  end
+  {
+    subscriptions: [{ id:, link_id: 1, user_id: 2, seller_id: 1, flags: 0, last_payment_option_id: option_id, free_trial_ends_at: free_trial_ends_at && at(free_trial_ends_at),
+                      created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(subscription)],
+    prices: [price_row(price_id, recurrence)],
+    payment_options: [{ id: option_id, subscription_id: id, price_id:, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(payment_option)],
+    purchases: purchases + extra_purchases,
+  }
+end
+
+def merge_seeds(*seeds)
+  seeds.each_with_object({}) { |seed, all| seed.each { |table, rows| (all[table] ||= []).concat(rows) } }
+end
+
+def base_seed(**extra)
+  defaults = { users: [user_row(1), user_row(2)], links: [link_row], merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1)] }
+  # A case's own rows replace the default ones of the same table.
+  defaults.merge(extra.to_h { |table, rows| [table, rows] })
+end
+
+# The number of statements recorded when AutoInvoiceEligibility finishes: Node hands the job back to
+# Rails there when the buyer is eligible, because CustomerMailer.auto_invoice is not ported.
+module EligibilityCount
+  def eligible?(...)
+    super.tap { $eligibility_statements = RailsRecorder.log&.size }
+  end
+end
+AutoInvoiceEligibility.singleton_class.prepend(EligibilityCount)
+
+def run(name, job, args, seed: {}, features: [], now: NOW, setup: nil)
+  $uuid_seq = 0
+  $eligibility_statements = nil
+  $ppp_commands = []
+  result = capture(name, now:, tables: TABLES + EXTRA_TABLES, seed: base_seed(**seed), setup: lambda {
+    features.each { |feature| Feature.activate_user(feature, User.find(1)) }
+    setup&.call
+  }, sidekiq: true, job:, args:, case_now: now.to_f) { job.constantize.new.perform(*args) }
+  result["eligibility_statements"] = $eligibility_statements if $eligibility_statements
+  result["ppp_commands"] = $ppp_commands if $ppp_commands.any?
+  $ppp_commands = nil
+  # Cases replay against recorded answers, not a database, so the seed and the final rows stay out.
+  result.delete("rows")
+  result.delete("seed")
+  result
+end
+
+cases = []
+DAY = 86_400
+t = ->(string) { Time.utc(*string.split(/[-: ]/).map(&:to_i)) }
+
+# SentEmailInfo.mailer_key_digest, as the reminder jobs build it.
+digests = [
+  ["CustomerLowPriorityMailer", "free_trial_expiring_soon", 1],
+  ["CustomerLowPriorityMailer", "subscription_renewal_reminder", 1, "advance", 1_764_590_445],
+  ["CustomerLowPriorityMailer", "review_reminder", 12_345],
+  ["CustomerLowPriorityMailer", "subscription_renewal_reminder", 10_000_000_000, "advance", 0],
+  ["CustomerLowPriorityMailer", "subscription_renewal_reminder", 1, "advance", -1],
+].map { |args| [args, SentEmailInfo.mailer_key_digest(*args)] }
+
+# --- FreeTrialExpiringReminderWorker ------------------------------------------------------------------
+FT = "FreeTrialExpiringReminderWorker"
+trial_end = NOW + 2 * DAY
+cases << run("free trial: subscription does not exist", FT, [1])
+cases << run("free trial: queues the reminder and records the marker", FT, [1], seed: membership(free_trial_ends_at: trial_end))
+cases << run("free trial: marker already recorded", FT, [1], seed: merge_seeds(membership(free_trial_ends_at: trial_end),
+  { sent_email_infos: [{ id: 1, key: SentEmailInfo.mailer_key_digest("CustomerLowPriorityMailer", "free_trial_expiring_soon", 1), created_at: SEEDED_AT, updated_at: SEEDED_AT }] }))
+cases << run("free trial: trial already over", FT, [1], seed: membership(free_trial_ends_at: NOW - 1))
+cases << run("free trial: trial ends this very second", FT, [1], seed: membership(free_trial_ends_at: NOW))
+cases << run("free trial: no trial", FT, [1], seed: membership)
+cases << run("free trial: failed subscription", FT, [1], seed: membership(free_trial_ends_at: trial_end, failed_at: SEEDED_AT))
+cases << run("free trial: ended subscription", FT, [1], seed: membership(free_trial_ends_at: trial_end, ended_at: SEEDED_AT))
+cases << run("free trial: cancellation pending", FT, [1], seed: membership(free_trial_ends_at: trial_end, cancelled_at: at(NOW + DAY)))
+cases << run("free trial: cancelled", FT, [1], seed: membership(free_trial_ends_at: trial_end, cancelled_at: at(NOW - DAY)))
+cases << run("free trial: test subscription", FT, [1], seed: membership(free_trial_ends_at: trial_end, flags: IS_TEST_SUBSCRIPTION))
+cases << run("free trial: id as a string", FT, ["1"], seed: membership(free_trial_ends_at: trial_end))
+cases << run("free trial: mandate renewals disabled, reliability off", FT, [1], seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE))
+cases << run("free trial: mandate renewals disabled, reliability on", FT, [1], features: [:india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE))
+cases << run("free trial: reliability on, renewals enabled", FT, [1], features: [:india_card_mandate_reliability], seed: membership(free_trial_ends_at: trial_end))
+cases << run("free trial: reliability on, multi-buy original purchase", FT, [1], features: [:india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE, original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_MULTI_BUY }))
+cases << run("free trial: reliability on, seller on a Connect account", FT, [1], features: [:india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE)
+    .merge(merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1, json_data: { meta: { stripe_connect: "true" } }.to_json)]),
+  setup: -> { User.where(id: 1).update_all(flags: USER_CHECK_MERCHANT_ACCOUNT_IS_LINKED) })
+cases << run("free trial: reliability on, seller in a cross-border country", FT, [1], features: [:india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1, country: "TH")]))
+cases << run("free trial: reliability on, no seller account falls back to Gumroad's", FT, [1], features: [:india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(merchant_accounts: [merchant_account_row(1)]))
+cases << run("free trial: reliability on, no merchant account at all", FT, [1], features: [:india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(merchant_accounts: []))
+cases << run("free trial: merchant_migration feature on", FT, [1], features: [:merchant_migration, :india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE))
+cases << run("free trial: reliability on, original purchase in an order of two", FT, [1], features: [:india_card_mandate_reliability],
+  seed: merge_seeds(membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE, extra_purchases: [purchase_row(900)]),
+                    { orders: [{ id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+                      order_purchases: [{ id: 1, order_id: 1, purchase_id: 100, created_at: SEEDED_AT, updated_at: SEEDED_AT }, { id: 2, order_id: 1, purchase_id: 900, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }))
+
+# --- ChargeDeclinedReminderWorker ----------------------------------------------------------------------
+CD = "ChargeDeclinedReminderWorker"
+paid_a_month_ago = [NOW - 33 * DAY]
+cases << run("declined: subscription does not exist", CD, [1])
+cases << run("declined: overdue membership", CD, [1], seed: membership(paid_at: paid_a_month_ago))
+cases << run("declined: paid recently", CD, [1], seed: membership(paid_at: [NOW - 3 * DAY]))
+cases << run("declined: renews this very second", CD, [1], seed: membership(paid_at: [Time.utc(2025, 10, 1, 12, 30, 45, 123_000)]))
+cases << run("declined: renews one microsecond from now", CD, [1], seed: membership(paid_at: [Time.utc(2025, 10, 1, 12, 30, 45, 123_001)]))
+cases << run("declined: failed", CD, [1], seed: membership(paid_at: paid_a_month_ago, failed_at: SEEDED_AT))
+cases << run("declined: cancellation pending", CD, [1], seed: membership(paid_at: paid_a_month_ago, cancelled_at: at(NOW + DAY)))
+cases << run("declined: test subscription", CD, [1], seed: membership(paid_at: paid_a_month_ago, flags: IS_TEST_SUBSCRIPTION))
+cases << run("declined: yearly membership overdue", CD, [1], seed: membership(recurrence: "yearly", paid_at: [NOW - 400 * DAY]))
+cases << run("declined: yearly membership not overdue", CD, [1], seed: membership(recurrence: "yearly", paid_at: [NOW - 300 * DAY]))
+cases << run("declined: mandate renewals disabled, reliability on", CD, [1], features: [:india_card_mandate_reliability],
+  seed: membership(paid_at: paid_a_month_ago, flags: RENEWAL_DISABLED_INDIAN_MANDATE))
+cases << run("declined: reliability on, renewals enabled", CD, [1], features: [:india_card_mandate_reliability], seed: membership(paid_at: paid_a_month_ago))
+cases << run("declined: free trial running", CD, [1], seed: membership(free_trial_ends_at: NOW + 5 * DAY, extra_purchases: [purchase_row(150, subscription_id: 1, purchase_state: "not_charged", flags: FREE_TRIAL_PURCHASE, created_at: at(NOW - 2 * DAY))]))
+cases << run("declined: free trial over, never charged", CD, [1], seed: membership(free_trial_ends_at: NOW - DAY, extra_purchases: [purchase_row(150, subscription_id: 1, purchase_state: "not_charged", flags: FREE_TRIAL_PURCHASE, created_at: at(NOW - 12 * DAY))]))
+cases << run("declined: no successful purchase and no trial", CD, [1], seed: membership.merge(purchases: [purchase_row(100, subscription_id: 1, flags: ORIGINAL_SUBSCRIPTION_PURCHASE, purchase_state: "failed")]))
+cases << run("declined: last charge charged back", CD, [1], seed: membership(paid_at: paid_a_month_ago, extra_purchases: [purchase_row(190, subscription_id: 1, created_at: at(NOW - 2 * DAY), succeeded_at: at(NOW - 2 * DAY), chargeback_date: at(NOW - DAY))]))
+cases << run("declined: charge charged back and reversed", CD, [1], seed: membership(paid_at: paid_a_month_ago, extra_purchases: [purchase_row(190, subscription_id: 1, flags: CHARGEBACK_REVERSED, created_at: at(NOW - 2 * DAY), succeeded_at: at(NOW - 2 * DAY), chargeback_date: at(NOW - DAY))]))
+cases << run("declined: last charge refunded", CD, [1], seed: membership(paid_at: paid_a_month_ago, extra_purchases: [purchase_row(190, subscription_id: 1, created_at: at(NOW - 2 * DAY), succeeded_at: at(NOW - 2 * DAY), stripe_refunded: true)]))
+cases << run("declined: installment plan", CD, [1], seed: membership(paid_at: paid_a_month_ago, flags: IS_INSTALLMENT_PLAN)
+  .merge(product_installment_plans: [{ id: 1, link_id: 1, number_of_installments: 3, recurrence: "monthly", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+         payment_options: [{ id: 1, subscription_id: 1, price_id: 1, product_installment_plan_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }]))
+cases << run("declined: installment plan with a snapshot", CD, [1], seed: membership(paid_at: paid_a_month_ago, flags: IS_INSTALLMENT_PLAN)
+  .merge(product_installment_plans: [{ id: 1, link_id: 1, number_of_installments: 3, recurrence: "monthly", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+         payment_options: [{ id: 1, subscription_id: 1, price_id: 1, product_installment_plan_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+         installment_plan_snapshots: [{ id: 1, payment_option_id: 1, number_of_installments: 3, recurrence: "monthly", total_price_cents: 3000, created_at: SEEDED_AT, updated_at: SEEDED_AT }]))
+cases << run("declined: no last payment option, falls back to the latest alive one", CD, [1],
+  seed: membership(paid_at: paid_a_month_ago, last_payment_option_id: nil))
+cases << run("declined: the payment option was deleted", CD, [1], seed: membership(paid_at: paid_a_month_ago, payment_option: { deleted_at: SEEDED_AT }))
+cases << run("declined: month end, 31 January plus a month", CD, [1], now: Time.utc(2025, 2, 28, 0, 0, 0), seed: membership(paid_at: [Time.utc(2025, 1, 31, 0, 0, 0)]))
+cases << run("declined: month end, a second before 28 February", CD, [1], now: Time.utc(2025, 2, 27, 23, 59, 59), seed: membership(paid_at: [Time.utc(2025, 1, 31, 0, 0, 0)]))
+cases << run("declined: leap day yearly", CD, [1], now: Time.utc(2025, 2, 28, 0, 0, 0), seed: membership(recurrence: "yearly", paid_at: [Time.utc(2024, 2, 29, 0, 0, 0)]))
+cases << run("declined: leap day yearly, a second early", CD, [1], now: Time.utc(2025, 2, 27, 23, 59, 59), seed: membership(recurrence: "yearly", paid_at: [Time.utc(2024, 2, 29, 0, 0, 0)]))
+cases << run("declined: quarterly across 30 November", CD, [1], now: Time.utc(2026, 2, 28, 0, 0, 0), seed: membership(recurrence: "quarterly", paid_at: [Time.utc(2025, 11, 30, 0, 0, 0)]))
+cases << run("declined: every two years from a leap day", CD, [1], now: Time.utc(2026, 2, 28, 0, 0, 0), seed: membership(recurrence: "every_two_years", paid_at: [Time.utc(2024, 2, 29, 0, 0, 0)]))
+cases << run("declined: biannually", CD, [1], now: Time.utc(2025, 8, 31, 0, 0, 0), seed: membership(recurrence: "biannually", paid_at: [Time.utc(2025, 2, 28, 0, 0, 0)]))
+cases << run("declined: the newest of several successful charges counts", CD, [1], seed: membership(paid_at: [NOW - 70 * DAY, NOW - 3 * DAY, NOW - 40 * DAY]))
+cases << run("declined: free trial purchase and a later charge", CD, [1], seed: membership(paid_at: [NOW - 3 * DAY], free_trial_ends_at: NOW - 20 * DAY, extra_purchases: [purchase_row(150, subscription_id: 1, purchase_state: "not_charged", flags: FREE_TRIAL_PURCHASE, created_at: at(NOW - 40 * DAY))]))
+cases << run("declined: only a free trial purchase", CD, [1], seed: membership(free_trial_ends_at: NOW + 5 * DAY).merge(purchases: [
+  purchase_row(100, subscription_id: 1, flags: ORIGINAL_SUBSCRIPTION_PURCHASE, purchase_state: "failed"),
+  purchase_row(150, subscription_id: 1, purchase_state: "not_charged", flags: FREE_TRIAL_PURCHASE, created_at: at(NOW - 2 * DAY)),
+]))
+cases << run("declined: free trial purchase only, trial over", CD, [1], seed: membership(free_trial_ends_at: NOW - DAY).merge(purchases: [
+  purchase_row(100, subscription_id: 1, flags: ORIGINAL_SUBSCRIPTION_PURCHASE, purchase_state: "failed"),
+  purchase_row(150, subscription_id: 1, purchase_state: "not_charged", flags: FREE_TRIAL_PURCHASE, created_at: at(NOW - 12 * DAY)),
+]))
+cases << run("declined: a failed purchase after the last success", CD, [1], seed: membership(paid_at: paid_a_month_ago, extra_purchases: [purchase_row(190, subscription_id: 1, purchase_state: "failed", created_at: at(NOW - DAY))]))
+
+# --- RecurringChargeReminderWorker ---------------------------------------------------------------------
+RC = "RecurringChargeReminderWorker"
+reminders = [:membership_renewal_reminders]
+cases << run("reminder: subscription does not exist", RC, [1])
+cases << run("reminder: renewal reminders off", RC, [1], seed: membership(paid_at: [NOW - 28 * DAY]))
+cases << run("reminder: final reminder", RC, [1], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY]))
+cases << run("reminder: final reminder with the kind spelled out as nil", RC, [1, nil], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY]))
+cases << run("reminder: final reminder for an unknown kind", RC, [1, "other"], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY]))
+cases << run("reminder: in a free trial", RC, [1], features: reminders, seed: membership(free_trial_ends_at: NOW + 5 * DAY))
+cases << run("reminder: fixed length, all charges made", RC, [1], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY], charge_occurrence_count: 1))
+cases << run("reminder: fixed length, charges left", RC, [1], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY], charge_occurrence_count: 3))
+cases << run("reminder: fixed length of a test subscription", RC, [1], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY], charge_occurrence_count: 1, flags: IS_TEST_SUBSCRIPTION))
+cases << run("reminder: failed", RC, [1], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY], failed_at: SEEDED_AT))
+cases << run("reminder: mandate renewals disabled, reliability on", RC, [1], features: reminders + [:india_card_mandate_reliability],
+  seed: membership(paid_at: [NOW - 28 * DAY], flags: RENEWAL_DISABLED_INDIAN_MANDATE))
+cases << run("reminder: mandate renewals disabled, reliability off", RC, [1], features: reminders,
+  seed: membership(paid_at: [NOW - 28 * DAY], flags: RENEWAL_DISABLED_INDIAN_MANDATE))
+cases << run("reminder: advance notice due on a yearly membership", RC, [1, "advance"], features: reminders, seed: membership(recurrence: "yearly", paid_at: [NOW - 340 * DAY]))
+cases << run("reminder: advance notice already sent", RC, [1, "advance"], features: reminders, seed: merge_seeds(
+  membership(recurrence: "yearly", paid_at: [NOW - 340 * DAY]),
+  { sent_email_infos: [{ id: 1, key: SentEmailInfo.mailer_key_digest("CustomerLowPriorityMailer", "subscription_renewal_reminder", 1, "advance", (NOW - 340 * DAY + 12.months).to_i), created_at: SEEDED_AT, updated_at: SEEDED_AT }] }))
+cases << run("reminder: advance notice, lead time not reached", RC, [1, "advance"], features: reminders, seed: membership(recurrence: "yearly", paid_at: [NOW - 300 * DAY]))
+cases << run("reminder: advance notice, final reminder already due", RC, [1, "advance"], features: reminders, seed: membership(recurrence: "yearly", paid_at: [NOW - 360 * DAY]))
+cases << run("reminder: advance notice on a monthly membership", RC, [1, "advance"], features: reminders, seed: membership(paid_at: [NOW - 28 * DAY]))
+cases << run("reminder: advance notice, exactly at the lead time", RC, [1, "advance"], features: reminders, seed: membership(recurrence: "yearly", paid_at: [Time.utc(2025, 11, 1, 12, 30, 45, 123_000) - 335 * DAY]))
+cases << run("reminder: advance notice for every two years", RC, [1, "advance"], features: reminders, seed: membership(recurrence: "every_two_years", paid_at: [NOW - 700 * DAY]))
+cases << run("reminder: advance notice during a free trial", RC, [1, "advance"], features: reminders, seed: membership(recurrence: "yearly", free_trial_ends_at: NOW + 20 * DAY))
+cases << run("reminder: advance notice, leap day", RC, [1, "advance"], features: reminders, now: Time.utc(2025, 1, 29, 0, 0, 0),
+  seed: membership(recurrence: "yearly", paid_at: [Time.utc(2024, 2, 29, 0, 0, 0)]))
+cases << run("reminder: advance notice, paid period was refunded", RC, [1, "advance"], features: reminders,
+  seed: membership(recurrence: "yearly", paid_at: [NOW - 500 * DAY], extra_purchases: [purchase_row(190, subscription_id: 1, created_at: at(NOW - 340 * DAY), succeeded_at: at(NOW - 340 * DAY), stripe_refunded: true)]))
+cases << run("reminder: advance notice, no purchases after a failed one", RC, [1, "advance"], features: reminders,
+  seed: membership(recurrence: "yearly").merge(purchases: [purchase_row(100, subscription_id: 1, flags: ORIGINAL_SUBSCRIPTION_PURCHASE, purchase_state: "failed")]))
+
+# --- ReviewReminderJob ---------------------------------------------------------------------------------
+RR = "ReviewReminderJob"
+cases << run("review: purchase does not exist", RR, [1])
+cases << run("review: eligible purchase", RR, [1], seed: { purchases: [purchase_row(1)] })
+cases << run("review: marker already recorded", RR, [1], seed: { purchases: [purchase_row(1)],
+  sent_email_infos: [{ id: 1, key: SentEmailInfo.mailer_key_digest("CustomerLowPriorityMailer", "review_reminder", 1), created_at: SEEDED_AT, updated_at: SEEDED_AT }] })
+cases << run("review: failed purchase", RR, [1], seed: { purchases: [purchase_row(1, purchase_state: "failed")] })
+cases << run("review: free trial purchase", RR, [1], seed: { purchases: [purchase_row(1, purchase_state: "not_charged", flags: FREE_TRIAL_PURCHASE)] })
+cases << run("review: not charged purchase", RR, [1], seed: { purchases: [purchase_row(1, purchase_state: "not_charged")] })
+cases << run("review: gift receiver purchase", RR, [1], seed: { purchases: [purchase_row(1, purchase_state: "gift_receiver_purchase_successful")] })
+cases << run("review: gift sender purchase", RR, [1], seed: { purchases: [purchase_row(1, flags: GIFT_SENDER_PURCHASE)] })
+cases << run("review: excluded from reviews", RR, [1], seed: { purchases: [purchase_row(1, flags: SHOULD_EXCLUDE_PRODUCT_REVIEW)] })
+cases << run("review: refunded", RR, [1], seed: { purchases: [purchase_row(1, stripe_refunded: true)] })
+cases << run("review: partly refunded bundle product", RR, [1], seed: { purchases: [purchase_row(1, flags: BUNDLE_PRODUCT_PURCHASE, stripe_partially_refunded: true)] })
+cases << run("review: partly refunded", RR, [1], seed: { purchases: [purchase_row(1, stripe_partially_refunded: true)] })
+cases << run("review: charged back", RR, [1], seed: { purchases: [purchase_row(1, chargeback_date: SEEDED_AT)] })
+cases << run("review: recurring charge of a subscription", RR, [1], seed: membership.merge(purchases: [purchase_row(1, subscription_id: 1)]))
+cases << run("review: original purchase of a subscription", RR, [1], seed: membership.merge(purchases: [purchase_row(1, subscription_id: 1, flags: ORIGINAL_SUBSCRIPTION_PURCHASE)]))
+cases << run("review: access revoked and free", RR, [1], seed: { purchases: [purchase_row(1, flags: ACCESS_REVOKED, price_cents: 0)] })
+cases << run("review: access revoked and paid", RR, [1], seed: { purchases: [purchase_row(1, flags: ACCESS_REVOKED)] })
+cases << run("review: commission completion", RR, [1], seed: { purchases: [purchase_row(1, flags: COMMISSION_COMPLETION)] })
+cases << run("review: already reviewed", RR, [1], seed: { purchases: [purchase_row(1)], product_reviews: [{ id: 1, purchase_id: 1, rating: 5, link_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }] })
+cases << run("review: seller disabled reminders", RR, [1], seed: { purchases: [purchase_row(1)] },
+  setup: -> { User.where(id: 1).update_all(flags: USER_DISABLE_REVIEW_REMINDERS) })
+cases << run("review: buyer cannot be contacted", RR, [1], seed: { purchases: [purchase_row(1, can_contact: false)] })
+cases << run("review: account holder opted out", RR, [1], seed: { purchases: [purchase_row(1, purchaser_id: 2)] },
+  setup: -> { User.where(id: 2).update_all(flags: USER_OPTED_OUT_OF_REVIEW_REMINDERS) })
+cases << run("review: account holder has not opted out", RR, [1], seed: { purchases: [purchase_row(1, purchaser_id: 2)] })
+cases << run("review: purchaser account is gone", RR, [1], seed: { purchases: [purchase_row(1, purchaser_id: 99)] })
+cases << run("review: id as a string", RR, ["1"], seed: { purchases: [purchase_row(1)] })
+
+# --- SendAutoInvoiceEmailJob ---------------------------------------------------------------------------
+AI = "SendAutoInvoiceEmailJob"
+billing = ->(enabled) { { billing_details: [{ id: 1, purchaser_id: 2, full_name: "Buyer", street_address: "1 Road", city: "Town", zip_code: "1", country_code: "US", auto_email_invoice_enabled: enabled, created_at: SEEDED_AT, updated_at: SEEDED_AT }] } }
+cases << run("invoice: neither purchase nor charge exists", AI, [1, nil])
+cases << run("invoice: purchase and charge both given", AI, [1, 1], seed: { purchases: [purchase_row(1, purchaser_id: 2)], charges: [{ id: 1, order_id: 1, seller_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }] })
+cases << run("invoice: purchase without a purchaser", AI, [1, nil], seed: { purchases: [purchase_row(1)] })
+cases << run("invoice: purchaser without billing details", AI, [1, nil], seed: { purchases: [purchase_row(1, purchaser_id: 2)] })
+cases << run("invoice: auto invoices off", AI, [1, nil], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2)] }, billing.(false)))
+cases << run("invoice: free purchase", AI, [1, nil], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2, price_cents: 0)] }, billing.(true)))
+cases << run("invoice: free purchase with shipping", AI, [1, nil], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2, price_cents: 0, shipping_cents: 100)] }, billing.(true)))
+cases << run("invoice: eligible purchase", AI, [1, nil], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2)] }, billing.(true)))
+cases << run("invoice: eligible purchase of a subscription", AI, [1, nil], seed: merge_seeds(membership(paid_at: [NOW - DAY]).merge(purchases: [purchase_row(1, purchaser_id: 2, subscription_id: 1)]), billing.(true)))
+cases << run("invoice: free trial purchase", AI, [1, nil], seed: merge_seeds(membership(paid_at: [NOW - DAY]).merge(purchases: [purchase_row(1, purchaser_id: 2, subscription_id: 1, flags: FREE_TRIAL_PURCHASE, purchase_state: "not_charged")]), billing.(true)))
+order_seed = { orders: [{ id: 1, purchaser_id: 2, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+               order_purchases: [{ id: 1, order_id: 1, purchase_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+               charges: [{ id: 1, order_id: 1, seller_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+               charge_purchases: [{ id: 1, charge_id: 1, purchase_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }
+cases << run("invoice: purchase in a charge, sent as the charge receipt", AI, [1, nil], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2)] }, order_seed, billing.(true)))
+cases << run("invoice: charge, eligible", AI, [nil, 1], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2)] }, order_seed, billing.(true)))
+cases << run("invoice: charge whose purchases are free", AI, [nil, 1], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2, price_cents: 0)] }, order_seed, billing.(true)))
+cases << run("invoice: charge, auto invoices off", AI, [nil, 1], seed: merge_seeds({ purchases: [purchase_row(1, purchaser_id: 2)] }, order_seed, billing.(false)))
+cases << run("invoice: charge without an order buyer", AI, [nil, 1], seed: merge_seeds({ purchases: [purchase_row(1)] }, order_seed.merge(orders: [{ id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }]), billing.(true)))
+
+# --- FindSubscriptionsWithMissingChargeWorker ----------------------------------------------------------
+FM = "FindSubscriptionsWithMissingChargeWorker"
+cases << run("missing charge: fans out ten batches", FM, [])
+cases << run("missing charge: nothing to find", FM, [0])
+overdue = [NOW - 33 * DAY]
+sub_ids = ->(n) { membership(n, paid_at: overdue) }
+cases << run("missing charge: an overdue membership", FM, [1], seed: membership(paid_at: overdue))
+cases << run("missing charge: overdue by less than 75 minutes", FM, [1], seed: membership(paid_at: [NOW - 31 * DAY - 60 * 60]))
+cases << run("missing charge: overdue by more than 75 minutes", FM, [1], seed: membership(paid_at: [Time.utc(2025, 10, 1, 11, 0, 0)]))
+cases << run("missing charge: not overdue", FM, [1], seed: membership(paid_at: [NOW - 3 * DAY]))
+cases << run("missing charge: other batch", FM, [3], seed: membership(paid_at: overdue))
+cases << run("missing charge: a charge in progress", FM, [1], seed: membership(paid_at: overdue, extra_purchases: [purchase_row(190, subscription_id: 1, purchase_state: "in_progress", created_at: at(NOW - 60))]))
+cases << run("missing charge: suspended seller", FM, [1], seed: membership(paid_at: overdue), setup: -> { User.where(id: 1).update_all(user_risk_state: "suspended_for_fraud") })
+cases << run("missing charge: test, ended and deactivated subscriptions", FM, [1, 2, 3, 4].first(1), seed: merge_seeds(
+  membership(1, paid_at: overdue, flags: IS_TEST_SUBSCRIPTION), membership(11, paid_at: overdue, deactivated_at: SEEDED_AT)))
+cases << run("missing charge: zero price", FM, [1], seed: membership(paid_at: overdue, original: { displayed_price_cents: 0 }))
+cases << run("missing charge: free trial subscription with no paid charge", FM, [1], seed: membership(free_trial_ends_at: NOW - 5 * DAY))
+cases << run("missing charge: mandate hold with no paid period", FM, [1], seed: membership.merge(purchases: [purchase_row(100, subscription_id: 1, flags: ORIGINAL_SUBSCRIPTION_PURCHASE, purchase_state: "failed")]),
+  setup: -> { Subscription.where(id: 1).update_all(flags: RENEWAL_DISABLED_INDIAN_MANDATE | INDIAN_MANDATE_HOLD_PENDING, stripe_mandate_id: "mandate_1") })
+cases << run("missing charge: a membership with an offer code", FM, [1], seed: merge_seeds(membership(paid_at: overdue, original: { offer_code_id: 1 }),
+  { offer_codes: [{ id: 1, user_id: 1, code: "SAVE", amount_percentage: 10, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }))
+installment_plan = {
+  product_installment_plans: [{ id: 1, link_id: 1, number_of_installments: 3, recurrence: "monthly", created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  payment_options: [{ id: 1, subscription_id: 1, price_id: 1, product_installment_plan_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+}
+cases << run("missing charge: an installment plan", FM, [1], seed: membership(paid_at: overdue, flags: IS_INSTALLMENT_PLAN).merge(installment_plan))
+cases << run("missing charge: three subscriptions in one batch", FM, [1], seed: merge_seeds(*(1..21).step(10).map { |n| membership(n, paid_at: overdue) }))
+cases << run("missing charge: subscriptions of two products and sellers", FM, [1], seed: merge_seeds(
+  membership(1, paid_at: overdue), membership(11, paid_at: [NOW - 5 * DAY]), membership(21, paid_at: overdue, user_id: 3, seller_id: 3, link_id: 2),
+  { users: [user_row(1), user_row(2), user_row(3)], links: [link_row(1), link_row(2, user_id: 3)] }))
+cases << run("missing charge: more than one batch", FM, [1], seed: { subscriptions: [] },
+  setup: lambda {
+    User.where(id: 1).update_all(user_risk_state: "suspended_for_fraud")
+    c = ActiveRecord::Base.connection
+    rows = Array.new(1001) { |i| "(#{1 + i * 10}, 1, 2, 1, 0, '#{SEEDED_AT}', '#{SEEDED_AT}')" }
+    c.execute("INSERT INTO subscriptions (id, link_id, user_id, seller_id, flags, created_at, updated_at) VALUES #{rows.join(", ")}")
+  })
+cases << run("missing charge: a universal offer code exists", FM, [1], seed: merge_seeds(membership(paid_at: overdue),
+  { offer_codes: [{ id: 1, user_id: 1, code: "ALL", universal: true, amount_percentage: 10, existing_customers_only: true, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }))
+
+# --- Renewal pricing (WS-48) ---------------------------------------------------------------------------
+# Subscription#current_subscription_price_cents for offer codes, purchase_offer_code_discounts and
+# installment plans. The probe job returns the price; FindSubscriptionsWithMissingChargeWorker cases below
+# show the same pricing inside the sweep.
+class Ws48PriceProbe
+  def perform(subscription_id)
+    $probe_result = Subscription.find(subscription_id).current_subscription_price_cents
+  end
+end
+
+IS_INSTALLMENT_PAYMENT = 1 << 30
+PPP_DISCOUNTED = 1 << 23
+GIFT_RECEIVER = 1 << 5
+UPGRADE_PURCHASE = 1 << 11
+IS_RENTAL = 1 << 14
+LINK_TIERED_MEMBERSHIP = 1 << 18
+LINK_RECURRING = 1 << 1
+OFFER_CODE_ONCE_PER_CART = 1 << 2
+BUYER_ID = 2
+
+def code_row(id, **o) = { id:, user_id: 1, code: "CODE#{id}", amount_percentage: 10, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(o)
+def on_product(code_id, product_id = 1) = { offer_code_id: code_id, product_id:, created_at: SEEDED_AT, updated_at: SEEDED_AT }
+def discount_row(purchase_id, code_id, **o)
+  { purchase_id:, offer_code_id: code_id, offer_code_amount: 10, offer_code_is_percent: true, pre_discount_minimum_price_cents: 500, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(o)
+end
+def tiers(*pairs) = pairs.map { |months, pct| { months:, amount_percentage: pct } }.to_json
+
+def with_rows(seed, **rows)
+  rows.each_with_object(seed.dup) { |(table, added), all| all[table] = (all[table] || []) + added }
+end
+
+# A membership whose original purchase used `code` (id 1, attached to the product unless `universal`).
+def coded(code = {}, discount: nil, original: {}, extra: {}, codes: [], attached: [1], **membership_opts)
+  seed = membership(1, original: { offer_code_id: 1, displayed_price_cents: 450 }.merge(original), **membership_opts)
+  rows = { offer_codes: [code_row(1, **code)] + codes, offer_codes_products: attached.map { on_product(_1) } }
+  rows[:purchase_offer_code_discounts] = [discount_row(100, 1, **discount)] if discount
+  merge_seeds(seed, rows, extra)
+end
+
+PRICE = "Ws48PriceProbe"
+price_case = lambda do |name, seed, **opts|
+  cases << run("price: #{name}", PRICE, [1], seed:, **opts).tap { |c| c["result"] = $probe_result; $probe_result = nil }
+end
+sweep_case = ->(name, seed, **opts) { cases << run("missing charge: #{name}", FM, [1], seed:, **opts) }
+# The sweep only needs to see the price turn into "zero or not" and the statements around it, so it runs
+# a representative subset; every scenario is priced on its own.
+SWEPT = [
+  "a percent code on the original purchase and no discount row", "a fixed code with a cached discount", "a cached discount that has used up its billing cycles",
+  "a cached discount of zero on a deleted code", "a once-per-cart fixed cached discount, used up", "an existing-customers code the buyer qualifies for",
+  "an existing-customers fixed code", "an existing-customers fixed code worth more than the price", "an existing-customers code with uses left",
+  "an existing-customers code of one use per cart", "two existing-customers codes, the bigger discount wins", "a tiered code, a long-time customer",
+  "the original purchase used a tiered code, pay-what-you-want above the price", "a yen product with an existing-customers percent code",
+  "a tiered membership with a fixed existing-customers code", "an installment plan, the first payment", "an installment plan, the last payment",
+  "an installment plan with a snapshot", "an installment plan with a percent code", "an installment plan with a once-per-cart fixed code, everything off",
+  "an installment plan with a code limited to an option the buyer did not pick", "an installment plan with options", "an installment plan, the price is not a whole split",
+  "an installment plan, purchasing power parity discounted and the seller enabled it", "an installment plan, the purchase has no price and no payment option",
+  "an installment plan, no original purchase", "a membership whose product was deleted",
+].freeze
+both = lambda do |name, seed, hand_back: false, **opts|
+  price_case.(name, seed, **opts).tap { cases.last["hand_back"] = true if hand_back }
+  sweep_case.(name, seed, **opts).tap { cases.last["hand_back"] = true if hand_back } if SWEPT.include?(name)
+end
+
+seeds = {}
+seeds["a percent code on the original purchase and no discount row"] = coded
+seeds["a percent code with a cached discount"] = coded({}, discount: { offer_code_amount: 10 })
+seeds["a fixed code with a cached discount"] = coded({ amount_percentage: nil, amount_cents: 100 }, original: { displayed_price_cents: 400 }, discount: { offer_code_amount: 100, offer_code_is_percent: false })
+seeds["a cached discount that has not used up its billing cycles"] = coded({}, discount: { duration_in_months: 3 }, paid_at: [NOW - 33 * DAY])
+seeds["a cached discount that has used up its billing cycles"] = coded({}, discount: { duration_in_months: 3 }, paid_at: [NOW - 33 * DAY, NOW - 63 * DAY])
+seeds["a cached discount of a deleted code"] = coded({ deleted_at: SEEDED_AT }, discount: {})
+seeds["a cached discount of zero on a deleted code"] = coded({ deleted_at: SEEDED_AT }, discount: { offer_code_amount: 0 })
+seeds["a deleted code with no cached discount"] = coded({ deleted_at: SEEDED_AT })
+seeds["an original purchase whose offer code row is gone"] = coded({}, codes: [], attached: []).merge(offer_codes: [])
+seeds["a cached discount whose offer code row is gone"] = coded({}, discount: {}).merge(offer_codes: [])
+seeds["a quantity of three and a cached percent discount"] = coded({}, original: { quantity: 3, displayed_price_cents: 1350 }, discount: { pre_discount_minimum_price_cents: 500 })
+seeds["a cached percent discount used up, quantity of two"] = coded({}, original: { quantity: 2, displayed_price_cents: 900 }, discount: { duration_in_months: 1 })
+seeds["a once-per-cart fixed cached discount"] = coded({ amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART }, original: { displayed_price_cents: 400 },
+  discount: { offer_code_amount: 100, offer_code_is_percent: false, once_per_cart: true, pre_discount_displayed_price_cents: 500 })
+seeds["a once-per-cart fixed cached discount, used up"] = coded({ amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART }, original: { displayed_price_cents: 400, quantity: 2 },
+  discount: { offer_code_amount: 100, offer_code_is_percent: false, once_per_cart: true, duration_in_months: 1 })
+seeds["a once-per-cart fixed cached discount, used up, no pre-discount price"] = coded({ amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART }, original: { displayed_price_cents: 400 },
+  discount: { offer_code_amount: 100, offer_code_is_percent: false, once_per_cart: true, duration_in_months: 1 })
+seeds["a once-per-cart fixed cached discount, used up, a free first charge"] = coded({ amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART }, original: { displayed_price_cents: 0 },
+  discount: { offer_code_amount: 100, offer_code_is_percent: false, once_per_cart: true, duration_in_months: 1, pre_discount_minimum_price_cents: 500 })
+seeds["a legacy percent code on a quantity of two"] = coded({}, original: { quantity: 2, displayed_price_cents: 900 })
+seeds["a legacy percent code of 100 percent"] = coded({ amount_percentage: 100 }, original: { displayed_price_cents: 0 })
+seeds["a legacy fixed code"] = coded({ amount_percentage: nil, amount_cents: 150 }, original: { displayed_price_cents: 350 })
+
+# Renewal-eligible codes (existing customers or tiered) that apply on top of the original price.
+existing = ->(**o) { code_row(2, amount_percentage: 20, existing_customers_only: true, **o) }
+owner = { purchaser_id: BUYER_ID }
+seeds["an existing-customers code the buyer qualifies for"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code the buyer does not qualify for"] = merge_seeds(membership(original: { purchaser_id: 99 }), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code and a deleted one"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(), code_row(3, existing_customers_only: true, deleted_at: SEEDED_AT)], offer_codes_products: [on_product(2), on_product(3)] })
+seeds["an existing-customers fixed code"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(amount_percentage: nil, amount_cents: 120)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers fixed code worth more than the price"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(amount_percentage: nil, amount_cents: 900)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers fixed once-per-cart code"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(amount_percentage: nil, amount_cents: 450, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers fixed once-per-cart code, discounted price under the minimum"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(amount_percentage: nil, amount_cents: 450, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers fixed code on a quantity of three"] = merge_seeds(membership(original: owner.merge(quantity: 3, displayed_price_cents: 1500)),
+  { offer_codes: [existing.(amount_percentage: nil, amount_cents: 120)], offer_codes_products: [on_product(2)] })
+seeds["a universal existing-customers code"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(universal: true)] })
+seeds["a universal existing-customers code that excludes the product"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(universal: true)], offer_codes_excluded_products: [{ offer_code_id: 2, product_id: 1, created_at: SEEDED_AT, updated_at: SEEDED_AT }] })
+seeds["a universal fixed code in another currency"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(universal: true, amount_percentage: nil, amount_cents: 100, currency_type: "eur")] })
+seeds["a universal fixed code in the product's currency"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(universal: true, amount_percentage: nil, amount_cents: 100, currency_type: "usd")] })
+seeds["a universal code of another seller"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(universal: true, user_id: 3)] })
+seeds["two existing-customers codes, the bigger discount wins"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(), code_row(3, amount_percentage: nil, amount_cents: 150, existing_customers_only: true), code_row(4, amount_percentage: 5, existing_customers_only: true, universal: true)],
+    offer_codes_products: [on_product(2), on_product(3)] })
+seeds["an existing-customers code of zero percent"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(amount_percentage: 0)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code that has expired"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(valid_at: at(NOW - 10 * DAY), expires_at: at(NOW - DAY))], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code that has not started"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(valid_at: at(NOW + DAY), expires_at: at(NOW + 10 * DAY))], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code that is running"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(valid_at: at(NOW - DAY), expires_at: at(NOW + 10 * DAY))], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code for a fixed number of billing cycles"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(duration_in_months: 3)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code with a minimum quantity"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(minimum_quantity: 2)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code with a minimum quantity the purchase meets"] = merge_seeds(membership(original: owner.merge(quantity: 2, displayed_price_cents: 1000)),
+  { offer_codes: [existing.(minimum_quantity: 2)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code with a minimum amount"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(minimum_amount_cents: 600)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code with a minimum amount the purchase meets"] = merge_seeds(membership(original: owner), { offer_codes: [existing.(minimum_amount_cents: 500)], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code with uses left"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(max_purchase_count: 5)], offer_codes_products: [on_product(2)],
+    purchases: [purchase_row(900, offer_code_id: 2, quantity: 2), purchase_row(901, offer_code_id: 2, purchase_state: "failed")] })
+seeds["an existing-customers code that is used up"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(max_purchase_count: 2)], offer_codes_products: [on_product(2)], purchases: [purchase_row(900, offer_code_id: 2, quantity: 2)] })
+seeds["an existing-customers code used up by a recurring charge only"] = merge_seeds(membership(original: owner, paid_at: [NOW - 33 * DAY]),
+  { offer_codes: [existing.(max_purchase_count: 1)], offer_codes_products: [on_product(2)], purchases: [purchase_row(900, offer_code_id: 2, subscription_id: 1)] })
+seeds["an existing-customers code of one use per cart"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(max_purchase_count: 3, amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(2)],
+    purchases: [purchase_row(900, offer_code_id: 2, quantity: 2), purchase_row(901, offer_code_id: 2, purchase_state: "in_progress", created_at: at(NOW - 60)),
+                purchase_row(902, offer_code_id: 2, created_at: at(NOW - 3600), succeeded_at: at(NOW - 3600))],
+    purchase_offer_code_discounts: [discount_row(900, 2, once_per_cart: true, once_per_cart_allocation_id: "alloc-a"), discount_row(901, 2, once_per_cart: true, once_per_cart_allocation_id: "alloc-b"),
+                                    discount_row(902, 2, once_per_cart: true)] })
+seeds["an existing-customers code of one use per cart, used up"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(max_purchase_count: 1, amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(2)],
+    purchases: [purchase_row(900, offer_code_id: 2)], purchase_offer_code_discounts: [discount_row(900, 2, once_per_cart: true, once_per_cart_allocation_id: "alloc-a")] })
+seeds["an existing-customers code with ownership products"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.()], offer_codes_products: [on_product(2)], offer_codes_ownership_products: [{ offer_code_id: 2, product_id: 5, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+    links: [link_row(1), link_row(5, unique_permalink: "p5")] })
+seeds["an existing-customers code whose ownership product the buyer owns"] = merge_seeds(membership(original: { purchaser_id: 99 }),
+  { offer_codes: [existing.()], offer_codes_products: [on_product(2)], offer_codes_ownership_products: [{ offer_code_id: 2, product_id: 5, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+    links: [link_row(1), link_row(5, unique_permalink: "p5")], purchases: [purchase_row(900, link_id: 5, purchaser_id: BUYER_ID, created_at: "2024-06-15 10:00:00")] })
+seeds["an existing-customers code matched by the buyer's email"] = merge_seeds(membership(original: { purchaser_id: 99, email: "user2@example.com" }), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code, buyer's email unconfirmed"] = merge_seeds(membership(original: { purchaser_id: 99, email: "user2@example.com" }),
+  { offer_codes: [existing.()], offer_codes_products: [on_product(2)], users: [user_row(1), user_row(2, confirmed_at: nil)] })
+seeds["an existing-customers code, the purchase was refunded"] = merge_seeds(membership(original: owner.merge(stripe_refunded: true)), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] })
+seeds["an existing-customers code, buyer account is gone"] = merge_seeds(membership(original: owner).merge(subscriptions: [membership()[:subscriptions][0].merge(user_id: nil)]),
+  { offer_codes: [existing.()], offer_codes_products: [on_product(2)] })
+
+# Tiered codes: the discount depends on how long the buyer has owned the product.
+tiered = ->(*pairs, **o) { code_row(2, amount_percentage: nil, ownership_duration_tiers: tiers(*pairs), **o) }
+seeds["a tiered code, a long-time customer"] = merge_seeds(membership(original: owner), { offer_codes: [tiered.([0, 10], [12, 20], [60, 30])], offer_codes_products: [on_product(2)] })
+seeds["a tiered code, a customer of a year"] = merge_seeds(membership(original: owner.merge(created_at: "2024-11-01 12:00:00")), { offer_codes: [tiered.([0, 10], [12, 20], [60, 30])], offer_codes_products: [on_product(2)] })
+seeds["a tiered code, the first tier starts later"] = merge_seeds(membership(original: owner.merge(created_at: "2025-10-20 12:00:00")), { offer_codes: [tiered.([6, 15], [12, 20])], offer_codes_products: [on_product(2)] })
+seeds["a tiered code, a stranger falls back to the original purchase"] = merge_seeds(membership(original: { purchaser_id: 99, created_at: "2023-03-05 12:00:00" }), { offer_codes: [tiered.([0, 10], [24, 25])], offer_codes_products: [on_product(2)] })
+seeds["a tiered code on a universal code"] = merge_seeds(membership(original: owner), { offer_codes: [tiered.([0, 10], [12, 20], universal: true)] })
+seeds["a tiered code with a zero-percent tier"] = merge_seeds(membership(original: owner), { offer_codes: [tiered.([0, 0], [100, 50])], offer_codes_products: [on_product(2)] })
+seeds["a tiered code with tiers out of order and string percentages"] = merge_seeds(membership(original: owner),
+  { offer_codes: [code_row(2, amount_percentage: nil, ownership_duration_tiers: [{ months: "60", amount_percentage: "30" }, { months: 0, amount_percentage: 5 }].to_json)], offer_codes_products: [on_product(2)] })
+seeds["a tiered code with ownership products"] = merge_seeds(membership(original: owner),
+  { offer_codes: [tiered.([0, 10])], offer_codes_products: [on_product(2)], offer_codes_ownership_products: [{ offer_code_id: 2, product_id: 5, created_at: SEEDED_AT, updated_at: SEEDED_AT }], links: [link_row(1), link_row(5, unique_permalink: "p5")] })
+tiered_discount = { offer_code_amount: 20, pre_discount_minimum_price_cents: 500 }
+seeds["the original purchase used a tiered code"] = coded(tiers_code = { amount_percentage: nil, ownership_duration_tiers: tiers([0, 10], [12, 20]) }, original: owner.merge(displayed_price_cents: 400), discount: tiered_discount, attached: [1])
+seeds["the original purchase used a tiered code, pay-what-you-want above the price"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 700), discount: tiered_discount)
+seeds["the original purchase used a tiered code, pay-what-you-want at 100 percent"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 700), discount: { offer_code_amount: 100, pre_discount_minimum_price_cents: 500 })
+seeds["the original purchase used a tiered code, zero percent"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 700), discount: { offer_code_amount: 0, pre_discount_minimum_price_cents: 500 })
+seeds["the original purchase used a tiered code, quantity of two"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 1300, quantity: 2), discount: tiered_discount)
+seeds["the original purchase used a tiered code, cached as fixed"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 700), discount: { offer_code_amount: 100, offer_code_is_percent: false })
+seeds["the original purchase used a tiered code, deleted"] = coded(tiers_code.merge(deleted_at: SEEDED_AT), original: owner.merge(displayed_price_cents: 700), discount: tiered_discount)
+seeds["the original purchase used a tiered code and the product has another"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 700), discount: tiered_discount,
+  codes: [existing.(code: "OTHER")], extra: { offer_codes_products: [on_product(2)] })
+seeds["the original purchase used a tiered code that is not on the product"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 700), discount: tiered_discount, attached: [])
+seeds["the original purchase used a tiered code, no pre-discount rows"] = coded(tiers_code, original: owner.merge(displayed_price_cents: 400))
+
+# Currencies.
+seeds["a euro product with a cached fixed discount"] = coded({ amount_percentage: nil, amount_cents: 100, currency_type: "eur" }, original: { displayed_price_cents: 400 },
+  discount: { offer_code_amount: 100, offer_code_is_percent: false }, extra: { links: [link_row(1, price_currency_type: "eur")] })
+seeds["a euro product with an existing-customers fixed code"] = merge_seeds(membership(original: owner), { links: [link_row(1, price_currency_type: "eur")],
+  offer_codes: [existing.(amount_percentage: nil, amount_cents: 120, universal: true, currency_type: "eur")] })
+seeds["a yen product with an existing-customers percent code"] = merge_seeds(membership(original: owner.merge(displayed_price_cents: 5000)), { links: [link_row(1, price_currency_type: "jpy")],
+  offer_codes: [existing.(universal: true, amount_percentage: 33)] })
+seeds["a yen product with a once-per-cart fixed code"] = merge_seeds(membership(original: owner.merge(displayed_price_cents: 5000)), { links: [link_row(1, price_currency_type: "jpy")],
+  offer_codes: [existing.(universal: true, amount_percentage: nil, amount_cents: 4990, currency_type: "jpy", flags: OFFER_CODE_ONCE_PER_CART)] })
+
+# Tiered memberships priced per option.
+tier_membership = lambda do |code_rows: [], **o|
+  merge_seeds(membership(original: owner.merge(displayed_price_cents: 900), **o).merge(prices: [price_row(1, "monthly", price_cents: 500), price_row(2, "monthly", link_id: nil, price_cents: 400, variant_id: 1)]), {
+    links: [link_row(1, flags: LINK_RECURRING | LINK_TIERED_MEMBERSHIP)],
+    variant_categories: [{ id: 1, link_id: 1, title: "Tier" }],
+    base_variants: [{ id: 1, variant_category_id: 1, name: "Gold", price_difference_cents: 0, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+    base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 1 }],
+    offer_codes: code_rows, offer_codes_products: code_rows.map { on_product(_1[:id]) },
+  })
+end
+seeds["a tiered membership with an existing-customers code"] = tier_membership.(code_rows: [existing.()])
+seeds["a tiered membership with a cached discount"] = merge_seeds(tier_membership.(code_rows: [code_row(1)]).tap { _1[:purchases][0][:offer_code_id] = 1 },
+  { purchase_offer_code_discounts: [discount_row(100, 1)] })
+
+# Installment plans: the price is the original purchase's minimum paid price.
+plan = { product_installment_plans: [{ id: 1, link_id: 1, number_of_installments: 3, recurrence: "monthly", created_at: SEEDED_AT, updated_at: SEEDED_AT }] }
+plan_option = { payment_options: [{ id: 1, subscription_id: 1, price_id: 1, product_installment_plan_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }
+snapshot = { installment_plan_snapshots: [{ id: 1, payment_option_id: 1, number_of_installments: 4, recurrence: "monthly", total_price_cents: 4001, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }
+installments = lambda do |original: {}, paid_at: [], link: {}, extra: {}, option: true, snap: false, prices: nil, **o|
+  seed = membership(1, paid_at:, flags: IS_INSTALLMENT_PLAN, original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT, displayed_price_cents: 1000 }.merge(original), **o)
+  seed = seed.merge(links: [link_row(1, price_cents: 3001, **link)], prices: prices || [price_row(1, "monthly", price_cents: 3001)]).merge(plan)
+  seed = seed.merge(option ? plan_option : { payment_options: [] }).merge(snap ? snapshot : {})
+  merge_seeds(seed, extra.except(:links)).merge(extra.slice(:links))
+end
+seeds["an installment plan, the first payment"] = installments.()
+seeds["an installment plan, the second payment"] = installments.(paid_at: [NOW - 33 * DAY])
+seeds["an installment plan, the last payment"] = installments.(paid_at: [NOW - 33 * DAY, NOW - 63 * DAY])
+seeds["an installment plan, past the last payment"] = installments.(paid_at: [NOW - 33 * DAY, NOW - 63 * DAY, NOW - 93 * DAY])
+seeds["an installment plan with a snapshot"] = installments.(snap: true)
+seeds["an installment plan with a snapshot, the second payment"] = installments.(snap: true, paid_at: [NOW - 33 * DAY])
+seeds["an installment plan, quantity of two"] = installments.(original: { quantity: 2 })
+seeds["an installment plan with a percent code"] = installments.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan with a cached percent discount"] = installments.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: 25)], offer_codes_products: [on_product(1)],
+  purchase_offer_code_discounts: [discount_row(100, 1, offer_code_amount: 25)] })
+seeds["an installment plan with a cached discount of a deleted code"] = installments.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: 25, deleted_at: SEEDED_AT)],
+  purchase_offer_code_discounts: [discount_row(100, 1, offer_code_amount: 25)] })
+seeds["an installment plan with a fixed code"] = installments.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: nil, amount_cents: 700)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan with a fixed code worth more than the price"] = installments.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: nil, amount_cents: 9000)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan with a once-per-cart fixed code"] = installments.(original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1, amount_percentage: nil, amount_cents: 2990, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(1)],
+           purchase_offer_code_discounts: [discount_row(100, 1, offer_code_amount: 2990, offer_code_is_percent: false, once_per_cart: true)] })
+seeds["an installment plan with a once-per-cart fixed code, under the minimum"] = installments.(original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1, amount_percentage: nil, amount_cents: 2990, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan with a once-per-cart fixed code, everything off"] = installments.(original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1, amount_percentage: nil, amount_cents: 9000, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan with a code limited to an option the buyer did not pick"] = installments.(original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1)], offer_codes_products: [on_product(1)], offer_codes_variants: [{ offer_code_id: 1, variant_id: 7, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+           variant_categories: [{ id: 1, link_id: 1, title: "Option" }],
+           base_variants: [{ id: 7, variant_category_id: 1, name: "A", price_difference_cents: 100, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+                           { id: 8, variant_category_id: 1, name: "B", price_difference_cents: 200, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+           base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 8 }] })
+seeds["an installment plan with a code limited to the option the buyer picked"] = installments.(original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1)], offer_codes_products: [on_product(1)], offer_codes_variants: [{ offer_code_id: 1, variant_id: 7, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+           variant_categories: [{ id: 1, link_id: 1, title: "Option" }],
+           base_variants: [{ id: 7, variant_category_id: 1, name: "A", price_difference_cents: 100, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+           base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 7 }] })
+seeds["an installment plan with a code limited to an option of another product"] = installments.(original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1)], offer_codes_products: [on_product(1)], offer_codes_variants: [{ offer_code_id: 1, variant_id: 7, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+           links: [link_row(1, price_cents: 3001), link_row(9, unique_permalink: "p9")],
+           variant_categories: [{ id: 1, link_id: 9, title: "Option" }],
+           base_variants: [{ id: 7, variant_category_id: 1, name: "A", price_difference_cents: 100, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }] })
+seeds["an installment plan with options"] = installments.(extra: {
+  variant_categories: [{ id: 1, link_id: 1, title: "Option" }],
+  base_variants: [{ id: 7, variant_category_id: 1, name: "A", price_difference_cents: 100, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT },
+                  { id: 8, variant_category_id: 1, name: "B", price_difference_cents: nil, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 7 }, { id: 2, purchase_id: 100, base_variant_id: 8 }] })
+seeds["an installment plan with a SKU"] = installments.(extra: {
+  base_variants: [{ id: 7, name: "A", price_difference_cents: 250, type: "Sku", link_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 7 }] })
+seeds["an installment plan, the purchase has its own price"] = installments.(original: { price_id: 2 }, prices: [price_row(1, "monthly", price_cents: 3001), price_row(2, "monthly", price_cents: 4500)])
+seeds["an installment plan, a rental"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | IS_RENTAL }, link: { rental_price_cents: 1999 })
+seeds["an installment plan, the purchase has no price and no payment option"] = installments.(option: false)
+seeds["an installment plan in euros"] = installments.(link: { price_currency_type: "eur" }, extra: { offer_codes: [code_row(1, amount_percentage: nil, amount_cents: 2990, flags: OFFER_CODE_ONCE_PER_CART, currency_type: "eur")],
+  offer_codes_products: [on_product(1)] }, original: { offer_code_id: 1 })
+seeds["an installment plan in yen"] = installments.(link: { price_currency_type: "jpy", price_cents: 30_000 }, prices: [price_row(1, "monthly", price_cents: 30_000, currency: "jpy")],
+  original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: 33)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan, purchasing power parity discounted but not enabled"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED })
+seeds["an installment plan, purchasing power parity discounted and enabled"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED, ip_country: "India" })
+seeds["an installment plan, purchasing power parity discounted with an offer code"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED, offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1)], offer_codes_products: [on_product(1)] })
+seeds["an installment plan for a commission"] = installments.(link: { native_type: "commission" })
+seeds["an installment plan that completes a commission"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | COMMISSION_COMPLETION, json_data: { perceived_price_cents: 2000 }.to_json },
+  extra: { tips: [{ purchase_id: 100, value_cents: 300, value_usd_cents: 300, created_at: SEEDED_AT, updated_at: SEEDED_AT }] })
+seeds["an installment plan that completes a commission, with a code"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | COMMISSION_COMPLETION, offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1, amount_percentage: 50, deleted_at: SEEDED_AT)] })
+seeds["an installment plan, a gift receiver"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | GIFT_RECEIVER })
+seeds["an installment plan, an upgrade"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | UPGRADE_PURCHASE })
+seeds["an installment plan, no original purchase"] = installments.().merge(purchases: [])
+seeds["an installment plan, the price is not a whole split"] = installments.(link: { price_cents: 100 }, prices: [price_row(1, "monthly", price_cents: 100)], original: { offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1, amount_percentage: 33)], offer_codes_products: [on_product(1)] })
+
+# More shapes: options priced per tier, a seller who enabled purchasing power parity, missing rows.
+seeds["a tiered membership with a fixed existing-customers code"] = tier_membership.(code_rows: [existing.(amount_percentage: nil, amount_cents: 120)])
+seeds["a tiered membership with a fixed code and a deleted option price"] = tier_membership.(code_rows: [existing.(amount_percentage: nil, amount_cents: 120)])
+  .tap { _1[:prices][1][:deleted_at] = SEEDED_AT }
+seeds["a tiered membership with a fixed code, the option has no price for the recurrence"] = tier_membership.(code_rows: [existing.(amount_percentage: nil, amount_cents: 120)])
+  .tap { _1[:prices][1][:recurrence] = "yearly" }
+seeds["a tiered membership with a fixed code, a rental price of the option"] = tier_membership.(code_rows: [existing.(amount_percentage: nil, amount_cents: 120)])
+  .tap { _1[:prices][1][:flags] = 1 }
+seeds["a tiered membership with a fixed code, the purchase has its own price"] = tier_membership.(code_rows: [existing.(amount_percentage: nil, amount_cents: 120)])
+  .tap { _1[:purchases][0][:price_id] = 3; _1[:prices] << price_row(3, "yearly", price_cents: 5000); _1[:prices][1][:recurrence] = "yearly" }
+seeds["an existing-customers fixed code on a product with options"] = merge_seeds(membership(original: owner.merge(displayed_price_cents: 700)), {
+  offer_codes: [existing.(amount_percentage: nil, amount_cents: 120)], offer_codes_products: [on_product(2)],
+  variant_categories: [{ id: 1, link_id: 1, title: "Option" }],
+  base_variants: [{ id: 7, variant_category_id: 1, name: "A", price_difference_cents: 200, type: "Variant", flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 7 }] })
+seeds["an existing-customers fixed code on a quantity of two with options"] = merge_seeds(membership(original: owner.merge(displayed_price_cents: 1400, quantity: 2)), {
+  offer_codes: [existing.(amount_percentage: nil, amount_cents: 120)], offer_codes_products: [on_product(2)],
+  base_variants: [{ id: 7, name: "A", price_difference_cents: 200, type: "Sku", link_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+  base_variants_purchases: [{ id: 1, purchase_id: 100, base_variant_id: 7 }] })
+seeds["an existing-customers code with a quantity cap and a once-per-cart reservation"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(max_purchase_count: 10, amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART)], offer_codes_products: [on_product(2)],
+    purchases: [purchase_row(900, offer_code_id: 2, quantity: 2), purchase_row(901, offer_code_id: 2, purchase_state: "in_progress", created_at: at(NOW - 60), flags: 0),
+                purchase_row(902, offer_code_id: 2, purchase_state: "in_progress", created_at: at(NOW - 3600), stripe_status: "processing")],
+    purchase_offer_code_discounts: [discount_row(900, 2, once_per_cart: true, once_per_cart_allocation_id: "alloc-a"), discount_row(901, 2, once_per_cart: true, once_per_cart_allocation_id: "alloc-b"),
+                                    discount_row(902, 2, once_per_cart: true)] })
+seeds["an installment plan, purchasing power parity discounted and the seller enabled it"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED, ip_country: "India" })
+  .tap { _1[:users] = [user_row(1, flags: 4), user_row(2)] }
+seeds["an installment plan, purchasing power parity discounted and the seller enabled it, with an offer code"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED, offer_code_id: 1 },
+  extra: { offer_codes: [code_row(1, amount_percentage: 99)], offer_codes_products: [on_product(1)] }).tap { _1[:users] = [user_row(1, flags: 4), user_row(2)] }
+seeds["an installment plan, purchasing power parity discounted and the seller enabled it, product opted out"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED }, link: { flags: 1 << 26 })
+  .tap { _1[:users] = [user_row(1, flags: 4), user_row(2)] }
+seeds["an installment plan, purchasing power parity discounted with a tiny price"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED },
+  link: { price_cents: 90 }, prices: [price_row(1, "monthly", price_cents: 90)])
+seeds["an installment plan, the seller is gone"] = installments.(original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED }).tap { _1[:users] = [user_row(2)] }
+seeds["an installment plan, the product is gone"] = installments.().tap { _1[:links] = [] }
+seeds["an installment plan, the payment option's plan is gone"] = installments.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1)], offer_codes_products: [on_product(1)] }).tap { _1.delete(:product_installment_plans) }
+seeds["a membership whose product was deleted"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] }).tap { _1[:links] = [] }
+seeds["a membership whose seller is gone"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] }).tap { _1[:users] = [user_row(2)] }
+seeds["a membership with no original purchase"] = membership().merge(purchases: [])
+seeds["a membership whose original purchase has no price"] = membership(original: { displayed_price_cents: nil })
+seeds["a membership with a tiered code and no price"] = merge_seeds(membership(original: owner.merge(displayed_price_cents: nil)), { offer_codes: [tiered.([0, 10])], offer_codes_products: [on_product(2)] })
+seeds["a membership with a universal code in a currency with different case"] = merge_seeds(membership(original: owner), { links: [link_row(1, price_currency_type: "USD")],
+  offer_codes: [existing.(universal: true, amount_percentage: nil, amount_cents: 100, currency_type: "usd")] })
+seeds["a membership of an unknown currency"] = merge_seeds(membership(original: owner), { links: [link_row(1, price_currency_type: "xyz")],
+  offer_codes: [existing.(universal: true, amount_percentage: nil, amount_cents: 100, flags: OFFER_CODE_ONCE_PER_CART)] })
+seeds["a tiered code whose tiers are not an array"] = merge_seeds(membership(original: owner), { offer_codes: [code_row(2, amount_percentage: nil, existing_customers_only: true, ownership_duration_tiers: { months: 0 }.to_json)], offer_codes_products: [on_product(2)] })
+
+# An existing-customers code limited to options: `discount` lists them, which loads the options and their categories.
+option_rows = lambda do |type: "Variant", category_id: 1|
+  { variant_categories: [{ id: 1, link_id: 1, title: "Option" }],
+    base_variants: [type == "Variant" ? { id: 7, variant_category_id: category_id, name: "A", price_difference_cents: 200, type:, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT } :
+                                         { id: 7, name: "A", price_difference_cents: 200, type:, link_id: 1, flags: 0, created_at: SEEDED_AT, updated_at: SEEDED_AT }],
+    offer_codes_variants: [{ offer_code_id: 2, variant_id: 7, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }
+end
+seeds["an existing-customers code limited to an option"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] }, option_rows.())
+seeds["an existing-customers code limited to a SKU"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] }, option_rows.(type: "Sku"))
+seeds["a universal existing-customers code limited to an option, with an excluded product"] = merge_seeds(membership(original: owner),
+  { offer_codes: [existing.(universal: true)], links: [link_row(1), link_row(5, unique_permalink: "p5")], offer_codes_excluded_products: [{ offer_code_id: 2, product_id: 5, created_at: SEEDED_AT, updated_at: SEEDED_AT }] }, option_rows.())
+seeds["an existing-customers code limited to an option whose category is gone"] = merge_seeds(membership(original: owner), { offer_codes: [existing.()], offer_codes_products: [on_product(2)] }, option_rows.(category_id: 99))
+
+HAND_BACK = ->(name) { name == "a tiered code whose tiers are not an array" }
+seeds.each { |name, seed| both.(name, seed, hand_back: HAND_BACK.(name)) }
+
+# Several subscriptions through one sweep: the codes are read once per subscription, the query cache answers repeats.
+cases << run("missing charge: a batch mixing renewal codes, an installment plan and a plain membership", FM, [1], seed: merge_seeds(
+  membership(1, original: owner, paid_at: overdue),
+  membership(11, paid_at: overdue, flags: IS_INSTALLMENT_PLAN, payment_option: { product_installment_plan_id: 1 }, original: { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT, displayed_price_cents: 1000 }),
+  membership(21, paid_at: overdue, original: { displayed_price_cents: 0 }),
+  { offer_codes: [existing.()], offer_codes_products: [on_product(2)], product_installment_plans: plan[:product_installment_plans] },
+))
+
+# --- WS-52: purchasing power parity factors ------------------------------------------------------------------
+# The factor comes from the `ppp` Redis namespace (set by `setup:` and recorded as redis_before), by the
+# country `ip_country` names, floored at the seller's own limit.
+ppp_redis = ->(values) { -> { values.each { |key, value| value.is_a?(Array) ? $redis.rpush(key, value) : $redis.set(key, value) } } }
+ppp_original = { flags: ORIGINAL_SUBSCRIPTION_PURCHASE | IS_INSTALLMENT_PAYMENT | PPP_DISCOUNTED }
+ppp_plan = lambda do |country: "India", limit: nil, original: {}, **options|
+  installments.(original: ppp_original.merge(ip_country: country).merge(original), **options).tap { _1[:users] = [user_row(1, flags: 4, purchasing_power_parity_limit: limit), user_row(2)] }
+end
+ppp_scenarios = {
+  "the country has a factor" => [ppp_plan.(), { "ppp:IN" => "0.4" }],
+  "the factor is not a whole number of cents" => [ppp_plan.(country: "Brazil"), { "ppp:BR" => "0.65" }],
+  "the seller limit raises the factor" => [ppp_plan.(limit: 20), { "ppp:IN" => "0.4" }],
+  "the seller limit is below the factor" => [ppp_plan.(limit: 50), { "ppp:IN" => "0.7" }],
+  "the seller limit is zero" => [ppp_plan.(limit: 0), { "ppp:IN" => "0.4" }],
+  "the seller limit is 100" => [ppp_plan.(limit: 100), { "ppp:IN" => "0.4" }],
+  "no factor is stored" => [ppp_plan.(), {}],
+  "an empty factor is stored" => [ppp_plan.(), { "ppp:IN" => "" }],
+  "the stored factor is not a number" => [ppp_plan.(), { "ppp:IN" => "abc" }],
+  "the stored factor is zero" => [ppp_plan.(), { "ppp:IN" => "0" }],
+  "the stored factor is above one" => [ppp_plan.(), { "ppp:IN" => "1.5" }],
+  "the stored factor has spaces" => [ppp_plan.(), { "ppp:IN" => " 0.4 " }],
+  "the key holds a list, so the read fails" => [ppp_plan.(), { "ppp:IN" => %w[0.4] }],
+  "the key holds a list and the seller has a limit" => [ppp_plan.(limit: 30), { "ppp:IN" => %w[0.4] }],
+  "the country is stored under its long name" => [ppp_plan.(country: "Türkiye"), { "ppp:TR" => "0.45" }],
+  "the country is stored under an old name" => [ppp_plan.(country: "Turkey"), { "ppp:TR" => "0.45" }],
+  "the country is stored under another case" => [ppp_plan.(country: "INDIA"), { "ppp:IN" => "0.4" }],
+  "the country is stored with accents stripped" => [ppp_plan.(country: "Cote d'Ivoire"), { "ppp:CI" => "0.5" }],
+  "the country is unknown" => [ppp_plan.(country: "Narnia"), { "ppp:IN" => "0.4" }],
+  "the country is blank" => [ppp_plan.(country: ""), { "ppp:IN" => "0.4" }],
+  "the country is missing" => [ppp_plan.(country: nil), { "ppp:IN" => "0.4" }],
+  "the country is Kosovo" => [ppp_plan.(country: "Kosovo"), { "ppp:XK" => "0.5" }],
+  "quantity of three" => [ppp_plan.(original: { quantity: 3 }), { "ppp:IN" => "0.4" }],
+  "the second payment" => [ppp_plan.(paid_at: [NOW - 33 * DAY]), { "ppp:IN" => "0.4" }],
+  "the last payment" => [ppp_plan.(paid_at: [NOW - 33 * DAY, NOW - 63 * DAY]), { "ppp:IN" => "0.4" }],
+  "an installment plan snapshot" => [ppp_plan.(snap: true), { "ppp:IN" => "0.4" }],
+  "a tiny price lifts to the currency minimum" => [ppp_plan.(link: { price_cents: 90 }, prices: [price_row(1, "monthly", price_cents: 90)]), { "ppp:IN" => "0.4" }],
+  "a price in yen" => [ppp_plan.(link: { price_currency_type: "jpy", price_cents: 30_000 }, prices: [price_row(1, "monthly", price_cents: 30_000, currency: "jpy")]), { "ppp:IN" => "0.4" }],
+  "the product opted out" => [ppp_plan.(link: { flags: 1 << 26 }), { "ppp:IN" => "0.4" }],
+  "an offer code replaces the factor" => [ppp_plan.(original: { offer_code_id: 1 }, extra: { offer_codes: [code_row(1, amount_percentage: 10)], offer_codes_products: [on_product(1)] }), { "ppp:IN" => "0.4" }],
+  "the seller account is gone" => [ppp_plan.(original: { seller_id: 99 }), { "ppp:IN" => "0.4" }],
+  "the seller account is gone and the read fails" => [ppp_plan.(original: { seller_id: 99 }), { "ppp:IN" => %w[0.4] }],
+  "the purchase belongs to another seller" => [ppp_plan.(original: { seller_id: 3 }).tap { _1[:users] << user_row(3, purchasing_power_parity_limit: 40) }, { "ppp:IN" => "0.4" }],
+}
+ppp_scenarios.each do |name, (seed, redis)|
+  price_case.("purchasing power parity: #{name}", seed, setup: ppp_redis.(redis))
+  sweep_case.("purchasing power parity: #{name}", seed, setup: ppp_redis.(redis))
+end
+
+# --- WS-52: Stripe Connect routing (User#merchant_migration_enabled?) -----------------------------------------
+# A seller who turned on `merchant_migration` is routed to Connect by the country of the compliance record.
+def compliance_row(id, **o) = { id:, user_id: 1, country: "United States", is_business: false, created_at: SEEDED_AT, updated_at: SEEDED_AT }.merge(o)
+connect_account = merchant_account_row(3, user_id: 1, json_data: { meta: { stripe_connect: "true" } }.to_json)
+routing = lambda do |name, rows, job: FT, features: [], **opts|
+  seed = job == FT ? membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE) : membership(paid_at: paid_a_month_ago, flags: RENEWAL_DISABLED_INDIAN_MANDATE)
+  seed = seed.merge(merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1), connect_account], user_compliance_info: rows)
+  cases << run("#{job == FT ? "free trial" : "declined"}: Connect routing, #{name}", job, [1], features: [:merchant_migration, :india_card_mandate_reliability] + features, seed:, **opts)
+end
+LEGAL_ENTITY_ROUTING = :stripe_connect_routing_by_legal_entity_country
+[FT, CD].each do |job|
+  routing.("no compliance record", [], job:)
+  routing.("a supported country", [compliance_row(1)], job:)
+  routing.("a country Connect does not support", [compliance_row(1, country: "India")], job:)
+  routing.("an old name of a supported country", [compliance_row(1, country: "Czech Republic")], job:)
+  routing.("an unknown country", [compliance_row(1, country: "Narnia")], job:)
+  routing.("a blank country", [compliance_row(1, country: "")], job:)
+  routing.("no country", [compliance_row(1, country: nil)], job:)
+  routing.("a deleted record only", [compliance_row(1, deleted_at: SEEDED_AT)], job:)
+  routing.("the newest alive record wins", [compliance_row(1, country: "India"), compliance_row(2), compliance_row(3, country: "Canada", deleted_at: SEEDED_AT)], job:)
+  routing.("the newest alive record is unsupported", [compliance_row(1), compliance_row(2, country: "India")], job:)
+  routing.("a business in a supported country, individual country unsupported", [compliance_row(1, country: "India", is_business: true, business_country: "Germany")], job:)
+  routing.("a business in a supported country, legal entity routing on", [compliance_row(1, country: "India", is_business: true, business_country: "Germany")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a business in an unsupported country, legal entity routing on", [compliance_row(1, country: "United States", is_business: true, business_country: "India")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a business with no business country, legal entity routing on", [compliance_row(1, country: "France", is_business: true)], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a business with an unknown business country, legal entity routing on", [compliance_row(1, country: "France", is_business: true, business_country: "Narnia")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("an individual with a business country, legal entity routing on", [compliance_row(1, country: "India", is_business: false, business_country: "Germany")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("is_business unset, legal entity routing on", [compliance_row(1, country: "India", is_business: nil, business_country: "Germany")], job:, features: [LEGAL_ENTITY_ROUTING])
+  routing.("a supported country, legal entity routing on", [compliance_row(1)], job:, features: [LEGAL_ENTITY_ROUTING])
+end
+cases << run("free trial: Connect routing, merchant_migration off", FT, [1], features: [:india_card_mandate_reliability, LEGAL_ENTITY_ROUTING],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(merchant_accounts: [merchant_account_row(1), merchant_account_row(2, user_id: 1), connect_account], user_compliance_info: [compliance_row(1)]))
+cases << run("free trial: Connect routing, no Connect account", FT, [1], features: [:merchant_migration, :india_card_mandate_reliability],
+  seed: membership(free_trial_ends_at: trial_end, flags: RENEWAL_DISABLED_INDIAN_MANDATE).merge(user_compliance_info: [compliance_row(1)]))
+
+File.write(DATA_OUT, JSON.pretty_generate({ "cross_border_payouts_countries" => Country.const_get(:CROSS_BORDER_PAYOUTS_COUNTRIES).map(&:alpha2).sort }) + "\n")
+now_f = travel_to(NOW, with_usec: true) { Time.now.to_f }
+# One case per line: a sweep case carries full-width rows, which pretty-printing would spread over thousands of lines.
+File.write(OUT, "{\n\"now\": #{now_f.to_json},\n\"digests\": #{digests.to_json},\n\"cases\": [\n#{cases.map(&:to_json).join(",\n")}\n]\n}\n")
+puts "wrote #{OUT.relative_path_from(Rails.root)} (#{cases.size} cases)"

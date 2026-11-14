@@ -1,6 +1,6 @@
 import * as React from "react";
 
-export const useElementDimensions = (ref: React.RefObject<HTMLElement>) => {
+export const useElementDimensions = (ref: React.RefObject<HTMLElement | null>) => {
   const [dimensions, setDimensions] = React.useState<DOMRect | null>(null);
   React.useEffect(() => {
     const el = ref.current;

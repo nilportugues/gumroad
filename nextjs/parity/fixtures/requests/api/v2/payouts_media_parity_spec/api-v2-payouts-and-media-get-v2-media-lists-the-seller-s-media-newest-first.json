@@ -1,0 +1,637 @@
+{
+  "version": 1,
+  "spec": "spec/requests/api/v2/payouts_media_parity_spec.rb",
+  "example": "API v2 payouts and media GET /v2/media lists the seller's media newest first",
+  "sessionCookie": "_gumroad_app_session_test",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-10",
+  "exchanges": [
+    {
+      "seed": {
+        "tables": {
+          "active_storage_attachments": {
+            "columns": {
+              "id": "bigint",
+              "name": "varchar",
+              "record_type": "varchar",
+              "record_id": "bigint",
+              "blob_id": "bigint",
+              "created_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "name": "file",
+                "record_type": "PublicFile",
+                "record_id": 1,
+                "blob_id": 1,
+                "created_at": "<now>"
+              },
+              {
+                "id": 2,
+                "name": "file",
+                "record_type": "PublicFile",
+                "record_id": 2,
+                "blob_id": 2,
+                "created_at": "<now>"
+              }
+            ]
+          },
+          "active_storage_blobs": {
+            "columns": {
+              "id": "bigint",
+              "key": "varchar",
+              "filename": "varchar",
+              "content_type": "varchar",
+              "metadata": "text",
+              "byte_size": "bigint",
+              "checksum": "varchar",
+              "created_at": "datetime",
+              "service_name": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "key": "htqujjzy3pfp01polbl6icp588ia",
+                "filename": "test.mp3",
+                "content_type": "audio/mpeg",
+                "metadata": "{\"identified\":true}",
+                "byte_size": 30439,
+                "checksum": "aH7EU5YB+ehfCdjf/VEmTw==",
+                "created_at": "<now>",
+                "service_name": "test"
+              },
+              {
+                "id": 2,
+                "key": "ija0yf83m76xpgk3t38te1s7ks4l",
+                "filename": "test.mp3",
+                "content_type": "audio/mpeg",
+                "metadata": "{\"identified\":true}",
+                "byte_size": 30439,
+                "checksum": "aH7EU5YB+ehfCdjf/VEmTw==",
+                "created_at": "<now>",
+                "service_name": "test"
+              }
+            ]
+          },
+          "affiliates": {
+            "columns": {
+              "id": "int",
+              "seller_id": "int",
+              "affiliate_user_id": "int",
+              "affiliate_basis_points": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "destination_url": "varchar",
+              "type": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": null,
+                "affiliate_user_id": 1,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              },
+              {
+                "id": 2,
+                "seller_id": null,
+                "affiliate_user_id": 2,
+                "affiliate_basis_points": 1000,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "destination_url": null,
+                "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "oauth_access_tokens": {
+            "columns": {
+              "id": "int",
+              "resource_owner_id": "int",
+              "application_id": "int",
+              "token": "varchar",
+              "refresh_token": "varchar",
+              "expires_in": "int",
+              "revoked_at": "datetime",
+              "created_at": "datetime",
+              "scopes": "varchar",
+              "resource": "varchar",
+              "team_membership_id": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "resource_owner_id": 1,
+                "application_id": 1,
+                "token": "KXalww9hsK7ZAsc9BJBhoOyaFhIqRdIqU2_zV2xzDq8",
+                "refresh_token": null,
+                "expires_in": null,
+                "revoked_at": null,
+                "created_at": "<now>",
+                "scopes": "view_profile",
+                "resource": null,
+                "team_membership_id": null
+              }
+            ]
+          },
+          "oauth_applications": {
+            "columns": {
+              "id": "int",
+              "name": "varchar",
+              "uid": "varchar",
+              "secret": "varchar",
+              "redirect_uri": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "owner_id": "int",
+              "owner_type": "varchar",
+              "affiliate_basis_points": "int",
+              "deleted_at": "datetime",
+              "scopes": "varchar",
+              "confidential": "tinyint",
+              "device_authorization_enabled": "tinyint",
+              "is_first_party_agent_app": "tinyint",
+              "mcp_dynamic_client": "tinyint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "name": "app17",
+                "uid": "5yxd5uUk7k-7rz-Ye7luGWG5rOXPBg8m3s1E3NoXCXs",
+                "secret": "rupDHwJRM2PHJP-FLQpPZXK5TLSzoEVYU4PaAgvN8y0",
+                "redirect_uri": "https://foo",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "owner_id": 2,
+                "owner_type": "User",
+                "affiliate_basis_points": null,
+                "deleted_at": null,
+                "scopes": "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account",
+                "confidential": 0,
+                "device_authorization_enabled": 0,
+                "is_first_party_agent_app": 0,
+                "mcp_dynamic_client": 0
+              }
+            ]
+          },
+          "public_files": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "resource_type": "varchar",
+              "resource_id": "bigint",
+              "public_id": "varchar",
+              "display_name": "varchar",
+              "original_file_name": "varchar",
+              "file_type": "varchar",
+              "file_group": "varchar",
+              "deleted_at": "datetime",
+              "scheduled_for_deletion_at": "datetime",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "resource_type": "User",
+                "resource_id": 1,
+                "public_id": "d0p1zbqup1uxbls3",
+                "display_name": "First",
+                "original_file_name": "test-1.mp3",
+                "file_type": "mp3",
+                "file_group": "audio",
+                "deleted_at": null,
+                "scheduled_for_deletion_at": null,
+                "json_data": null,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              },
+              {
+                "id": 2,
+                "seller_id": 1,
+                "resource_type": "User",
+                "resource_id": 1,
+                "public_id": "zbwgsputu0rq1aqq",
+                "display_name": "Second",
+                "original_file_name": "test-2.mp3",
+                "file_type": "mp3",
+                "file_group": "audio",
+                "deleted_at": null,
+                "scheduled_for_deletion_at": null,
+                "json_data": null,
+                "created_at": "<now>",
+                "updated_at": "<now>"
+              }
+            ]
+          },
+          "refund_policies": {
+            "columns": {
+              "id": "bigint",
+              "seller_id": "bigint",
+              "product_id": "bigint",
+              "title": "varchar",
+              "fine_print": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "max_refund_period_in_days": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "seller_id": 1,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              },
+              {
+                "id": 2,
+                "seller_id": 2,
+                "product_id": null,
+                "title": null,
+                "fine_print": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "users": {
+            "columns": {
+              "id": "bigint",
+              "email": "varchar",
+              "encrypted_password": "varchar",
+              "reset_password_token": "varchar",
+              "reset_password_sent_at": "datetime",
+              "remember_created_at": "datetime",
+              "sign_in_count": "int",
+              "current_sign_in_at": "datetime",
+              "last_sign_in_at": "datetime",
+              "current_sign_in_ip": "varchar",
+              "last_sign_in_ip": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "payment_address": "varchar",
+              "confirmed_at": "datetime",
+              "confirmation_token": "varchar",
+              "confirmation_sent_at": "datetime",
+              "unconfirmed_email": "varchar",
+              "provider": "varchar",
+              "twitter_user_id": "varchar",
+              "facebook_uid": "varchar",
+              "deleted_at": "datetime",
+              "payment_notification": "tinyint",
+              "currency_type": "varchar",
+              "bio": "mediumtext",
+              "username": "varchar",
+              "credit_card_id": "bigint",
+              "profile_picture_url": "varchar",
+              "country": "varchar",
+              "state": "varchar",
+              "city": "varchar",
+              "zip_code": "varchar",
+              "street_address": "varchar",
+              "facebook_access_token": "varchar",
+              "verified": "tinyint",
+              "manage_pages": "tinyint",
+              "banned_at": "datetime",
+              "weekly_notification": "tinyint",
+              "external_id": "varchar",
+              "account_created_ip": "varchar",
+              "twitter_oauth_token": "varchar",
+              "twitter_oauth_secret": "varchar",
+              "notification_endpoint": "mediumtext",
+              "locale": "varchar",
+              "flags": "bigint",
+              "google_analytics_id": "varchar",
+              "timezone": "varchar",
+              "user_risk_state": "varchar",
+              "tos_violation_reason": "varchar",
+              "kindle_email": "varchar",
+              "json_data": "mediumtext",
+              "support_email": "varchar",
+              "google_analytics_domains": "varchar",
+              "recommendation_type": "varchar",
+              "facebook_pixel_id": "varchar",
+              "split_payment_by_cents": "int",
+              "last_active_sessions_invalidated_at": "datetime",
+              "otp_secret_key": "varchar",
+              "facebook_meta_tag": "varchar",
+              "tier_state": "int",
+              "orientation_priority_tag": "varchar",
+              "notification_content_type": "varchar",
+              "google_uid": "varchar",
+              "purchasing_power_parity_limit": "int",
+              "twitter_handle": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "email": "dude@example.com",
+                "encrypted_password": "$2a$04$/Cmm.fghMAePrkrkW8q4DOWQUVuFMdQ2By/sMpZqvCIkiE9QfMjvO",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "248.64.234.149",
+                "last_sign_in_ip": "142.24.152.149",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Dude",
+                "payment_address": "edgard90d5b67_62@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "dude",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "9982029587508",
+                "account_created_ip": "92.89.252.96",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "4UBSBQW4DKK44CGOQAN3G4VXPTJV4Z32",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              },
+              {
+                "id": 2,
+                "email": "edgar2abb6d9d_63@gumroad.com",
+                "encrypted_password": "$2a$04$nPkKH0xSLOWQb0KeDemXtO1g71iQ0h8IYR6D9SEDG/Tz1Omxq5Mby",
+                "reset_password_token": null,
+                "reset_password_sent_at": null,
+                "remember_created_at": null,
+                "sign_in_count": 0,
+                "current_sign_in_at": null,
+                "last_sign_in_at": null,
+                "current_sign_in_ip": "105.168.123.61",
+                "last_sign_in_ip": "57.149.222.82",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": null,
+                "payment_address": "edgarf97d1525_64@gumroad.com",
+                "confirmed_at": "<now>",
+                "confirmation_token": null,
+                "confirmation_sent_at": null,
+                "unconfirmed_email": null,
+                "provider": null,
+                "twitter_user_id": null,
+                "facebook_uid": null,
+                "deleted_at": null,
+                "payment_notification": 1,
+                "currency_type": "usd",
+                "bio": null,
+                "username": "edgarcb89b9ca22",
+                "credit_card_id": null,
+                "profile_picture_url": null,
+                "country": null,
+                "state": null,
+                "city": null,
+                "zip_code": null,
+                "street_address": null,
+                "facebook_access_token": null,
+                "verified": null,
+                "manage_pages": 0,
+                "banned_at": null,
+                "weekly_notification": 1,
+                "external_id": "7672242629169",
+                "account_created_ip": "170.62.171.128",
+                "twitter_oauth_token": null,
+                "twitter_oauth_secret": null,
+                "notification_endpoint": null,
+                "locale": "en",
+                "flags": 35274566697025,
+                "google_analytics_id": null,
+                "timezone": "Pacific Time (US & Canada)",
+                "user_risk_state": "not_reviewed",
+                "tos_violation_reason": null,
+                "kindle_email": null,
+                "json_data": "{}",
+                "support_email": null,
+                "google_analytics_domains": null,
+                "recommendation_type": "own_products",
+                "facebook_pixel_id": null,
+                "split_payment_by_cents": null,
+                "last_active_sessions_invalidated_at": null,
+                "otp_secret_key": "6KAFLF33EK33YVIETZMU4MOLNVWLWIGX",
+                "facebook_meta_tag": null,
+                "tier_state": 0,
+                "orientation_priority_tag": null,
+                "notification_content_type": "application/x-www-form-urlencoded",
+                "google_uid": null,
+                "purchasing_power_parity_limit": null,
+                "twitter_handle": null
+              }
+            ]
+          }
+        },
+        "autoIncrement": {
+          "active_storage_attachments": 3,
+          "active_storage_blobs": 3,
+          "affiliates": 3,
+          "oauth_access_tokens": 2,
+          "oauth_applications": 2,
+          "public_files": 3,
+          "refund_policies": 3,
+          "users": 3
+        }
+      },
+      "redis": {
+        "disable_braintree_sales": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "flipper_features": {
+          "type": "set",
+          "value": [
+            "disable_braintree_sales",
+            "paypal_payout_fee",
+            "seller_refund_policy_new_users_enabled",
+            "store_discover_searches"
+          ]
+        },
+        "paypal_payout_fee": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "seller_refund_policy_new_users_enabled": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        },
+        "store_discover_searches": {
+          "type": "hash",
+          "value": {
+            "boolean": "true"
+          }
+        }
+      },
+      "request": {
+        "source": "request",
+        "method": "GET",
+        "path": "/v2/media",
+        "headers": {
+          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
+          "authorization": "Bearer KXalww9hsK7ZAsc9BJBhoOyaFhIqRdIqU2_zV2xzDq8",
+          "host": "api.test.gumroad.com:31337"
+        },
+        "remoteIp": "127.0.0.1"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Origin",
+          "x-content-type-options": "nosniff",
+          "x-download-options": "noopen",
+          "x-gr": "DEV",
+          "x-original-headers-class": "Rack::Headers",
+          "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
+          "x-xss-protection": "1; mode=block"
+        },
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "xdQjpQgzVrMT246VvWpshsZ6XzLyroZQKC-DuvhXAzxvFNVSqg89wMeA7rmudhk_E0STSGsqeB9lHT3CVQGM4g",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "QNo63ijzOXQ4I1Q7zuzOk4xYC2plHJmBbcgykynSkwOlP+bWeuFTBx5Rymkr6WxqoEMnufRBc3m6YRxYvLsILVDizV0dRCbfLa1cwLlUhuBoEYvdGvIjyqzKmd9pvhgHOtA4j5jX15zxkYBpfORxXyIVLTj3tzvOuV4gnH2aFW0wKboiJ9FZGWlm55W88HYlesSKzasa5MVnK3vH/vf7Ysqp0mLH5tG7TA1YIcPslNZoRxcr+ANmcrQWhEKhpEkoKLbT2j4B7rEVMmmKMGVfX7t+O1fMD+Bk4M90U9xHs5jEBJYc4zHqy7Q/mXJKMXvwEunBPdURfaVywLfR12wkCqZVRGRVVwCUKaMWWhR6/KcKvLHV2ZT84UNYzZy5Q73hUeem--qttGJn4daRAkhYw3--TMDmqIq1Wnl5PXlQqz8sgQ==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "success": true,
+          "media": [
+            {
+              "id": "zbwgsputu0rq1aqq",
+              "name": "Second",
+              "extension": "MP3",
+              "file_size": 30439,
+              "url": "http://localhost:9010/gumroad-specs/ija0yf83m76xpgk3t38te1s7ks4l",
+              "status": {
+                "type": "saved"
+              },
+              "file_group": "audio",
+              "created_at": "<now>"
+            },
+            {
+              "id": "d0p1zbqup1uxbls3",
+              "name": "First",
+              "extension": "MP3",
+              "file_size": 30439,
+              "url": "http://localhost:9010/gumroad-specs/htqujjzy3pfp01polbl6icp588ia",
+              "status": {
+                "type": "saved"
+              },
+              "file_group": "audio",
+              "created_at": "<now>"
+            }
+          ]
+        }
+      },
+      "db": {},
+      "jobs": [],
+      "mails": [],
+      "http": []
+    }
+  ]
+}

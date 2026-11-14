@@ -1,0 +1,2134 @@
+{
+  "generated_with": {
+    "ruby": "3.4.12",
+    "stripe": "12.5.0"
+  },
+  "api_base": "http://127.0.0.1:44937",
+  "sleep_time": [
+    {
+      "retries": 1,
+      "samples": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "retries": 2,
+      "samples": [
+        0.5006726493294693,
+        0.9984533798829164
+      ]
+    },
+    {
+      "retries": 3,
+      "samples": [
+        1.0013291544975715,
+        1.998291550216518
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "name": "account retrieve",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "account retrieve escapes the id",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_+1%2Fx",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "account update business profile url",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/accounts/acct_1",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "274ed727-a926-410e-9919-f00f29aca855",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "51"
+          },
+          "body": "business_profile[url]=https%3A%2F%2Fnew.gumroad.com"
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "account update lifts the charges pause",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/accounts/acct_1",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "c5c43cc4-2e86-4190-bde3-b9357438db57",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "45"
+          },
+          "body": "risk_controls[charges][pause_requested]=false"
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "payout retrieve expanded on a connected account",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"po_1\",\"object\":\"payout\",\"amount\":-1234,\"status\":\"paid\",\"balance_transaction\":{\"id\":\"txn_1\",\"object\":\"balance_transaction\",\"status\":\"available\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/payouts/po_1",
+          "query": "expand[0]=balance_transaction",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "po_1",
+        "object": "payout",
+        "amount": -1234,
+        "status": "paid",
+        "balance_transaction": {
+          "id": "txn_1",
+          "object": "balance_transaction",
+          "status": "available"
+        }
+      }
+    },
+    {
+      "name": "payout retrieve on a connected account",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"po_1\",\"object\":\"payout\",\"amount\":-1234,\"status\":\"paid\",\"balance_transaction\":{\"id\":\"txn_1\",\"object\":\"balance_transaction\",\"status\":\"available\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/payouts/po_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "po_1",
+        "object": "payout",
+        "amount": -1234,
+        "status": "paid",
+        "balance_transaction": {
+          "id": "txn_1",
+          "object": "balance_transaction",
+          "status": "available"
+        }
+      }
+    },
+    {
+      "name": "balance retrieve on a connected account",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"object\":\"balance\",\"available\":[{\"amount\":100,\"currency\":\"usd\"}],\"pending\":[{\"amount\":50,\"currency\":\"usd\"}]}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/balance",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "object": "balance",
+        "available": [
+          {
+            "amount": 100,
+            "currency": "usd"
+          }
+        ],
+        "pending": [
+          {
+            "amount": 50,
+            "currency": "usd"
+          }
+        ]
+      }
+    },
+    {
+      "name": "transfer create on a connected account",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "1041ea0d-66fa-4091-a4e6-8bfba702c34f",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "50"
+          },
+          "body": "amount=1234&currency=usd&destination=acct_platform"
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "tr_1",
+        "object": "transfer",
+        "amount": 1234,
+        "currency": "usd"
+      }
+    },
+    {
+      "name": "transfer retrieve",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/transfers/tr_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "tr_1",
+        "object": "transfer",
+        "amount": 1234,
+        "currency": "usd"
+      }
+    },
+    {
+      "name": "transfer list drops nil params",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"object\":\"list\",\"url\":\"/v1/transfers\",\"has_more\":false,\"data\":[{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"},{\"id\":\"tr_2\",\"object\":\"transfer\",\"amount\":99,\"currency\":\"eur\"}]}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/transfers",
+          "query": "destination=acct_1&created[lt]=1700000000&limit=100",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "object": "list",
+        "url": "/v1/transfers",
+        "has_more": false,
+        "data": [
+          {
+            "id": "tr_1",
+            "object": "transfer",
+            "amount": 1234,
+            "currency": "usd"
+          },
+          {
+            "id": "tr_2",
+            "object": "transfer",
+            "amount": 99,
+            "currency": "eur"
+          }
+        ]
+      }
+    },
+    {
+      "name": "transfer list pages",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"object\":\"list\",\"url\":\"/v1/transfers\",\"has_more\":false,\"data\":[{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"},{\"id\":\"tr_2\",\"object\":\"transfer\",\"amount\":99,\"currency\":\"eur\"}]}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/transfers",
+          "query": "destination=acct_1&created[lt]=1700000000&limit=100&starting_after=tr_2",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "object": "list",
+        "url": "/v1/transfers",
+        "has_more": false,
+        "data": [
+          {
+            "id": "tr_1",
+            "object": "transfer",
+            "amount": 1234,
+            "currency": "usd"
+          },
+          {
+            "id": "tr_2",
+            "object": "transfer",
+            "amount": 99,
+            "currency": "eur"
+          }
+        ]
+      }
+    },
+    {
+      "name": "transfer reversal",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"trr_1\",\"object\":\"transfer_reversal\",\"amount\":500,\"transfer\":\"tr_1\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers/tr_1/reversals",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "58bef788-345e-4a17-93a1-44060dc667e2",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "10"
+          },
+          "body": "amount=500"
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "trr_1",
+        "object": "transfer_reversal",
+        "amount": 500,
+        "transfer": "tr_1"
+      }
+    },
+    {
+      "name": "apple pay domain create",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"apwc_1\",\"object\":\"apple_pay_domain\",\"domain_name\":\"seller.gumroad.com\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/apple_pay/domains",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "4b75271e-ca67-4479-a10c-d347905f17f2",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "30"
+          },
+          "body": "domain_name=seller.gumroad.com"
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "apwc_1",
+        "object": "apple_pay_domain",
+        "domain_name": "seller.gumroad.com"
+      }
+    },
+    {
+      "name": "apple pay domain retrieve",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"apwc_1\",\"object\":\"apple_pay_domain\",\"domain_name\":\"seller.gumroad.com\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/apple_pay/domains/apwc_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "apwc_1",
+        "object": "apple_pay_domain",
+        "domain_name": "seller.gumroad.com"
+      }
+    },
+    {
+      "name": "apple pay domain delete",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"apwc_1\",\"object\":\"apple_pay_domain\",\"deleted\":true}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "DELETE",
+          "path": "/v1/apple_pay/domains/apwc_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "857266b5-a582-415d-bad2-c5d8d001d43a",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "apwc_1",
+        "object": "apple_pay_domain",
+        "deleted": true
+      }
+    },
+    {
+      "name": "form encoding edge cases",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/accounts/acct_1",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "idem-fixed",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_9",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "279"
+          },
+          "body": "metadata[a+b]=x%26y%3Dz%2B%C3%BC%2A~%21%27%28%29&metadata[t]=true&metadata[f]=false&metadata[n]=12&metadata[neg]=-3&metadata[float]=1.5&metadata[sym]=value&individual[address][line1]=&individual[address][line2]=Apt.+%234+[rear]&list[0]=a&list[1][k]=v&list[0]=x&list[1]=y&list[3]="
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "post with no params",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/accounts/acct_1",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "050fd283-4575-45f5-921c-91ed6dc748e2",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "0"
+          },
+          "body": ""
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "telemetry of the previous request",
+      "responses": [
+        [
+          200,
+          {
+            "Request-Id": "req_first",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"}"
+        ],
+        [
+          200,
+          {
+            "Request-Id": "req_second",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/transfers/tr_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/transfers/tr_2",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "x-stripe-client-telemetry": "{\"last_request_metrics\":{\"request_id\":\"req_first\",\"request_duration_ms\":0}}",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "result": {
+        "id": "tr_1",
+        "object": "transfer",
+        "amount": 1234,
+        "currency": "usd"
+      }
+    },
+    {
+      "name": "400 invalid request is not retried",
+      "responses": [
+        [
+          400,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such account: 'acct_missing'\",\"param\":\"account\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_missing",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "No such account: 'acct_missing'",
+        "to_s": "(Status 400) (Request req_err) No such account: 'acct_missing'",
+        "code": "resource_missing",
+        "http_status": 400,
+        "request_id": "req_err",
+        "param": "account"
+      }
+    },
+    {
+      "name": "404 invalid request",
+      "responses": [
+        [
+          404,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"resource_missing\",\"message\":\"No such transfer: 'tr_missing'\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/transfers/tr_missing",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::InvalidRequestError",
+        "message": "No such transfer: 'tr_missing'",
+        "to_s": "(Status 404) (Request req_err) No such transfer: 'tr_missing'",
+        "code": "resource_missing",
+        "http_status": 404,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "403 permission error",
+      "responses": [
+        [
+          403,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The provided key does not have access to account 'acct_1'.\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/accounts/acct_1",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "640896c1-ddcf-40a5-938e-dbf4bd5b2e16",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "23"
+          },
+          "body": "business_profile[url]=x"
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::PermissionError",
+        "message": "The provided key does not have access to account 'acct_1'.",
+        "to_s": "(Status 403) (Request req_err) The provided key does not have access to account 'acct_1'.",
+        "code": null,
+        "http_status": 403,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "401 authentication error",
+      "responses": [
+        [
+          401,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Invalid API Key provided: sk_test_****\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/balance",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::AuthenticationError",
+        "message": "Invalid API Key provided: sk_test_****",
+        "to_s": "(Status 401) (Request req_err) Invalid API Key provided: sk_test_****",
+        "code": null,
+        "http_status": 401,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "402 card error",
+      "responses": [
+        [
+          402,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"card_error\",\"code\":\"card_declined\",\"message\":\"Your card was declined.\",\"param\":\"source\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "c40c6f7d-2965-4591-a5a3-0fd9319218c6",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "40"
+          },
+          "body": "amount=1&currency=usd&destination=acct_2"
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::CardError",
+        "message": "Your card was declined.",
+        "to_s": "(Status 402) (Request req_err) Your card was declined.",
+        "code": "card_declined",
+        "http_status": 402,
+        "request_id": "req_err",
+        "param": "source"
+      }
+    },
+    {
+      "name": "400 idempotency error",
+      "responses": [
+        [
+          400,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"idempotency_error\",\"message\":\"Keys for idempotent requests can only be used with the same parameters.\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "2d066782-4256-49cc-86dd-e829c0ad45d9",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "40"
+          },
+          "body": "amount=1&currency=usd&destination=acct_2"
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::IdempotencyError",
+        "message": "Keys for idempotent requests can only be used with the same parameters.",
+        "to_s": "(Status 400) (Request req_err) Keys for idempotent requests can only be used with the same parameters.",
+        "code": null,
+        "http_status": 400,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "429 lock timeout is retried with the same idempotency key",
+      "responses": [
+        [
+          429,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"lock_timeout\",\"message\":\"This object cannot be accessed right now.\"}}"
+        ],
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "d329b135-d963-487b-812c-607f10fd63a8",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "40"
+          },
+          "body": "amount=1&currency=usd&destination=acct_2"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "d329b135-d963-487b-812c-607f10fd63a8",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "40"
+          },
+          "body": "amount=1&currency=usd&destination=acct_2"
+        }
+      ],
+      "retries": 1,
+      "result": {
+        "id": "tr_1",
+        "object": "transfer",
+        "amount": 1234,
+        "currency": "usd"
+      }
+    },
+    {
+      "name": "429 rate limit is not retried",
+      "responses": [
+        [
+          429,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"rate_limit\",\"message\":\"Too many requests.\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::RateLimitError",
+        "message": "Too many requests.",
+        "to_s": "(Status 429) (Request req_err) Too many requests.",
+        "code": "rate_limit",
+        "http_status": 429,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "409 conflict is retried",
+      "responses": [
+        [
+          409,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Conflict.\"}}"
+        ],
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 1,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "500 is retried until max_network_retries",
+      "responses": [
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 3,
+      "error": {
+        "class": "Stripe::APIError",
+        "message": "An unknown error occurred",
+        "to_s": "(Status 500) (Request req_err) An unknown error occurred",
+        "code": null,
+        "http_status": 500,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "payout create is sent four times under one idempotency key when Stripe answers 500",
+      "responses": [
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "1699cee4-6189-4aa8-94ad-c360e9670d4b",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "1699cee4-6189-4aa8-94ad-c360e9670d4b",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "1699cee4-6189-4aa8-94ad-c360e9670d4b",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "1699cee4-6189-4aa8-94ad-c360e9670d4b",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        }
+      ],
+      "retries": 3,
+      "error": {
+        "class": "Stripe::APIError",
+        "message": "An unknown error occurred",
+        "to_s": "(Status 500) (Request req_err) An unknown error occurred",
+        "code": null,
+        "http_status": 500,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "payout create is sent four times under one idempotency key when the connection drops",
+      "responses": [
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "c190be02-b468-4479-9b7a-6e7b22570ffc",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "c190be02-b468-4479-9b7a-6e7b22570ffc",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "c190be02-b468-4479-9b7a-6e7b22570ffc",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "c190be02-b468-4479-9b7a-6e7b22570ffc",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "39"
+          },
+          "body": "amount=1234&currency=usd&method=instant"
+        }
+      ],
+      "retries": 3,
+      "error": {
+        "class": "Stripe::APIConnectionError",
+        "message": "Unexpected error communicating when trying to connect to Stripe (http://127.0.0.1:44937). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\n\n(Network error: end of file reached)",
+        "to_s": "Unexpected error communicating when trying to connect to Stripe (http://127.0.0.1:44937). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\n\n(Network error: end of file reached)",
+        "code": null,
+        "http_status": null,
+        "request_id": null,
+        "param": null
+      }
+    },
+    {
+      "name": "payout create succeeds on the third attempt after two drops, keeping its key",
+      "responses": [
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"po_1\",\"object\":\"payout\",\"amount\":-1234,\"status\":\"paid\",\"balance_transaction\":{\"id\":\"txn_1\",\"object\":\"balance_transaction\",\"status\":\"available\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "29169b14-4910-4f94-afbb-f238641c46f2",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "24"
+          },
+          "body": "amount=1234&currency=usd"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "29169b14-4910-4f94-afbb-f238641c46f2",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "24"
+          },
+          "body": "amount=1234&currency=usd"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "29169b14-4910-4f94-afbb-f238641c46f2",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "24"
+          },
+          "body": "amount=1234&currency=usd"
+        }
+      ],
+      "retries": 2,
+      "result": {
+        "id": "po_1",
+        "object": "payout",
+        "amount": -1234,
+        "status": "paid",
+        "balance_transaction": {
+          "id": "txn_1",
+          "object": "balance_transaction",
+          "status": "available"
+        }
+      }
+    },
+    {
+      "name": "payout create 429 rate limit is not retried",
+      "responses": [
+        [
+          429,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Too many requests.\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/payouts",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "b5a670e3-c2ed-4c64-b273-e7f36137bc94",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "stripe-account": "acct_1",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "24"
+          },
+          "body": "amount=1234&currency=usd"
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::RateLimitError",
+        "message": "Too many requests.",
+        "to_s": "(Status 429) (Request req_err) Too many requests.",
+        "code": null,
+        "http_status": 429,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "transfer create 500 is retried under one idempotency key",
+      "responses": [
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"An unknown error occurred\"}}"
+        ],
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"tr_1\",\"object\":\"transfer\",\"amount\":1234,\"currency\":\"usd\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "433eacfd-70d7-4c77-9ba6-57ec8e77fde5",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "43"
+          },
+          "body": "amount=1234&currency=usd&destination=acct_1"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/transfers",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "433eacfd-70d7-4c77-9ba6-57ec8e77fde5",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "43"
+          },
+          "body": "amount=1234&currency=usd&destination=acct_1"
+        }
+      ],
+      "retries": 1,
+      "result": {
+        "id": "tr_1",
+        "object": "transfer",
+        "amount": 1234,
+        "currency": "usd"
+      }
+    },
+    {
+      "name": "transfer reversal is sent four times when the connection drops",
+      "responses": [
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ],
+        [
+          "drop",
+          {},
+          ""
+        ]
+      ],
+      "requests": [
+        {
+          "method": "POST",
+          "path": "/v1/transfers/tr_1/reversals",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "f505cb2b-d54b-4cbd-a016-6745a86fb62a",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "10"
+          },
+          "body": "amount=500"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/transfers/tr_1/reversals",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "f505cb2b-d54b-4cbd-a016-6745a86fb62a",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "10"
+          },
+          "body": "amount=500"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/transfers/tr_1/reversals",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "f505cb2b-d54b-4cbd-a016-6745a86fb62a",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "10"
+          },
+          "body": "amount=500"
+        },
+        {
+          "method": "POST",
+          "path": "/v1/transfers/tr_1/reversals",
+          "query": null,
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "idempotency-key": "f505cb2b-d54b-4cbd-a016-6745a86fb62a",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*",
+            "content-length": "10"
+          },
+          "body": "amount=500"
+        }
+      ],
+      "retries": 3,
+      "error": {
+        "class": "Stripe::APIConnectionError",
+        "message": "Unexpected error communicating when trying to connect to Stripe (http://127.0.0.1:44937). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\n\n(Network error: end of file reached)",
+        "to_s": "Unexpected error communicating when trying to connect to Stripe (http://127.0.0.1:44937). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\n\n(Network error: end of file reached)",
+        "code": null,
+        "http_status": null,
+        "request_id": null,
+        "param": null
+      }
+    },
+    {
+      "name": "stripe-should-retry false stops a 500 retry",
+      "responses": [
+        [
+          500,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json",
+            "Stripe-Should-Retry": "false"
+          },
+          "{\"error\":{\"type\":\"api_error\",\"message\":\"Do not retry\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::APIError",
+        "message": "Do not retry",
+        "to_s": "(Status 500) (Request req_err) Do not retry",
+        "code": null,
+        "http_status": 500,
+        "request_id": "req_err",
+        "param": null
+      }
+    },
+    {
+      "name": "stripe-should-retry true retries a 400",
+      "responses": [
+        [
+          400,
+          {
+            "Request-Id": "req_err",
+            "Content-Type": "application/json",
+            "Stripe-Should-Retry": "true"
+          },
+          "{\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Retry me\"}}"
+        ],
+        [
+          200,
+          {
+            "Request-Id": "req_ok",
+            "Content-Type": "application/json"
+          },
+          "{\"id\":\"acct_1\",\"object\":\"account\",\"business_profile\":{\"url\":\"https://seller.gumroad.com\"},\"risk_controls\":{\"charges\":{\"pause_requested\":true},\"payouts\":{\"pause_requested\":false}},\"requirements\":{\"disabled_reason\":\"platform_paused\",\"past_due\":[]},\"capabilities\":{\"transfers\":\"active\"}}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 1,
+      "result": {
+        "id": "acct_1",
+        "object": "account",
+        "business_profile": {
+          "url": "https://seller.gumroad.com"
+        },
+        "risk_controls": {
+          "charges": {
+            "pause_requested": true
+          },
+          "payouts": {
+            "pause_requested": false
+          }
+        },
+        "requirements": {
+          "disabled_reason": "platform_paused",
+          "past_due": []
+        },
+        "capabilities": {
+          "transfers": "active"
+        }
+      }
+    },
+    {
+      "name": "unparseable body",
+      "responses": [
+        [
+          502,
+          {},
+          "<html>bad gateway</html>"
+        ],
+        [
+          502,
+          {},
+          "<html>bad gateway</html>"
+        ],
+        [
+          502,
+          {},
+          "<html>bad gateway</html>"
+        ],
+        [
+          502,
+          {},
+          "<html>bad gateway</html>"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        },
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 3,
+      "error": {
+        "class": "Stripe::APIError",
+        "message": "Invalid response object from API: \"<html>bad gateway</html>\" (HTTP response code was 502)",
+        "to_s": "(Status 502) Invalid response object from API: \"<html>bad gateway</html>\" (HTTP response code was 502)",
+        "code": null,
+        "http_status": 502,
+        "request_id": null,
+        "param": null
+      }
+    },
+    {
+      "name": "error body without an error key",
+      "responses": [
+        [
+          400,
+          {
+            "Request-Id": "req_x"
+          },
+          "{\"message\":\"nope\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::APIError",
+        "message": "Invalid response object from API: \"{\\\"message\\\":\\\"nope\\\"}\" (HTTP response code was 400)",
+        "to_s": "(Status 400) Invalid response object from API: \"{\\\"message\\\":\\\"nope\\\"}\" (HTTP response code was 400)",
+        "code": null,
+        "http_status": 400,
+        "request_id": null,
+        "param": null
+      }
+    },
+    {
+      "name": "oauth error",
+      "responses": [
+        [
+          400,
+          {
+            "Request-Id": "req_x"
+          },
+          "{\"error\":\"invalid_grant\",\"error_description\":\"Authorization code expired\"}"
+        ]
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/accounts/acct_1",
+          "query": "",
+          "headers": {
+            "authorization": "Bearer sk_test_golden",
+            "content-type": "application/x-www-form-urlencoded",
+            "stripe-version": "2023-10-16; risk_in_requirements_beta=v1; retrieve_tax_forms_beta=v1;",
+            "accept-encoding": "gzip;q=1.0,deflate;q=0.6,identity;q=0.3",
+            "accept": "*/*"
+          },
+          "body": null
+        }
+      ],
+      "retries": 0,
+      "error": {
+        "class": "Stripe::OAuth::InvalidGrantError",
+        "message": "Authorization code expired",
+        "to_s": "(Status 400) (Request req_x) Authorization code expired",
+        "code": "invalid_grant",
+        "http_status": 400,
+        "request_id": "req_x",
+        "param": null
+      }
+    },
+    {
+      "name": "connection refused",
+      "api_base_port": 41701,
+      "retries": 3,
+      "error": {
+        "class": "Stripe::APIConnectionError",
+        "message": "Unexpected error communicating when trying to connect to Stripe (http://127.0.0.1:41701). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\n\n(Network error: Failed to open TCP connection to 127.0.0.1:41701 (Connection refused - connect(2) for \"127.0.0.1\" port 41701))",
+        "to_s": "Unexpected error communicating when trying to connect to Stripe (http://127.0.0.1:41701). You may be seeing this message because your DNS is not working or you don't have an internet connection.  To check, try running `host stripe.com` from the command line. Request was retried 3 times.\n\n(Network error: Failed to open TCP connection to 127.0.0.1:41701 (Connection refused - connect(2) for \"127.0.0.1\" port 41701))",
+        "code": null,
+        "http_status": null,
+        "request_id": null,
+        "param": null
+      }
+    }
+  ]
+}

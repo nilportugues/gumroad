@@ -1,0 +1,3643 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "capability.updated of a Connect account enqueues the availability refresh",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of a Gumroad-managed account enqueues nothing",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"false\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of an unknown account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of a deleted account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of an account that is not alive at the processor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of an account whose processor side was deleted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of the newest of two alive accounts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[2],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[2],\"lock_digest\":\"uniquejobs:cc48aafe8fc7420c7624ecbf9c61245b\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:cc48aafe8fc7420c7624ecbf9c61245b": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:cc48aafe8fc7420c7624ecbf9c61245b:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:cc48aafe8fc7420c7624ecbf9c61245b",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of the older Connect account behind a deleted newer one",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of an account with no seller",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of a Connect account in another country",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "CA",
+                "cad",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated with the account id in user_id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": null,
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          },
+          "user_id": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated names another account in its object",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_other' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_other"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "capability.updated of a Connect account with no json_data",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_1",
+          "type": "capability.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "capability",
+              "id": "card_payments",
+              "account": "acct_1"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated of a Connect account enqueues the availability refresh",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated of a Gumroad-managed account enqueues nothing",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"false\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated with no matching account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated of a deleted account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated of an account that is not alive at the processor",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated clears the mismatch map when default_currency changed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{\\\"stripe_connect\\\":\\\"true\\\"},\\\"settlement_currency_mismatch_map\\\":null,\\\"settlement_currency_mismatch_noticed_at\\\":null}', `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated clears the mismatch map when external_accounts changed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{\\\"stripe_connect\\\":\\\"true\\\"},\\\"settlement_currency_mismatch_map\\\":null,\\\"settlement_currency_mismatch_noticed_at\\\":null}', `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "external_accounts": {
+                "data": []
+              }
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated clears the legacy marker",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_noticed_at\":\"2026-11-04T10:00:00Z\"}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_noticed_at\":\"2026-11-04T10:00:00Z\"}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{\\\"stripe_connect\\\":\\\"true\\\"},\\\"settlement_currency_mismatch_noticed_at\\\":null,\\\"settlement_currency_mismatch_map\\\":null}', `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated clears both markers of a managed account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"false\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"},\"settlement_currency_mismatch_noticed_at\":\"2026-11-04T10:00:00Z\",\"other\":\"kept\"}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                1,
+                "seller1@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller1",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1001",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                16777216,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": []
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"false\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"},\"settlement_currency_mismatch_noticed_at\":\"2026-11-04T10:00:00Z\",\"other\":\"kept\"}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{\\\"stripe_connect\\\":\\\"false\\\"},\\\"settlement_currency_mismatch_map\\\":null,\\\"settlement_currency_mismatch_noticed_at\\\":null,\\\"other\\\":\\\"kept\\\"}', `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated keeps the markers when another attribute changed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "business_profile": {}
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated keeps the markers when previous_attributes is absent",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated with an empty previous_attributes",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {}
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated with nothing to clear",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated with empty markers",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{},\"settlement_currency_mismatch_noticed_at\":\"\"}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated: a save that fails validation is swallowed",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"false\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `users`.* FROM `users` WHERE `users`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "email",
+              "encrypted_password",
+              "reset_password_token",
+              "reset_password_sent_at",
+              "remember_created_at",
+              "sign_in_count",
+              "current_sign_in_at",
+              "last_sign_in_at",
+              "current_sign_in_ip",
+              "last_sign_in_ip",
+              "created_at",
+              "updated_at",
+              "name",
+              "payment_address",
+              "confirmed_at",
+              "confirmation_token",
+              "confirmation_sent_at",
+              "unconfirmed_email",
+              "provider",
+              "twitter_user_id",
+              "facebook_uid",
+              "deleted_at",
+              "payment_notification",
+              "currency_type",
+              "bio",
+              "username",
+              "credit_card_id",
+              "profile_picture_url",
+              "country",
+              "state",
+              "city",
+              "zip_code",
+              "street_address",
+              "facebook_access_token",
+              "verified",
+              "manage_pages",
+              "banned_at",
+              "weekly_notification",
+              "external_id",
+              "account_created_ip",
+              "twitter_oauth_token",
+              "twitter_oauth_secret",
+              "notification_endpoint",
+              "locale",
+              "flags",
+              "google_analytics_id",
+              "timezone",
+              "user_risk_state",
+              "tos_violation_reason",
+              "kindle_email",
+              "json_data",
+              "support_email",
+              "google_analytics_domains",
+              "recommendation_type",
+              "facebook_pixel_id",
+              "split_payment_by_cents",
+              "last_active_sessions_invalidated_at",
+              "otp_secret_key",
+              "facebook_meta_tag",
+              "tier_state",
+              "orientation_priority_tag",
+              "notification_content_type",
+              "google_uid",
+              "purchasing_power_parity_limit",
+              "twitter_handle"
+            ],
+            "rows": [
+              [
+                2,
+                "seller2@example.com",
+                "",
+                null,
+                null,
+                null,
+                0,
+                null,
+                null,
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                "usd",
+                null,
+                "seller2",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                1,
+                "1002",
+                null,
+                null,
+                null,
+                null,
+                "en",
+                0,
+                null,
+                "Pacific Time (US & Canada)",
+                "compliant",
+                null,
+                null,
+                null,
+                null,
+                null,
+                "own_products",
+                null,
+                null,
+                null,
+                null,
+                null,
+                0,
+                null,
+                "application/x-www-form-urlencoded",
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT 1 AS one FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_merchant_id` = CAST('acct_1' AS BINARY) AND `merchant_accounts`.`id` != 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "one"
+            ],
+            "rows": [
+              [
+                1
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "ROLLBACK",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated with the account id in user_id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:low": {
+          "type": "list",
+          "value": [
+            "{\"retry\":3,\"queue\":\"low\",\"backtrace\":true,\"lock\":\"until_executed\",\"args\":[1],\"class\":\"RefreshMerchantAccountPaymentMethodAvailabilityWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"lock_timeout\":0,\"lock_ttl\":null,\"lock_prefix\":\"uniquejobs\",\"lock_args\":[1],\"lock_digest\":\"uniquejobs:1305e052a126f1cf173704e1804a15d8\",\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "low"
+          ],
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8": {
+          "type": "string",
+          "value": "000000000000000000000001",
+          "expires": false
+        },
+        "uniquejobs:1305e052a126f1cf173704e1804a15d8:LOCKED": {
+          "type": "hash",
+          "value": {
+            "000000000000000000000001": "1.7937954451230001e+9"
+          },
+          "expires": false
+        },
+        "uniquejobs:changelog": {
+          "type": "zset",
+          "count": 2,
+          "expires": false
+        },
+        "uniquejobs:digests": {
+          "type": "zset",
+          "value": [
+            [
+              "uniquejobs:1305e052a126f1cf173704e1804a15d8",
+              1793795445.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": null,
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            }
+          },
+          "user_id": "acct_1"
+        }
+      ],
+      "merchant_migration": false
+    },
+    {
+      "name": "account.updated of an account with no seller clears its markers",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`charge_processor_merchant_id` = 'acct_1' AND `merchant_accounts`.`deleted_at` IS NULL AND `merchant_accounts`.`charge_processor_alive_at` IS NOT NULL AND `merchant_accounts`.`charge_processor_deleted_at` IS NULL ORDER BY `merchant_accounts`.`id` DESC LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                null,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                "US",
+                "usd",
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "BEGIN",
+          "result": {
+            "affected": 0
+          }
+        },
+        {
+          "sql": "SELECT `merchant_accounts`.`json_data` FROM `merchant_accounts` WHERE `merchant_accounts`.`id` = 1 LIMIT 1 FOR UPDATE",
+          "result": {
+            "fields": [
+              "json_data"
+            ],
+            "rows": [
+              [
+                "{\"meta\":{\"stripe_connect\":\"true\"},\"settlement_currency_mismatch_map\":{\"eur\":\"2026-11-04T10:00:00Z\"}}"
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "UPDATE `merchant_accounts` SET `merchant_accounts`.`json_data` = '{\\\"meta\\\":{\\\"stripe_connect\\\":\\\"true\\\"},\\\"settlement_currency_mismatch_map\\\":null,\\\"settlement_currency_mismatch_noticed_at\\\":null}', `merchant_accounts`.`updated_at` = '2026-11-04 12:30:45' WHERE `merchant_accounts`.`id` = 1",
+          "result": {
+            "affected": 1
+          }
+        },
+        {
+          "sql": "COMMIT",
+          "result": {
+            "affected": 0
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "http": [],
+      "redis_before": {},
+      "job": "HandleStripeEventWorker",
+      "args": [
+        {
+          "id": "evt_2",
+          "type": "account.updated",
+          "account": "acct_1",
+          "data": {
+            "object": {
+              "object": "account",
+              "id": "acct_1",
+              "type": "standard"
+            },
+            "previous_attributes": {
+              "default_currency": "usd"
+            }
+          }
+        }
+      ],
+      "merchant_migration": false
+    }
+  ]
+}

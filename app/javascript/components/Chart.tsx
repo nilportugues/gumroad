@@ -24,7 +24,7 @@ export const Chart = ({
   ...props
 }: {
   aspect?: number;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   tooltipPosition: { left: number; top: number } | null;
   tooltip: React.ReactNode;
 } & React.ComponentPropsWithoutRef<typeof ComposedChart>) => (

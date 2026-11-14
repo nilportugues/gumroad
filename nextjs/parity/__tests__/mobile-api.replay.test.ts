@@ -1,0 +1,340 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { createServer, type Server } from "node:http";
+import path from "node:path";
+
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
+import { PrismaClient } from "@prisma/client";
+import { Redis } from "ioredis";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { closeAllRedis } from "@/server/infra/redis";
+
+import { unwrapActiveJob } from "../src/active-job";
+import type { JobsChannel, RawJob } from "../src/channels";
+import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import { loadFixture } from "../src/fixture";
+import { startNextServer, type NextServer } from "../src/next-server";
+import { withoutRailsOnly } from "../src/rails-only";
+import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { reencryptCookies, redisSeeder } from "../src/session";
+
+// Replays spec/requests/api/mobile/*_spec.rb: the mobile API on the API host (Api::Mobile::*Controller). Each fixture is one request
+// (the last exchange of an example); a request Node hands back arrives at a stand-in for Rails, body and all, and a fixture named
+// `hands-a-...` asserts that.
+const url = process.env.PARITY_DATABASE_URL;
+const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
+const FIXTURES = "parity/fixtures/requests/api/mobile";
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-mobile";
+const SPECS = [
+  "mobile_api_parity_spec",
+  "mobile_accounts_parity_spec",
+  "mobile_hand_backs_parity_spec",
+  "mobile_library_writes_parity_spec",
+  "mobile_purchases_sales_parity_spec",
+  "mobile_sales_access_parity_spec",
+  "mobile_sales_actions_parity_spec",
+  "mobile_products_subscriptions_parity_spec",
+  "mobile_seller_writes_parity_spec",
+].filter((dir) => existsSync(path.join(FIXTURES, dir)));
+const ROUTE_FLAGS = [
+  "feature_flags",
+  "devices",
+  "calls",
+  "licenses",
+  "review_videos",
+  "media_locations",
+  "accounts",
+  "consumption_analytics",
+  "analytics",
+  "purchases",
+  "sales",
+  "url_redirect_delivery",
+  "url_redirects",
+  "products",
+  "subscriptions",
+  "preorders",
+  "installments",
+  "commissions",
+  "sessions",
+  "agent_meta",
+]
+  .map((name) => `nextjs_mobile_${name}`)
+  .join(",");
+const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+const SECRET_KEY_BASE = "parity-replay-secret-key-base";
+const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
+const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
+
+const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
+  `${job.class} ${JSON.stringify(job.args)} ${job.queue ?? "default"}`;
+
+// A fixture recorded with `parity_mail_jobs: true` holds its mail job in `jobs`; the others never queued one, so Node's is ignored.
+let compareMailJobs = false;
+let warmedDelete = false;
+
+// Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
+function redisJobs(redis: Redis): JobsChannel {
+  return {
+    async reset() {
+      /* the seeder flushes the database */
+    },
+    async drain(): Promise<RawJob[]> {
+      const jobs: RawJob[] = [];
+      for (const key of await redis.keys("bull:*")) {
+        if ((await redis.type(key)) !== "hash") continue;
+        const data = await redis.hget(key, "data");
+        if (data === null) continue;
+        const item = JSON.parse((JSON.parse(data) as { sidekiq: string }).sidekiq) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+          wrapped?: string;
+        };
+        if (item.wrapped === "MailDeliveryJob") {
+          if (compareMailJobs)
+            jobs.push(unwrapActiveJob({ class: item.class, args: item.args, queue: item.queue } as RawJob));
+          continue;
+        }
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
+      }
+      // A job whose body stays in Ruby goes to Sidekiq's list, or to its schedule when delayed (PostToPingEndpointsWorker). The mail
+      // jobs are not in the fixtures: the request spec's test adapter never queued them.
+      const ruby: string[] = [];
+      for (const key of await redis.keys("queue:*")) ruby.push(...(await redis.lrange(key, 0, -1)));
+      ruby.push(...(await redis.zrange("schedule", "0", "-1")));
+      for (const raw of ruby) {
+        const item = JSON.parse(raw) as {
+          class: string;
+          args: unknown[];
+          queue: string;
+          at?: number;
+          wrapped?: string;
+        };
+        if (item.wrapped === "MailDeliveryJob") {
+          if (compareMailJobs)
+            jobs.push(unwrapActiveJob({ class: item.class, args: item.args, queue: item.queue } as RawJob));
+          continue;
+        }
+        jobs.push({
+          class: item.class,
+          args: item.args,
+          queue: item.queue,
+          ...(item.at === undefined ? {} : { at: item.at }),
+        });
+      }
+      // A product touched by a request is reindexed: the replay holds no document for it, so Node queues the fallback job Rails never needed.
+      return jobs
+        .filter((job) => job.class !== "SendToElasticsearchWorker")
+        .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+    },
+  };
+}
+
+const COMPARE = {
+  ignore: [
+    "response.headers.x-original-headers-class",
+    "response.headers.cache-control",
+    "response.headers.vary",
+    "response.headers.link",
+    "response.cookies.XSRF-TOKEN.value",
+    // PaperTrail is off in the Rails specs; the goldens of each write pin the versions Node writes.
+    "db.versions",
+    // The specs send fixed years-old dates, which the fixtures store as "now minus N hours", so the value drifts with the replay day.
+    "db.media_locations.inserted.*.consumed_at",
+    "db.media_locations.updated.*.changes.consumed_at.*",
+    // Minute of the sale in the seller's time zone, stamped by the factory's clock.
+    "response.json.purchases.*.daystamp",
+    "response.json.purchase.purchase_daystamp",
+    // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
+    "db.licenses.updated.*.changes.updated_at",
+    "db.calls.updated.*.changes.updated_at",
+    "db.custom_domains.updated.*.changes.updated_at",
+    "db.purchases.updated.*.changes.updated_at",
+    "db.product_review_videos.updated.*.changes.updated_at",
+    "db.media_locations.updated.*.changes.updated_at",
+    // A client with no cookie gets a guid minted per request, which the event row keeps.
+    "db.events.inserted.*.browser_guid",
+    // Doorkeeper mints the tokens at random.
+    "db.oauth_access_tokens.inserted.*.token",
+    "db.oauth_access_tokens.inserted.*.refresh_token",
+    "response.json.access_token",
+    "response.json.refresh_token",
+    "db.team_memberships.updated.*.changes.updated_at",
+    "jobs.*.at",
+    // The posted consumed_at is a fixed instant, which canonicalizes to hours before a clock that keeps moving.
+    "db.consumption_events.inserted.*.consumed_at",
+    "http",
+    // Rails renders its debug exception page for a 404 in the test environment.
+    "response.body",
+  ],
+};
+
+const allCases = SPECS.flatMap((spec) => {
+  const dir = path.join(FIXTURES, spec);
+  return readdirSync(dir)
+    .filter((file) => file.endsWith(".json"))
+    .map(
+      (file) =>
+        [
+          `${spec.replace(/_spec$/u, "")}: ${file.replace(/\.json$/u, "")}`,
+          path.join(dir, file),
+          loadFixture(path.join(dir, file)).exchanges.length - 1,
+        ] as const,
+    );
+});
+
+// Rails serves the throttled routes whole; rack-attack-routes.replay.test.ts replays those.
+const cases = withoutRailsOnly(allCases, ([, file, index]) => loadFixture(file).exchanges[index]!.request);
+
+describe.skipIf(!url)("Mobile API parity", () => {
+  let client: PrismaClient;
+  let sql: SqlExecutor;
+  let redis: Redis;
+  let es: ElasticsearchClient;
+  let server: NextServer;
+  let rails: Server;
+  const handedBack: { method: string; url: string; body: string }[] = [];
+  const saved = { ...process.env };
+
+  beforeAll(async () => {
+    client = new PrismaClient({ datasourceUrl: url });
+    sql = prismaExecutor(client);
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
+    const [hostAndPort = "", db = "0"] = redisHost.split("/");
+    const [host = "127.0.0.1", port = "6379"] = hostAndPort.split(":");
+    redis = new Redis({ host, port: Number(port), db: Number(db) });
+    rails = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        handedBack.push({
+          method: request.method ?? "",
+          url: request.url ?? "",
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+        response.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
+    const railsPort = (rails.address() as { port: number }).port;
+    server = await startNextServer({
+      RAILS_ENV: "test",
+      OBFUSCATE_IDS_CIPHER_KEY: /^OBFUSCATE_IDS_CIPHER_KEY=(.+)$/mu.exec(envTest)?.[1] ?? "",
+      OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
+      MOBILE_TOKEN: testEnv("MOBILE_TOKEN") ?? "",
+      MOBILE_API_OAUTH_APPLICATION_UID: testEnv("MOBILE_API_OAUTH_APPLICATION_UID") ?? "",
+      NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
+      RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
+      SECRET_KEY_BASE,
+      DATABASE_URL: url!,
+      REDIS_HOST: redisHost,
+      SIDEKIQ_REDIS_HOST: redisHost,
+      RACK_ATTACK_REDIS_HOST: redisHost,
+      DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
+      ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
+      AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
+      ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
+    });
+  }, FIRST_COMPILE_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await server?.stop();
+    rails?.close();
+    await closeAllRedis();
+    await redis?.quit();
+    await es?.close();
+    await client?.$disconnect();
+    process.env = saved;
+  });
+
+  const replayOptions = () => ({
+    sql,
+    redis: {
+      async reset(entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], exchange?: unknown) {
+        await redisSeeder(redis).reset(entries);
+        if (!exchange) return;
+        const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
+        await recreateIndex(es, purchases);
+        await reindexPurchases(es, purchases.name, sql);
+      },
+    },
+    transport: httpTransport(server.baseUrl),
+    interceptHttp: false,
+    jobs: redisJobs(redis),
+    rewriteRequest: (
+      request: Parameters<typeof reencryptCookies>[0],
+      loaded: Parameters<typeof reencryptCookies>[1],
+      now: Date,
+    ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
+    compare: COMPARE,
+  });
+
+  it("finds the fixtures", () => {
+    expect(cases.length).toBeGreaterThan(0);
+  });
+
+  it.each(cases)(
+    "%s",
+    async (name, file, index) => {
+      try {
+        const fixture = loadFixture(file);
+        const expected = fixture.exchanges[index]!;
+        compareMailJobs = (expected.jobs ?? []).some((job) => job.activeJob === true);
+        // The first DELETE compiles its route (seconds), which would age the seeded timestamps past the replayer's tolerance.
+        if (expected.request.method === "DELETE" && !warmedDelete) {
+          warmedDelete = true;
+          await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
+          handedBack.length = 0;
+        }
+        expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+        if (/hands-an?-/u.test(name)) {
+          handedBack.length = 0;
+          const handed = await replayFixtureExchange(fixture, index, replayOptions());
+          const request = expected.request;
+          expect(handedBack).toHaveLength(1);
+          expect(handedBack[0]).toMatchObject({ method: request.method });
+          expect(handedBack[0]!.url.split("?")[0]).toBe(request.path);
+          expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
+          return;
+        }
+        // The cache job's date is the purchase's day in the seller's zone (Tokyo). The seed moves with the replay's clock but the
+        // recorded date moves by UTC days, so they disagree for part of every day; the date is checked against the seeded row instead.
+        if (name.includes("older-purchase-of-a-seller-in-another-time-zone")) {
+          const options = replayOptions();
+          const replayed = await replayFixtureExchange(fixture, index, {
+            ...options,
+            compare: { ...COMPARE, ignore: [...COMPARE.ignore, "jobs.1.args.1"] },
+          });
+          assertParity(replayed);
+          const purchase = await client.purchase.findFirstOrThrow({ orderBy: { id: "desc" } });
+          const tokyoDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo" }).format(purchase.created_at!);
+          const job = replayed.exchanges[0]!.actual.jobs?.find(
+            (candidate) => candidate.class === "RegenerateCreatorAnalyticsCacheWorker",
+          );
+          expect((job?.args as unknown[] | undefined)?.[1]).toBe(tokyoDate);
+          return;
+        }
+        assertParity(await replayFixtureExchange(fixture, index, replayOptions()));
+      } catch (error) {
+        const logs = server
+          .output()
+          .split("\n")
+          .filter((line) => !line.startsWith("Next.js includes"))
+          .slice(-40)
+          .join("\n");
+        throw new Error(`${(error as Error).message}\n--- server ---\n${logs}`);
+      }
+    },
+    FIRST_COMPILE_TIMEOUT_MS,
+  );
+});

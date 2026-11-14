@@ -1,0 +1,610 @@
+# frozen_string_literal: true
+
+require "spec_helper"
+
+# The product tools of Mcp::Server (get_product, list_files) through the full Rack stack, recorded for the Next.js port
+# (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts.
+describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refresh: true do
+  include ProductPageViewHelpers
+
+  let(:seller) { create(:user, username: "dude", name: "Dude") }
+  let(:application) { create(:oauth_application, owner: create(:user)) }
+  let(:rpc) { { "Content-Type" => "application/json" } }
+  let!(:product) { create(:product, user: seller, name: "Sketch pack", unique_permalink: "sketchpk", description: "Draw <b>more</b>") }
+  let(:other_product) { create(:product, user: seller, name: "Icon set", unique_permalink: "iconset") }
+
+  before { host! DOMAIN }
+
+  def auth(scopes) = { "Authorization" => "Bearer #{create("doorkeeper/access_token", application:, resource_owner_id: seller.id, scopes:).token}" }
+
+  def call_tool(name, arguments = {}, scopes: "view_public")
+    body = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name:, arguments: } }
+    post "/muse/v1/mcp", params: body.to_json, headers: rpc.merge(auth(scopes))
+  end
+
+  def sell(link, email:, price_cents:, **attributes)
+    build(:purchase, link:, seller:, email:, price_cents:, purchase_state: "successful", created_at: Time.utc(2026, 3, 2, 10), **attributes).tap { |row| row.save!(validate: false) }
+  end
+
+  describe "get_product" do
+    it "reports a product with its description and no covers", parity: true do
+      call_tool("get_product", { id: product.external_id })
+    end
+
+    it "finds a product by its permalink", parity: true do
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "finds a product by its custom permalink", parity: true do
+      product.update!(custom_permalink: "sketch")
+      call_tool("get_product", { id: "sketch" })
+    end
+
+    it "reports a product with a null description", parity: true do
+      product.update_columns(description: nil)
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports the Unsplash covers of a product in their order", parity: true do
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/second.jpg", guid: "covertwo", position: 1)
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/first.jpg", guid: "coverone", position: 0)
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/gone.jpg", guid: "covergone", position: 2).update_columns(deleted_at: Time.utc(2026, 3, 1))
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports a pay what you want product", parity: true do
+      product.update!(customizable_price: true, suggested_price_cents: 900)
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports a draft product as unpublished", parity: true do
+      product.update_columns(draft: true)
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports the sales figures to a token with a sales scope", parity: true do
+      sell(product, email: "ada@example.com", price_cents: 1000)
+      sell(product, email: "bob@example.com", price_cents: 500)
+      sell(product, email: "cy@example.com", price_cents: 700, stripe_refunded: true)
+      index_model_records(Purchase)
+      call_tool("get_product", { id: "sketchpk" }, scopes: "view_public view_sales")
+    end
+
+    it "reports zero sales to a token with the account scope", parity: true do
+      call_tool("get_product", { id: "sketchpk" }, scopes: "account")
+    end
+
+    it "refuses a blank id", parity: true do
+      call_tool("get_product", { id: " " })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      call_tool("get_product", { id: "nope" })
+    end
+
+    it "reports a product of another seller as a tool error", parity: true do
+      other = create(:product, user: create(:user), unique_permalink: "theirs")
+      call_tool("get_product", { id: other.external_id })
+    end
+
+    it "reports a deleted product as a tool error", parity: true do
+      product.update_columns(deleted_at: Time.utc(2026, 3, 10))
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports the category, summary, additional details, tag and receipt texts of a product", parity: true do
+      design = create(:taxonomy, slug: "design")
+      product.update!(taxonomy: create(:taxonomy, slug: "3d-assets", parent_id: design.id))
+      product.json_data = { "custom_summary" => "Sketch every day", "custom_receipt_text" => "Thanks for buying", "custom_view_content_button_text" => "Open the pack",
+                            "custom_attributes" => [{ "name" => "Pages", "value" => "40" }, { "name" => "", "value" => "" }, { "name" => "Format", "value" => "" }] }
+      product.save!
+      product.save_tags!(["field-notes"])
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports a category whose slug the editor has no name for", parity: true do
+      product.update!(taxonomy: create(:taxonomy, slug: "no-editor-name"))
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "hands back a product with several tags", parity: true do
+      product.save_tags!(%w[field-notes sketching])
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "reports the products a bundle sells in order", parity: true do
+      bundle = create(:product, user: seller, name: "Bundle", unique_permalink: "bundlepk", is_bundle: true, native_type: Link::NATIVE_TYPE_BUNDLE, price_cents: 5000)
+      category = create(:variant_category, link: other_product)
+      license = create(:variant, variant_category: category, name: "Individual License")
+      create(:bundle_product, bundle:, product: other_product, variant: license, quantity: 2, position: 1)
+      create(:bundle_product, bundle:, product:, position: 0)
+      create(:bundle_product, bundle:, product: create(:product, user: seller, name: "Gone"), position: 2).update_columns(deleted_at: Time.utc(2026, 3, 1))
+      call_tool("get_product", { id: "bundlepk" })
+    end
+
+    it "hands back a bundle whose products share a position", parity: true do
+      create(:product, :bundle, user: seller, name: "Bundle", unique_permalink: "bundlepk")
+      call_tool("get_product", { id: "bundlepk" })
+    end
+
+    it "hands back a tiered membership", parity: true do
+      create(:membership_product, user: seller, name: "Club", unique_permalink: "clubpk")
+      call_tool("get_product", { id: "clubpk" })
+    end
+
+    it "hands back a product whose cover is an oembed", parity: true do
+      AssetPreview.create!(link: product, unsplash_url: "https://images.example.com/first.jpg", guid: "coverone").update_columns(unsplash_url: nil, oembed: { title: "Video", html: "<iframe></iframe>", info: { width: 1, height: 1, thumbnail_url: "https://i.example.com/t.jpg" } }.to_json)
+      call_tool("get_product", { id: "sketchpk" })
+    end
+
+    it "asks a token without a scope the tool needs to step up", parity: true do
+      call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+    end
+  end
+
+  describe "list_categories" do
+    it "lists the categories as slug paths in path order with the editor's names", parity: true do
+      design = create(:taxonomy, slug: "design")
+      create(:taxonomy, slug: "3d-assets", parent_id: design.id)
+      create(:taxonomy, slug: "no-editor-name")
+      create(:taxonomy, slug: "3d")
+      call_tool("list_categories")
+    end
+
+    it "lists no categories when there are none", parity: true do
+      call_tool("list_categories")
+    end
+
+    it "asks a token without a scope the tool needs to step up", parity: true do
+      call_tool("list_categories", {}, scopes: "view_sales")
+    end
+  end
+
+  describe "list_files" do
+    def file(attributes) = create(:product_file, link: product, **attributes)
+
+    it "lists a product with no files", parity: true do
+      call_tool("list_files", { id: "sketchpk" }, scopes: "edit_products")
+    end
+
+    it "lists the files of a product in position order", parity: true do
+      file(url: "#{S3_BASE_URL}specs/second.pdf", display_name: "Second", filetype: "pdf", filegroup: "document", size: 2048, position: 1)
+      file(url: "#{S3_BASE_URL}specs/first.mp3", filetype: "mp3", filegroup: "audio", size: 500_000, position: 0)
+      file(url: "https://example.com/link", filetype: "link", filegroup: "url", position: 2)
+      call_tool("list_files", { id: "sketchpk" }, scopes: "edit_products")
+    end
+
+    it "names a file from its S3 key and takes its type from the extension", parity: true do
+      file(url: "#{S3_BASE_URL}specs/My Notes.TXT", filetype: "txt", filegroup: "document", size: nil, position: 0)
+      call_tool("list_files", { id: "sketchpk" }, scopes: "account")
+    end
+
+    it "leaves out a deleted file", parity: true do
+      file(url: "#{S3_BASE_URL}specs/kept.pdf", filetype: "pdf", filegroup: "document", size: 10, position: 0)
+      file(url: "#{S3_BASE_URL}specs/gone.pdf", filetype: "pdf", filegroup: "document", size: 10, position: 1).update_columns(deleted_at: Time.utc(2026, 3, 1))
+      call_tool("list_files", { id: "sketchpk" }, scopes: "edit_products")
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      call_tool("list_files", { id: "nope" }, scopes: "edit_products")
+    end
+
+    it "refuses a missing id", parity: true do
+      call_tool("list_files", {}, scopes: "edit_products")
+    end
+
+    it "hands back files that share a position", parity: true do
+      file(url: "#{S3_BASE_URL}specs/a.pdf", filetype: "pdf", filegroup: "document", position: 0)
+      file(url: "#{S3_BASE_URL}specs/b.pdf", filetype: "pdf", filegroup: "document", position: 0)
+      call_tool("list_files", { id: "sketchpk" }, scopes: "edit_products")
+    end
+
+    it "asks a token without a scope the tool needs to step up", parity: true do
+      call_tool("list_files", { id: "sketchpk" }, scopes: "view_public")
+    end
+  end
+
+  # The rows are literal 2026-03 instants and the seller predates them, so the replay (which pins its seed clock to the
+  # recording hour) reads the same activity whatever day it runs.
+  describe "get_analytics" do
+    let(:seller) { create(:user, username: "dude", name: "Dude", created_at: Time.utc(2026, 1, 1)) }
+    let!(:other_product) { create(:product, user: seller, name: "Icon set", unique_permalink: "iconset") }
+    let(:march) { { start_date: "2026-03-01", end_date: "2026-03-31" } }
+
+    before do
+      Purchase.__elasticsearch__.create_index!(force: true)
+      ProductPageView.__elasticsearch__.create_index!(force: true)
+    end
+
+    def view(item, day, referrer_domain: "direct")
+      add_page_view(item, Time.utc(2026, 3, day, 11, 5).iso8601, { country: "United States", state: "CA", referrer_domain: })
+    end
+
+    def seed(*sales)
+      sales.each { |item, email, price_cents, day, attributes| sell(item, email:, price_cents:, **{ created_at: Time.utc(2026, 3, day, 10) }.merge(attributes || {})) }
+      index_model_records(Purchase)
+      EsClient.indices.refresh(index: ProductPageView.index_name)
+    end
+
+    def analytics(arguments = {}, scopes = "view_sales")
+      call_tool("get_analytics", march.merge(arguments), scopes:)
+    end
+
+    context "with views and sales on two products" do
+      before do
+        3.times { |day| view(product, day + 2) }
+        view(other_product, 4)
+        seed([product, "ada@example.com", 1000, 2], [product, "bob@example.com", 500, 3], [other_product, "cy@example.com", 700, 4])
+      end
+
+      it "reports views, sales and revenue by product, most viewed first", parity: true do
+        analytics
+      end
+
+      it "rounds the conversion rate to four places", parity: true do
+        3.times { view(product, 9) }
+        analytics
+      end
+
+      it "narrows the report to one product", parity: true do
+        analytics({ product_id: other_product.external_id })
+      end
+
+      it "narrows the report by permalink and counts only the days in range", parity: true do
+        analytics({ product_id: "sketchpk", start_date: "2026-03-03", end_date: "2026-03-03" })
+      end
+
+      it "reports the referrers behind the views and sales", parity: true do
+        view(product, 5, referrer_domain: "twitter.com")
+        view(product, 6, referrer_domain: "twitter.com")
+        analytics({ breakdown: "referrer" })
+      end
+
+      it "reports the referrers of one product", parity: true do
+        view(product, 5, referrer_domain: "twitter.com")
+        analytics({ breakdown: "referrer", product_id: "iconset" })
+      end
+
+      it "keeps two products with the same number of views in the order the report lists them", parity: true do
+        view(other_product, 5)
+        view(other_product, 6)
+        analytics
+      end
+
+      it "keeps two referrers with the same number of views in the order they were first seen", parity: true do
+        view(product, 7, referrer_domain: "twitter.com")
+        view(other_product, 7, referrer_domain: "google.com")
+        analytics({ breakdown: "referrer" })
+      end
+    end
+
+    # Ruby's sort_by is an insertion sort up to 16 rows and an unstable quicksort beyond, so ties only show past that.
+    context "with more products than the insertion sort takes" do
+      before do
+        18.times do |index|
+          letter = ("a".ord + index).chr
+          item = create(:product, user: seller, name: "Pack #{index}", unique_permalink: "pack#{letter}x")
+          (index % 3 + 1).times { |day| view(item, day + 2, referrer_domain: "site#{letter}.example.com") }
+        end
+        EsClient.indices.refresh(index: ProductPageView.index_name)
+      end
+
+      it "orders the products with equal views as Ruby's sort_by does", parity: true do
+        analytics
+      end
+
+      it "orders the referrers with equal views as Ruby's sort_by does", parity: true do
+        analytics({ breakdown: "referrer" })
+      end
+    end
+
+    it "leaves the conversion rate empty for a product nobody viewed", parity: true do
+      seed([product, "ada@example.com", 1000, 2])
+      other_product.update_columns(deleted_at: Time.utc(2026, 3, 1))
+      analytics
+    end
+
+    it "reports a seller with one product and no activity", parity: true do
+      other_product.update_columns(deleted_at: Time.utc(2026, 3, 1))
+      analytics
+    end
+
+    it "returns no rows for a range that ends before the day the account was created", parity: true do
+      analytics({ start_date: "2025-11-01", end_date: "2025-12-30" })
+    end
+
+    it "refuses a start date after the end date", parity: true do
+      analytics({ start_date: "2026-03-10", end_date: "2026-03-01" })
+    end
+
+    it "refuses a range of more than a year", parity: true do
+      analytics({ start_date: "2024-01-01", end_date: "2026-03-31" })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      analytics({ product_id: "nope" })
+    end
+
+    it "hands back a date that is not YYYY-MM-DD", parity: true do
+      analytics({ start_date: "March 1" })
+    end
+
+    it "asks a token without a sales scope to step up", parity: true do
+      analytics({}, "view_public")
+    end
+  end
+
+  describe "get_subscriptions" do
+    let!(:club) { create(:product, user: seller, name: "Club", unique_permalink: "clubpass", is_recurring_billing: true, subscription_duration: "monthly") }
+
+    # A subscription with its original purchase, on the hour so the cursor and the started_at are exact.
+    def subscribe(email, day, link: club, user: nil, **columns)
+      subscription = create(:subscription, link:, user:)
+      subscription.update_columns(created_at: Time.utc(2026, 3, day, 10), **columns)
+      sell(link, email:, price_cents: 500, is_original_subscription_purchase: true, subscription_id: subscription.id)
+      subscription
+    end
+
+    def subscriptions(arguments = {}, scopes = "view_sales")
+      call_tool("get_subscriptions", arguments, scopes:)
+    end
+
+    it "lists the subscriptions newest first with the email of the original purchase", parity: true do
+      subscribe("ada@example.com", 2)
+      subscribe("bob@example.com", 3)
+      subscriptions
+    end
+
+    it "reports the email of the subscriber's account before the purchase's", parity: true do
+      subscribe("ignored@example.com", 2, user: create(:user, email: "account@example.com"))
+      subscriptions
+    end
+
+    it "reports the status of each kind of subscription", parity: true do
+      subscribe("alive@example.com", 2)
+      subscribe("pending@example.com", 3, cancelled_at: Time.current + 400.days)
+      subscribe("cancelled@example.com", 4, cancelled_at: Time.utc(2026, 3, 20), deactivated_at: Time.utc(2026, 3, 20))
+      subscribe("failed@example.com", 5, failed_at: Time.utc(2026, 3, 21), deactivated_at: Time.utc(2026, 3, 21))
+      subscribe("ended@example.com", 6, ended_at: Time.utc(2026, 3, 22), deactivated_at: Time.utc(2026, 3, 22))
+      subscriptions
+    end
+
+    it "counts failed payments and reports a failed latest charge as pending failure", parity: true do
+      subscription = subscribe("late@example.com", 2)
+      sell(club, email: "late@example.com", price_cents: 500, subscription_id: subscription.id, purchase_state: "failed", created_at: Time.utc(2026, 3, 9, 10))
+      subscriptions
+    end
+
+    it "reports a recovered subscription as alive after a failed charge", parity: true do
+      subscription = subscribe("back@example.com", 2)
+      sell(club, email: "back@example.com", price_cents: 500, subscription_id: subscription.id, purchase_state: "failed", created_at: Time.utc(2026, 3, 9, 10))
+      sell(club, email: "back@example.com", price_cents: 500, subscription_id: subscription.id, created_at: Time.utc(2026, 3, 10, 10))
+      subscriptions
+    end
+
+    it "lists only subscriptions that are still delivering with status alive", parity: true do
+      subscribe("alive@example.com", 2)
+      subscribe("pending@example.com", 3, cancelled_at: Time.current + 400.days)
+      subscribe("cancelled@example.com", 4, cancelled_at: Time.utc(2026, 3, 20), deactivated_at: Time.utc(2026, 3, 20))
+      subscriptions({ status: "alive" })
+    end
+
+    it "lists only stopped subscriptions with status ended", parity: true do
+      subscribe("alive@example.com", 2)
+      subscribe("pending@example.com", 3, cancelled_at: Time.current + 400.days)
+      subscribe("cancelled@example.com", 4, cancelled_at: Time.utc(2026, 3, 20), deactivated_at: Time.utc(2026, 3, 20))
+      subscribe("failed@example.com", 5, failed_at: Time.utc(2026, 3, 21), deactivated_at: Time.utc(2026, 3, 21))
+      subscriptions({ status: "ended" })
+    end
+
+    it "narrows the list to one product", parity: true do
+      subscribe("ada@example.com", 2)
+      other = create(:product, user: seller, name: "Newsletter", unique_permalink: "newsletter", is_recurring_billing: true, subscription_duration: "monthly")
+      subscribe("bob@example.com", 3, link: other)
+      subscriptions({ product_id: "newsletter" })
+    end
+
+    it "leaves out a test subscription and another seller's subscription", parity: true do
+      subscribe("ada@example.com", 2)
+      test = subscribe("test@example.com", 3)
+      test.update_columns(flags: test.flags | Subscription.flag_mapping["flags"][:is_test_subscription])
+      theirs = create(:product, user: create(:user), unique_permalink: "theirs", is_recurring_billing: true, subscription_duration: "monthly")
+      subscribe("eve@example.com", 4, link: theirs)
+      subscriptions
+    end
+
+    it "pages with a cursor", parity: true do
+      subscribe("ada@example.com", 2)
+      subscribe("bob@example.com", 3)
+      subscribe("cy@example.com", 4)
+      subscriptions({ limit: 2 })
+    end
+
+    it "lists the page after a cursor", parity: true do
+      subscribe("ada@example.com", 2)
+      subscribe("bob@example.com", 3)
+      subscribe("cy@example.com", 4)
+      second = Subscription.find_by!(created_at: Time.utc(2026, 3, 3, 10))
+      subscriptions({ limit: 2, cursor: "#{(second.created_at.to_r * 1_000_000).to_i}_#{second.id}" })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      subscriptions({ product_id: "nope" })
+    end
+
+    it "refuses a limit of 0", parity: true do
+      subscriptions({ limit: 0 })
+    end
+
+    it "hands back a subscription whose renewals a card mandate disabled", parity: true do
+      subscription = subscribe("ada@example.com", 2)
+      subscription.update_columns(flags: subscription.flags | Subscription.flag_mapping["flags"][:renewal_disabled_due_to_indian_card_mandate])
+      subscriptions
+    end
+
+    def gift_sender_flags = Purchase.flag_mapping["flags"][:is_original_subscription_purchase] | Purchase.flag_mapping["flags"][:is_gift_sender_purchase]
+
+    it "reports the giftee's address on a gifted subscription", parity: true do
+      subscribe("ada@example.com", 2)
+      sender = Purchase.find_by!(email: "ada@example.com")
+      sender.update_columns(flags: gift_sender_flags)
+      create(:gift, gifter_purchase: sender, link: club, gifter_email: "ada@example.com", giftee_email: "giftee@example.com")
+      subscriptions
+    end
+
+    it "reports no email for a gifted subscription with a blank giftee address", parity: true do
+      subscribe("ada@example.com", 2)
+      sender = Purchase.find_by!(email: "ada@example.com")
+      sender.update_columns(flags: gift_sender_flags)
+      create(:gift, gifter_purchase: sender, link: club, gifter_email: "ada@example.com", giftee_email: "giftee@example.com").update_columns(giftee_email: "")
+      subscriptions
+    end
+
+    it "reports no email for a gifted subscription that has no gift row", parity: true do
+      subscribe("ada@example.com", 2)
+      Purchase.find_by!(email: "ada@example.com").update_columns(flags: gift_sender_flags)
+      subscriptions
+    end
+
+    it "hands back a gifted subscription with two gift rows", parity: true do
+      subscribe("ada@example.com", 2)
+      sender = Purchase.find_by!(email: "ada@example.com")
+      sender.update_columns(flags: gift_sender_flags)
+      2.times { |index| create(:gift, gifter_purchase: sender, link: club, gifter_email: "ada@example.com", giftee_email: "giftee#{index}@example.com") }
+      subscriptions
+    end
+
+    it "asks a token without a sales scope to step up", parity: true do
+      subscriptions({}, "view_public")
+    end
+  end
+
+  # CreatorAnalytics::Churn reads the purchases index, and the rows are literal 2026 instants (mid-afternoon UTC, the same day in the
+  # seller's zone) so the replay reads the same months whatever day it runs.
+  describe "get_subscriptions with the churn breakdown", elasticsearch_wait_for_refresh: true do
+    let(:seller) { create(:user, username: "dude", name: "Dude", created_at: Time.utc(2025, 6, 1)) }
+    let!(:club) { create(:product, :is_subscription, user: seller, name: "Club", unique_permalink: "clubpass") }
+    let!(:lab) { create(:product, :is_subscription, user: seller, name: "Lab", unique_permalink: "labpass") }
+    let(:quarter) { { breakdown: "churn", start_date: "2026-01-01", end_date: "2026-03-31" } }
+
+    before { Purchase.__elasticsearch__.create_index!(force: true) }
+
+    def at(month, day) = Time.utc(2026, month, day, 18)
+
+    def member(product, started, left: nil, price_cents: 500)
+      price = create(:price, link: product, price_cents:, recurrence: BasePrice::Recurrence::MONTHLY)
+      subscription = create(:subscription, link: product, user: nil, price:, cancelled_at: left, deactivated_at: left)
+      subscription.update_columns(created_at: started)
+      sell(product, email: "member#{subscription.id}@example.com", price_cents:, is_original_subscription_purchase: true, subscription_id: subscription.id, created_at: started)
+    end
+
+    def churn(arguments = {}, scopes = "view_sales")
+      index_model_records(Purchase)
+      call_tool("get_subscriptions", quarter.merge(arguments), scopes:)
+    end
+
+    before do
+      member(club, Time.utc(2025, 12, 5, 18))
+      member(club, Time.utc(2025, 12, 20, 18), left: at(1, 14))
+      member(club, at(1, 8))
+      member(club, at(1, 22), left: at(2, 10))
+      member(club, at(2, 3), left: at(2, 25), price_cents: 1200)
+      member(lab, Time.utc(2025, 11, 2, 18), left: at(3, 9), price_cents: 900)
+      member(lab, at(3, 4))
+    end
+
+    it "reports churn by month for all subscription products", parity: true do
+      churn
+    end
+
+    it "reports churn for one product", parity: true do
+      churn({ product_id: "clubpass" })
+    end
+
+    it "reports churn for a product by its external id with the account scope", parity: true do
+      churn({ product_id: lab.external_id }, "account")
+    end
+
+    it "reports a rate that is a whole number as a float", parity: true do
+      churn({ start_date: "2026-02-01", end_date: "2026-02-28", product_id: "clubpass" })
+    end
+
+    it "clamps a range that starts before the first activity", parity: true do
+      churn({ start_date: "2025-01-01", end_date: "2025-12-31" })
+    end
+
+    it "still reports the months of subscription products that were deleted", parity: true do
+      [club, lab].each { |item| item.update_columns(deleted_at: Time.utc(2026, 3, 20)) }
+      churn
+    end
+
+    it "reports a product that is not a subscription product with no rows", parity: true do
+      other = create(:product, user: seller, name: "One-off", unique_permalink: "oneoffpk")
+      churn({ product_id: other.external_id })
+    end
+
+    it "answers a range that has not started without reading the source", parity: true do
+      churn({ start_date: "2099-01-01", end_date: "2099-02-01" })
+    end
+
+    it "refuses a start date after the end date", parity: true do
+      churn({ start_date: "2026-03-10", end_date: "2026-03-01" })
+    end
+
+    it "refuses a range of more than a year", parity: true do
+      churn({ start_date: "2024-01-01", end_date: "2026-03-31" })
+    end
+
+    it "hands back a date that is not YYYY-MM-DD", parity: true do
+      churn({ start_date: "yesterday" })
+    end
+
+    it "reports a product that does not exist as a tool error", parity: true do
+      churn({ product_id: "nope" })
+    end
+
+    it "asks a token without a sales scope to step up", parity: true do
+      churn({}, "view_public")
+    end
+  end
+
+  describe "scope step-up" do
+    it "adds the first accepted scope to the scopes the token holds", parity: true do
+      call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales view_payouts")
+    end
+
+    describe "with an application that registered scopes" do
+      let(:application) { create(:oauth_application, owner: create(:user), scopes: "edit_products view_sales") }
+
+      it "steps up to the first accepted scope the application registered", parity: true do
+        call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+      end
+    end
+
+    describe "with an application that registered none of the accepted scopes" do
+      let(:application) { create(:oauth_application, owner: create(:user), scopes: "view_sales") }
+
+      it "answers a plain error with no challenge", parity: true do
+        call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+      end
+    end
+
+    describe "with a dynamic client" do
+      let(:application) { create(:oauth_application, owner: create(:user), scopes: "view_sales", mcp_dynamic_client: true) }
+
+      it "steps up to a scope the client registered or the connector grants", parity: true do
+        call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+      end
+    end
+
+    it "answers a plain error with no challenge for a batch", parity: true do
+      body = [{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_product", arguments: { id: "sketchpk" } } }]
+      post "/muse/v1/mcp", params: body.to_json, headers: rpc.merge(auth("view_sales"))
+    end
+
+    it "answers a notification with no body", parity: true do
+      body = { jsonrpc: "2.0", method: "tools/call", params: { name: "get_product", arguments: { id: "sketchpk" } } }
+      post "/muse/v1/mcp", params: body.to_json, headers: rpc.merge(auth("view_sales"))
+    end
+  end
+end

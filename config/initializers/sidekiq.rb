@@ -9,6 +9,8 @@ rescue LoadError
   warn "sidekiq-pro is not installed"
 end
 
+require_relative "../../lib/sidekiq_node_bridge"
+
 # Partner imports run on their own threads inside the `long` process, so a migration wave cannot
 # hold back the buyer-facing PDF stamping that shares the `long` queue's nodes. Each import holds
 # its thread for hours and moves up to gigabytes, so the thread count also caps the node's load.
@@ -50,6 +52,7 @@ Sidekiq.configure_server do |config|
 
   config.client_middleware do |chain|
     chain.add SidekiqUniqueJobs::Middleware::Client
+    chain.add SidekiqNodeBridge if SidekiqNodeBridge.enabled?
   end
 
   config.server_middleware do |chain|
@@ -72,6 +75,7 @@ Sidekiq.configure_client do |config|
 
   config.client_middleware do |chain|
     chain.add SidekiqUniqueJobs::Middleware::Client
+    chain.add SidekiqNodeBridge if SidekiqNodeBridge.enabled?
   end
 end
 

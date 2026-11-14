@@ -1,0 +1,2137 @@
+{
+  "cases": [
+    {
+      "name": "a preorder link that does not exist",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'preorders' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {},
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link id of nil",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'preorders' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` IS NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        null
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link with no preorders",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link with one authorized preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[1],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link given as a digit string",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[1],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[\"1\"],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        "1"
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link with three authorized preorders",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                3,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ],
+              [
+                5,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ],
+              [
+                7,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[7],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[5],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[3],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1],\"jid\":\"000000000000000000000004\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              3,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              5,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              7,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link whose only preorder is in_progress",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "in_progress",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link whose only preorder is test_authorization_successful",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "test_authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link whose only preorder is charge_successful",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "charge_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link whose only preorder is cancelled",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link with a mix of preorder states",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ],
+              [
+                4,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[4],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}",
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[2],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1],\"jid\":\"000000000000000000000003\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "in_progress",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              2,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              3,
+              1,
+              1,
+              null,
+              "cancelled",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              4,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "authorized preorders of another preorder link",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              2,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "an unreleased preorder link with an authorized preorder",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "unreleased",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[1],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "unreleased",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link of the second id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 2 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 2 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[2],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[2],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              2,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ],
+            [
+              2,
+              2,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        2
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link id given as a float",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = 1 LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "released",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        },
+        {
+          "sql": "SELECT `preorders`.* FROM `preorders` WHERE `preorders`.`preorder_link_id` = 1 AND `preorders`.`state` = 'authorization_successful'",
+          "result": {
+            "fields": [
+              "id",
+              "preorder_link_id",
+              "seller_id",
+              "purchaser_id",
+              "state",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                1,
+                null,
+                "authorization_successful",
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2026-01-01T00:00:00.000000Z"
+                }
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {
+        "queue:default": {
+          "type": "list",
+          "value": [
+            "{\"retry\":5,\"queue\":\"default\",\"backtrace\":true,\"args\":[1],\"class\":\"ChargePreorderWorker\",\"jid\":\"000000000000000000000001\",\"created_at\":1793795445.1230001,\"enqueued_at\":1793795445.1230001}"
+          ],
+          "expires": false
+        },
+        "queues": {
+          "type": "set",
+          "value": [
+            "default"
+          ],
+          "expires": false
+        },
+        "schedule": {
+          "type": "zset",
+          "value": [
+            [
+              "{\"retry\":1,\"queue\":\"low\",\"backtrace\":true,\"class\":\"SendPreorderSellerSummaryWorker\",\"args\":[1.0],\"jid\":\"000000000000000000000002\",\"created_at\":1793795445.1230001}",
+              1793796645.1230001
+            ]
+          ],
+          "expires": false
+        }
+      },
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        1.0
+      ],
+      "at": 1793795445.1230001
+    },
+    {
+      "name": "a preorder link id given as a word",
+      "error": {
+        "class": "NoMethodError",
+        "message": "undefined method 'preorders' for nil"
+      },
+      "statements": [
+        {
+          "sql": "SELECT `preorder_links`.* FROM `preorder_links` WHERE `preorder_links`.`id` = NULL LIMIT 1",
+          "result": {
+            "fields": [
+              "id",
+              "link_id",
+              "state",
+              "release_at",
+              "url",
+              "custom_filetype",
+              "created_at",
+              "updated_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "rows": {
+        "preorder_links": {
+          "fields": [
+            "id",
+            "link_id",
+            "state",
+            "release_at",
+            "url",
+            "custom_filetype",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              "released",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              null,
+              null,
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        },
+        "preorders": {
+          "fields": [
+            "id",
+            "preorder_link_id",
+            "seller_id",
+            "purchaser_id",
+            "state",
+            "created_at",
+            "updated_at"
+          ],
+          "rows": [
+            [
+              1,
+              1,
+              1,
+              null,
+              "authorization_successful",
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              },
+              {
+                "$time": "2026-01-01T00:00:00.000000Z"
+              }
+            ]
+          ]
+        }
+      },
+      "job": "ChargeSuccessfulPreordersWorker",
+      "args": [
+        "abc"
+      ],
+      "at": 1793795445.1230001
+    }
+  ]
+}

@@ -48,7 +48,10 @@ interface IndexPageProps {
   posts: Post[];
 }
 
-const useDynamicClamp = (containerRef: React.RefObject<HTMLElement>, textRef: React.RefObject<HTMLElement>) => {
+const useDynamicClamp = (
+  containerRef: React.RefObject<HTMLElement | null>,
+  textRef: React.RefObject<HTMLElement | null>,
+) => {
   const [clamp, setClamp] = useState<number | undefined>(undefined);
   const lineHeightRef = useRef<number | undefined>(undefined);
 
