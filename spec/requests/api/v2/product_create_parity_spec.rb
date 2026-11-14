@@ -391,12 +391,111 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(created.suggested_price_cents).to eq(850)
   end
 
-  it "hands a refund policy back to Rails", parity: true do
-    seller.update!(refund_policy_enabled: false)
+  describe "refund policy" do
+    before { seller.update!(refund_policy_enabled: false) }
 
-    create_product({ name: "Notebook", price: 500, refund_period: "30" })
+    def policy = created.reload.product_refund_policy
 
-    expect(response).to have_http_status(:ok)
+    it "saves a product refund policy with its period", parity: true, parity_timeline: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "30" })
+
+      expect(response.parsed_body.dig("product", "refund_policy", "refund_period")).to eq("30")
+      expect(created).to be_product_refund_policy_enabled
+      expect(policy.max_refund_period_in_days).to eq(30)
+    end
+
+    it "saves the other periods", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "183" })
+
+      expect(policy.max_refund_period_in_days).to eq(183)
+    end
+
+    it "saves a period of seven days", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "7" })
+
+      expect(policy.max_refund_period_in_days).to eq(7)
+    end
+
+    it "saves a policy that allows no refunds", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none" })
+
+      expect(response.parsed_body.dig("product", "refund_policy", "refund_period")).to eq("none")
+      expect(policy.max_refund_period_in_days).to eq(0)
+    end
+
+    it "saves the fine print beside a period that allows no refunds", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "  Digital goods  " })
+
+      expect(policy.fine_print).to eq("Digital goods")
+    end
+
+    it "saves a policy on a draft", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "14", draft: true })
+
+      expect(policy.max_refund_period_in_days).to eq(14)
+      expect(created.draft).to be true
+    end
+
+    it "treats a null fine print and a blank one as none", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "   " })
+
+      expect(policy.fine_print).to be_nil
+    end
+
+    it "leaves a product on the account policy when the period is inherit", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "inherit" })
+
+      expect(created).not_to be_product_refund_policy_enabled
+      expect(created.product_refund_policy).to be_nil
+    end
+
+    it "refuses a fine print over three thousand characters and rolls the product back", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "a" * 3_001 })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+      expect(RefundPolicy.where.not(product_id: nil)).to be_empty
+    end
+
+    it "refuses a period that is not allowed", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "90" })
+
+      expect(message).to start_with("refund_period must be one of")
+    end
+
+    it "refuses a fine print without a period", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_fine_print: "Digital goods" })
+
+      expect(message).to eq("refund_fine_print requires refund_period, or an existing product-level refund policy.")
+    end
+
+    it "refuses a fine print beside inherit", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "inherit", refund_fine_print: "Digital goods" })
+
+      expect(message).to start_with("refund_fine_print cannot be set when refund_period is 'inherit'")
+    end
+
+    it "refuses a product refund policy on an account with the account-level policy", parity: true do
+      seller.update!(refund_policy_enabled: true)
+
+      create_product({ name: "Notebook", price: 500, refund_period: "30" })
+
+      expect(message).to start_with("Product-level refund policies are not available for this account")
+    end
+
+    it "hands a fine print that the classifier judges back to Rails", parity: true do
+      allow_any_instance_of(RefundPolicy).to receive(:fine_print_claims_no_refunds?).and_return(false)
+
+      create_product({ name: "Notebook", price: 500, refund_period: "30", refund_fine_print: "Digital goods" })
+
+      expect(policy.fine_print).to eq("Digital goods")
+    end
+
+    it "hands a fine print with markup back to Rails", parity: true do
+      create_product({ name: "Notebook", price: 500, refund_period: "none", refund_fine_print: "<b>Digital</b> goods" })
+
+      expect(policy.fine_print).to eq("Digital goods")
+    end
   end
 
   it "hands a membership back to Rails", parity: true do
