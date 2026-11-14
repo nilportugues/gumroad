@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { decrypt } from "@/lib/obfuscate-ids";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { unwrapActiveJob } from "../src/active-job";
@@ -35,6 +36,12 @@ const MAIL_FOLLOW_CASES = [
   "asks-a-confirmed-follower",
   "records-the-embed-form-as-the-source",
   "follows-plainly-when-the-product-s-waitlist-is-off",
+  "follows-plainly-when-the-product-is-already-published",
+  "follows-plainly-when-the-product-belongs-to-another-seller",
+  "from-a-product-s-waitlist-records-the-waitlist-entry-and-asks",
+  "from-a-product-s-waitlist-keeps-the-entry",
+  "from-a-product-s-waitlist-records-the-entry-of-a-follower-who-had-been-removed",
+  "from-a-product-s-waitlist-records-the-waitlist-entry-of-an-embed-form-signup",
 ];
 const THROTTLE_CASE = /-refuses-the-(?:fourth|sixth)-/u;
 const FIXTURES = "parity/fixtures/requests";
@@ -336,7 +343,11 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
 
   // The confirmation request Rails queued through its test adapter: FollowerMailer.confirm_follower(seller id, follower id) on the critical
   // queue, three seconds out, only for a follow that is not confirmed on the spot.
-  async function assertConfirmationMail(name: string, result: Awaited<ReturnType<typeof replayFixtureExchange>>) {
+  async function assertConfirmationMail(
+    name: string,
+    result: Awaited<ReturnType<typeof replayFixtureExchange>>,
+    requestBody: string,
+  ) {
     const sends = MAIL_FOLLOW_CASES.some((fragment) => name.includes(fragment));
     if (!sends) {
       expect(mailJobs).toHaveLength(0);
@@ -355,7 +366,11 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
     >;
     const followerId = (written.followers?.inserted?.[0] ?? written.followers?.updated?.[0])?.id;
     expect(params.args[1]).toBe(followerId ?? params.args[1]);
-    expect(params.args).toHaveLength(2);
+    // A waitlist signup carries the product as a third argument; a plain follow keeps the two-argument job.
+    if (name.includes("from-a-product-s-waitlist") && !name.includes("follows-plainly")) {
+      const { product_id: productId } = JSON.parse(requestBody) as { product_id: string };
+      expect(params.args).toEqual([expect.any(Number), params.args[1], decrypt(productId)]);
+    } else expect(params.args).toHaveLength(2);
   }
 
   it("finds the fixtures", () => {
@@ -409,7 +424,8 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
-        if (name.startsWith("followers_create_parity_spec")) await assertConfirmationMail(name, result);
+        if (name.startsWith("followers_create_parity_spec"))
+          await assertConfirmationMail(name, result, expected.request.body ?? "{}");
         // Recorded with the Sidekiq adapter, a comment that mails nobody leaves no mail job behind.
         if (name.startsWith("comments_mutations_signed_in_spec") && !compareMailJobs) expect(mailJobs).toHaveLength(0);
         if (name.includes("confirms-an-unconfirmed-follower")) {

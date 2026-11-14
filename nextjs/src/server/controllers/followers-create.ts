@@ -2,7 +2,7 @@
 // subscribe form of a seller and the embed form copied onto other sites. Both are throttled by Rack::Attack (controllers/rack-attack.ts).
 //
 // Left to Rails, before anything is written: a seller who needs a CAPTCHA on POST /follow (an unreviewed one: Google's verification is a call the
-// Rails test environment skips, so there is no recording of it; the embed form has no challenge, so its JSON refusal is served), a waitlist product, a seller under a newsletter cutover, and the HTML
+// Rails test environment skips, so there is no recording of it; the embed form has no challenge, so its JSON refusal is served), a waitlist product that is neither plainly ignored nor a draft that takes signups, a seller under a newsletter cutover, and the HTML
 // answer of #from_embed_form, which renders an Inertia page that a mutation cannot (its props are page-props/audience/follower-embed-form.ts).
 import { Prisma, type User } from "@prisma/client";
 
@@ -19,6 +19,7 @@ import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, isRecordNotUnique, selectRows, table } from "../models/sql.ts";
 import { isAccountActive, isCompliant, Users } from "../models/user.ts";
+import { findWaitlistEntry, WaitlistEntries } from "../models/waitlist-entry.ts";
 import { embedFormCaptchaProps, followConfirmationMessage } from "../page-props/audience/follower-embed-form.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
@@ -74,7 +75,7 @@ async function userIdWithEmail(email: string): Promise<number | null> {
 }
 
 // Follower#send_confirmation_email: one request an hour for each follower.
-async function sendConfirmationEmail(follower: FollowerRecord): Promise<void> {
+async function sendConfirmationEmail(follower: FollowerRecord, waitlistProductId: number | null): Promise<void> {
   await railsCache().fetch(
     `follower_confirmation_email_sent_${follower.get("id")}`,
     { expiresIn: CONFIRMATION_EMAIL_TTL_SECONDS },
@@ -84,7 +85,12 @@ async function sendConfirmationEmail(follower: FollowerRecord): Promise<void> {
         {
           mailer: "FollowerMailer",
           method: "confirm_follower",
-          args: [Number(follower.get("followed_id")), Number(follower.get("id"))],
+          // A plain follow keeps its two-argument job, which workers still on the previous deploy can run.
+          args: [
+            Number(follower.get("followed_id")),
+            Number(follower.get("id")),
+            ...(waitlistProductId === null ? [] : [waitlistProductId]),
+          ],
           queue: "critical",
           waitSeconds: CONFIRMATION_EMAIL_DELAY_SECONDS,
         },
@@ -95,35 +101,49 @@ async function sendConfirmationEmail(follower: FollowerRecord): Promise<void> {
   );
 }
 
-// `waitlist_product_from_params`: a product of the seller whose waitlist is switched off is ignored and the follow goes on as a plain one.
-// A product that takes signups, one the seller does not own and a seller that does not exist are not proven, so Rails keeps them.
-export async function requireNoWaitlistProduct(productId: unknown, seller: Seller | null): Promise<void> {
-  if (productId === undefined || productId === "") return;
+// `waitlist_product_from_params`: the seller's own product whose page takes waitlist signups (Link#accepts_waitlist_signups?), else nil and the
+// follow goes on as a plain one. Recorded: a draft with the waitlist on (taken), a published product with it on, one with it off, and a product
+// of another seller (all but the first ignored). A product that is deleted, banned, taken down by an admin or unpublished without being a
+// draft, a seller that does not exist and a malformed id are not proven, so Rails keeps them.
+export async function waitlistProductFromParams(productId: unknown, seller: Seller | null): Promise<number | null> {
+  if (productId === undefined || productId === "") return null;
   if (typeof productId === "string" && seller !== null) {
     const id = decrypt(productId);
     if (id !== null) {
-      const [row] = await selectRows<{ flags: bigint }>(
-        Prisma.sql`SELECT ${column("links", "flags")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} AND ${column("links", "user_id")} = ${seller.get("id")} LIMIT 1`,
+      const [row] = await selectRows<{
+        flags: bigint;
+        draft: number | boolean | null;
+        deleted_at: Date | null;
+        banned_at: Date | null;
+        purchase_disabled_at: Date | null;
+      }>(
+        Prisma.sql`SELECT ${column("links", "flags")}, ${column("links", "draft")}, ${column("links", "deleted_at")}, ${column("links", "banned_at")}, ${column("links", "purchase_disabled_at")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} AND ${column("links", "user_id")} = ${seller.get("id")} LIMIT 1`,
       );
-      if (row !== undefined && !LinkFlags.isSet(row.flags, "waitlist_enabled")) return;
+      if (row === undefined || !LinkFlags.isSet(row.flags, "waitlist_enabled")) return null;
+      const alive =
+        row.deleted_at === null && row.banned_at === null && !LinkFlags.isSet(row.flags, "is_unpublished_by_admin");
+      const draft = row.draft === true || Number(row.draft) === 1;
+      // Published: no deleted_at, no purchase_disabled_at and not a draft.
+      if (alive && row.purchase_disabled_at === null && !draft) return null;
+      if (alive && draft) return Number(id);
     }
   }
   throw new HandBackToRails("a follow from a waitlist");
 }
 
-type Outcome = { follower: FollowerRecord | null; seller: Seller | null };
+type Outcome = { follower: FollowerRecord | null; seller: Seller | null; waitlistProductId: number | null };
 
-// FollowersController#create_follower and Follower::CreateService#perform, for a request without a waitlist product.
+// FollowersController#create_follower and Follower::CreateService#perform.
 async function createFollower(input: MutationInput, source: string | null): Promise<Outcome> {
   const { params } = input;
   const seller = await followedUser(params);
-  await requireNoWaitlistProduct(params.product_id, seller);
-  if (seller === null || !isAccountActive(seller)) return { follower: null, seller };
+  const waitlistProductId = await waitlistProductFromParams(params.product_id, seller);
+  if (seller === null || !isAccountActive(seller)) return { follower: null, seller, waitlistProductId };
 
   const email = params.email;
   if (email !== undefined && typeof email !== "string") throw new HandBackToRails("an email that is not a string");
   // `return if followed_user.blank? || follower_email.blank?`
-  if (email === undefined || email.trim() === "") return { follower: null, seller };
+  if (email === undefined || email.trim() === "") return { follower: null, seller, waitlistProductId };
   const sellerId = seller.get("id");
   if (await coveredByCutover(Number(sellerId))) throw new HandBackToRails("a seller in a newsletter cutover");
 
@@ -153,12 +173,33 @@ async function createFollower(input: MutationInput, source: string | null): Prom
     }
   }
 
+  // record_waitlist_entry
+  if (waitlistProductId !== null && follower.persisted) await recordWaitlistEntry(follower, waitlistProductId);
+
   // confirm_follower
   if (follower.persisted && (await Followers.valid(follower))) {
     if (follower.get("source") === "csv_import" || verifiedSession) await confirmBang(follower);
-    else await transaction(() => sendConfirmationEmail(follower));
+    // A confirmed follower joining a waitlist has nothing to confirm, so no email goes out.
+    else if (waitlistProductId === null || follower.get("confirmed_at") === null)
+      await transaction(() => sendConfirmationEmail(follower, waitlistProductId));
   }
-  return { follower, seller };
+  return { follower, seller, waitlistProductId };
+}
+
+// One row per (follower, product): look first, then create it. A concurrent signup that commits the same entry in between is a repeat
+// Rails tolerates; any other failure is not proven, so it is handed back.
+async function recordWaitlistEntry(follower: FollowerRecord, productId: number): Promise<void> {
+  const followerId = Number(follower.get("id"));
+  if ((await findWaitlistEntry(followerId, productId)) !== null) return;
+  try {
+    await WaitlistEntries.saveBang(
+      WaitlistEntries.build({ follower_id: followerId, product_id: BigInt(productId) } as never),
+    );
+  } catch (error) {
+    if (isRecordNotUnique(error) || error instanceof RecordInvalid)
+      throw new HandBackToRails("a waitlist entry that could not be recorded");
+    throw error;
+  }
 }
 
 const failureMessage = (follower: FollowerRecord | null) =>
@@ -169,7 +210,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
   if (format === "other") throw new HandBackToRails("a format whose content type is not modelled");
   if (captchaRequired(await followedUser(input.params))) throw new HandBackToRails("a follow that needs a CAPTCHA");
 
-  const { follower, seller } = await createFollower(input, null);
+  const { follower, seller, waitlistProductId } = await createFollower(input, null);
   if (follower === null || seller === null) {
     if (format === "json") return json({ success: false, message: SOMETHING_WENT_WRONG }, UNPROCESSABLE_ENTITY);
     return { status: FOUND, location: SUBSCRIBE_PATH, flash: { alert: SOMETHING_WENT_WRONG } };
@@ -179,7 +220,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
     if (format === "json") return json({ success: false, message: errors }, UNPROCESSABLE_ENTITY);
     return { status: FOUND, location: SUBSCRIBE_PATH, flash: { alert: errors } };
   }
-  const message = followConfirmationMessage(seller, follower.get("confirmed_at") !== null);
+  const message = followConfirmationMessage(seller, follower.get("confirmed_at") !== null, waitlistProductId !== null);
   if (format === "json") return json({ success: true, message });
   return { status: SEE_OTHER, location: SUBSCRIBE_PATH, flash: { notice: message } };
 }
@@ -201,13 +242,16 @@ async function fromEmbedForm(input: MutationInput): Promise<ActionResult> {
     return json({ success: false, message: destination ? `${message} ${destination}` : message }, UNPROCESSABLE_ENTITY);
   }
 
-  const { follower } = await createFollower(input, EMBED_FORM);
+  const { follower, waitlistProductId } = await createFollower(input, EMBED_FORM);
   if (follower === null || !follower.errors.isEmpty()) {
     // `e404_json unless user.try(:username)`: no seller at all (User#username falls back to the external id).
     if (seller === null) return notFoundJson();
     return json({ success: false, message: failureMessage(follower) ?? EMBED_FORM_FAILURE }, UNPROCESSABLE_ENTITY);
   }
-  return json({ success: true, message: followConfirmationMessage(seller!, follower.get("confirmed_at") !== null) });
+  return json({
+    success: true,
+    message: followConfirmationMessage(seller!, follower.get("confirmed_at") !== null, waitlistProductId !== null),
+  });
 }
 
 registerMutations(
