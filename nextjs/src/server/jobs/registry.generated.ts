@@ -1480,7 +1480,7 @@ export const JOB_REGISTRY = {
     customLockArgs: true,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   GenerateSubscribePreviewJob: {
     file: "app/sidekiq/generate_subscribe_preview_job.rb",
@@ -3683,7 +3683,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   TransferDropboxFileToS3Worker: {
     file: "app/sidekiq/transfer_dropbox_file_to_s3_worker.rb",

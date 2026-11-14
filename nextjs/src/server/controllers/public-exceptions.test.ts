@@ -72,4 +72,26 @@ describe("publicException", () => {
       },
     );
   });
+
+  describe("a 400, which has no public page", () => {
+    const request = () =>
+      railsRequest(
+        new Request("http://app.test.gumroad.com/settings/team/invitations.json", {
+          method: "POST",
+          headers: { host: "app.test.gumroad.com", accept: "application/json" },
+        }),
+      );
+
+    it("answers HTML in the test environment, where DebugExceptions renders its page", () => {
+      process.env.RAILS_ENV = "test";
+      expect(publicException(request(), 400).headers.get("content-type")).toBe("text/html; charset=utf-8");
+    });
+
+    it("answers JSON in production, where PublicExceptions renders the format asked for", () => {
+      process.env.RAILS_ENV = "production";
+      const answer = publicException(request(), 400);
+      expect(answer.headers.get("content-type")).toBe("application/json; charset=utf-8");
+      expect(JSON.parse(answer.body)).toEqual({ status: 400, error: "Bad Request" });
+    });
+  });
 });

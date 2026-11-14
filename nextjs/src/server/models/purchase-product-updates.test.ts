@@ -51,6 +51,16 @@ describe("preloadProductUpdatesData", () => {
     expect(await preloadProductUpdatesData([purchase()], NOW)).toEqual(new Map([[1n, []]]));
   });
 
+  it("looks only for posts that are alive and published, since a draft or a deleted post never reaches a buyer", async () => {
+    database({});
+    await preloadProductUpdatesData([purchase()], NOW);
+    const sql = selectRows.mock.calls
+      .map(([query]) => (query as Prisma.Sql).sql)
+      .find((text) => text.includes("FROM `installments`"));
+    expect(sql).toContain("`installments`.`deleted_at` IS NULL");
+    expect(sql).toContain("`installments`.`published_at` IS NOT NULL");
+  });
+
   it("hands a purchase over when the seller or product has any post", async () => {
     database({ posts: true });
     await expect(preloadProductUpdatesData([purchase()], NOW)).rejects.toThrow(/product_installments/u);

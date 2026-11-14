@@ -490,8 +490,10 @@ export async function refundedCentsOf(purchaseIds: unknown[]): Promise<Map<strin
   return refundedCents;
 }
 
+type VariantOrder = "join" | "id";
+
 // Purchase.where(id: ids).in_order_of(:id, ids) with the associations CustomerPresenter reads, after handing back what it cannot.
-async function load(ids: string[], seller: User): Promise<Loaded> {
+async function load(ids: string[], seller: User, variantOrder: VariantOrder = "join"): Promise<Loaded> {
   const rows = await rowsBy("purchases", "id", ids);
   const order = new Map(ids.map((id, index) => [id, index]));
   const purchases = rows.sort((a, b) => order.get(String(a.id))! - order.get(String(b.id))!);
@@ -517,12 +519,12 @@ async function load(ids: string[], seller: User): Promise<Loaded> {
 
   const directAffiliateCredits = await directCreditsOf(purchases, affiliates);
 
-  // A sale of several options shows the first of `variant_attributes`, which the preload
-  // assembles in the order of the join rows.
-  const picks = groupBy(
-    (await rowsBy("base_variants_purchases", "purchase_id", purchaseIds)).sort((a, b) => num(a.id) - num(b.id)),
-    "purchase_id",
+  // A sale of several options shows the first of `variant_attributes`: the preload assembles it in the order of the join rows, while
+  // `.first` on an association that was not preloaded reads the lowest variant id.
+  const joinRows = (await rowsBy("base_variants_purchases", "purchase_id", purchaseIds)).sort((a, b) =>
+    variantOrder === "join" ? num(a.id) - num(b.id) : num(a.base_variant_id) - num(b.base_variant_id),
   );
+  const picks = groupBy(joinRows, "purchase_id");
   const variantRows = byId(
     await rowsBy("base_variants", "id", [...new Set([...picks.values()].flat().map((pick) => pick.base_variant_id))]),
   );
@@ -1258,9 +1260,10 @@ export const countryNames = () =>
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
 // `CustomerPresenter.new(purchase:).customer(pundit_user:)` for purchases that did not come out of the sales search.
-export async function customersOfPurchases(context: SellerContext, ids: string[]) {
+// `variantOrder: "id"` is for a caller whose purchase is fetched without the preload (mobile sales#show).
+export async function customersOfPurchases(context: SellerContext, ids: string[], variantOrder: VariantOrder = "join") {
   const seller = context.seller!;
-  const loaded = await load(ids, seller);
+  const loaded = await load(ids, seller, variantOrder);
   const sellerUsername = present(seller.username) ? seller.username : seller.external_id!;
   const customers = [];
   for (const purchase of loaded.purchases)

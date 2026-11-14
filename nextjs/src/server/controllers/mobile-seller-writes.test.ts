@@ -3,10 +3,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows } = vi.hoisted(() => ({
+const { actions, selectRows, findCommission, findPurchase, completionOutcome } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
+  findCommission: vi.fn(),
+  findPurchase: vi.fn(),
+  completionOutcome: vi.fn(),
 }));
+
+vi.mock("../../lib/db.ts", () => ({
+  db: { commission: { findUnique: findCommission }, purchase: { findUnique: findPurchase } },
+}));
+vi.mock("../models/commission-completion.ts", () => ({ completionOutcome }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
   ...(await original<typeof import("./mobile-api.ts")>()),
@@ -77,16 +85,50 @@ describe("PATCH /mobile/sales/:id/refund", () => {
 
 describe("POST /mobile/commissions/:id/complete", () => {
   const run = (id = "5") => find("POST", "/mobile/commissions/:id/complete").run(input({ id }), auth);
+  const commission = { id: 5n, deposit_purchase_id: 9n };
 
-  it("answers 404 for a commission whose deposit is not the seller's", async () => {
-    selectRows.mockResolvedValueOnce([]);
+  beforeEach(() => {
+    findCommission.mockReset().mockResolvedValue(commission);
+    findPurchase.mockReset().mockResolvedValue({ id: 9n, seller_id: 7n });
+    completionOutcome.mockReset();
+  });
+
+  it("answers 404 for a commission that does not exist", async () => {
+    findCommission.mockResolvedValue(null);
     const result = await run();
     expect(status(result)).toBe(404);
     expect(body(result)).toEqual({ success: false, message: "Could not find commission" });
   });
 
-  it("hands the completion of the seller's commission back", async () => {
-    selectRows.mockResolvedValueOnce([{ present: 1 }]);
+  it("answers 404 for a commission with no deposit", async () => {
+    findCommission.mockResolvedValue({ id: 5n, deposit_purchase_id: null });
+    expect(status(await run())).toBe(404);
+  });
+
+  it("answers 404 for a commission whose deposit is not the seller's", async () => {
+    findPurchase.mockResolvedValue({ id: 9n, seller_id: 8n });
+    expect(status(await run())).toBe(404);
+  });
+
+  it("answers success for a commission with nothing left to charge", async () => {
+    completionOutcome.mockResolvedValue("done");
+    const result = await run();
+    expect(status(result)).toBe(200);
+    expect(body(result)).toEqual({ success: true });
+  });
+
+  it("answers 422 with the message of a refused completion", async () => {
+    completionOutcome.mockResolvedValue("Attach at least one file before completing this commission.");
+    const result = await run();
+    expect(status(result)).toBe(422);
+    expect(body(result)).toEqual({
+      success: false,
+      message: "Attach at least one file before completing this commission.",
+    });
+  });
+
+  it("hands the charge of the seller's commission back", async () => {
+    completionOutcome.mockResolvedValue(null);
     await handedBack(run());
   });
 });

@@ -9,7 +9,7 @@ import type { Commission, Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { isChargedbackNotReversed, isRefunded } from "../models/purchase.ts";
+import { completionOutcome, FILES_LOCKED, STATUS_COMPLETED } from "../models/commission-completion.ts";
 import { authorize } from "../policies/authorize.ts";
 import { commissionPolicy } from "../policies/commission.ts";
 
@@ -17,21 +17,6 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { idFromExternalId } from "./buyer-pages.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { authorizeJson, json, noContent, UNPROCESSABLE_ENTITY } from "./seller-json.ts";
-
-// Purchase::ALL_SUCCESS_STATES_INCLUDING_TEST
-const SUCCESS_STATES_INCLUDING_TEST = [
-  "preorder_authorization_successful",
-  "successful",
-  "not_charged",
-  "gift_receiver_purchase_successful",
-  "test_successful",
-];
-const STATUS_IN_PROGRESS = "in_progress";
-const STATUS_COMPLETED = "completed";
-const FILES_LOCKED = "This commission has already been completed, so its files can no longer be changed.";
-const DEPOSIT_NOT_COMPLETABLE =
-  "This commission's deposit is no longer in a completable state, so it can no longer be completed.";
-const NO_FILE = "Attach at least one file before completing this commission.";
 
 const errors = (...messages: string[]) => ({ ...json({ errors: messages }, UNPROCESSABLE_ENTITY) });
 
@@ -54,14 +39,6 @@ async function refusal(input: MutationInput, deposit: Purchase): Promise<ActionR
   return authorizeJson(input, (context) => authorize(commissionPolicy.update, context, deposit.seller_id));
 }
 
-async function filesAttached(commission: Commission): Promise<boolean> {
-  const attachment = await db.activeStorageAttachment.findFirst({
-    where: { record_type: "Commission", record_id: commission.id, name: "files" },
-    select: { id: true },
-  });
-  return attachment !== null;
-}
-
 async function update(input: MutationInput): Promise<ActionResult> {
   const { commission, deposit } = await findCommission(input.routeParams.id);
   const denied = await refusal(input, deposit);
@@ -72,29 +49,14 @@ async function update(input: MutationInput): Promise<ActionResult> {
   throw new HandBackToRails("attaching and purging the commission's files");
 }
 
-// Purchase#refunded?, #stripe_partially_refunded? and #chargedback_not_reversed?
-function depositIsChargeable(commission: Commission, deposit: Purchase): boolean {
-  if (commission.status !== STATUS_IN_PROGRESS) return false;
-  if (!SUCCESS_STATES_INCLUDING_TEST.includes(deposit.purchase_state ?? "")) return false;
-  return !isRefunded(deposit) && !deposit.stripe_partially_refunded && !isChargedbackNotReversed(deposit);
-}
-
 async function complete(input: MutationInput): Promise<ActionResult> {
   const { commission, deposit } = await findCommission(input.routeParams.id);
   const denied = await refusal(input, deposit);
   if (denied) return denied;
 
-  // Commission#create_completion_purchase!
-  if (commission.status === STATUS_COMPLETED) return noContent();
-  if (commission.completion_purchase_id !== null) {
-    const completion = await db.purchase.findUnique({
-      where: { id: commission.completion_purchase_id },
-      select: { purchase_state: true },
-    });
-    if (completion !== null && completion.purchase_state !== "failed") return noContent();
-  }
-  if (!depositIsChargeable(commission, deposit)) return errors(DEPOSIT_NOT_COMPLETABLE);
-  if (!(await filesAttached(commission))) return errors(NO_FILE);
+  const outcome = await completionOutcome(commission, deposit);
+  if (outcome === "done") return noContent();
+  if (outcome !== null) return errors(outcome);
   throw new HandBackToRails("charging the balance of the commission");
 }
 
