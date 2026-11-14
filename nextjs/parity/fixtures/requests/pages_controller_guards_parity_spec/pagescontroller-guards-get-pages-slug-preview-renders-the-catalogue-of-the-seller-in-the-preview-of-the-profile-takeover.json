@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/pages_controller_guards_parity_spec.rb",
-  "example": "PagesController guards GET /pages/:slug/preview hands the preview of the profile takeover to Rails",
+  "example": "PagesController guards GET /pages/:slug/preview renders the catalogue of the seller in the preview of the profile takeover",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -40,6 +40,129 @@
               }
             ]
           },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Guide",
+                "unique_permalink": "guide",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-15626h>",
+                "updated_at": "<now>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 0,
+                "first_published_at": null
+              }
+            ]
+          },
           "pages": {
             "columns": {
               "id": "bigint",
@@ -70,6 +193,39 @@
                 "content": null,
                 "seo_title": null,
                 "seo_description": null
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
               }
             ]
           },
@@ -176,19 +332,19 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$z3fGB2ADDzmwDjw5pF3zZedNtQ/rDR9wrjFiwdq5pVBbesLaNS/62",
+                "encrypted_password": "$2a$04$jN0NCYRwsZh1Wz7tK.LHbOWo/3KiEjr06LyIzEeTkTUihdaroaqKW",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "95.175.251.34",
-                "last_sign_in_ip": "56.38.180.122",
-                "created_at": "<now-16302h>",
+                "current_sign_in_ip": "184.218.88.75",
+                "last_sign_in_ip": "84.6.100.113",
+                "created_at": "<now-16370h>",
                 "updated_at": "<now>",
                 "name": "Pages Guard Seller",
-                "payment_address": "edgar_29@gumroad.com",
+                "payment_address": "edgar_30@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -213,8 +369,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "3899299383922",
-                "account_created_ip": "159.22.215.138",
+                "external_id": "9624843493090",
+                "account_created_ip": "111.33.246.96",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -232,7 +388,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "QRJPLN6RNJIMEVTXOWCDOTKSLLEPNVVO",
+                "otp_secret_key": "R3QNBFBFLB3CZG6CLOTDCVI7OR7CVOKX",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -246,7 +402,9 @@
         },
         "autoIncrement": {
           "affiliates": 2,
+          "links": 2,
           "pages": 2,
+          "prices": 2,
           "refund_policies": 2,
           "users": 2
         }
@@ -313,13 +471,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "pZ2ZcuZ_7ZL_YIVG4mki4IkMiMNvUY-wDM2A1wPdTnbs_IWuQDs1VwJ36IsD1CM8jrVp0IdPRtl60TSba8Fi1w",
+            "value": "QLZHm4-PGC9D1qZia8uSoV4OLWCf3hXbwtnZeVSxbwo5wRQ26MB_z-46n1j5dawU_oBT77SBd2jvUGogRpkNZg",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "DtIGPZrZBxnZ0GFP9zJCtx8Ah5P3zK6bYM6vXgNRAgPDclF4WWIX3F4JooO4J7M0UTai+HOe7xKQd4i9Oamlz38+5SdTtUxOZYxWoWcziGcxmCVpaAkzwgNXzlF7VsVN37bjLjGxHEJ0uv9KM86rc3GqLXs+1OGpxfbELrXqbqskzpYOLP/g34mF4EhQZ10Vlt6McAe44jTL9Y9vGwwW44BPV0SKIY2xiXljx99Q+eGU5dZ0srfiga+874bhIZuWOO2S8N5dUAKuwio2REyVXIGeW5GbG1jEet0it2K5f+TuhmK5R96Vw/7wkL1kLvq1nKIEVIXkAAiDfPErR8+QvD7Go3gcJuZt19Y/UDroKBX7cpd/dtkYPr18qfv7DHi7K9q1--jRTOlS8u/3SSyVWK--7BvQqo6MSqN+GcPA74p0GQ==",
+            "value": "kApmGfb7hDT0KQ0t+HVK8U/MfUno5lNEqxko7OQufCBabs0/lTeE88KS/yTGB7WERPmsoJbeBs6xYcTECETVrm/ypwPxlFxdDaWxHPyVNkbantbLnHzIyJHDTGhV9a2tuoGLHMLryk/H4+J45t2+Vb9fyeE6DfLWeQ9e+wmHF65nTUIqcrf+GbMwWfVzEAciuFfmO8eWw8YMrdAJfSINCOzrHRjKtIlQmcr5hKIVIfkc0OAPLXc4F/bUWqRO9JTE3LqDD+4hrYjdIAbosUGtG1PwKL1rqAGkO8LcittGuRdGPqYVfTP4EEdXHqZXiYzu0h8rEdXA7KapnP1d4j0EBNDrkI2gk2uXYoY1IO2eoAwthBaRoI9GJP6RqXXkVlpQ9qc8--AkI1yCNuD2zoGlE9--Fnl2n2p/krzO7h0HL+O1pQ==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -359,12 +517,12 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "dc1QFFzLKg7sNVzIzpGRs/bujn11AFb5fgZFHCMJGTY=",
+            "csp_nonce": "qH5IcaZyLLHShW9DfYgSx6xuZ42iRSSrjnSiAZS2TXU=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "quOmNYAmTvTL-ICeUdYtrvX1hrohaF3kcGTNpdnpAovjgrrpJmKWMTbv7VOwayxy8kxnqcl2lI0GeHnpsfUuKg",
+            "authenticity_token": "dQQ3P_toLQCkk8fzGPlYaiI1JQLqV03uLaavpUjjp0UMc2SSnCdK4Al__smKR2bfgrtbjcEIL10ALxz8WsvFKQ",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "category": {
@@ -447,7 +605,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "FxC2KuG-L0oATkqFdx8_MJ3-ovHVhbAEhIJfg0MPgDpecar2R_r3j_1ZJ0iWoj7smkdD4j2beW3ynuvPKxOsmw"
+                "content": "u5Ovpj-oXvOPMCpwA3k7ZpwdE6I_1jntPR__KUQoDtfC5PwLWOc5EyLcE0qRxwXTPJNtLRSJW14QlkxwVgBsuw"
               },
               {
                 "tagName": "meta",
@@ -487,7 +645,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-og-title",
                 "property": "og:title",
-                "content": "Gumroad"
+                "content": "Accessing your purchase - Gumroad Help Center"
               },
               {
                 "tagName": "meta",
@@ -584,6 +742,36 @@
                 "headKey": "canonical",
                 "rel": "canonical",
                 "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-description",
+                "name": "description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-description",
+                "property": "og:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-url",
+                "property": "og:url",
+                "content": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-title",
+                "name": "twitter:title",
+                "content": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-description",
+                "name": "twitter:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
               }
             ]
           },
@@ -632,6 +820,129 @@
               }
             ]
           },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Guide",
+                "unique_permalink": "guide",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-15626h>",
+                "updated_at": "<now>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 0,
+                "first_published_at": null
+              }
+            ]
+          },
           "pages": {
             "columns": {
               "id": "bigint",
@@ -662,6 +973,39 @@
                 "content": null,
                 "seo_title": null,
                 "seo_description": null
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
               }
             ]
           },
@@ -768,19 +1112,19 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$z3fGB2ADDzmwDjw5pF3zZedNtQ/rDR9wrjFiwdq5pVBbesLaNS/62",
+                "encrypted_password": "$2a$04$jN0NCYRwsZh1Wz7tK.LHbOWo/3KiEjr06LyIzEeTkTUihdaroaqKW",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "95.175.251.34",
-                "last_sign_in_ip": "56.38.180.122",
-                "created_at": "<now-16302h>",
+                "current_sign_in_ip": "184.218.88.75",
+                "last_sign_in_ip": "84.6.100.113",
+                "created_at": "<now-16370h>",
                 "updated_at": "<now>",
                 "name": "Pages Guard Seller",
-                "payment_address": "edgar_29@gumroad.com",
+                "payment_address": "edgar_30@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -805,8 +1149,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "3899299383922",
-                "account_created_ip": "159.22.215.138",
+                "external_id": "9624843493090",
+                "account_created_ip": "111.33.246.96",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -824,7 +1168,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "QRJPLN6RNJIMEVTXOWCDOTKSLLEPNVVO",
+                "otp_secret_key": "R3QNBFBFLB3CZG6CLOTDCVI7OR7CVOKX",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -838,7 +1182,9 @@
         },
         "autoIncrement": {
           "affiliates": 2,
+          "links": 2,
           "pages": 2,
+          "prices": 2,
           "refund_policies": 2,
           "users": 2
         }
@@ -888,12 +1234,12 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "pZ2ZcuZ_7ZL_YIVG4mki4IkMiMNvUY-wDM2A1wPdTnbs_IWuQDs1VwJ36IsD1CM8jrVp0IdPRtl60TSba8Fi1w",
-          "_gumroad_app_session_test": "DtIGPZrZBxnZ0GFP9zJCtx8Ah5P3zK6bYM6vXgNRAgPDclF4WWIX3F4JooO4J7M0UTai+HOe7xKQd4i9Oamlz38+5SdTtUxOZYxWoWcziGcxmCVpaAkzwgNXzlF7VsVN37bjLjGxHEJ0uv9KM86rc3GqLXs+1OGpxfbELrXqbqskzpYOLP/g34mF4EhQZ10Vlt6McAe44jTL9Y9vGwwW44BPV0SKIY2xiXljx99Q+eGU5dZ0srfiga+874bhIZuWOO2S8N5dUAKuwio2REyVXIGeW5GbG1jEet0it2K5f+TuhmK5R96Vw/7wkL1kLvq1nKIEVIXkAAiDfPErR8+QvD7Go3gcJuZt19Y/UDroKBX7cpd/dtkYPr18qfv7DHi7K9q1--jRTOlS8u/3SSyVWK--7BvQqo6MSqN+GcPA74p0GQ==",
-          "_gumroad_guid": "bc7066a6-e404-41b4-b1ac-2e75015bd985"
+          "XSRF-TOKEN": "QLZHm4-PGC9D1qZia8uSoV4OLWCf3hXbwtnZeVSxbwo5wRQ26MB_z-46n1j5dawU_oBT77SBd2jvUGogRpkNZg",
+          "_gumroad_app_session_test": "kApmGfb7hDT0KQ0t+HVK8U/MfUno5lNEqxko7OQufCBabs0/lTeE88KS/yTGB7WERPmsoJbeBs6xYcTECETVrm/ypwPxlFxdDaWxHPyVNkbantbLnHzIyJHDTGhV9a2tuoGLHMLryk/H4+J45t2+Vb9fyeE6DfLWeQ9e+wmHF65nTUIqcrf+GbMwWfVzEAciuFfmO8eWw8YMrdAJfSINCOzrHRjKtIlQmcr5hKIVIfkc0OAPLXc4F/bUWqRO9JTE3LqDD+4hrYjdIAbosUGtG1PwKL1rqAGkO8LcittGuRdGPqYVfTP4EEdXHqZXiYzu0h8rEdXA7KapnP1d4j0EBNDrkI2gk2uXYoY1IO2eoAwthBaRoI9GJP6RqXXkVlpQ9qc8--AkI1yCNuD2zoGlE9--Fnl2n2p/krzO7h0HL+O1pQ==",
+          "_gumroad_guid": "f89e44c5-561e-4601-bcee-f03f443e9e1a"
         },
         "remoteIp": "127.0.0.1",
-        "body": "authenticity_token=quOmNYAmTvTL-ICeUdYtrvX1hrohaF3kcGTNpdnpAovjgrrpJmKWMTbv7VOwayxy8kxnqcl2lI0GeHnpsfUuKg&user[login_identifier]=seller%40example.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
+        "body": "authenticity_token=dQQ3P_toLQCkk8fzGPlYaiI1JQLqV03uLaavpUjjp0UMc2SSnCdK4Al__smKR2bfgrtbjcEIL10ALxz8WsvFKQ&user[login_identifier]=seller%40example.com&user[password]=-42Q_.c_3628Ca%21mW-xTJ8v*"
       },
       "response": {
         "status": 302,
@@ -912,13 +1258,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "SZP4lkmx3HeIwxEDzzvj--UKZWVWUc1F-J1FY9sY1WwA8uRK7_UEsnXUfM4uhuIn4rOEdr5PBCyOgfEvswT5zQ",
+            "value": "c1mY8y7VraGi9BCpa0cnL8LzmMuZ9SLcaTUw6eNVQKgKLsteSZrKQQ8YKZP5-RmaYn3mRLKqQG9EvIOw8X0ixA",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "ZTM8raBsOgr4/PJLgsnoVvhXFfGwHlYJH3bM369Cfh/DhGkVqOyPBGklUtBc05WLyQCjDa1aBRk7/8BG+AnfCCdadJPJyrbJpOLjfoWlWhaX3vtF+hWkuiXg6YqfFxPcNCKZA5xKq4qrpQCR9ayLRmfOSfFIu+OS42HY9hc3wVFkZUyDGo21iR83pMvEeTXs67EUgIHFcR9fhViFKYb14OFmQY2QdH3QyfxMwix3+yk1/edqOh8uNRCVjCZRr3oGQ80GA4QzrOhgAS0e0zabAdQjyimlLn2/m+83cOnVuNHsM8EF09dJYdQR5McPQdsivL3Bg+nLdrzp12ENbuvTLq7dwH6GwbkVfe71EI198gyCNUmodToDILqgJLdScxMLqAuINSg1ilrHldJ/6j060iKUxoicLy2fF1qcb8J5WeFX12z5I5Dlu0mwIO2GjvPafZ9UkKnQg+gv72Mi6nsJYbhOL/lypDxLMszIRkjgr2/Ztvi1KSXT7mkV3J12hAhg0snd4esgPSxNbcGxRjiug0EP/jorwQtClHC6TT3+UhLezPYK8OhsGxu+gWXfZJs/xnrfeSdVQk3B9cAD8dMHGKgHFoAkOgOK5P0qs3AM9MdxbVgDsNBvUq9D2q+KsEjtRdTk--69KYap6CZZmyXac2--w62Ir/yAg6IXbvQg/Ast1g==",
+            "value": "tJ/kK9A63Jenn5zUj86FApacXs5BERNzkUz+5aMeH/H3EBjv9i9rD45OSChjEyrPSNqfwnWD7O+vYn5K1vKS7A9Wn7Q6LDwomktsVk4ngr1+I8Nlm2MKQrdd7tYKKBM5Kb+twuLq+Q8zOVaLDpkTaj6nWIe71BhqJxkl9vYCz+Lt3IvB4kJ6iDQnEDmWxLprQYUv4ldrAh2NLJQ/Pwppnzz7GWOjijZqK8dxQ5oK828rvobtG2fzpS26XOEPUxs3q7GPXHW/vkfkSK2Ze2pD47R4lLSTFRTMCpsEma6WMPiyXNRiZnZCz067GewLpXZc5itwAdnOvLJTYq5AznZBtUTOAQbADjzgCI/N/nTAix+yC1+NfsEL/YGYW0kOOLglutSy7bznESrFJssIJIqRAwSUuckylX10FOg+Ti9c+LxpWBgU87ALh2Uy2V1oeZ5XJBq1qz1X1fJSC/b8WLSpqBaKDPFE3FQiou8V2E/ctH/dDtcXflPBzZFk2hfgYwK9IPPaG1kni5fFneHPE4RVq8gJH6El5JFsZLs8/nvQ+cNAPxWVgdjKtq7sprGZsWBv2ZJkOm4mDCh2kBjYsbTPGmdppi7QNfZ5avJdf4j/BzyjX17ykYtzubFa/8aLCoRIRYQz--QlWYofWVb27S6u4H--lLRRoZ+tGI69AXHVotFwBw==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -926,7 +1272,7 @@
             "samesite": "lax"
           },
           "remember_user_token": {
-            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKSG96WmtkQ01rRkVSSHB0ZDBScWR6VndSak42V21VaUxDSXhOemswTXpjM05qZzVMak00TnpJeE16VWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQwNjoxNDo0OS4zODdaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--ab0f60769f2f9c08bfe13819d18ee072dbd64ff3",
+            "value": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKR3BPTUU1RFdWSjNjMXBvTVZkNk4zUkxMa3hJWWs4aUxDSXhOemswTmpJd016a3pMalV3TnpZNE5qRWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xNFQwMTozOTo1My41MDdaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--8c45da7edd1a648003f622b087761fedf91de94c",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+720h>",
@@ -978,19 +1324,31 @@
                   "<now>"
                 ],
                 "current_sign_in_ip": [
-                  "95.175.251.34",
+                  "184.218.88.75",
                   "127.0.0.1"
                 ],
                 "last_sign_in_ip": [
-                  "56.38.180.122",
-                  "95.175.251.34"
+                  "84.6.100.113",
+                  "184.218.88.75"
+                ],
+                "updated_at": [
+                  "<now>",
+                  "<now>"
                 ]
               }
             }
           ]
         }
       },
-      "jobs": [],
+      "jobs": [
+        {
+          "class": "InvalidateProductCacheWorker",
+          "args": [
+            1
+          ],
+          "queue": "low"
+        }
+      ],
       "mails": [],
       "http": [
         {
@@ -1000,6 +1358,31 @@
             "status": 200,
             "body": ""
           }
+        }
+      ],
+      "timeline": [
+        {
+          "type": "http",
+          "index": 0
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "update",
+          "table": "users"
+        },
+        {
+          "type": "db",
+          "op": "insert",
+          "table": "seller_profiles"
+        },
+        {
+          "type": "job",
+          "index": 0
         }
       ]
     },
@@ -1037,6 +1420,129 @@
               }
             ]
           },
+          "links": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "name": "varchar",
+              "unique_permalink": "varchar",
+              "preview_url": "mediumtext",
+              "description": "mediumtext",
+              "purchase_type": "int",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_disabled_at": "datetime",
+              "deleted_at": "datetime",
+              "price_cents": "int",
+              "price_currency_type": "varchar",
+              "customizable_price": "tinyint",
+              "max_purchase_count": "int",
+              "bad_card_counter": "int",
+              "require_shipping": "tinyint",
+              "last_partner_sync": "datetime",
+              "preview_oembed": "mediumtext",
+              "showcaseable": "tinyint",
+              "custom_receipt": "mediumtext",
+              "custom_filetype": "varchar",
+              "filetype": "varchar",
+              "filegroup": "varchar",
+              "size": "bigint",
+              "bitrate": "int",
+              "framerate": "int",
+              "pagelength": "int",
+              "duration": "int",
+              "width": "int",
+              "height": "int",
+              "custom_permalink": "varchar",
+              "common_color": "varchar",
+              "suggested_price_cents": "int",
+              "banned_at": "datetime",
+              "risk_score": "int",
+              "risk_score_updated_at": "datetime",
+              "draft": "tinyint",
+              "flags": "bigint",
+              "subscription_duration": "int",
+              "json_data": "mediumtext",
+              "external_mapping_id": "varchar",
+              "affiliate_application_id": "bigint",
+              "rental_price_cents": "int",
+              "duration_in_months": "int",
+              "migrated_to_tiered_pricing_at": "datetime",
+              "free_trial_duration_unit": "int",
+              "free_trial_duration_amount": "int",
+              "content_updated_at": "datetime",
+              "taxonomy_id": "bigint",
+              "native_type": "varchar",
+              "discover_fee_per_thousand": "int",
+              "support_email": "varchar",
+              "default_offer_code_id": "bigint",
+              "sales_count_for_inventory_cache": "int",
+              "first_published_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 1,
+                "name": "Guide",
+                "unique_permalink": "guide",
+                "preview_url": null,
+                "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
+                "purchase_type": 0,
+                "created_at": "<now-15626h>",
+                "updated_at": "<now>",
+                "purchase_disabled_at": null,
+                "deleted_at": null,
+                "price_cents": 100,
+                "price_currency_type": "usd",
+                "customizable_price": null,
+                "max_purchase_count": null,
+                "bad_card_counter": 0,
+                "require_shipping": 0,
+                "last_partner_sync": null,
+                "preview_oembed": null,
+                "showcaseable": 0,
+                "custom_receipt": null,
+                "custom_filetype": null,
+                "filetype": "link",
+                "filegroup": "url",
+                "size": null,
+                "bitrate": null,
+                "framerate": null,
+                "pagelength": null,
+                "duration": null,
+                "width": null,
+                "height": null,
+                "custom_permalink": null,
+                "common_color": null,
+                "suggested_price_cents": null,
+                "banned_at": null,
+                "risk_score": null,
+                "risk_score_updated_at": null,
+                "draft": 0,
+                "flags": 65536,
+                "subscription_duration": null,
+                "json_data": "{}",
+                "external_mapping_id": null,
+                "affiliate_application_id": null,
+                "rental_price_cents": null,
+                "duration_in_months": null,
+                "migrated_to_tiered_pricing_at": null,
+                "free_trial_duration_unit": null,
+                "free_trial_duration_amount": null,
+                "content_updated_at": null,
+                "taxonomy_id": null,
+                "native_type": "digital",
+                "discover_fee_per_thousand": 100,
+                "support_email": null,
+                "default_offer_code_id": null,
+                "sales_count_for_inventory_cache": 0,
+                "first_published_at": null
+              }
+            ]
+          },
           "pages": {
             "columns": {
               "id": "bigint",
@@ -1067,6 +1573,39 @@
                 "content": null,
                 "seo_title": null,
                 "seo_description": null
+              }
+            ]
+          },
+          "prices": {
+            "columns": {
+              "id": "int",
+              "link_id": "int",
+              "price_cents": "int",
+              "currency": "varchar",
+              "recurrence": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "flags": "int",
+              "variant_id": "int",
+              "suggested_price_cents": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "link_id": 1,
+                "price_cents": 100,
+                "currency": "usd",
+                "recurrence": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "flags": 0,
+                "variant_id": null,
+                "suggested_price_cents": null
               }
             ]
           },
@@ -1208,7 +1747,7 @@
               {
                 "id": 1,
                 "email": "seller@example.com",
-                "encrypted_password": "$2a$04$z3fGB2ADDzmwDjw5pF3zZedNtQ/rDR9wrjFiwdq5pVBbesLaNS/62",
+                "encrypted_password": "$2a$04$jN0NCYRwsZh1Wz7tK.LHbOWo/3KiEjr06LyIzEeTkTUihdaroaqKW",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": "<now>",
@@ -1216,11 +1755,11 @@
                 "current_sign_in_at": "<now>",
                 "last_sign_in_at": "<now>",
                 "current_sign_in_ip": "127.0.0.1",
-                "last_sign_in_ip": "95.175.251.34",
-                "created_at": "<now-16302h>",
+                "last_sign_in_ip": "184.218.88.75",
+                "created_at": "<now-16370h>",
                 "updated_at": "<now>",
                 "name": "Pages Guard Seller",
-                "payment_address": "edgar_29@gumroad.com",
+                "payment_address": "edgar_30@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -1245,8 +1784,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "3899299383922",
-                "account_created_ip": "159.22.215.138",
+                "external_id": "9624843493090",
+                "account_created_ip": "111.33.246.96",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1264,7 +1803,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "QRJPLN6RNJIMEVTXOWCDOTKSLLEPNVVO",
+                "otp_secret_key": "R3QNBFBFLB3CZG6CLOTDCVI7OR7CVOKX",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1278,7 +1817,9 @@
         },
         "autoIncrement": {
           "affiliates": 2,
+          "links": 2,
           "pages": 2,
+          "prices": 2,
           "refund_policies": 2,
           "seller_profiles": 2,
           "users": 2
@@ -1328,10 +1869,10 @@
           "host": "app.test.gumroad.com:31337"
         },
         "cookies": {
-          "XSRF-TOKEN": "SZP4lkmx3HeIwxEDzzvj--UKZWVWUc1F-J1FY9sY1WwA8uRK7_UEsnXUfM4uhuIn4rOEdr5PBCyOgfEvswT5zQ",
-          "_gumroad_app_session_test": "ZTM8raBsOgr4/PJLgsnoVvhXFfGwHlYJH3bM369Cfh/DhGkVqOyPBGklUtBc05WLyQCjDa1aBRk7/8BG+AnfCCdadJPJyrbJpOLjfoWlWhaX3vtF+hWkuiXg6YqfFxPcNCKZA5xKq4qrpQCR9ayLRmfOSfFIu+OS42HY9hc3wVFkZUyDGo21iR83pMvEeTXs67EUgIHFcR9fhViFKYb14OFmQY2QdH3QyfxMwix3+yk1/edqOh8uNRCVjCZRr3oGQ80GA4QzrOhgAS0e0zabAdQjyimlLn2/m+83cOnVuNHsM8EF09dJYdQR5McPQdsivL3Bg+nLdrzp12ENbuvTLq7dwH6GwbkVfe71EI198gyCNUmodToDILqgJLdScxMLqAuINSg1ilrHldJ/6j060iKUxoicLy2fF1qcb8J5WeFX12z5I5Dlu0mwIO2GjvPafZ9UkKnQg+gv72Mi6nsJYbhOL/lypDxLMszIRkjgr2/Ztvi1KSXT7mkV3J12hAhg0snd4esgPSxNbcGxRjiug0EP/jorwQtClHC6TT3+UhLezPYK8OhsGxu+gWXfZJs/xnrfeSdVQk3B9cAD8dMHGKgHFoAkOgOK5P0qs3AM9MdxbVgDsNBvUq9D2q+KsEjtRdTk--69KYap6CZZmyXac2--w62Ir/yAg6IXbvQg/Ast1g==",
-          "_gumroad_guid": "bc7066a6-e404-41b4-b1ac-2e75015bd985",
-          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKSG96WmtkQ01rRkVSSHB0ZDBScWR6VndSak42V21VaUxDSXhOemswTXpjM05qZzVMak00TnpJeE16VWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xMVQwNjoxNDo0OS4zODdaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--ab0f60769f2f9c08bfe13819d18ee072dbd64ff3"
+          "XSRF-TOKEN": "c1mY8y7VraGi9BCpa0cnL8LzmMuZ9SLcaTUw6eNVQKgKLsteSZrKQQ8YKZP5-RmaYn3mRLKqQG9EvIOw8X0ixA",
+          "_gumroad_app_session_test": "tJ/kK9A63Jenn5zUj86FApacXs5BERNzkUz+5aMeH/H3EBjv9i9rD45OSChjEyrPSNqfwnWD7O+vYn5K1vKS7A9Wn7Q6LDwomktsVk4ngr1+I8Nlm2MKQrdd7tYKKBM5Kb+twuLq+Q8zOVaLDpkTaj6nWIe71BhqJxkl9vYCz+Lt3IvB4kJ6iDQnEDmWxLprQYUv4ldrAh2NLJQ/Pwppnzz7GWOjijZqK8dxQ5oK828rvobtG2fzpS26XOEPUxs3q7GPXHW/vkfkSK2Ze2pD47R4lLSTFRTMCpsEma6WMPiyXNRiZnZCz067GewLpXZc5itwAdnOvLJTYq5AznZBtUTOAQbADjzgCI/N/nTAix+yC1+NfsEL/YGYW0kOOLglutSy7bznESrFJssIJIqRAwSUuckylX10FOg+Ti9c+LxpWBgU87ALh2Uy2V1oeZ5XJBq1qz1X1fJSC/b8WLSpqBaKDPFE3FQiou8V2E/ctH/dDtcXflPBzZFk2hfgYwK9IPPaG1kni5fFneHPE4RVq8gJH6El5JFsZLs8/nvQ+cNAPxWVgdjKtq7sprGZsWBv2ZJkOm4mDCh2kBjYsbTPGmdppi7QNfZ5avJdf4j/BzyjX17ykYtzubFa/8aLCoRIRYQz--QlWYofWVb27S6u4H--lLRRoZ+tGI69AXHVotFwBw==",
+          "_gumroad_guid": "f89e44c5-561e-4601-bcee-f03f443e9e1a",
+          "remember_user_token": "eyJfcmFpbHMiOnsibWVzc2FnZSI6Ilcxc3hYU3dpSkRKaEpEQTBKR3BPTUU1RFdWSjNjMXBvTVZkNk4zUkxMa3hJWWs4aUxDSXhOemswTmpJd016a3pMalV3TnpZNE5qRWlYUT09IiwiZXhwIjoiMjAyNi0xMi0xNFQwMTozOTo1My41MDdaIiwicHVyIjoiY29va2llLnJlbWVtYmVyX3VzZXJfdG9rZW4ifX0=--8c45da7edd1a648003f622b087761fedf91de94c"
         },
         "remoteIp": "127.0.0.1"
       },
@@ -1353,13 +1894,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "Z0ZQP2S1DQ6OUpaph7QeR5QEaGCJnRXTU50tjdtXZfIuJ0zjwvHVy3NF-2RmCR-bk72Jc2GD3LolgZnBs0tJUw",
+            "value": "5kIXrx2TQfhOMepVn7HPvh_nsqotQv4wq4IxUerv7jKfNUQCetwmGOPd028ND_ELv2nMJQYdnIOGC4II-MeMXg",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "L7Ns3dj0wr4/u6XcuLJVIaBlLjYhVVWojeNYMwt8HV9Y7O7GbPLfpBySPOTjcDsOlUVhRcuOkEK8ML7Rb5QQu6RHtfaQ/+7+bH0DErmFEDbx2OUyoVGMrGm0gsq6RhzwJktmt03pj/xZu4kcaftaQUUDzJ/eP/4zUbUjrb4McsF4nMYXcfy1im+6w7exdKSCYFZZGhBPXPh4BPeYT6rDDtJe3pO/f8ywA7hz64D5ZPIZa8n32X3jkCAbQ2KkyhVPlquv9iItwZLmqFAJVCTzD8Eu6iDh1MjO+k5A1cm7fggFwV6eAeROtdcm7jGm2U5bMzsq9XuSip6fmGB3jTDOpPwSOnc3EDKO9cFJwPuMixxpU72v9EYedpYFQSDDPXyejT6T6gF1JvjcVaiezO527sMX4dO+xvFj73xLwUGCdf9kniaTutZXeWxAYHeSIpW2vUx8gw5Ruyd19gLLk9uGSq9S2Zdl06Vm8bORtKMOyZWH+ZxhPp5uLRMCbRbTIrMWpe62U9kGpZPKa7wF+uVx7z/TF8E4EXmBLXUWyyxF3qvlvcE7XWR52Y+C/y20ZwEnh1v4sadvZGVlEcluOlMRoDIChlGp2yv/FgnKUjQAZtR/8cUVUBxxaj86MhO0f8iLBXdJ--xS17pGJwb9rkFo8z--U1SuexI+FaRt1YkUCSh09Q==",
+            "value": "r/mR9q+F4XNbcgrQx3y/5tqpFRaOXsF6O96X16jWS0qeQBOmoSP5rEPxx/c1W9ofK/33wuB4IYNrtwAPs5PD7PbfUpvNlLGhK1RLhVNHSJ9wk5HVUfuCd6zWGlz8USwkPN9XzAPCFA2md8agDikt73MuYc/8KafzWXrsiM4dUvHYRLgqgketYe4ANbFPtnOiJzYBhFYFB42dua2wWG7DxppoF4mhzDmxeHvOh0ruJ9Cq4ffw5kn5Mbr1Vp0aj9YTlxiMv4EK01K6MfB6jQgqEkg4j438VuWkKqmktvGykzHiBAenBhu6OMt72Jy+Gy+04u5/SUwiEVcf9hr0Mg2gCKn3u0AdVVePJOK1YlUAw3JCSTED4hZ/bVW+1rurqfR9undwMMtBXwBD6k8YluYRB88IY9i5zkvcTcrzlOPXacJaP50CRXDHkZlXtHNbeO4K40y3M7adCb/+HLSqAuJzJ4F4RP8r2fj6T9te/U3UmrpLpQUVONY0wVT9BC12ss4otU5SKRW/hUkhNq+p8l0MhSXTkmqwaBbJbBBACWzHkOdIyta982cVCGmtcN9DZsJ2FB+physCs/2FCsEW85IdASojDUCsvowj8sMTGyruGELaIx+56lcxbJCH6ahGDD1+FYds--biG05CyM/yOj3N4r--MgZI+WrK7V5cMtlAybJTpQ==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -1367,7 +1908,7 @@
             "samesite": "lax"
           }
         },
-        "body": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <script data-cfasync=\"false\" data-gumroad-sandbox-shim>\n  (function () {\n    function memStorage() {\n      var store = Object.create(null);\n      return {\n        getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },\n        setItem: function (k, v) { store[k] = String(v); },\n        removeItem: function (k) { delete store[k]; },\n        clear: function () { store = {}; },\n        key: function (i) { return Object.keys(store)[i] || null; },\n        get length() { return Object.keys(store).length; }\n      };\n    }\n    [\"localStorage\", \"sessionStorage\"].forEach(function (name) {\n      var throws = false;\n      try { void window[name]; } catch (e) { throws = true; }\n      if (throws) {\n        try { Object.defineProperty(window, name, { value: memStorage(), configurable: true }); } catch (e) {}\n      }\n    });\n    var cookieThrows = false;\n    try { void document.cookie; } catch (e) { cookieThrows = true; }\n    if (cookieThrows) {\n      var jar = Object.create(null);\n      try {\n        Object.defineProperty(document, \"cookie\", {\n          configurable: true,\n          get: function () { return Object.keys(jar).map(function (k) { return k + \"=\" + jar[k]; }).join(\"; \"); },\n          set: function (v) {\n            var first = String(v).split(\";\")[0];\n            var eq = first.indexOf(\"=\");\n            if (eq < 1) { return; }\n            jar[first.slice(0, eq).trim()] = first.slice(eq + 1).trim();\n          }\n        });\n      } catch (e) {}\n    }\n  })();\n</script>\n\n    \n    \n  </head>\n  <body>\n    <script id=\"gumroad-data\" type=\"application/json\">{\"products\":[],\"posts\":[],\"pages\":[],\"products_total\":0,\"posts_total\":0}</script>\n    \n    <main><h1>Home</h1></main>\n    \n    <script data-cfasync=\"false\" data-gumroad-follow-bridge>\n  (function () {\n    // Viewed directly (not framed) there is no trusted parent to ask,\n    // so leave forms alone.\n    if (window.parent === window) return;\n    // Per-submit request id, echoed back by the wrapper: a single \"active\n    // form\" slot would be overwritten by a second submit before the first\n    // reply arrived, landing that reply on the wrong form.\n    var pendingForms = {};\n    var nextRequestId = 0;\n    document.addEventListener(\"submit\", function (e) {\n      var form = e.target && e.target.closest ? e.target.closest(\"form[data-gumroad-follow]\") : null;\n      if (!form || e.defaultPrevented) return;\n      e.preventDefault();\n      // Prefer the real email input over anything else named \"email\" —\n      // pages commonly hide a honeypot text field with that name, and a\n      // comma-joined selector would return whichever comes first in the\n      // DOM.\n      var input = form.querySelector('input[type=\"email\"]') || form.querySelector('input[name=\"email\"]');\n      var email = input ? String(input.value || \"\").trim() : \"\";\n      nextRequestId += 1;\n      var requestId = \"gumroad-follow-\" + nextRequestId;\n      pendingForms[requestId] = form;\n      parent.postMessage({ type: \"gumroad:follow\", email: email, requestId: requestId }, \"*\");\n    }, true);\n    window.addEventListener(\"message\", function (e) {\n      // Only the parent wrapper's reply drives the confirmation UI —\n      // a message the page posts to itself can't spoof it.\n      if (e.source !== window.parent) return;\n      var d = e.data;\n      if (!d || typeof d !== \"object\" || d.type !== \"gumroad:follow:result\") return;\n      var success = d.success === true;\n      var message = typeof d.message === \"string\" ? d.message : \"\";\n      // Untracked request ids come from page scripts posting the message\n      // themselves; those fall back to every marked form. Slots inside the\n      // matched form win, but a page whose slot lives elsewhere (e.g. a\n      // paragraph after the form) still gets the document-wide slots.\n      var requestId = typeof d.requestId === \"string\" ? d.requestId : null;\n      var matchedForm = requestId && pendingForms[requestId] ? pendingForms[requestId] : null;\n      if (requestId) delete pendingForms[requestId];\n      var forms = matchedForm ? [matchedForm] : document.querySelectorAll(\"form[data-gumroad-follow]\");\n      for (var i = 0; i < forms.length; i++) {\n        forms[i].setAttribute(\"data-gumroad-follow-state\", success ? \"success\" : \"error\");\n      }\n      var slots = matchedForm ? matchedForm.querySelectorAll(\"[data-gumroad-follow-message]\") : [];\n      if (!slots.length) slots = document.querySelectorAll(\"[data-gumroad-follow-message]\");\n      for (var j = 0; j < slots.length; j++) {\n        slots[j].textContent = message;\n      }\n      // For pages that manage their own UI (popups etc.) instead of\n      // using the declarative hooks above.\n      try {\n        window.dispatchEvent(new CustomEvent(\"gumroad:follow:result\", { detail: { success: success, message: message } }));\n      } catch (_err) {}\n    });\n  })();\n</script>\n\n    <script data-cfasync=\"false\" data-gumroad-products-bridge>\n  (function () {\n    // Viewed directly (not framed) there is no trusted parent to ask.\n    if (window.parent === window) return;\n    var pendingRequests = {};\n    var nextRequestId = 0;\n    // Minted once per document (this script re-runs on every navigation), so a reply meant\n    // for whatever document previously occupied the frame — the wrapper's WindowProxy check\n    // can't tell them apart, since it's navigation-stable — can't resolve this document's\n    // promises even if the request id was reused.\n    var documentToken = Math.random().toString(36).slice(2) + Date.now().toString(36);\n    function request(options) {\n      options = options || {};\n      nextRequestId += 1;\n      var requestId = \"gumroad-products-\" + nextRequestId;\n      var promise = new Promise(function (resolve) {\n        pendingRequests[requestId] = resolve;\n      });\n      parent.postMessage({\n        type: \"gumroad:products\",\n        offset: options.offset,\n        limit: options.limit,\n        requestId: requestId,\n        documentToken: documentToken\n      }, \"*\");\n      return promise;\n    }\n    try { window.gumroadProducts = { request: request }; } catch (_err) {}\n    window.addEventListener(\"message\", function (e) {\n      // Only the parent wrapper's reply resolves a request — a message\n      // the page posts to itself can't spoof it.\n      if (e.source !== window.parent) return;\n      var d = e.data;\n      if (!d || typeof d !== \"object\" || d.type !== \"gumroad:products:result\") return;\n      if (d.documentToken !== documentToken) return;\n      var requestId = typeof d.requestId === \"string\" ? d.requestId : null;\n      var resolve = requestId && pendingRequests[requestId] ? pendingRequests[requestId] : null;\n      if (requestId) delete pendingRequests[requestId];\n      var detail = {\n        success: d.success === true,\n        products: Array.isArray(d.products) ? d.products : [],\n        productsTotal: typeof d.productsTotal === \"number\" ? d.productsTotal : null,\n        prices: d.prices && typeof d.prices === \"object\" && !Array.isArray(d.prices) ? d.prices : {},\n        offset: typeof d.offset === \"number\" ? d.offset : null,\n        limit: typeof d.limit === \"number\" ? d.limit : null,\n        requestId: requestId\n      };\n      if (resolve) resolve(detail);\n      // For pages that posted their own message instead of going through\n      // window.gumroadProducts.\n      try {\n        window.dispatchEvent(new CustomEvent(\"gumroad:products:result\", { detail: detail }));\n      } catch (_err) {}\n    });\n  })();\n</script>\n\n    <script data-cfasync=\"false\" data-gumroad-background-bridge>\n  (function () {\n    // Viewed directly (not framed) there is no wrapper to color.\n    if (window.parent === window) return;\n    function colorAlpha(color) {\n  if (!color || color === \"transparent\") return 0;\n  var body = color.match(/\\(([^)]*)\\)\\s*$/);\n  if (!body) return color.indexOf(\"(\") === -1 ? 1 : null;\n  var parts = body[1].split(\"/\");\n  var alpha = parts.length > 1 ? parts[parts.length - 1] : null;\n  if (alpha === null) {\n    var channels = body[1].split(\",\");\n    if (channels.length > 3) alpha = channels[3];\n  }\n  if (alpha === null) return 1;\n  var value = parseFloat(alpha);\n  if (!isFinite(value)) return null;\n  return alpha.indexOf(\"%\") === -1 ? value : value / 100;\n}\nfunction opaque(color) {\n  return colorAlpha(color) === 1;\n}\n\n    function flatRootPaint(style) {\n      return style.opacity === \"1\" &&\n        style.filter === \"none\" &&\n        style.clipPath === \"none\" &&\n        style.maskImage === \"none\" &&\n        (!style.webkitMaskImage || style.webkitMaskImage === \"none\") &&\n        (!style.maskBorderSource || style.maskBorderSource === \"none\") &&\n        (!style.webkitMaskBoxImage || style.webkitMaskBoxImage === \"none\") &&\n        style.mixBlendMode === \"normal\" &&\n        style.display !== \"none\";\n    }\n    function establishesContainment(style) {\n      return style.contain !== \"none\" ||\n        (style.contentVisibility && style.contentVisibility !== \"visible\") ||\n        (style.containerType && style.containerType !== \"normal\");\n    }\n    function paint(color, colorScheme) {\n      return { color: color, colorScheme: colorScheme };\n    }\n    function schemeBackplate(style) {\n      if (!style.colorScheme || style.colorScheme === \"normal\") return paint(null, null);\n      // The trusted wrapper resolves Canvas. Probing here would alter the\n      // seller's DOM, including :last-child selectors.\n      return paint(null, style.colorScheme);\n    }\n    function canvasPaint() {\n      var rootStyle = window.getComputedStyle(document.documentElement);\n      if (!flatRootPaint(rootStyle)) return paint(null, null);\n      var root = rootStyle.backgroundColor;\n      var rootAlpha = colorAlpha(root);\n      if (rootStyle.backgroundImage !== \"none\") return paint(null, null);\n      if (rootAlpha === 1) return paint(root, null);\n      if (rootAlpha !== 0 || !document.body) return paint(null, null);\n      var bodyStyle = window.getComputedStyle(document.body);\n      if (\n        bodyStyle.display === \"none\" ||\n        establishesContainment(rootStyle) ||\n        establishesContainment(bodyStyle)\n      ) return schemeBackplate(rootStyle);\n      var body = bodyStyle.backgroundColor;\n      if (bodyStyle.backgroundImage !== \"none\") return paint(null, null);\n      if (opaque(body)) return paint(body, null);\n      if (colorAlpha(body) !== 0) return paint(null, null);\n      return schemeBackplate(rootStyle);\n    }\n    var reportedColor = null;\n    var reportedColorScheme = null;\n    var hasReported = false;\n    function report(force) {\n      var current = canvasPaint();\n      if (\n        !force &&\n        hasReported &&\n        current.color === reportedColor &&\n        current.colorScheme === reportedColorScheme\n      ) return;\n      reportedColor = current.color;\n      reportedColorScheme = current.colorScheme;\n      hasReported = true;\n      // The first null matters after an iframe reload: its wrapper may\n      // still hold the previous document's tint.\n      parent.postMessage({\n        type: \"gumroad:background\",\n        color: current.color,\n        colorScheme: current.colorScheme\n      }, \"*\");\n    }\n    window.addEventListener(\"message\", function (e) {\n      var d = e.data;\n      if (e.source === parent && d && d.type === \"gumroad:background:request\") report(true);\n    });\n    var queued = false;\n    var queuedForce = false;\n    function queueReport(force) {\n      if (force === true) queuedForce = true;\n      if (queued) return;\n      queued = true;\n      requestAnimationFrame(function () {\n        var shouldForce = queuedForce;\n        queued = false;\n        queuedForce = false;\n        report(shouldForce);\n      });\n    }\n    // Ignore ordinary DOM churn; only selectors and stylesheets can move\n    // the canvas color.\n    function stylesheetNode(node) {\n      var name = node && node.localName;\n      return name === \"style\" || name === \"link\";\n    }\n    // A link repaints after insertion, when its own load event fires.\n    function watchStylesheetLoad(node) {\n      if (node && node.localName === \"link\") node.addEventListener(\"load\", queueReport);\n    }\n    function eachStylesheet(node, fn) {\n      if (!node) return;\n      if (stylesheetNode(node)) fn(node);\n      if (!node.querySelectorAll) return;\n      var found = node.querySelectorAll(\"style,link\");\n      for (var i = 0; i < found.length; i++) fn(found[i]);\n    }\n    function affectsCanvas(records) {\n      var affects = false;\n      for (var i = 0; i < records.length; i++) {\n        var record = records[i];\n        if (record.type === \"attributes\") {\n          if (\n            record.target === document.documentElement ||\n            record.target === document.body ||\n            stylesheetNode(record.target)\n          ) affects = true;\n          // href swapped on a <link> that is already in the document — the\n          // new sheet lands late too.\n          if (stylesheetNode(record.target)) watchStylesheetLoad(record.target);\n        }\n        if (stylesheetNode(record.target)) affects = true;\n        if (stylesheetNode(record.target.parentNode)) affects = true;\n        for (var j = 0; j < record.addedNodes.length; j++) {\n          eachStylesheet(record.addedNodes[j], function (sheet) {\n            affects = true;\n            watchStylesheetLoad(sheet);\n          });\n        }\n        for (var k = 0; k < record.removedNodes.length; k++) {\n          eachStylesheet(record.removedNodes[k], function () { affects = true; });\n        }\n      }\n      return affects;\n    }\n    report();\n    // After load the stylesheet and any seller scripts have applied, so\n    // this is the first reading that reflects the finished page.\n    window.addEventListener(\"load\", queueReport);\n    try {\n      new MutationObserver(function (records) {\n        if (affectsCanvas(records)) queueReport();\n      }).observe(document.documentElement, {\n        attributes: true,\n        childList: true,\n        characterData: true,\n        subtree: true\n      });\n    } catch (_err) {}\n    try {\n      window.matchMedia(\"(prefers-color-scheme: dark)\").addEventListener(\"change\", function () {\n        // The declared scheme can stay \"dark light\" while Canvas changes.\n        queueReport(true);\n      });\n    } catch (_err) {}\n    // CSSOM writes emit no mutation, so poll a clean style tree as a backstop.\n    try {\n      setInterval(function () {\n        if (!document.hidden) queueReport();\n      }, 1000);\n      document.addEventListener(\"visibilitychange\", queueReport);\n    } catch (_err) {}\n  })();\n</script>\n\n    \n    \n  </body>\n</html>\n"
+        "body": "<!doctype html>\n<html>\n  <head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <script data-cfasync=\"false\" data-gumroad-sandbox-shim>\n  (function () {\n    function memStorage() {\n      var store = Object.create(null);\n      return {\n        getItem: function (k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },\n        setItem: function (k, v) { store[k] = String(v); },\n        removeItem: function (k) { delete store[k]; },\n        clear: function () { store = {}; },\n        key: function (i) { return Object.keys(store)[i] || null; },\n        get length() { return Object.keys(store).length; }\n      };\n    }\n    [\"localStorage\", \"sessionStorage\"].forEach(function (name) {\n      var throws = false;\n      try { void window[name]; } catch (e) { throws = true; }\n      if (throws) {\n        try { Object.defineProperty(window, name, { value: memStorage(), configurable: true }); } catch (e) {}\n      }\n    });\n    var cookieThrows = false;\n    try { void document.cookie; } catch (e) { cookieThrows = true; }\n    if (cookieThrows) {\n      var jar = Object.create(null);\n      try {\n        Object.defineProperty(document, \"cookie\", {\n          configurable: true,\n          get: function () { return Object.keys(jar).map(function (k) { return k + \"=\" + jar[k]; }).join(\"; \"); },\n          set: function (v) {\n            var first = String(v).split(\";\")[0];\n            var eq = first.indexOf(\"=\");\n            if (eq < 1) { return; }\n            jar[first.slice(0, eq).trim()] = first.slice(eq + 1).trim();\n          }\n        });\n      } catch (e) {}\n    }\n  })();\n</script>\n\n    \n    \n  </head>\n  <body>\n    <script id=\"gumroad-data\" type=\"application/json\">{\"products\":[{\"name\":\"Guide\",\"url\":\"http://pagesguard.test.gumroad.com:31337/l/guide\",\"price\":\"$1\",\"native_type\":\"digital\",\"thumbnail_url\":null,\"cover_url\":null,\"description\":\"This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.\"}],\"posts\":[],\"pages\":[],\"products_total\":1,\"posts_total\":0}</script>\n    \n    <main><h1>Home</h1></main>\n    \n    <script data-cfasync=\"false\" data-gumroad-follow-bridge>\n  (function () {\n    // Viewed directly (not framed) there is no trusted parent to ask,\n    // so leave forms alone.\n    if (window.parent === window) return;\n    // Per-submit request id, echoed back by the wrapper: a single \"active\n    // form\" slot would be overwritten by a second submit before the first\n    // reply arrived, landing that reply on the wrong form.\n    var pendingForms = {};\n    var nextRequestId = 0;\n    document.addEventListener(\"submit\", function (e) {\n      var form = e.target && e.target.closest ? e.target.closest(\"form[data-gumroad-follow]\") : null;\n      if (!form || e.defaultPrevented) return;\n      e.preventDefault();\n      // Prefer the real email input over anything else named \"email\" —\n      // pages commonly hide a honeypot text field with that name, and a\n      // comma-joined selector would return whichever comes first in the\n      // DOM.\n      var input = form.querySelector('input[type=\"email\"]') || form.querySelector('input[name=\"email\"]');\n      var email = input ? String(input.value || \"\").trim() : \"\";\n      nextRequestId += 1;\n      var requestId = \"gumroad-follow-\" + nextRequestId;\n      pendingForms[requestId] = form;\n      parent.postMessage({ type: \"gumroad:follow\", email: email, requestId: requestId }, \"*\");\n    }, true);\n    window.addEventListener(\"message\", function (e) {\n      // Only the parent wrapper's reply drives the confirmation UI —\n      // a message the page posts to itself can't spoof it.\n      if (e.source !== window.parent) return;\n      var d = e.data;\n      if (!d || typeof d !== \"object\" || d.type !== \"gumroad:follow:result\") return;\n      var success = d.success === true;\n      var message = typeof d.message === \"string\" ? d.message : \"\";\n      // Untracked request ids come from page scripts posting the message\n      // themselves; those fall back to every marked form. Slots inside the\n      // matched form win, but a page whose slot lives elsewhere (e.g. a\n      // paragraph after the form) still gets the document-wide slots.\n      var requestId = typeof d.requestId === \"string\" ? d.requestId : null;\n      var matchedForm = requestId && pendingForms[requestId] ? pendingForms[requestId] : null;\n      if (requestId) delete pendingForms[requestId];\n      var forms = matchedForm ? [matchedForm] : document.querySelectorAll(\"form[data-gumroad-follow]\");\n      for (var i = 0; i < forms.length; i++) {\n        forms[i].setAttribute(\"data-gumroad-follow-state\", success ? \"success\" : \"error\");\n      }\n      var slots = matchedForm ? matchedForm.querySelectorAll(\"[data-gumroad-follow-message]\") : [];\n      if (!slots.length) slots = document.querySelectorAll(\"[data-gumroad-follow-message]\");\n      for (var j = 0; j < slots.length; j++) {\n        slots[j].textContent = message;\n      }\n      // For pages that manage their own UI (popups etc.) instead of\n      // using the declarative hooks above.\n      try {\n        window.dispatchEvent(new CustomEvent(\"gumroad:follow:result\", { detail: { success: success, message: message } }));\n      } catch (_err) {}\n    });\n  })();\n</script>\n\n    <script data-cfasync=\"false\" data-gumroad-products-bridge>\n  (function () {\n    // Viewed directly (not framed) there is no trusted parent to ask.\n    if (window.parent === window) return;\n    var pendingRequests = {};\n    var nextRequestId = 0;\n    // Minted once per document (this script re-runs on every navigation), so a reply meant\n    // for whatever document previously occupied the frame — the wrapper's WindowProxy check\n    // can't tell them apart, since it's navigation-stable — can't resolve this document's\n    // promises even if the request id was reused.\n    var documentToken = Math.random().toString(36).slice(2) + Date.now().toString(36);\n    function request(options) {\n      options = options || {};\n      nextRequestId += 1;\n      var requestId = \"gumroad-products-\" + nextRequestId;\n      var promise = new Promise(function (resolve) {\n        pendingRequests[requestId] = resolve;\n      });\n      parent.postMessage({\n        type: \"gumroad:products\",\n        offset: options.offset,\n        limit: options.limit,\n        requestId: requestId,\n        documentToken: documentToken\n      }, \"*\");\n      return promise;\n    }\n    try { window.gumroadProducts = { request: request }; } catch (_err) {}\n    window.addEventListener(\"message\", function (e) {\n      // Only the parent wrapper's reply resolves a request — a message\n      // the page posts to itself can't spoof it.\n      if (e.source !== window.parent) return;\n      var d = e.data;\n      if (!d || typeof d !== \"object\" || d.type !== \"gumroad:products:result\") return;\n      if (d.documentToken !== documentToken) return;\n      var requestId = typeof d.requestId === \"string\" ? d.requestId : null;\n      var resolve = requestId && pendingRequests[requestId] ? pendingRequests[requestId] : null;\n      if (requestId) delete pendingRequests[requestId];\n      var detail = {\n        success: d.success === true,\n        products: Array.isArray(d.products) ? d.products : [],\n        productsTotal: typeof d.productsTotal === \"number\" ? d.productsTotal : null,\n        prices: d.prices && typeof d.prices === \"object\" && !Array.isArray(d.prices) ? d.prices : {},\n        offset: typeof d.offset === \"number\" ? d.offset : null,\n        limit: typeof d.limit === \"number\" ? d.limit : null,\n        requestId: requestId\n      };\n      if (resolve) resolve(detail);\n      // For pages that posted their own message instead of going through\n      // window.gumroadProducts.\n      try {\n        window.dispatchEvent(new CustomEvent(\"gumroad:products:result\", { detail: detail }));\n      } catch (_err) {}\n    });\n  })();\n</script>\n\n    <script data-cfasync=\"false\" data-gumroad-background-bridge>\n  (function () {\n    // Viewed directly (not framed) there is no wrapper to color.\n    if (window.parent === window) return;\n    function colorAlpha(color) {\n  if (!color || color === \"transparent\") return 0;\n  var body = color.match(/\\(([^)]*)\\)\\s*$/);\n  if (!body) return color.indexOf(\"(\") === -1 ? 1 : null;\n  var parts = body[1].split(\"/\");\n  var alpha = parts.length > 1 ? parts[parts.length - 1] : null;\n  if (alpha === null) {\n    var channels = body[1].split(\",\");\n    if (channels.length > 3) alpha = channels[3];\n  }\n  if (alpha === null) return 1;\n  var value = parseFloat(alpha);\n  if (!isFinite(value)) return null;\n  return alpha.indexOf(\"%\") === -1 ? value : value / 100;\n}\nfunction opaque(color) {\n  return colorAlpha(color) === 1;\n}\n\n    function flatRootPaint(style) {\n      return style.opacity === \"1\" &&\n        style.filter === \"none\" &&\n        style.clipPath === \"none\" &&\n        style.maskImage === \"none\" &&\n        (!style.webkitMaskImage || style.webkitMaskImage === \"none\") &&\n        (!style.maskBorderSource || style.maskBorderSource === \"none\") &&\n        (!style.webkitMaskBoxImage || style.webkitMaskBoxImage === \"none\") &&\n        style.mixBlendMode === \"normal\" &&\n        style.display !== \"none\";\n    }\n    function establishesContainment(style) {\n      return style.contain !== \"none\" ||\n        (style.contentVisibility && style.contentVisibility !== \"visible\") ||\n        (style.containerType && style.containerType !== \"normal\");\n    }\n    function paint(color, colorScheme) {\n      return { color: color, colorScheme: colorScheme };\n    }\n    function schemeBackplate(style) {\n      if (!style.colorScheme || style.colorScheme === \"normal\") return paint(null, null);\n      // The trusted wrapper resolves Canvas. Probing here would alter the\n      // seller's DOM, including :last-child selectors.\n      return paint(null, style.colorScheme);\n    }\n    function canvasPaint() {\n      var rootStyle = window.getComputedStyle(document.documentElement);\n      if (!flatRootPaint(rootStyle)) return paint(null, null);\n      var root = rootStyle.backgroundColor;\n      var rootAlpha = colorAlpha(root);\n      if (rootStyle.backgroundImage !== \"none\") return paint(null, null);\n      if (rootAlpha === 1) return paint(root, null);\n      if (rootAlpha !== 0 || !document.body) return paint(null, null);\n      var bodyStyle = window.getComputedStyle(document.body);\n      if (\n        bodyStyle.display === \"none\" ||\n        establishesContainment(rootStyle) ||\n        establishesContainment(bodyStyle)\n      ) return schemeBackplate(rootStyle);\n      var body = bodyStyle.backgroundColor;\n      if (bodyStyle.backgroundImage !== \"none\") return paint(null, null);\n      if (opaque(body)) return paint(body, null);\n      if (colorAlpha(body) !== 0) return paint(null, null);\n      return schemeBackplate(rootStyle);\n    }\n    var reportedColor = null;\n    var reportedColorScheme = null;\n    var hasReported = false;\n    function report(force) {\n      var current = canvasPaint();\n      if (\n        !force &&\n        hasReported &&\n        current.color === reportedColor &&\n        current.colorScheme === reportedColorScheme\n      ) return;\n      reportedColor = current.color;\n      reportedColorScheme = current.colorScheme;\n      hasReported = true;\n      // The first null matters after an iframe reload: its wrapper may\n      // still hold the previous document's tint.\n      parent.postMessage({\n        type: \"gumroad:background\",\n        color: current.color,\n        colorScheme: current.colorScheme\n      }, \"*\");\n    }\n    window.addEventListener(\"message\", function (e) {\n      var d = e.data;\n      if (e.source === parent && d && d.type === \"gumroad:background:request\") report(true);\n    });\n    var queued = false;\n    var queuedForce = false;\n    function queueReport(force) {\n      if (force === true) queuedForce = true;\n      if (queued) return;\n      queued = true;\n      requestAnimationFrame(function () {\n        var shouldForce = queuedForce;\n        queued = false;\n        queuedForce = false;\n        report(shouldForce);\n      });\n    }\n    // Ignore ordinary DOM churn; only selectors and stylesheets can move\n    // the canvas color.\n    function stylesheetNode(node) {\n      var name = node && node.localName;\n      return name === \"style\" || name === \"link\";\n    }\n    // A link repaints after insertion, when its own load event fires.\n    function watchStylesheetLoad(node) {\n      if (node && node.localName === \"link\") node.addEventListener(\"load\", queueReport);\n    }\n    function eachStylesheet(node, fn) {\n      if (!node) return;\n      if (stylesheetNode(node)) fn(node);\n      if (!node.querySelectorAll) return;\n      var found = node.querySelectorAll(\"style,link\");\n      for (var i = 0; i < found.length; i++) fn(found[i]);\n    }\n    function affectsCanvas(records) {\n      var affects = false;\n      for (var i = 0; i < records.length; i++) {\n        var record = records[i];\n        if (record.type === \"attributes\") {\n          if (\n            record.target === document.documentElement ||\n            record.target === document.body ||\n            stylesheetNode(record.target)\n          ) affects = true;\n          // href swapped on a <link> that is already in the document — the\n          // new sheet lands late too.\n          if (stylesheetNode(record.target)) watchStylesheetLoad(record.target);\n        }\n        if (stylesheetNode(record.target)) affects = true;\n        if (stylesheetNode(record.target.parentNode)) affects = true;\n        for (var j = 0; j < record.addedNodes.length; j++) {\n          eachStylesheet(record.addedNodes[j], function (sheet) {\n            affects = true;\n            watchStylesheetLoad(sheet);\n          });\n        }\n        for (var k = 0; k < record.removedNodes.length; k++) {\n          eachStylesheet(record.removedNodes[k], function () { affects = true; });\n        }\n      }\n      return affects;\n    }\n    report();\n    // After load the stylesheet and any seller scripts have applied, so\n    // this is the first reading that reflects the finished page.\n    window.addEventListener(\"load\", queueReport);\n    try {\n      new MutationObserver(function (records) {\n        if (affectsCanvas(records)) queueReport();\n      }).observe(document.documentElement, {\n        attributes: true,\n        childList: true,\n        characterData: true,\n        subtree: true\n      });\n    } catch (_err) {}\n    try {\n      window.matchMedia(\"(prefers-color-scheme: dark)\").addEventListener(\"change\", function () {\n        // The declared scheme can stay \"dark light\" while Canvas changes.\n        queueReport(true);\n      });\n    } catch (_err) {}\n    // CSSOM writes emit no mutation, so poll a clean style tree as a backstop.\n    try {\n      setInterval(function () {\n        if (!document.hidden) queueReport();\n      }, 1000);\n      document.addEventListener(\"visibilitychange\", queueReport);\n    } catch (_err) {}\n  })();\n</script>\n\n    \n    \n  </body>\n</html>\n"
       },
       "db": {
         "dashboard_nav_promotions": {
@@ -1375,12 +1916,19 @@
             {
               "id": 1,
               "user_id": 1,
-              "nav_item": "seeded",
+              "nav_item": "profile",
               "created_at": "<now>",
               "updated_at": "<now>"
             },
             {
               "id": 2,
+              "user_id": 1,
+              "nav_item": "seeded",
+              "created_at": "<now>",
+              "updated_at": "<now>"
+            },
+            {
+              "id": 3,
               "user_id": 1,
               "nav_item": "pages",
               "created_at": "<now>",

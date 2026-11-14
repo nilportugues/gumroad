@@ -2,12 +2,12 @@
 // JSON action: a request that does not ask for JSON goes to Rails.
 //
 // Handed to Rails before the first write: a signature that is not text (Rails calls `length` on it only when the seller has a legal name,
-// and `create!` casts the rest to a string), and one that fails `validates_presence_of` (RecordInvalid, rendered by the exceptions app).
+// and `create!` casts the rest to a string). A blank signature, or none at all from a seller with no legal name, fails
+// `validates_presence_of` in `create!`: RecordInvalid, which processAction answers with the 422 page and no write.
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { notifyError } from "../infra/error-reporting.ts";
 import { BACKTAX_JURISDICTIONS, BacktaxAgreements } from "../models/backtax-agreement.ts";
 import { COMMENT_TYPES, Comments } from "../models/comment.ts";
-import { RecordInvalid } from "../models/runtime/errors.ts";
 import { aliveUserComplianceInfoRow, legalEntityName } from "../models/user-compliance-info.ts";
 import { settingsPaymentsUserPolicy } from "../policies/settings/payments-user.ts";
 
@@ -54,22 +54,20 @@ function optInToAuBacktaxCollection(input: MutationInput): Promise<ActionResult>
     async () => {
       const seller = input.context.currentSeller!;
       const { signature } = input.params;
-      if (typeof signature !== "string" || /\p{Surrogate}/u.test(signature))
+      if (signature === undefined || signature === null) {
+        // Rails calls `length` on nil when the seller has a legal name; only a seller with no compliance information is recorded.
+        if ((await aliveUserComplianceInfoRow(seller.id)) !== null) throw new HandBackToRails("a missing signature");
+      } else if (typeof signature !== "string" || /\p{Surrogate}/u.test(signature)) {
         throw new HandBackToRails("a signature that is not text");
-
-      if (!(await signatureMatchesLegalName(seller.id, signature)))
+      } else if (!(await signatureMatchesLegalName(seller.id, signature))) {
         return jsonResponse({ success: false, error: EXACT_NAME_MESSAGE }, 200, true);
-
-      try {
-        await BacktaxAgreements.createBang({
-          user_id: seller.id,
-          jurisdiction: BACKTAX_JURISDICTIONS.AUSTRALIA,
-          signature,
-        });
-      } catch (error) {
-        if (error instanceof RecordInvalid) throw new HandBackToRails(`an invalid backtax agreement: ${error.message}`);
-        throw error;
       }
+
+      await BacktaxAgreements.createBang({
+        user_id: seller.id,
+        jurisdiction: BACKTAX_JURISDICTIONS.AUSTRALIA,
+        signature: signature ?? null,
+      });
 
       await logPayoutSettingsUpdateByNonOwner(input, AUDIT_DESCRIPTION);
       return jsonResponse({ success: true }, 200, true);
