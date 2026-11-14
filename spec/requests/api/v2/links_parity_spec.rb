@@ -302,8 +302,53 @@ describe "API v2 products", type: :request do
       put "/v2/products/#{product.external_id}/sections", params: {}.to_json, headers: json_headers
     end
 
-    it "hands back a null inside the list to Rails", parity: true do
+    it "refuses a null inside the list", parity: true do
       put "/v2/products/#{product.external_id}/sections", params: { sections: [nil] }.to_json, headers: json_headers
+    end
+
+    it "keeps a section named by an object with only its id", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: second.external_id }, first.external_id] }.to_json, headers: json_headers
+    end
+
+    it "refuses a section field Rails does not know", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: first.external_id, bogus: 1 }] }.to_json, headers: json_headers
+    end
+
+    it "refuses an entry that has neither an id nor a type", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{}] }.to_json, headers: json_headers
+    end
+
+    it "refuses an entry that has both an id and a type", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: first.external_id, type: "products" }] }.to_json, headers: json_headers
+    end
+
+    it "refuses a header that is not a string", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: first.external_id, header: 3 }] }.to_json, headers: json_headers
+    end
+
+    it "refuses an unknown type for a new section", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ type: "rich_text" }] }.to_json, headers: json_headers
+    end
+
+    it "refuses an object entry whose id is not a string", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: 7 }] }.to_json, headers: json_headers
+    end
+
+    it "refuses an object entry whose id does not decrypt", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: "nope" }] }.to_json, headers: json_headers
+    end
+
+    it "refuses the section of another product before reading the next entry", parity: true do
+      stranger = create(:seller_profile_rich_text_section, seller:)
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [stranger.external_id, "nope"] }.to_json, headers: json_headers
+    end
+
+    it "hands a new section to Rails", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [first.external_id, { type: "products" }] }.to_json, headers: json_headers
+    end
+
+    it "hands a header change to Rails", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: first.external_id, header: "New" }] }.to_json, headers: json_headers
     end
 
     it "refuses a known_section_ids that is not a list", parity: true do
