@@ -42,12 +42,13 @@ import {
 import { OfferCodeFlags } from "../models/offer-code.ts";
 import { planBuyPriceWrite, PRICE_TOO_LARGE as PRICE_WRITE_TOO_LARGE, writeBuyPrice } from "../models/price-writes.ts";
 import { s3Fields } from "../models/product-file.ts";
+import { planTagChanges, saveTags } from "../models/product-tags.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { isBlank } from "../models/runtime/validators.ts";
 import { selectRows } from "../models/sql.ts";
 import { SubscriptionFlags } from "../models/subscription.ts";
-import { UserFlags } from "../models/user.ts";
+import { NotPortedError, UserFlags } from "../models/user.ts";
 import { CreatorAnalyticsCachingProxy } from "../page-props/analytics/caching-proxy.ts";
 import { churnData } from "../page-props/analytics/churn.ts";
 import { displayExtension, nameDisplayable } from "../page-props/audience/product-file-json.ts";
@@ -1424,7 +1425,7 @@ const isBlankText = (value: string) => isBlank(value);
 // the seller holds, or that a licensed product claims while a product-id cutover is set, a description Node cannot sanitize like
 // SaveContentUpsellsService, a rename of a published product (content moderation), a product beside discount codes (the warning lists the
 // ones the new price breaks) and a product whose price is not one buy price go to Rails whole, before the first write.
-const UNPORTED_UPDATE_KEYS = ["category", "tags", "currency"];
+const UNPORTED_UPDATE_KEYS = ["category", "currency"];
 
 // A lone surrogate is what JSON.dump refuses to write; the port cannot tell which error Rails would raise first.
 const LONE_SURROGATE = /[\ud800-\udfff]/u;
@@ -1481,8 +1482,45 @@ function plannedJsonDataWrites(args: Hash): [string, YamlValue][] {
   return writes;
 }
 
+// Mcp::Server::MAX_TAGS, MIN_TAG_LENGTH, MAX_TAG_LENGTH
+const MAX_TAGS = 10;
+const MIN_TAG_LENGTH = 2;
+const MAX_TAG_LENGTH = 20;
+// Printable ASCII and the whitespace `[[:space:]]` matches in it: what `downcase.strip.gsub` reads the same in Node.
+const ASCII_TAG_TEXT = /^[\t-\r\u0020-\u007e]*$/u;
+// A name Tag's own validations and callbacks leave alone, with no space: the tag recordings hold none.
+const PLAIN_TAG = /^[a-z0-9](?:[a-z0-9_-])*[a-z0-9]$/u;
+
+type TagPlan = { error: ToolRpcError } | { work: Awaited<ReturnType<typeof planTagChanges>> };
+
+// Mcp::Server#normalized_tags, and the save_tags! work for it. Rails raises its errors only after the product row is saved, so one is
+// returned for the transaction to throw; what Node cannot follow (several tags, whose order `product.tags` leaves open, a name the Tag
+// model would change or refuse, a list that is not an array) goes to Rails before any write.
+async function planTags(productId: bigint, tags: unknown): Promise<TagPlan> {
+  if (!Array.isArray(tags)) throw new HandBackToRails("a tag list that is not an array");
+  const names: string[] = [];
+  for (const tag of tags) {
+    if (typeof tag !== "string") return { error: new ToolRpcError("each tag must be text", INVALID_PARAMS) };
+    if (!ASCII_TAG_TEXT.test(tag)) throw new HandBackToRails("a tag with text beyond printable ASCII");
+    names.push(rubyStrip(tag.toLowerCase()).replace(/[\t-\r ]+/gu, " "));
+  }
+  const unique = [...new Set(names)];
+  if (unique.some((name) => name.length < MIN_TAG_LENGTH || name.length > MAX_TAG_LENGTH))
+    return { error: new ToolRpcError(`each tag must be ${MIN_TAG_LENGTH}-${MAX_TAG_LENGTH} characters`, INVALID_PARAMS) };
+  if (unique.length > MAX_TAGS && unique.length >= (await db.productTagging.count({ where: { product_id: Number(productId) } })))
+    return { error: new ToolRpcError(`a product can have up to ${MAX_TAGS} tags`, INVALID_PARAMS) };
+  if (unique.length > 1) throw new HandBackToRails("several tags");
+  if (unique.some((name) => !PLAIN_TAG.test(name))) throw new HandBackToRails("a tag the Tag model would change or refuse");
+  try {
+    return { work: await planTagChanges(productId, unique) };
+  } catch (caught) {
+    if (caught instanceof NotPortedError) throw new HandBackToRails(caught.message);
+    throw caught;
+  }
+}
+
 async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
-  // The fields Node does not write: category and currency are resolved against Rails' tables, and tags have their own normalisation.
+  // The fields Node does not write: category and currency are resolved against Rails' tables.
   if (UNPORTED_UPDATE_KEYS.some((key) => key in args))
     throw new HandBackToRails("an update_product field Node does not write");
   // Rails assigns the two as they come; only a boolean and a whole number are recorded.
@@ -1504,6 +1542,7 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     "custom_receipt_text",
     "custom_view_content_button_text",
     "permalink",
+    "tags",
   ].filter((key) => key in args);
   if (changes.length === 0)
     throw new ToolRpcError(
@@ -1557,6 +1596,7 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
   const jsonDataWrites = plannedJsonDataWrites(args);
   if (await hasApplicableOfferCodes(context.user, product))
     throw new HandBackToRails("a product beside discount codes");
+  const tagPlan = "tags" in args ? await planTags(product.id, args.tags) : undefined;
 
   const record = Links.load(product);
   try {
@@ -1574,6 +1614,11 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
       if (permalink !== undefined) attributes.custom_permalink = permalink;
       for (const [key, value] of jsonDataWrites) setJsonDataForAttr(record, key, value);
       await Links.updateBang(record, attributes, { now: context.now });
+      // After the product row, in the same transaction: a refused tag list rolls the other fields back.
+      if (tagPlan !== undefined) {
+        if ("error" in tagPlan) throw tagPlan.error;
+        await saveTags(product.id, tagPlan.work);
+      }
     });
   } catch (caught) {
     if (caught instanceof PermalinkChangedDuringLock)
