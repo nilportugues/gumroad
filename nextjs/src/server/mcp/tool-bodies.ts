@@ -1424,7 +1424,7 @@ const isBlankText = (value: string) => isBlank(value);
 // the seller holds, or that a licensed product claims while a product-id cutover is set, a description Node cannot sanitize like
 // SaveContentUpsellsService, a rename of a published product (content moderation), a product beside discount codes (the warning lists the
 // ones the new price breaks) and a product whose price is not one buy price go to Rails whole, before the first write.
-const UNPORTED_UPDATE_KEYS = ["category", "tags", "currency", "pay_what_you_want", "suggested_price_cents"];
+const UNPORTED_UPDATE_KEYS = ["category", "tags", "currency"];
 
 // A lone surrogate is what JSON.dump refuses to write; the port cannot tell which error Rails would raise first.
 const LONE_SURROGATE = /[\ud800-\udfff]/u;
@@ -1482,10 +1482,16 @@ function plannedJsonDataWrites(args: Hash): [string, YamlValue][] {
 }
 
 async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
-  // The fields Node does not write: category and currency are resolved against Rails' tables, tags and the json_data fields have their
-  // own normalisation, and the pay-what-you-want pair changes what the price box offers.
+  // The fields Node does not write: category and currency are resolved against Rails' tables, and tags have their own normalisation.
   if (UNPORTED_UPDATE_KEYS.some((key) => key in args))
     throw new HandBackToRails("an update_product field Node does not write");
+  // Rails assigns the two as they come; only a boolean and a whole number are recorded.
+  const payWhatYouWant = args.pay_what_you_want;
+  const suggested = args.suggested_price_cents;
+  if ("pay_what_you_want" in args && typeof payWhatYouWant !== "boolean")
+    throw new HandBackToRails("a pay_what_you_want that is not a boolean");
+  if ("suggested_price_cents" in args && !Number.isSafeInteger(suggested))
+    throw new HandBackToRails("a suggested price that is not a whole number");
   const found = await findProduct(args, context);
   const changes = [
     "name",
@@ -1493,6 +1499,8 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     "summary",
     "additional_details",
     "price_cents",
+    "pay_what_you_want",
+    "suggested_price_cents",
     "custom_receipt_text",
     "custom_view_content_button_text",
     "permalink",
@@ -1542,6 +1550,9 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
     if ("tooLarge" in plan) throw new ToolError(PRICE_WRITE_TOO_LARGE);
     priceCents = plan.cents;
   }
+  // After the price: the suggested price is validated against the price set in this save.
+  if ("pay_what_you_want" in args) attributes.customizable_price = payWhatYouWant as boolean;
+  if ("suggested_price_cents" in args) attributes.suggested_price_cents = suggested as number;
   if ("description" in args) attributes.description = plannedDescription(product, args.description);
   const jsonDataWrites = plannedJsonDataWrites(args);
   if (await hasApplicableOfferCodes(context.user, product))
@@ -1557,6 +1568,9 @@ async function updateProduct(args: Hash, context: ToolContext): Promise<Hash> {
       if (permalink != null && !claimsPermalink && permalink !== record.get("custom_permalink"))
         throw new PermalinkChangedDuringLock();
       if (priceCents !== undefined) await writeBuyPrice(product, priceCents, context.now);
+      // Checked against the switch the lock reloaded: an amount stored while it is off reads back as no suggested price.
+      if ("suggested_price_cents" in args && !(attributes.customizable_price ?? record.get("customizable_price")))
+        rpcError("suggested_price_cents needs pay what you want on: pass pay_what_you_want: true in this call");
       if (permalink !== undefined) attributes.custom_permalink = permalink;
       for (const [key, value] of jsonDataWrites) setJsonDataForAttr(record, key, value);
       await Links.updateBang(record, attributes, { now: context.now });
