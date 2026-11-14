@@ -442,9 +442,35 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       subscriptions
     end
 
-    it "hands back a gifted subscription", parity: true do
+    def gift_sender_flags = Purchase.flag_mapping["flags"][:is_original_subscription_purchase] | Purchase.flag_mapping["flags"][:is_gift_sender_purchase]
+
+    it "reports the giftee's address on a gifted subscription", parity: true do
       subscribe("ada@example.com", 2)
-      Purchase.find_by!(email: "ada@example.com").update_columns(flags: Purchase.flag_mapping["flags"][:is_original_subscription_purchase] | Purchase.flag_mapping["flags"][:is_gift_sender_purchase])
+      sender = Purchase.find_by!(email: "ada@example.com")
+      sender.update_columns(flags: gift_sender_flags)
+      create(:gift, gifter_purchase: sender, link: club, gifter_email: "ada@example.com", giftee_email: "giftee@example.com")
+      subscriptions
+    end
+
+    it "reports no email for a gifted subscription with a blank giftee address", parity: true do
+      subscribe("ada@example.com", 2)
+      sender = Purchase.find_by!(email: "ada@example.com")
+      sender.update_columns(flags: gift_sender_flags)
+      create(:gift, gifter_purchase: sender, link: club, gifter_email: "ada@example.com", giftee_email: "giftee@example.com").update_columns(giftee_email: "")
+      subscriptions
+    end
+
+    it "reports no email for a gifted subscription that has no gift row", parity: true do
+      subscribe("ada@example.com", 2)
+      Purchase.find_by!(email: "ada@example.com").update_columns(flags: gift_sender_flags)
+      subscriptions
+    end
+
+    it "hands back a gifted subscription with two gift rows", parity: true do
+      subscribe("ada@example.com", 2)
+      sender = Purchase.find_by!(email: "ada@example.com")
+      sender.update_columns(flags: gift_sender_flags)
+      2.times { |index| create(:gift, gifter_purchase: sender, link: club, gifter_email: "ada@example.com", giftee_email: "giftee#{index}@example.com") }
       subscriptions
     end
 
