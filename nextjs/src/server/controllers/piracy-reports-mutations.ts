@@ -83,7 +83,11 @@ function textParam(value: unknown): string {
 // printed here; any other list stays in Rails.
 const INSPECT_PLAIN = /^[ !$%'()*+,\-./0-9:;=?@A-Z[\]^_`a-z{|}~]*$/u;
 function signatureName(value: unknown): string {
-  if (Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string" && INSPECT_PLAIN.test(entry)))
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((entry) => typeof entry === "string" && INSPECT_PLAIN.test(entry))
+  )
     return `[${value.map((entry) => `"${String(entry)}"`).join(", ")}]`;
   return textParam(value);
 }
