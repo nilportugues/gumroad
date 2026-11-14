@@ -27,7 +27,7 @@ import {
   type Redirected,
 } from "./application-controller.ts";
 import { faradayQuery } from "./faraday-query.ts";
-import { type MutationInput, registerMutations } from "./mutation.ts";
+import { csrfVerified, type MutationInput, registerMutations } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
 import { isPresent } from "./rails-request.ts";
 import { resolveRequestAuth } from "./signed-in-filters.ts";
@@ -282,12 +282,19 @@ export function assertHtml(input: MutationInput): void {
 }
 
 // OmniAuth::Strategy#request_call then the strategy's request_phase. The CSRF token was checked on the way in (omniauth-rails_csrf_protection
-// raises otherwise, and Rails answers that in the failure action, which Node leaves to Rails). Provider failures of this phase do not exist.
+// raises InvalidAuthenticityToken, which OmniAuth turns into the failure action). A social connect's failure action has more to do and stays with Rails.
+// Provider failures of this phase do not exist.
 function requestPhase(strategy: Strategy) {
   return async (input: MutationInput): Promise<ActionResult> => {
     assertHtml(input);
     const { session } = input.chain;
     const { social } = strategy;
+    if (!csrfVerified(input.request, input.params)) {
+      if (social) throw new HandBackToRails("a social connect request with a bad authenticity token");
+      // The failure action's own CSRF check fails too, so it runs with a null session: only the redirect goes out, no flash and no cookie.
+      input.chain.skipSession = true;
+      return { status: FOUND, location: SIGN_IN_PATH };
+    }
     // The request phase runs in the middleware, ahead of any controller filter: `env["warden"].user` is the session's user, and the
     // chain of this route is bare, so the visitor is resolved here. What Devise would write on the way (remember cookie, ended session)
     // is Rails' to do.
@@ -594,7 +601,7 @@ registerMutations(
     },
   })),
   ...Object.values(STRATEGIES).flatMap((strategy) => [
-    { method: "POST", pattern: requestPath(strategy), options: BARE, run: requestPhase(strategy) },
+    { method: "POST", pattern: requestPath(strategy), options: BARE, skipForgeryProtection: true, run: requestPhase(strategy) },
     {
       method: "GET",
       pattern: callbackPath(strategy),
