@@ -401,6 +401,7 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     gifts.map((gift) => [String(gift.gifter_purchase_id), gift.giftee_purchase_id!]),
   );
   const gifteeSubscription = new Map<string, bigint | null>();
+  const foreignReceivers = new Map<string, bigint>();
   if (gifteeIds.length > 0) {
     // The review and the license key are read from the giftee's purchase: it must be a sale of the same product, plain or the
     // gift receiver of the sender's own subscription (the review is then its original purchase's, and the license is its own).
@@ -419,12 +420,10 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       if (giftee === undefined) throw new HandBackToRails("a gift whose receiver's purchase is missing");
       if (giftee.link_id !== purchase.link_id)
         throw new HandBackToRails("a gift whose receiver's purchase is not a sale of the same product");
-      if (
-        giftee.subscription_id !== null &&
-        (giftee.subscription_id !== purchase.subscription_id ||
-          !PurchaseFlags.isSet(giftee.flags, "is_gift_receiver_purchase"))
-      )
-        throw new HandBackToRails("a gift whose receiver is on a subscription other than the sender's");
+      if (giftee.subscription_id !== null && !PurchaseFlags.isSet(giftee.flags, "is_gift_receiver_purchase"))
+        throw new HandBackToRails("a gift whose receiver is on a subscription but is not flagged as a receiver");
+      if (giftee.subscription_id !== null && giftee.subscription_id !== purchase.subscription_id)
+        foreignReceivers.set(String(purchase.id), giftee.subscription_id);
       gifteeSubscription.set(String(purchase.id), giftee.subscription_id);
     }
   }
@@ -455,6 +454,20 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   const linkById = new Map(links.map((link) => [String(link.id), link]));
   if (linkById.size !== linkIds.length) throw new HandBackToRails("a sale whose product is missing");
   const abandonedCartEmailSales = await salesWithAbandonedCartEmail(purchases, linkById);
+  // Only a receiver on a subscription that has no original purchase is proven: the review read through it is nil, and it holds no license.
+  if (foreignReceivers.size > 0) {
+    for (const purchase of purchases)
+      if (
+        foreignReceivers.has(String(purchase.id)) &&
+        LinkFlags.isSet(linkById.get(String(purchase.link_id))!.flags, "is_licensed")
+      )
+        throw new HandBackToRails("a licensed gift whose receiver is on a subscription other than the sender's");
+    const originals = await selectRows<{ id: bigint }>(
+      Prisma.sql`SELECT ${column("purchases", "id")} FROM ${table("purchases")} WHERE ${column("purchases", "subscription_id")} IN (${Prisma.join([...new Set(foreignReceivers.values())])}) AND ${PurchaseFlags.condition("is_original_subscription_purchase")} LIMIT 1`,
+    );
+    if (originals.length > 0)
+      throw new HandBackToRails("a gift whose receiver is on another subscription that has an original purchase");
+  }
 
   // `variant_attributes` has no order of its own, so one variant per sale is proven.
   const variantRows = await selectRows<VariantRow>(
