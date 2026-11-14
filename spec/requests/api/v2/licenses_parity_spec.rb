@@ -882,6 +882,13 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["uses"]).to eq(0)
     end
 
+    it "enables a license whose key leads a list beside a key that matches nothing", parity: true do
+      write(:enable, "product_id" => product.external_id, "license_key" => [key, "NOSUCHKEY"])
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["uses"]).to eq(0)
+    end
+
     it "answers 404 for a list of keys that matches no license", parity: true do
       write(:enable, "product_id" => product.external_id, "license_key" => ["NOSUCHKEY"])
 
