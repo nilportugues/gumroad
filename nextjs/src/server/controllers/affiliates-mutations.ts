@@ -43,7 +43,13 @@ import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
 import { directAffiliatePolicy } from "../policies/direct-affiliate.ts";
 
-import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult, type Redirected } from "./application-controller.ts";
+import {
+  HandBackToRails,
+  ParameterMissing,
+  RoutingError,
+  type ActionResult,
+  type Redirected,
+} from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requireHtml } from "./users-controller.ts";
 
