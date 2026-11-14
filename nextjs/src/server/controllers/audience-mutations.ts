@@ -4,7 +4,7 @@ import type { AudienceOptions } from "../exports/audience-export.ts";
 import { enqueueAudienceExport } from "../exports/enqueue.ts";
 import { audiencePolicy } from "../policies/seller-analytics.ts";
 
-import { HandBackToRails, type ActionContext, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, type ActionContext, type ActionResult } from "./application-controller.ts";
 import { sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
@@ -14,10 +14,11 @@ const PERMITTED_OPTIONS = ["followers", "customers", "affiliates"] as const;
 const isHash = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
-// `params.required(:options).permit(...).to_hash`. A blank `options` raises ParameterMissing and a non-hash one a NoMethodError, both
-// Rails' to render. A permitted key keeps a scalar (a hash or list under it is dropped); a number is left to Rails too, as its JSON
+// `params.required(:options).permit(...).to_hash`. Only an absent `options` is proven to raise ParameterMissing (a 400); a blank one
+// and a non-hash one (NoMethodError) are Rails' to render. A permitted key keeps a scalar (a hash or list under it is dropped); a number is left to Rails too, as its JSON
 // form is not proven here.
 function permittedOptions(raw: unknown): AudienceOptions {
+  if (raw === undefined) throw new ParameterMissing();
   if (!isHash(raw) || Object.keys(raw).length === 0) throw new HandBackToRails("options that are blank or not a hash");
   const options: Record<string, unknown> = {};
   for (const key of PERMITTED_OPTIONS) {
