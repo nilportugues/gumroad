@@ -1,6 +1,6 @@
 // Api::Internal::Admin::UsersController#create_comment (the admin note with an idempotency key). The other writes of the controller
-// (risk state transitions, mail, Stripe, refunds, product take-downs, watchlists, 2FA) stay with Rails: the ported risk state
-// machine does not yet reproduce Rails' side effects for them (see CONVERTING.md, WS-17e).
+// are in user-write-guards.ts: the two-factor toggle and the plain risk transitions run there, mail, Stripe, refunds and product
+// take-downs stay with Rails (see CONVERTING.md, WS-17e).
 import { Prisma, type Comment } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
