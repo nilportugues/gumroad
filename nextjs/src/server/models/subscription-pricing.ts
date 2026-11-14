@@ -147,7 +147,8 @@ async function autoRenewalDiscountedTotalCents(
   });
 }
 
-// `.includes(:ownership_products)`: the join rows of every code in one statement, then their products.
+// `.includes(:ownership_products, :ownership_variants)`: each association's join rows for every code in one statement,
+// products before options. Option rows are kept as read: a code that carries one hands back when it is evaluated.
 async function preloadOwnershipProducts(codes: OfferCodeRecord[]): Promise<void> {
   if (codes.length === 0) return;
   const joins = await selectRows<{ offer_code_id: bigint | number; product_id: bigint | number }>(
@@ -176,6 +177,18 @@ async function preloadOwnershipProducts(codes: OfferCodeRecord[]): Promise<void>
       owned.filter((link): link is Link => link !== undefined),
     );
   }
+  const optionJoins = await selectRows<{ offer_code_id: bigint | number }>(
+    Prisma.sql`SELECT ${star("offer_codes_ownership_variants")} FROM ${table("offer_codes_ownership_variants")} WHERE ${columnIn(
+      "offer_codes_ownership_variants",
+      "offer_code_id",
+      codes.map((code) => code.id),
+    )}`,
+  );
+  for (const code of codes)
+    code.preload(
+      "ownership_variants",
+      optionJoins.filter((join) => String(join.offer_code_id) === String(code.id)),
+    );
 }
 
 const toCodes = (rows: Record<string, unknown>[]) =>
