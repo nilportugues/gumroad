@@ -155,16 +155,29 @@ async function revenueCut(row: LinkRow, userId: bigint): Promise<number> {
   return BigInt(collaborator.affiliate_user_id) === userId ? percentage : 0;
 }
 
+// Link.sorted_by(key: "cut") joins `affiliates` and `product_affiliates` again on top of the scope's own joins, so a collab with
+// several affiliate rows lists (and counts) once per row. The order reads the scope's first `affiliates_links`.
+const CUT_EXTRA_JOINS = Prisma.sql` INNER JOIN affiliates_links product_affiliates_links_join ON product_affiliates_links_join.link_id = links.id INNER JOIN affiliates affiliates_links_2 ON affiliates_links_2.id = product_affiliates_links_join.affiliate_id`;
+
 async function tableRows(seller: User, params: ListingParams, kind: Kind) {
   const { from, where } = collabsQuery(seller.id, params, kind);
-  return sortAndPaginate({ from, where, table: params[kind], sellerId: seller.id });
+  if (params[kind].sort?.key !== "cut") return sortAndPaginate({ from, where, table: params[kind], sellerId: seller.id });
+  const cut = Prisma.sql`CASE WHEN links.user_id = ${seller.id} THEN 10000 - affiliates_links.affiliate_basis_points ELSE affiliates_links.affiliate_basis_points END`;
+  return sortAndPaginate({
+    from: Prisma.sql`${from}${CUT_EXTRA_JOINS}`,
+    where,
+    table: params[kind],
+    sellerId: seller.id,
+    cut,
+  });
 }
 
 export async function assertCollabsSupported(seller: User, params: ListingParams): Promise<void> {
   assertTableSupported(params.products);
   assertTableSupported(params.memberships);
+  // Link.elasticsearch_sorted_and_paginated_by asks the products index, which Node does not read.
   for (const sort of [params.products.sort, params.memberships.sort])
-    if (sort && (sort.key === "cut" || sort.key === "display_price_cents")) throw new HandBackToRails();
+    if (sort && sort.key === "display_price_cents") throw new HandBackToRails();
   const [products, memberships] = await Promise.all([
     tableRows(seller, params, "products"),
     tableRows(seller, params, "memberships"),
