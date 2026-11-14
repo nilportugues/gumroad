@@ -133,7 +133,8 @@ const RENDERED = new Set(
     "with-the-discover-layout-renders-a-product-without-a-taxonomy",
     "with-the-discover-layout-answers-the-search-box-s-autocomplete-request-with-the-sugge-b0c7b45c",
     "with-the-discover-layout-renders-a-storefront-seller-s-product-without-the-catalogue",
-    // Hands back (not listed): "hands a visitor with four products ..." and "... three purchases and a cart product" (4 ids).
+    "with-the-discover-layout-for-a-visitor-with-curated-products-answers-a-visitor-with-f-fae71c1f",
+    "with-the-discover-layout-for-a-visitor-with-curated-products-answers-a-visitor-with-t-8829d22c",
     "with-the-discover-layout-for-a-visitor-with-curated-products-orders-the-navigation-by-43df4c4d",
     "with-the-discover-layout-for-a-visitor-with-curated-products-orders-the-navigation-by-60625323",
     "with-the-discover-layout-for-a-visitor-with-curated-products-orders-the-navigation-by-07860f7e",

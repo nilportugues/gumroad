@@ -125,8 +125,37 @@ describe("PUT /purchases/:id/refund", () => {
   });
 });
 
+describe("GET /purchases/:id/receipt", () => {
+  const action = find("GET", "/purchases/:id/receipt");
+  const visit = (params: Record<string, unknown>, signedIn = false) =>
+    ({ ...input("5", signedIn), params }) as unknown as MutationInput;
+
+  it("raises a routing error for a purchase that does not exist", async () => {
+    selectRows.mockResolvedValueOnce([]);
+    await expect(action.run(visit({}))).rejects.toThrow("Not Found");
+  });
+
+  it("redirects a signed-out visitor without an email to the form that asks for it", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    const result = (await action.run(visit({}))) as {
+      status: number;
+      location: string;
+      headers: Record<string, string>;
+    };
+    expect(result.status).toBe(302);
+    expect(result.location).toMatch(/^\/purchases\/.+\/confirm_receipt_email$/u);
+    expect(result.headers).toEqual({ "x-robots-tag": "noindex" });
+  });
+
+  it("hands a visitor who sends an email, and a signed-in viewer, back to Rails", async () => {
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    await expect(action.run(visit({ email: "buyer@example.com" }))).rejects.toThrow(/receipt/u);
+    selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
+    await expect(action.run(visit({}, true))).rejects.toThrow(/receipt/u);
+  });
+});
+
 describe.each([
-  ["GET", "/purchases/:id/receipt"],
   ["GET", "/purchases/:id/confirm_receipt_email"],
   ["GET", "/purchases/:id/subscribe"],
   ["POST", "/purchases/:id/subscribe"],
