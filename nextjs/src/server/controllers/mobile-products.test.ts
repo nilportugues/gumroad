@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MobileAction, MobileAuth, MobileInput } from "./mobile-api.ts";
 
-const { actions, selectRows, findMany } = vi.hoisted(() => ({
+const { actions, selectRows, findMany, findFirst, deleteProductBang, createUserEvent } = vi.hoisted(() => ({
   actions: [] as MobileAction[],
   selectRows: vi.fn(),
   findMany: vi.fn(),
+  findFirst: vi.fn(),
+  deleteProductBang: vi.fn(),
+  createUserEvent: vi.fn(),
 }));
 
 vi.mock("./mobile-api.ts", async (original) => ({
@@ -16,7 +19,13 @@ vi.mock("../models/sql.ts", async (original) => ({
   ...(await original<typeof import("../models/sql.ts")>()),
   selectRows,
 }));
-vi.mock("../../lib/db.ts", () => ({ db: { link: { findMany } } }));
+vi.mock("../../lib/db.ts", () => ({ db: { link: { findMany, findFirst } } }));
+vi.mock("./products-mutations.ts", () => ({ deleteProductBang }));
+vi.mock("../page-props/audience/events.ts", () => ({ createUserEvent }));
+vi.mock("../models/link.ts", async (original) => ({
+  ...(await original<typeof import("../models/link.ts")>()),
+  Links: { load: (row: unknown) => row },
+}));
 vi.mock("../page-props/seller-products/listing.ts", () => ({
   assertPriceSupported: vi.fn(),
   assertThumbnailsSupported: vi.fn(),
@@ -56,9 +65,10 @@ const stub = (count: number, ids: bigint[], rows = ids.map((id) => row(id))) => 
 beforeEach(() => findMany.mockReset());
 
 describe("GET /mobile/products", () => {
-  it("registers behind the mobile_api scope and leaves destroy to Rails", () => {
+  it("registers behind the mobile_api scope", () => {
     expect(actions.map((action) => [action.method, action.pattern, action.scopes])).toEqual([
       ["GET", "/mobile/products", ["mobile_api"]],
+      ["DELETE", "/mobile/products/:id", ["mobile_api"]],
     ]);
   });
 
@@ -136,5 +146,48 @@ describe("GET /mobile/products", () => {
     stub(1, [1n]);
     await expect(run(input({ page: "abc" }), auth)).rejects.toThrow(/page/u);
     await expect(run(input({ query: ["a"] }), auth)).rejects.toThrow(/query/u);
+  });
+});
+
+describe("DELETE /mobile/products/:id", () => {
+  const destroy = actions.find((action) => action.method === "DELETE")!.run;
+  const owner = { owner: { id: 7n }, impersonated: null } as unknown as MobileAuth;
+  const destroyInput = () =>
+    ({
+      params: { id: "p1" },
+      routeParams: { id: "p1" },
+      url: new URL("https://api.example.com/mobile/products/p1"),
+      request: { headers: new Headers() },
+    }) as unknown as MobileInput;
+
+  beforeEach(() => {
+    findFirst.mockReset();
+    deleteProductBang.mockReset();
+    createUserEvent.mockReset();
+  });
+
+  it("answers a 404 for a product the seller does not have", async () => {
+    findFirst.mockResolvedValue(null);
+    const result = await destroy(destroyInput(), owner);
+    expect(result).toMatchObject({ status: 404 });
+    expect(body(result)).toEqual({ success: false, message: "Product not found" });
+    expect(deleteProductBang).not.toHaveBeenCalled();
+  });
+
+  it("deletes the product, then records the delete event for the seller", async () => {
+    findFirst.mockResolvedValue({ id: 1n, price_cents: 500 });
+    const result = await destroy(destroyInput(), owner);
+    expect(body(result)).toEqual({ success: true });
+    expect(deleteProductBang).toHaveBeenCalledWith(7n, { id: 1n, price_cents: 500 });
+    expect(createUserEvent).toHaveBeenCalledWith(
+      "delete_product_mobile_app",
+      expect.objectContaining({ userId: 7n, product: { id: 1n, price_cents: 500 } }),
+    );
+  });
+
+  it("hands a delete while impersonating to Rails before any write", async () => {
+    const impersonating = { owner: { id: 7n }, impersonated: { id: 7n } } as unknown as MobileAuth;
+    await expect(destroy(destroyInput(), impersonating)).rejects.toThrow("impersonating");
+    expect(deleteProductBang).not.toHaveBeenCalled();
   });
 });

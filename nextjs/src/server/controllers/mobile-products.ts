@@ -3,12 +3,16 @@
 // Served here: the seller's visible, unarchived products newest first (name filter, 20 a page) for the shapes the dashboard row
 // serializer reproduces (USD, buy-only, cached stats not needed), and the 400 Pagy::OverflowError renders for a page past the last
 // one. Everything else goes to Rails whole: a page or query Ruby casts differently, a product priced in another currency or with an uploaded
-// thumbnail. #destroy is not registered: it soft-deletes and records an Event, so Rails keeps it.
+// thumbnail. #destroy soft-deletes the product and records the delete event in Node; a delete while a staff member impersonates the seller
+// (Rails records no event) or one the policy refuses goes to Rails whole.
+import { randomUUID } from "node:crypto";
+
 import { Prisma } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
-import { LinkFlags } from "../models/link.ts";
+import { LinkFlags, Links } from "../models/link.ts";
 import { column, selectRows, table } from "../models/sql.ts";
+import { createUserEvent } from "../page-props/audience/events.ts";
 import {
   assertPriceSupported,
   assertThumbnailsSupported,
@@ -22,7 +26,8 @@ import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 
 import { HandBackToRails } from "./application-controller.ts";
-import { registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
+import { fetchError, registerMobile, renderJson, type MobileAuth, type MobileInput } from "./mobile-api.ts";
+import { deleteProductBang } from "./products-mutations.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 // Api::Mobile::ProductsController::PRODUCTS_PER_PAGE
@@ -110,4 +115,35 @@ async function index(input: MobileInput, auth: MobileAuth | null) {
   });
 }
 
-registerMobile({ method: "GET", pattern: "/mobile/products", scopes: MOBILE_API_SCOPES, run: index });
+const DELETE_EVENT = "delete_product_mobile_app";
+
+async function destroy(input: MobileInput, auth: MobileAuth | null) {
+  const seller = auth!.owner;
+  // Events#create_event returns while impersonating, so Rails deletes without recording the event.
+  if (auth!.impersonated !== null) throw new HandBackToRails("a delete while impersonating");
+  // current_resource_owner.products.visible.find_by(unique_permalink:)
+  const row = await db.link.findFirst({
+    where: { user_id: seller.id, deleted_at: null, unique_permalink: input.routeParams.id },
+  });
+  if (row === null) return fetchError("Product not found");
+  const context: SellerContext = { user: seller, seller, memberships: [] };
+  if (!linkPolicy.destroy(context)) throw new HandBackToRails("a product the policy does not let the seller delete");
+
+  await deleteProductBang(seller.id, Links.load(row));
+  await createUserEvent(DELETE_EVENT, {
+    context: { loggedInUser: null, currentSeller: null, impersonatedUser: null },
+    headers: input.request.headers,
+    url: input.url,
+    // Rails mints a guid per request for a client that sends no cookie, and the event row keeps it.
+    state: { mobileParam: undefined, signupReferrer: undefined, mintedGuid: randomUUID() },
+    params: input.params,
+    product: { id: row.id, price_cents: row.price_cents },
+    userId: seller.id,
+  });
+  return renderJson({ success: true });
+}
+
+registerMobile(
+  { method: "GET", pattern: "/mobile/products", scopes: MOBILE_API_SCOPES, run: index },
+  { method: "DELETE", pattern: "/mobile/products/:id", scopes: MOBILE_API_SCOPES, run: destroy },
+);
