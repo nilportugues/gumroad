@@ -13,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   slice: vi.fn(),
   findSellerProfile: vi.fn(),
   saveProfile: vi.fn(),
+  subdomain: vi.fn<() => string | null>(),
+  richText: vi.fn(),
+  facts: vi.fn(),
 }));
 
 vi.mock("./mutation.ts", () => ({
@@ -56,8 +59,26 @@ vi.mock("../models/user.ts", () => ({
   Users: { load: (row: unknown) => row, touch: mocks.touch, withLock: (_record: unknown, run: () => unknown) => run() },
   findUserBang: async (id: unknown) => ({ id }),
   setSellerProfileTarget: () => undefined,
+  nameOrUsername: () => "Seller",
+  subdomainWithProtocol: () => mocks.subdomain(),
   rubyStrip: (value: string) => value.replace(/^[\0\t\n\v\f\r ]+|[\0\t\n\v\f\r ]+$/gu, ""),
 }));
+
+vi.mock("../services/pages-documents.ts", () => ({ richTextDocument: mocks.richText }));
+vi.mock("../services/pages-interpolator.ts", () => ({ interpolateProfile: (html: string) => html }));
+vi.mock("../services/pages-profile-data.ts", () => ({
+  loadProfileDataFacts: mocks.facts,
+  profileDataJson: () => "{}",
+}));
+vi.mock("../services/custom-domain-hosts.ts", () => ({ enqueueRoutabilityRefresh: () => undefined }));
+vi.mock("./custom-html-document.ts", () => ({
+  customHtmlCsp: () => "csp",
+  FOLLOW_BRIDGE_SCRIPT: "",
+  PRODUCTS_BRIDGE_SCRIPT: "",
+  pagesTailwindHead: () => "",
+  profileCustomHtmlDocument: () => "<profile>",
+}));
+vi.mock("./user-page-documents.ts", () => ({ pagePreviewDocument: () => "<embed>" }));
 
 await import("./pages-controller.ts");
 
@@ -292,13 +313,35 @@ describe("GET /pages/:slug/preview", () => {
     expect(await run(input({}, "profile"))).toMatchObject({ status: 404 });
   });
 
-  it("hands the profile takeover to Rails", async () => {
+  it("renders the profile takeover with the private cache header", async () => {
     database({ root: { custom_html: "<main></main>" } });
+    mocks.facts.mockResolvedValue({ routabilityRefresh: null });
+    const answer = await run({ ...input({}, "profile"), chain: { now: new Date(0) } } as unknown as MutationInput);
+    expect(answer).toMatchObject({ status: 200, body: "<profile>", headers: { "Cache-Control": "private, no-store" } });
+  });
+
+  it("hands a profile takeover that references prices to Rails", async () => {
+    database({ root: { custom_html: '<span data-gumroad-product="abc" data-gumroad-field="price">$1</span>' } });
     await expect(run(input({}, "profile"))).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands a rich text page to Rails", async () => {
+  it("renders a rich text page", async () => {
+    mocks.subdomain.mockReturnValue("http://seller.example.com");
+    mocks.richText.mockReturnValue("<rich>");
+    expect(await run(input({}, "about-me"))).toMatchObject({ status: 200, body: "<rich>" });
+    expect(mocks.richText).toHaveBeenCalledWith(expect.objectContaining({ profileHref: "http://seller.example.com" }));
+  });
+
+  it("hands a rich text page of a seller with no subdomain to Rails", async () => {
+    mocks.subdomain.mockReturnValue(null);
     await expect(run(input({}, "about-me"))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("renders a custom HTML page without the cache header of the profile", async () => {
+    database({ page: { custom_html: "<main></main>" } });
+    const answer = (await run(input({}, "my-landing"))) as { body: string; headers: Record<string, string> };
+    expect(answer.body).toBe("<embed>");
+    expect(answer.headers["Cache-Control"]).toBeUndefined();
   });
 });
 
