@@ -238,7 +238,7 @@ describe "API v2 file uploads", type: :request do
       expect(response.parsed_body["signed_id"]).to be_present
     end
 
-    it "hands an empty blob back to Rails", parity: true do
+    it "refuses an empty blob", parity: true do
       api_call(:post, "/direct_uploads", token:, params: { blob: {} }, as: :json)
 
       expect(response).to have_http_status(:bad_request)

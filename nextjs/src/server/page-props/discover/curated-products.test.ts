@@ -114,8 +114,24 @@ describe("associatedProductIds", () => {
     expect(sent.at(-1)).toContain("SELECT DISTINCT `links`.`id` FROM `links` INNER JOIN `purchases`");
   });
 
-  it("hands back 4 associated ids, which Rails samples at random", async () => {
+  it("hands back 4 associated ids when one has a cached related-products row, because Rails samples them at random", async () => {
+    rows = { cart: 3n, cartProducts: [10n, 11n], purchased: [12n, 13n], counts: { "10": { "20": 1 } } };
+    await expect(associatedProductIds(visitor, null)).rejects.toBeInstanceOf(NotPortedError);
+  });
+
+  it("answers nothing for 4 associated ids none of which has a cached related-products row", async () => {
     rows = { cart: 3n, cartProducts: [10n, 11n], purchased: [12n, 13n] };
+    expect(await associatedProductIds(visitor, null)).toEqual([]);
+  });
+
+  it("hands back 4 associated ids when the associated ids limit is set", async () => {
+    rows = { cart: 3n, cartProducts: [10n, 11n], purchased: [12n, 13n] };
+    mocks.limit = "1";
+    await expect(associatedProductIds(visitor, null)).rejects.toBeInstanceOf(NotPortedError);
+  });
+
+  it("hands back 4 associated ids when a side may have more than the default limit", async () => {
+    rows = { cart: 3n, cartProducts: Array.from({ length: 100 }, (_, i) => BigInt(i + 10)) };
     await expect(associatedProductIds(visitor, null)).rejects.toBeInstanceOf(NotPortedError);
   });
 
@@ -257,7 +273,7 @@ describe("curatedTaxonomyIds", () => {
   });
 
   it("hands back a visitor seeded by 4 ids, so the page that asks for the navigation reaches Rails", async () => {
-    rows = { cart: 3n, cartProducts: [10n, 11n], purchased: [12n, 13n] };
+    rows = { cart: 3n, cartProducts: [10n, 11n], purchased: [12n, 13n], counts: { "10": { "20": 1 } } };
     await expect(curatedTaxonomyIds(visitor, null)).rejects.toBeInstanceOf(NotPortedError);
   });
 });

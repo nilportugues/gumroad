@@ -89,8 +89,8 @@ function byteSizeOf(value: unknown): bigint {
 function createDirectUpload({ params }: ApiV2Input) {
   const blob = params.blob;
   if (!isHash(blob)) return error400("blob must be an object");
-  // `params.require(:blob)` raises on an empty hash with a message that depends on the Rails version.
-  if (Object.keys(blob).length === 0) return notPorted("an empty blob object");
+  // `params.require(:blob)` raises ParameterMissing on an empty hash, which the action rescues into a 400.
+  if (Object.keys(blob).length === 0) return error400("param is missing or the value is empty or invalid: blob");
 
   // `.permit(:filename, :byte_size, :checksum, :content_type)` drops anything that is not a scalar.
   const permitted = Object.fromEntries(

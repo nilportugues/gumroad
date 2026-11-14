@@ -12,6 +12,7 @@ import type { FilterParams } from "./audience-member.ts";
 import type { YamlValue } from "./concerns/psych.ts";
 import { endOfDayIso8601, startOfDayIso8601 } from "./concerns/rails-time-zone.ts";
 import { rubyToI } from "./concerns/ruby-numeric.ts";
+import { clickedRecipientPurchaseIds, openedRecipientPurchaseIds } from "./email-engagement-store.ts";
 import type { InstallmentPost } from "./installment-post.ts";
 import { nilReceiver } from "./offer-code.ts";
 import { column, selectRows, table } from "./sql.ts";
@@ -80,7 +81,9 @@ async function timezoneOf(post: InstallmentPost): Promise<string> {
   return user.timezone ?? refuse("a seller without a time zone");
 }
 
-export async function audienceMembersFilterParams(post: InstallmentPost): Promise<FilterParams> {
+// `audience_members_filter_params` up to the behavior filters: a post that names `opened_post_id` or `not_clicked_post_id` keeps
+// them out of the result, for `behaviorFilterParams` to resolve.
+async function filterParamsBeforeBehavior(post: InstallmentPost): Promise<FilterParams> {
   const json = { jsonData: () => parseJsonData(post.row.json_data) };
   const value = (key: string) => filterValue(json, key);
   const params: FilterParams = {};
@@ -147,9 +150,14 @@ export async function audienceMembersFilterParams(post: InstallmentPost): Promis
     // An unresolved selection must match nobody: compact_blank! would drop an empty list and send to every follower.
     params.waitlisted_product_ids = ids.length > 0 ? ids : [null];
   }
-  if (value("opened_post_id") !== null) refuse("an opened filter (DynamoDB)");
-  if (value("not_clicked_post_id") !== null) refuse("a has-not-clicked filter (DynamoDB)");
+  return params;
+}
 
+export async function audienceMembersFilterParams(post: InstallmentPost): Promise<FilterParams> {
+  const params = await filterParamsBeforeBehavior(post);
+  const json = { jsonData: () => parseJsonData(post.row.json_data) };
+  if (filterValue(json, "opened_post_id") !== null) refuse("an opened filter (DynamoDB)");
+  if (filterValue(json, "not_clicked_post_id") !== null) refuse("a has-not-clicked filter (DynamoDB)");
   return compactBlank(params);
 }
 
@@ -170,17 +178,60 @@ export type BehaviorAudience =
   // A reference that is not one of the seller's posts leaves `include_emails: [""]`, which matches nobody: a count of 0,
   // below the floor, so `displayed_audience_members_count` is nil.
   | { kind: "withheld" }
-  // Both references resolve: the count reads the openers and clickers from DynamoDB and the floor reads wider counts of
-  // them. No recording covers those reads, so the caller hands the request back to Rails.
-  | { kind: "engagement" };
+  // Every reference resolves to one of the seller's posts: the count reads their opens or clicks from DynamoDB.
+  | { kind: "engagement"; opened: string | null; notClicked: string | null };
 
 export async function behaviorAudience(post: InstallmentPost): Promise<BehaviorAudience> {
   const json = { jsonData: () => parseJsonData(post.row.json_data) };
-  const references = [filterValue(json, "opened_post_id"), filterValue(json, "not_clicked_post_id")].filter(
-    (reference) => reference !== null,
-  );
+  const opened = filterValue(json, "opened_post_id");
+  const notClicked = filterValue(json, "not_clicked_post_id");
+  const references = [opened, notClicked].filter((reference) => reference !== null);
   if (references.length === 0) return { kind: "unfiltered" };
   const sellerId = post.row.seller_id ?? refuse("a post without a seller");
   const owned = await Promise.all(references.map((reference) => sellerOwnsPost(sellerId, reference)));
-  return owned.every(Boolean) ? { kind: "engagement" } : { kind: "withheld" };
+  if (!owned.every(Boolean)) return { kind: "withheld" };
+  return {
+    kind: "engagement",
+    opened: opened === null ? null : String(opened),
+    notClicked: notClicked === null ? null : String(notClicked),
+  };
+}
+
+const PURCHASE_LOOKUP_BATCH_SIZE = 1000;
+
+// `purchase_emails_for(purchase_ids)`: the downcased addresses of those purchases, without repeats.
+async function purchaseEmails(purchaseIds: number[]): Promise<string[]> {
+  const emails = new Set<string>();
+  for (let start = 0; start < purchaseIds.length; start += PURCHASE_LOOKUP_BATCH_SIZE) {
+    const slice = purchaseIds.slice(start, start + PURCHASE_LOOKUP_BATCH_SIZE);
+    const rows = await selectRows<{ email: string | null }>(
+      Prisma.sql`SELECT ${column("purchases", "email")} FROM ${table("purchases")} WHERE ${column("purchases", "id")} IN (${Prisma.join(slice, ", ")})`,
+    );
+    for (const { email } of rows) if (email !== null) emails.add(email.toLowerCase());
+  }
+  return [...emails];
+}
+
+// The `include_emails` or `exclude_emails` of `audience_members_filter_params` for a post that names exactly one of the two
+// behavior filters, plus the params without them (what the count's wider audience is read from).
+export async function behaviorFilterParams(
+  post: InstallmentPost,
+  behavior: Extract<BehaviorAudience, { kind: "engagement" }>,
+): Promise<{ params: FilterParams; wider: FilterParams } | null> {
+  if (behavior.opened !== null && behavior.notClicked !== null) return null;
+  const wider = compactBlank(await filterParamsBeforeBehavior(post));
+  const params: FilterParams = { ...wider };
+  if (behavior.opened !== null) {
+    const emails = await purchaseEmails(
+      await openedRecipientPurchaseIds(decrypt(behavior.opened) ?? refuse("an opened post id")),
+    );
+    // An empty opener list must match nobody: `compact_blank!` would drop it and count everyone.
+    params.include_emails = emails.length > 0 ? emails : [""];
+  } else if (behavior.notClicked !== null) {
+    const emails = await purchaseEmails(
+      await clickedRecipientPurchaseIds(decrypt(behavior.notClicked) ?? refuse("a clicked post id")),
+    );
+    if (emails.length > 0) params.exclude_emails = emails;
+  }
+  return { params, wider };
 }

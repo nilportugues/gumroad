@@ -164,6 +164,8 @@ export function filterQuery(sellerId: number | bigint, rawParams: FilterParams):
   // `email` is a keyword holding the downcased address, so the caller downcases the exclusion list.
   if (params.exclude_emails && params.exclude_emails.length > 0)
     mustNot.push({ terms: { email: params.exclude_emails } });
+  if (params.include_emails && params.include_emails.length > 0)
+    filter.push({ terms: { email: params.include_emails } });
   if (has(params, "paid_more_than_cents"))
     filter.push({ range: { max_paid_cents: { gt: params.paid_more_than_cents! } } });
   if (has(params, "paid_less_than_cents"))

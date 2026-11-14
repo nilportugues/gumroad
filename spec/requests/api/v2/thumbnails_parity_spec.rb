@@ -71,7 +71,7 @@ describe "API v2 thumbnails", type: :request do
       expect(response.parsed_body["message"]).to eq("Please provide a signed_blob_id or url.")
     end
 
-    it "hands a signed_blob_id to Rails", parity: true do
+    it "refuses a signed_blob_id that does not verify", parity: true do
       thumbnail_call(:post, { signed_blob_id: "not-a-signed-id" })
 
       expect(response.parsed_body).to eq("success" => false, "message" => "The signed_blob_id is invalid or expired.")
