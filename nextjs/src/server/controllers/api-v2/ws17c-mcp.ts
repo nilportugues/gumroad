@@ -139,7 +139,9 @@ export function mcpPreAuth({ request, rawBody }: Pick<ApiCall, "request" | "rawB
       JSON.parse(text);
     } catch {
       if (!isCertainlyNotJson(text)) throw new HandBackToRails("an MCP request body that is not JSON");
-      return renderJson({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400, { prepended: true });
+      return renderJson({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }, 400, {
+        prepended: true,
+      });
     }
   }
   return undefined;
@@ -315,7 +317,8 @@ export async function register(call: ApiCall): Promise<ActionResult> {
   } catch {
     // Ruby's parser reads comments and rejects bytes JavaScript's does not.
     // A JSON content type fails in Rails' parameter parser before the action runs, with an answer this port does not give.
-    if (/json/iu.test(call.request.headers.get("content-type") ?? "") || !isCertainlyNotJson(source)) throw new HandBackToRails("a registration body that is not JSON");
+    if (/json/iu.test(call.request.headers.get("content-type") ?? "") || !isCertainlyNotJson(source))
+      throw new HandBackToRails("a registration body that is not JSON");
     return invalid("JSON parse error");
   }
   const params =
