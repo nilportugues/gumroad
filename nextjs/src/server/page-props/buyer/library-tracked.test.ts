@@ -24,7 +24,12 @@ const EXTERNAL_ID = encrypt(5);
 const RECURRING = LinkFlags.set(0n, "is_recurring_billing", true);
 const BLOCKS_ACCESS = LinkFlags.set(RECURRING, "block_access_after_membership_cancellation", true);
 
-type Answers = { users?: Record<string, unknown>[]; purchases?: Record<string, unknown>[]; analytics?: unknown[]; links?: Record<string, unknown>[] };
+type Answers = {
+  users?: Record<string, unknown>[];
+  purchases?: Record<string, unknown>[];
+  analytics?: unknown[];
+  links?: Record<string, unknown>[];
+};
 
 function answering({ users = [], purchases = [], analytics = [], links = [] }: Answers) {
   const statements: string[] = [];
@@ -58,8 +63,24 @@ const purchaseRow = (overrides: Record<string, unknown> = {}) => ({
   tax_cents: 0,
   ...overrides,
 });
-const productRow = (overrides: Record<string, unknown> = {}) => ({ id: 9n, user_id: 3n, name: "Course", unique_permalink: "abc", price_currency_type: "usd", flags: 0n, ...overrides });
-const sellerRow = (overrides: Record<string, unknown> = {}) => ({ id: 3n, external_id: "seller-ext", flags: 0n, google_analytics_id: null, facebook_pixel_id: null, json_data: null, ...overrides });
+const productRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 9n,
+  user_id: 3n,
+  name: "Course",
+  unique_permalink: "abc",
+  price_currency_type: "usd",
+  flags: 0n,
+  ...overrides,
+});
+const sellerRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 3n,
+  external_id: "seller-ext",
+  flags: 0n,
+  google_analytics_id: null,
+  facebook_pixel_id: null,
+  json_data: null,
+  ...overrides,
+});
 
 beforeEach(() => {
   link.findUniqueOrThrow.mockReset();
@@ -115,12 +136,20 @@ describe("purchaseAnalyticsProps", () => {
   });
 
   it("hands back a purchase displayed in another currency", async () => {
-    answering({ purchases: [purchaseRow({ displayed_price_currency_type: "gbp" })], links: [productRow()], users: [sellerRow({ google_analytics_id: "UA-1" })] });
+    answering({
+      purchases: [purchaseRow({ displayed_price_currency_type: "gbp" })],
+      links: [productRow()],
+      users: [sellerRow({ google_analytics_id: "UA-1" })],
+    });
     await expect(purchaseAnalyticsProps(1n, [EXTERNAL_ID])).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("hands back a product priced in another currency", async () => {
-    answering({ purchases: [purchaseRow()], links: [productRow({ price_currency_type: "gbp" })], users: [sellerRow({ google_analytics_id: "UA-1" })] });
+    answering({
+      purchases: [purchaseRow()],
+      links: [productRow({ price_currency_type: "gbp" })],
+      users: [sellerRow({ google_analytics_id: "UA-1" })],
+    });
     await expect(purchaseAnalyticsProps(1n, [EXTERNAL_ID])).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
@@ -141,7 +170,15 @@ describe("receiptPurchases", () => {
     answering({ purchases: [purchaseRow()], analytics: [{ 1: 1 }], users: [sellerRow({ name: "Ana" })] });
     link.findUniqueOrThrow.mockResolvedValue(productRow());
     expect(await receiptPurchases(1n, [EXTERNAL_ID])).toEqual([
-      { id: EXTERNAL_ID, email: "buyer@example.com", free: true, seller_id: "seller-ext", seller_name: "Ana", permalink: "abc", has_third_party_analytics: true },
+      {
+        id: EXTERNAL_ID,
+        email: "buyer@example.com",
+        free: true,
+        seller_id: "seller-ext",
+        seller_name: "Ana",
+        permalink: "abc",
+        has_third_party_analytics: true,
+      },
     ]);
   });
 
@@ -161,7 +198,9 @@ describe("receiptPurchases", () => {
     const statements = answering({ purchases: [purchaseRow()], analytics: [], users: [sellerRow()] });
     link.findUniqueOrThrow.mockResolvedValue(productRow());
     expect((await receiptPurchases(1n, [EXTERNAL_ID]))[0]!.has_third_party_analytics).toBe(false);
-    expect(statements.find((statement) => statement.includes("FROM `third_party_analytics`"))).toContain("`location` IN ('receipt', 'all')");
+    expect(statements.find((statement) => statement.includes("FROM `third_party_analytics`"))).toContain(
+      "`location` IN ('receipt', 'all')",
+    );
   });
 
   it("lists each visible tracked purchase", async () => {
