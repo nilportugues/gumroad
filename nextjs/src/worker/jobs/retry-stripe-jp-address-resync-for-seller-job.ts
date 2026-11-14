@@ -38,7 +38,7 @@ const star = (name: string) => Prisma.raw(`${quoteName(name)}.*`);
 type InfoRow = ComplianceInfoRow & { json_data: string | null };
 
 // `user.alive_user_compliance_info`: user_compliance_infos.alive.last
-async function aliveInfo(userId: bigint): Promise<InfoRow | null> {
+export async function aliveInfo(userId: bigint): Promise<InfoRow | null> {
   const [row] = await selectRows<InfoRow>(
     Prisma.sql`SELECT ${star(COMPLIANCE_INFO)} FROM ${table(COMPLIANCE_INFO)} WHERE ${column(COMPLIANCE_INFO, "user_id")} = ${userId} AND ${column(COMPLIANCE_INFO, "deleted_at")} IS NULL ORDER BY ${column(COMPLIANCE_INFO, "id")} DESC LIMIT 1`,
   );
@@ -55,7 +55,7 @@ function addressIsBlank(info: InfoRow, attribute: string): boolean {
 }
 
 // `user.active_bank_account` (bank_accounts.alive.first)
-async function hasActiveBankAccount(userId: bigint): Promise<boolean> {
+export async function hasActiveBankAccount(userId: bigint): Promise<boolean> {
   const [row] = await selectRows<BankAccount>(
     Prisma.sql`SELECT ${star(BANK_ACCOUNTS)} FROM ${table(BANK_ACCOUNTS)} WHERE ${column(BANK_ACCOUNTS, "user_id")} = ${userId} AND ${column(BANK_ACCOUNTS, "deleted_at")} IS NULL ORDER BY ${column(BANK_ACCOUNTS, "id")} ASC LIMIT 1`,
   );
@@ -63,7 +63,7 @@ async function hasActiveBankAccount(userId: bigint): Promise<boolean> {
 }
 
 // `user.paypal_connect_account.present?`; a PayPal account may be asked for its details, which Node does not do.
-async function hasPaypalAccount(userId: bigint): Promise<boolean> {
+export async function hasPaypalAccount(userId: bigint): Promise<boolean> {
   const rows = await selectRows(
     Prisma.sql`SELECT ${star(MERCHANT_ACCOUNTS)} FROM ${table(MERCHANT_ACCOUNTS)} WHERE ${column(MERCHANT_ACCOUNTS, "user_id")} = ${userId} AND ${column(MERCHANT_ACCOUNTS, "deleted_at")} IS NULL AND ${column(MERCHANT_ACCOUNTS, "charge_processor_alive_at")} IS NOT NULL AND ${column(MERCHANT_ACCOUNTS, "charge_processor_deleted_at")} IS NULL AND ${column(MERCHANT_ACCOUNTS, "charge_processor_id")} = ${PAYPAL_CHARGE_PROCESSOR_ID}`,
   );

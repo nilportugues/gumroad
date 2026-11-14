@@ -283,4 +283,5 @@ export const PORTED_JOBS: readonly string[] = [
   "SweepClosedSellerConnectAccountsJob",
   "AlertOnStripeDobDriftJob",
   "PartnerMigrationImportJob",
+  "RetryStripeRejectedPayoutSetupForSellerJob",
 ];
