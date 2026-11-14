@@ -206,7 +206,7 @@ describe.skipIf(!url)("Foreign webhooks parity", () => {
     jobs: redisJobs(redis),
     // Rails answers the debug page of the test environment for an action that does not exist; its text is not the port's to match.
     compare: name.includes("grmc")
-      ? { ignore: [...COMPARE.ignore, "response.body", "response.headers.content-type"] }
+      ? { ignore: [...COMPARE.ignore, "response.body"] }
       : // perform_in(5.seconds) sits exactly on the five second edge of the "<now>" bucket; the delay is asserted below instead.
         name.includes("mediaconvert") && name.includes("enqueues")
         ? { ignore: [...COMPARE.ignore, "jobs.*.at"] }

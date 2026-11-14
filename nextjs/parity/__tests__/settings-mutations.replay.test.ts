@@ -299,7 +299,7 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       ? { ignore: [...COMPARE.ignore, "response.body"] }
       : // The test environment answers a 404 with its debug page whatever the Accept header says.
         name.includes("404")
-        ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
+        ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
         : COMPARE,
     file,
   });

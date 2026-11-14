@@ -103,7 +103,7 @@ describe.skipIf(!url)("AffiliatesController guards", () => {
     const ignore = [...COMPARE.ignore];
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
-      ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
+      ignore.push("response.cookies", "response.body", "response.json");
     return replayOptionsFor({ ignore });
   };
 

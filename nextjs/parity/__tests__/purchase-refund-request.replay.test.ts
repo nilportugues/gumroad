@@ -149,13 +149,7 @@ describe.skipIf(!url)("Purchases::RefundRequestsController", () => {
   const compareFor = (file: string) =>
     readFileSync(file, "utf8").includes("rails exception debug page")
       ? {
-          ignore: [
-            ...COMPARE.ignore,
-            "response.cookies",
-            "response.body",
-            "response.json",
-            "response.headers.content-type",
-          ],
+          ignore: [...COMPARE.ignore, "response.cookies", "response.body", "response.json"],
         }
       : COMPARE;
 

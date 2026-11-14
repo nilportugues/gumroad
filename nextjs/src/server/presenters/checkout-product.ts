@@ -197,6 +197,8 @@ type CheckoutRequest = {
   includeCrossSells?: boolean;
   // `arrival:`: a cross-sell's offered product is one the buyer is adding right now
   arrival?: boolean;
+  // `?product=`, the one arrival Rails drops (CheckoutPresenter#no_selectable_tier?) and explains with `sold_out_arrival`
+  singleProduct?: boolean;
 };
 
 type OfferRow = {
@@ -534,6 +536,7 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
     cartParams = {},
     includeCrossSells = true,
     arrival = false,
+    singleProduct = false,
     buyerId = null,
     ip = null,
     params = {},
@@ -550,6 +553,9 @@ export async function checkoutProduct(row: LinkRow, request: CheckoutRequest = {
   const bundleProducts = await aliveBundleProducts(row.id);
   const options = await linkOptions(row);
   const item = await cartItem(row, seller, options, cartParams);
+  // Rails adds no line and sets `sold_out_arrival` (CheckoutPresenter#sold_out_arrival_notice) for a membership with no open tier.
+  if (singleProduct && flag(row, "is_tiered_membership") && (item.option === null || item.option.quantity_left === 0))
+    throw new NotPortedError("sold_out_arrival for a membership link with no selectable tier");
   const [creatorAvatar, thumbnail] = [
     present(effectiveUsername(seller)) ? await avatarUrl(seller as unknown as User) : null,
     await thumbnailUrl(row.id),
