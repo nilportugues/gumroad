@@ -222,6 +222,62 @@ describe "API v2 MCP and Notion", type: :request do
       call_tool("get_sales_totals", { start_date: "2026-03-01", end_date: "2026-03-31", breakdown: "week", product_id: product.external_id })
     end
 
+    describe "list_purchases" do
+      let(:artist) { create(:user, username: "ann", name: "Ann Artist") }
+      let(:nameless) { create(:user, username: "bee", name: nil) }
+      let(:artist_product) { create(:product, user: artist, name: "Brush set", unique_permalink: "brushset") }
+      let(:nameless_product) { create(:product, user: nameless, name: "Font pack", unique_permalink: "fontpack") }
+
+      def list_purchases(arguments = {}) = call_tool("list_purchases", arguments, scopes: "view_library")
+
+      def buy(link, at:, buyer: seller, **attributes)
+        build(:purchase, link:, seller: link.user, purchaser: buyer, email: "me@example.com", purchase_state: "successful", created_at: Time.utc(*at), **attributes).tap { |row| row.save!(validate: false) }
+      end
+
+      before do
+        buy(artist_product, at: [2026, 3, 2, 10], price_cents: 1000)
+        buy(artist_product, at: [2026, 3, 5, 10], price_cents: 500, stripe_refunded: true)
+        buy(nameless_product, at: [2026, 3, 3, 10], price_cents: 0)
+        buy(nameless_product, at: [2026, 3, 6, 10], price_cents: 700, displayed_price_cents: 640, displayed_price_currency_type: "eur")
+      end
+
+      it "lists the purchases newest first with the seller and the library url", parity: true do
+        list_purchases
+      end
+
+      it "lists a page of purchases and the cursor of the next", parity: true do
+        list_purchases({ limit: 3 })
+      end
+
+      it "lists the page after a cursor", parity: true do
+        list_purchases({ limit: 3, cursor: "#{Time.utc(2026, 3, 5, 10).to_i * 1_000_000}_#{Purchase.find_by!(stripe_refunded: true).id}" })
+      end
+
+      it "leaves out gifts sent, membership charges, failed attempts and another buyer's purchases", parity: true do
+        buy(artist_product, at: [2026, 3, 7, 10], price_cents: 900, is_gift_sender_purchase: true)
+        buy(artist_product, at: [2026, 3, 8, 10], price_cents: 900, purchase_state: "failed")
+        buy(artist_product, at: [2026, 3, 8, 12], price_cents: 900, purchase_state: "test_successful")
+        buy(artist_product, at: [2026, 3, 9, 10], price_cents: 900, buyer: artist)
+        buy(artist_product, at: [2026, 3, 10, 10], price_cents: 900).update_columns(subscription_id: create(:subscription, link: artist_product, user: nil).id)
+        list_purchases
+      end
+
+      it "lists a purchase that was not charged and a gift the buyer received", parity: true do
+        buy(artist_product, at: [2026, 3, 11, 10], price_cents: 900, purchase_state: "not_charged")
+        buy(artist_product, at: [2026, 3, 12, 10], price_cents: 800, purchase_state: "gift_receiver_purchase_successful", is_gift_receiver_purchase: true)
+        list_purchases
+      end
+
+      it "keeps a purchase of a product that was deleted", parity: true do
+        nameless_product.update_columns(deleted_at: Time.utc(2026, 3, 20))
+        list_purchases
+      end
+
+      it "reports a purchases limit of 0 as an invalid argument", parity: true do
+        list_purchases({ limit: 0 })
+      end
+    end
+
     describe "list_products" do
       def list_products(arguments = {}) = call_tool("list_products", arguments, scopes: "view_public")
 
