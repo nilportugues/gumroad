@@ -1,8 +1,8 @@
 // PurchaseCustomFieldsController#create (app/controllers/purchase_custom_fields_controller.rb): the download page saves a buyer's answer
 // to a post-purchase text or long text field on blur, authorised by the token of one of the purchase's URL redirects.
 //
-// Handed to Rails whole, before any write: a missing or non-text parameter (ParameterMissing, or a value `permit` drops), a file field
-// (Active Storage attach), a value Rails would reject (a required field left blank) and a value over the TEXT column's size.
+// Handed to Rails whole, before any write: an id that is a number or a boolean, a file field (Active Storage attach), a value that is
+// not text or an integer, and a value over the TEXT column's size.
 import { Prisma } from "@prisma/client";
 
 import { decrypt } from "../../lib/obfuscate-ids.ts";
@@ -16,8 +16,17 @@ import {
 import { isBlank } from "../models/runtime/validators.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 
-import { HandBackToRails, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
+
+import {
+  HandBackToRails,
+  ParameterMissing,
+  RoutingError,
+  type ActionResult,
+  type Rendered,
+} from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
+import { paramsWithFloats } from "./settings-mutations.ts";
 import { noContent } from "./seller-json.ts";
 
 // MySQL TEXT
@@ -28,10 +37,13 @@ const ANSWERABLE_TYPES = ["text", "long_text", "file"];
 // `head :not_found`, for a request that asked for JSON.
 const headNotFound = (): Rendered => ({ status: 404, body: "", contentType: "application/json", paramsRead: true });
 
-// `permitted_params.require(key)`: a blank string is as missing as an absent one, and `permit` drops anything that is not a scalar.
+// `permitted_params.require(key)`: a blank string is as missing as an absent one, and `permit` drops what is not a scalar, so an
+// array or a hash is missing too (ParameterMissing, a 400). A number or a boolean is a scalar Rails would look up as such.
 function required(input: MutationInput, key: string): string {
   const value = input.params[key];
-  if (typeof value !== "string" || isBlank(value)) throw new HandBackToRails(`a missing or non-text ${key}`);
+  if (value === undefined || value === null || (typeof value === "string" && isBlank(value)) || typeof value === "object")
+    throw new ParameterMissing();
+  if (typeof value !== "string") throw new HandBackToRails(`a ${key} that is not text`);
   return value;
 }
 
@@ -71,6 +83,16 @@ async function findCustomField(productId: bigint | null, externalId: string) {
   return field;
 }
 
+// `value=` casts an Integer to its decimal text; a float, a boolean or a number past 2**53 is cast differently, and `permit` drops
+// an array or a hash (the answer is then nil).
+function answerOf(input: MutationInput): string | null {
+  const submitted = input.params.value ?? null;
+  if (submitted === null || typeof submitted === "string") return submitted;
+  const exact = paramsWithFloats(input).value;
+  if (typeof exact === "number" && Number.isSafeInteger(exact)) return String(exact);
+  throw new HandBackToRails("a value that is not text or an integer");
+}
+
 async function create(input: MutationInput): Promise<ActionResult> {
   const purchase = await findPurchase(required(input, "purchase_id"));
   if (!(await buyerCanWrite(input, purchase.id))) return headNotFound();
@@ -78,8 +100,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
   const customField = await findCustomField(purchase.link_id, required(input, "custom_field_id"));
   if (customField.field_type === "file") throw new HandBackToRails("a file custom field");
 
-  const submitted = input.params.value ?? null;
-  if (submitted !== null && typeof submitted !== "string") throw new HandBackToRails("a value that is not text");
+  const submitted = answerOf(input);
   const value = normalizeValue(submitted);
   if (value !== null && Buffer.byteLength(value) > MAX_VALUE_BYTES)
     throw new HandBackToRails("a value over the column's size");
@@ -87,7 +108,8 @@ async function create(input: MutationInput): Promise<ActionResult> {
   const existing = await findForCustomField(purchase.id, customField.id);
   const record = existing ?? buildFromCustomField(purchase.id, customField, value);
   if (existing) existing.set("value", value);
-  if (!(await PurchaseCustomFields.save(record))) throw new HandBackToRails("a record Rails would not save");
+  // `save!` on a required field left blank
+  if (!(await PurchaseCustomFields.save(record))) throw new RecordInvalid(record.errors);
   return noContent();
 }
 

@@ -29,10 +29,17 @@ vi.mock("../../lib/obfuscate-ids.ts", () => ({
 }));
 
 await import("./purchase-custom-fields.ts");
-const { HandBackToRails, RoutingError } = await import("./application-controller.ts");
+const { HandBackToRails, ParameterMissing, RoutingError } = await import("./application-controller.ts");
+const { RecordInvalid } = await import("../models/runtime/errors.ts");
 const { normalizeValue } = await import("../models/purchase-custom-field.ts");
 
-const run = (params: Record<string, unknown>) => specs[0]!.run({ params } as unknown as MutationInput);
+const run = (params: Record<string, unknown>, body: string = JSON.stringify(params)) =>
+  specs[0]!.run({
+    params,
+    url: new URL("http://example.com/purchase_custom_fields"),
+    request: { headers: new Headers({ "content-type": "application/json" }) },
+    rawBody: new TextEncoder().encode(body),
+  } as unknown as MutationInput);
 const valid = { purchase_id: "5", custom_field_id: "9", token: "abc", value: "Blue" };
 const textField = { id: 9n, name: "Colour", field_type: "text" };
 
@@ -107,11 +114,18 @@ describe("PurchaseCustomFieldsController#create", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("hands a missing purchase_id or custom_field_id back to Rails", async () => {
-    await expect(run({ ...valid, purchase_id: "  " })).rejects.toBeInstanceOf(HandBackToRails);
-    answers([{ id: 5n, link_id: 3n }], [{ one: 1 }]);
-    await expect(run({ ...valid, custom_field_id: undefined })).rejects.toBeInstanceOf(HandBackToRails);
+  it("raises ParameterMissing for a purchase_id or custom_field_id that is absent, blank, null, an array or a hash", async () => {
+    for (const missing of [undefined, null, "  ", [], ["5"], { a: 1 }]) {
+      answers([{ id: 5n, link_id: 3n }], [{ one: 1 }]);
+      await expect(run({ ...valid, purchase_id: missing })).rejects.toBeInstanceOf(ParameterMissing);
+      answers([{ id: 5n, link_id: 3n }], [{ one: 1 }]);
+      await expect(run({ ...valid, custom_field_id: missing })).rejects.toBeInstanceOf(ParameterMissing);
+    }
     expect(save).not.toHaveBeenCalled();
+  });
+
+  it("hands a purchase_id that is a number back to Rails", async () => {
+    await expect(run({ ...valid, purchase_id: 5 })).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("hands a file field back to Rails before writing", async () => {
@@ -121,8 +135,19 @@ describe("PurchaseCustomFieldsController#create", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("hands a value that is not text back to Rails", async () => {
-    await expect(run({ ...valid, value: 12 })).rejects.toBeInstanceOf(HandBackToRails);
+  it("saves an integer answer as its decimal text", async () => {
+    await run({ ...valid, value: 42 });
+
+    expect(buildFromCustomField).toHaveBeenCalledWith(5n, textField, "42");
+    expect(save).toHaveBeenCalledOnce();
+  });
+
+  it("hands a float, a boolean, a hash and an integer past 2**53 back to Rails", async () => {
+    await expect(run({ ...valid, value: 4.5 }, '{"value":4.5}')).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(run({ ...valid, value: 42 }, '{"value":42.0}')).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(run({ ...valid, value: true })).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(run({ ...valid, value: { a: 1 } })).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(run({ ...valid, value: 1 }, '{"value":12345678901234567890}')).rejects.toBeInstanceOf(HandBackToRails);
     expect(save).not.toHaveBeenCalled();
   });
 
@@ -131,23 +156,9 @@ describe("PurchaseCustomFieldsController#create", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
-  it("hands a record that fails validation back to Rails", async () => {
+  it("raises RecordInvalid for a record that fails validation, as save! does", async () => {
     save.mockResolvedValue(false);
 
-    await expect(run(valid)).rejects.toBeInstanceOf(HandBackToRails);
-  });
-});
-
-describe("PurchaseCustomField value normalisation", () => {
-  it.each([
-    ["  a   b  ", "a b"],
-    ["\t\n x \0", "x"],
-    ["   ", null],
-    [" ", null],
-    ["", null],
-    ["a\nb", "a\nb"],
-    [null, null],
-  ])("turns %j into %j", (input, expected) => {
-    expect(normalizeValue(input)).toBe(expected);
+    await expect(run(valid)).rejects.toBeInstanceOf(RecordInvalid);
   });
 });
