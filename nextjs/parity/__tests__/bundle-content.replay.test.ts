@@ -11,7 +11,13 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
-import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
+import {
+  ELASTICSEARCH_HOST,
+  recreateIndex,
+  reindexProducts,
+  reindexPurchases,
+  replayIndexName,
+} from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -19,7 +25,7 @@ import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays Bundles::ContentController#update and #update_purchases_content (models/bundle-products.ts). The last exchange of each fixture
 // is sent to `next dev` with the route's flag on; a stand-in Rails receives whatever Node hands back. The purchases index is rebuilt from
-// the seeded rows because the save asks Elasticsearch for the bundle's sales.
+// the seeded rows because the save asks Elasticsearch for the bundle's sales, and the products index because an unpublish updates the bundle's document.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
@@ -148,6 +154,10 @@ describe.skipIf(!url)("bundle content writes", () => {
         const purchases = { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) } as const;
         await recreateIndex(es, purchases);
         await reindexPurchases(es, purchases.name, sql);
+        // An unpublish updates the bundle's document in the products index, which Rails had indexed when the bundle was created.
+        const products = { model: "Link", name: replayIndexName("products", ES_INDEX_SUFFIX) } as const;
+        await recreateIndex(es, products);
+        await reindexProducts(es, products.name, sql);
       },
     },
     jobs: redisJobsChannel(redis, new Set<string>()),

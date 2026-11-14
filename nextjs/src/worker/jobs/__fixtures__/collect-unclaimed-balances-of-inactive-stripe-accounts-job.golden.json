@@ -1,0 +1,787 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no merchant accounts",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an old US Stripe account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{}",
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an account created just before the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{}",
+                {
+                  "$time": "2023-11-04T12:30:45.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an account created at the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{}",
+                {
+                  "$time": "2023-11-04T12:30:45.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an account created just after the cutoff",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account created yesterday",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account outside the US",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account with no country",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account with no Stripe id",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "a Stripe Connect account",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account that already collected",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account with other json data",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{\"meta\":{\"other\":\"x\"}}",
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an account with no json data",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account that is not Stripe",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an account that is deleted",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                null,
+                null,
+                "stripe",
+                "acct_1",
+                "{}",
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-01-01T00:00:00.000000Z"
+                },
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "an account with no creation time",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an eligible account among others",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": [
+              [
+                2,
+                2,
+                null,
+                null,
+                "stripe",
+                "acct_2",
+                "{}",
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ],
+              [
+                3,
+                3,
+                null,
+                null,
+                "stripe",
+                "acct_3",
+                "{}",
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                {
+                  "$time": "2020-01-01T00:00:00.000000Z"
+                },
+                null,
+                null,
+                "US",
+                "usd",
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": true
+    },
+    {
+      "name": "accounts that are all ineligible",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `merchant_accounts`.* FROM `merchant_accounts` WHERE `merchant_accounts`.`charge_processor_id` = 'stripe' AND `merchant_accounts`.`country` = 'US' AND `merchant_accounts`.`charge_processor_merchant_id` IS NOT NULL AND NOT (json_data LIKE '%stripe_connect%') AND (json_data->>'$.unclaimed_balance_collection_transfer_id' IS NULL) AND (created_at < '2023-11-04 12:30:45.123000') ORDER BY `merchant_accounts`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "acquirer_id",
+              "acquirer_merchant_id",
+              "charge_processor_id",
+              "charge_processor_merchant_id",
+              "json_data",
+              "created_at",
+              "updated_at",
+              "deleted_at",
+              "charge_processor_verified_at",
+              "country",
+              "currency",
+              "charge_processor_deleted_at",
+              "charge_processor_alive_at"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "an argument",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 1, expected 0)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",
+      "args": [
+        1
+      ],
+      "hands_back": false
+    }
+  ]
+}

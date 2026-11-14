@@ -192,7 +192,9 @@ export async function parseBundleProducts(entries: BundleProductParams[]): Promi
   return parsed;
 }
 
-// `Link.find_by_external_id!`: Rails answers 404 for a product that is not there, so Node leaves that to it.
+// `Link.find_by_external_id!` raising ActiveRecord::RecordNotFound; the controller answers it with a 404.
+export class BundleProductNotFound extends Error {}
+
 async function findProductId(external: string): Promise<bigint> {
   const id = decrypt(external);
   if (id !== null) {
@@ -202,7 +204,7 @@ async function findProductId(external: string): Promise<bigint> {
       return facts.id;
     }
   }
-  return handBack("a product that does not exist");
+  throw new BundleProductNotFound("Couldn't find Link");
 }
 
 // Bundle::UpdateProductsService#perform. `bundle` is saved at the end, as `@bundle.save!`. Call inside a transaction.
