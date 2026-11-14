@@ -459,8 +459,46 @@ describe("PUT /mobile/sales/:id/review_response", () => {
     });
   });
 
-  it("hands a subscription sale to Rails", async () => {
-    selectRows.mockResolvedValueOnce([sale({ subscription_id: 3n })]);
+  const gifter = () => sale({ flags: PurchaseFlags.set(0n, "is_gift_sender_purchase", true) });
+  const notFound = async () => {
+    const result = await run("PUT", action, { message: "Thanks" });
+    expect(status(result)).toBe(404);
+    expect(body(result)).toEqual({ success: false, message: "Could not find review" });
+  };
+
+  it("hands a subscription sale with a review on one of its purchases to Rails", async () => {
+    selectRows.mockResolvedValueOnce([sale({ subscription_id: 3n })]).mockResolvedValueOnce([{ one: 1 }]);
+    await handedBack(run("PUT", action, { message: "Thanks" }));
+  });
+
+  it("answers 404 for a subscription sale none of whose purchases has a review", async () => {
+    selectRows.mockResolvedValueOnce([sale({ subscription_id: 3n })]).mockResolvedValueOnce([]);
+    await notFound();
+  });
+
+  it("answers 404 for a gift sender without a gift", async () => {
+    selectRows.mockResolvedValueOnce([gifter()]).mockResolvedValueOnce([]);
+    await notFound();
+  });
+
+  it("answers 404 for a gift without a giftee purchase", async () => {
+    selectRows.mockResolvedValueOnce([gifter()]).mockResolvedValueOnce([{ giftee_purchase_id: null }]);
+    await notFound();
+  });
+
+  it("answers 404 for a gift whose giftee purchase row is gone", async () => {
+    selectRows
+      .mockResolvedValueOnce([gifter()])
+      .mockResolvedValueOnce([{ giftee_purchase_id: 12n }])
+      .mockResolvedValueOnce([]);
+    await notFound();
+  });
+
+  it("hands a gift with a giftee purchase to Rails", async () => {
+    selectRows
+      .mockResolvedValueOnce([gifter()])
+      .mockResolvedValueOnce([{ giftee_purchase_id: 12n }])
+      .mockResolvedValueOnce([{ one: 1 }]);
     await handedBack(run("PUT", action, { message: "Thanks" }));
   });
 });

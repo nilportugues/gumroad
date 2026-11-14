@@ -105,7 +105,7 @@ describe "Affiliates destroy", type: :request, parity_timeline: true, parity_mai
     expect(response).to have_http_status(:see_other)
   end
 
-  it "hands the removal of an affiliate that is already deleted", parity: true do
+  it "deletes an affiliate that is already deleted again, moving deleted_at and mailing again", parity: true do
     log_in(seller)
     direct_affiliate.mark_deleted!
 
@@ -114,7 +114,7 @@ describe "Affiliates destroy", type: :request, parity_timeline: true, parity_mai
     expect(response).to have_http_status(:see_other)
   end
 
-  it "hands the removal of an affiliate with a fee outside the allowed range", parity: true do
+  it "refuses the removal of an affiliate with a fee outside the allowed range", parity: true do
     log_in(seller)
     direct_affiliate.update_column(:affiliate_basis_points, 50)
 

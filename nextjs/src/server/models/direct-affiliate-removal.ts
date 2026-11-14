@@ -1,10 +1,11 @@
 // The soft delete of a DirectAffiliate (app/models/direct_affiliate.rb, Affiliate, Deletable and Affiliate::AudienceMember), as
 // `AffiliatesController#destroy` runs it: `mark_deleted!`, which saves with validations, so a row that no longer validates raises.
 //
-// Not ported, and refused before the write by `removalBlocker`: a fee outside 1%..75% or a destination URL (their validators are not
-// modelled), a seller with no username when the affiliate has several products and no destination URL, a row that is already deleted
-// (a second `mark_deleted!` would move `deleted_at` and mail again), and an audience member that stays valid after the affiliate's
-// entries leave it (a customer, follower or another affiliate: the recomputed columns are not pinned by a recording).
+// Not ported, and refused before the write by `removalBlocker`: a destination URL (its validator is not modelled), a seller with no
+// username when the affiliate has several products and no destination URL, and an audience member that stays valid after the
+// affiliate's entries leave it (a customer, follower or another affiliate: the recomputed columns are not pinned by a recording).
+// A row that is already deleted goes through again: `mark_deleted!` moves `deleted_at` and mails again. A fee outside 1%..75% is the
+// controller's 422, answered before this runs.
 import { Prisma, type Affiliate } from "@prisma/client";
 
 import { deliverLater } from "../mail/active-job.ts";
@@ -139,7 +140,6 @@ export type AffiliateRemovalRow = Pick<
 
 // Why the removal cannot be answered here, or null. Reads only: nothing has been written.
 export async function removalBlocker(affiliate: AffiliateRemovalRow): Promise<string | null> {
-  if (affiliate.deleted_at !== null) return "an affiliate that is already deleted";
   const points = affiliate.affiliate_basis_points;
   if (points === null || points < MIN_AFFILIATE_BASIS_POINTS || points > MAX_AFFILIATE_BASIS_POINTS)
     return "an affiliate whose fee is outside the allowed range, which fails validation";

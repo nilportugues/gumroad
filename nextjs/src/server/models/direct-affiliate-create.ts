@@ -40,6 +40,9 @@ export type NewAffiliate = {
 
 export const FEE_RANGE_MESSAGE = `Affiliate commission must be between ${MIN_BASIS_POINTS / 100}% and ${MAX_BASIS_POINTS / 100}%.`;
 
+export const feeOutsideRange = (basisPoints: number | null): boolean =>
+  basisPoints !== null && (basisPoints < MIN_BASIS_POINTS || basisPoints > MAX_BASIS_POINTS);
+
 // A shape Node answers itself (`refusal`) or one it passes to Rails whole (a string).
 export type Blocker = string | { refusal: string };
 

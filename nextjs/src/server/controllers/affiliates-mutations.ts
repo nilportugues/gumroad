@@ -20,7 +20,13 @@ import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 import { isBlank } from "../models/compliance-countries.ts";
 import { currentJobsRuntime } from "../models/concerns/job-runtime.ts";
-import { creationBlocker, createDirectAffiliate, rubyToI } from "../models/direct-affiliate-create.ts";
+import {
+  creationBlocker,
+  createDirectAffiliate,
+  FEE_RANGE_MESSAGE,
+  feeOutsideRange,
+  rubyToI,
+} from "../models/direct-affiliate-create.ts";
 import {
   loadAffiliate,
   markDeletedBang,
@@ -28,6 +34,7 @@ import {
   type AffiliateRemovalRow,
 } from "../models/direct-affiliate-removal.ts";
 import { updateBlocker, updateDirectAffiliate } from "../models/direct-affiliate-update.ts";
+import { Errors, RecordInvalid } from "../models/runtime/errors.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { UserFlags } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -246,6 +253,12 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
   if (redirect !== null) return redirect;
   const row = found.row;
   if (row === undefined) throw new RoutingError("Not Found");
+  // `mark_deleted!` saves with validations, and the range one fails whatever else the row holds: a 422, nothing written.
+  if (feeOutsideRange(row.affiliate_basis_points)) {
+    const errors = new Errors();
+    errors.add("base", FEE_RANGE_MESSAGE);
+    throw new RecordInvalid(errors);
+  }
   const blocker = await removalBlocker(row);
   if (blocker !== null) throw new HandBackToRails(blocker);
 

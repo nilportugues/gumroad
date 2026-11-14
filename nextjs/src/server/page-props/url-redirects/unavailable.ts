@@ -291,6 +291,14 @@ function disablesReviewsAfterYear(seller: User | null): boolean {
   return UserFlags.isSet(seller.flags, "disable_reviews_after_year");
 }
 
+// purchase.seller.name_or_username: a seller with neither falls back to an external id the rows do not carry here.
+function sellerName(seller: User | null): string {
+  if (!seller) throw new TypeError("undefined method 'name_or_username' for nil");
+  const name = [seller.name, seller.username].find((value) => isPresent(value));
+  if (name === undefined || name === null) throw new HandBackToRails("a seller with neither name nor username");
+  return name;
+}
+
 // UrlRedirectPresenter#download_page_layout_props
 export function layoutProps(loaded: Loaded, emailConfirmationRequired: boolean, now: Date) {
   const { redirect, purchase, product, seller, purchaser, receiptPurchase, variantId } = loaded;
@@ -303,6 +311,8 @@ export function layoutProps(loaded: Loaded, emailConfirmationRequired: boolean, 
           id: encrypt(purchase.id),
           receipt_purchase_id: receiptPurchase ? encrypt(receiptPurchase.id) : null,
           email: emailConfirmationRequired ? null : purchase.email,
+          free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
+          seller_name: sellerName(seller),
           email_digest: emailDigest(purchase),
           created_at: purchase.created_at?.toISOString() ?? null,
           is_archived: PurchaseFlags.isSet(purchase.flags, "is_archived"),
