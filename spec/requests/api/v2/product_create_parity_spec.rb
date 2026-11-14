@@ -160,8 +160,71 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(message).to eq("Name is too long (maximum is 255 characters)")
   end
 
-  it "hands a creation beside a discount code back to Rails", parity: true do
+  it "publishes a product beside a discount code that keeps the price valid", parity: true do
     create(:universal_offer_code, user: seller)
+
+    create_product({ name: "Notebook", price: 500 })
+
+    expect(response.parsed_body).to include("success" => true)
+    expect(response.parsed_body.dig("product", "published")).to be true
+    expect(response.parsed_body).not_to have_key("warning")
+  end
+
+  it "publishes a product that the discount code makes free", parity: true do
+    create(:universal_offer_code, user: seller)
+
+    create_product({ name: "Notebook", price: 100 })
+
+    expect(response.parsed_body.dig("product", "published")).to be true
+    expect(response.parsed_body).not_to have_key("warning")
+  end
+
+  it "keeps a product a draft when a discount code puts its price under the minimum", parity: true do
+    create(:universal_offer_code, user: seller)
+
+    create_product({ name: "Notebook", price: 150 })
+
+    expect(response.parsed_body).to include("success" => true)
+    expect(response.parsed_body["warning"]).to eq("Saved as a draft: An existing discount code puts the price of this product below the $0.99 minimum after discount.")
+    expect(created.draft).to be true
+  end
+
+  it "publishes a free product beside a discount code", parity: true do
+    create(:universal_offer_code, user: seller)
+
+    create_product({ name: "Notebook", price: 0 })
+
+    expect(response.parsed_body.dig("product", "published")).to be true
+  end
+
+  it "publishes a product beside a percentage discount code that keeps the price valid", parity: true do
+    create(:universal_offer_code, user: seller, amount_cents: nil, amount_percentage: 50, currency_type: nil)
+
+    create_product({ name: "Notebook", price: 500 })
+
+    expect(response.parsed_body.dig("product", "published")).to be true
+  end
+
+  it "keeps a product a draft when a percentage discount code puts its price under the minimum", parity: true do
+    create(:universal_offer_code, user: seller, amount_cents: nil, amount_percentage: 50, currency_type: nil)
+
+    create_product({ name: "Notebook", price: 150 })
+
+    expect(response.parsed_body["warning"]).to start_with("Saved as a draft: An existing discount code puts the price")
+  end
+
+  it "ignores a deleted discount code and a fixed one in another currency", parity: true do
+    create(:universal_offer_code, user: seller, code: "gone").mark_deleted!
+    create(:universal_offer_code, user: seller, code: "pounds", currency_type: "gbp")
+
+    create_product({ name: "Notebook", price: 150 })
+
+    expect(response.parsed_body.dig("product", "published")).to be true
+    expect(response.parsed_body).not_to have_key("warning")
+  end
+
+  it "hands a creation beside a discount code limited to new customers back to Rails", parity: true do
+    create(:universal_offer_code, user: seller, new_customers_only: true)
 
     create_product({ name: "Notebook", price: 500 })
 
@@ -176,12 +239,13 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response.parsed_body).to include("success" => true)
   end
 
-  it "hands a seller without a payment address back to Rails", parity: true do
+  it "keeps a product a draft when the seller has no payment address", parity: true do
     seller.update_columns(payment_address: "")
 
     create_product({ name: "Notebook", price: 500 })
 
     expect(response.parsed_body).to include("success" => true)
+    expect(response.parsed_body["warning"]).to eq("Saved as a draft: You must connect at least one payment method before you can publish this product for sale.")
   end
 
   it "creates a free product", parity: true, parity_timeline: true do

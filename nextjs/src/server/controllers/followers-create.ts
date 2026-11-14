@@ -104,7 +104,7 @@ async function sendConfirmationEmail(follower: FollowerRecord, waitlistProductId
 type WaitlistProduct = { id: number; permalink: string };
 
 // `waitlist_product_from_params`: the seller's own product that takes waitlist signups (Link#accepts_waitlist_signups?: the waitlist on, not
-// published, not banned or taken down by an admin), else nil and the follow goes on as a plain one. A malformed or unknown id is nil too.
+// published, not deleted, not banned or taken down by an admin), else nil and the follow goes on as a plain one. A malformed or unknown id is nil too.
 // A product id that is not a string is not proven, so Rails keeps it.
 export async function waitlistProductFromParams(productId: unknown, seller: Seller): Promise<WaitlistProduct | null> {
   if (productId === undefined || productId === "") return null;
@@ -123,9 +123,8 @@ export async function waitlistProductFromParams(productId: unknown, seller: Sell
     Prisma.sql`SELECT ${column("links", "flags")}, ${column("links", "draft")}, ${column("links", "deleted_at")}, ${column("links", "banned_at")}, ${column("links", "purchase_disabled_at")}, ${column("links", "custom_permalink")}, ${column("links", "unique_permalink")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} AND ${column("links", "user_id")} = ${seller.get("id")} LIMIT 1`,
   );
   if (row === undefined || !LinkFlags.isSet(row.flags, "waitlist_enabled")) return null;
-  // A deleted product follows plainly in Rails, but its replay enqueues a ReindexSellerOfferCodesJob nobody explains: left to Rails.
-  if (row.deleted_at !== null) throw new HandBackToRails("a follow from the waitlist of a deleted product");
-  if (row.banned_at !== null || LinkFlags.isSet(row.flags, "is_unpublished_by_admin")) return null;
+  if (row.deleted_at !== null || row.banned_at !== null || LinkFlags.isSet(row.flags, "is_unpublished_by_admin"))
+    return null;
   const draft = row.draft === true || Number(row.draft) === 1;
   // `published?` is no deleted_at, no purchase_disabled_at and not a draft.
   if (row.purchase_disabled_at === null && !draft) return null;

@@ -61,7 +61,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   AlertOnRetiredManagedAccountActivityJob: {
     file: "app/sidekiq/alert_on_retired_managed_account_activity_job.rb",
@@ -456,7 +456,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   CheckPaymentAddressWorker: {
     file: "app/sidekiq/check_payment_address_worker.rb",
@@ -519,7 +519,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   CreateGlobalSalesTaxSummaryReportJob: {
     file: "app/sidekiq/create_global_sales_tax_summary_report_job.rb",
@@ -532,7 +532,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   CreateIndiaSalesReportJob: {
     file: "app/sidekiq/create_india_sales_report_job.rb",
@@ -548,7 +548,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: true,
     recurringLockMaxAttempt: 7200,
-    runtime: "ruby",
+    runtime: "node",
   },
   CreateLicensesForExistingCustomersWorker: {
     file: "app/sidekiq/create_licenses_for_existing_customers_worker.rb",
@@ -625,7 +625,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   CreateUsStatesSalesSummaryReportJob: {
     file: "app/sidekiq/create_us_states_sales_summary_report_job.rb",
@@ -638,7 +638,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   CreateVatReportJob: {
     file: "app/sidekiq/create_vat_report_job.rb",
@@ -652,7 +652,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   CustomDomainVerificationWorker: {
     file: "app/sidekiq/custom_domain_verification_worker.rb",
@@ -1355,7 +1355,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   GenerateCommunityChatRecapJob: {
     file: "app/sidekiq/generate_community_chat_recap_job.rb",
@@ -1381,7 +1381,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   GenerateFinancialReportsForPreviousMonthJob: {
     file: "app/sidekiq/generate_financial_reports_for_previous_month_job.rb",
@@ -1468,7 +1468,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   GenerateSslCertificate: {
     file: "app/sidekiq/generate_ssl_certificate.rb",
@@ -3364,7 +3364,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendWorkflowEmailsToPastCanceledMembersJob: {
     file: "app/sidekiq/send_workflow_emails_to_past_canceled_members_job.rb",
@@ -3424,7 +3424,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SetSubscriptionAsDeactivatedWorker: {
     file: "app/sidekiq/set_subscription_as_deactivated_worker.rb",
@@ -3976,7 +3976,7 @@ export const JOB_REGISTRY = {
     customRetryIn: false,
     retriesExhausted: true,
     recurringLockMaxAttempt: 21600,
-    runtime: "ruby",
+    runtime: "node",
   },
   UtmLinkSaleAttributionJob: {
     file: "app/sidekiq/utm_link_sale_attribution_job.rb",
