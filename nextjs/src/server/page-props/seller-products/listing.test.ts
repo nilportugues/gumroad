@@ -122,16 +122,26 @@ describe("affiliatedParams", () => {
     });
   });
 
-  it("drops a one-level hash under a name the action does not permit", () => {
-    expect(affiliatedParams("other%5Bkey%5D=1&query=a")).toEqual({ query: "a", page: null, sort: null });
+  it("drops a hash or array under a name the action does not permit", () => {
+    const dropped = { query: "a", page: null, sort: null };
+    expect(affiliatedParams("other%5Bkey%5D=1&query=a")).toEqual(dropped);
+    expect(affiliatedParams("filter[a][b]=1&query=a")).toEqual(dropped);
+    expect(affiliatedParams("filter[]=1&query=a")).toEqual(dropped);
+  });
+
+  it("drops a query, page or sort that is not the permitted shape", () => {
+    expect(affiliatedParams("query[a]=1&page[]=2&sort=name")).toEqual({ query: null, page: null, sort: null });
   });
 
   it("hands every other shape of nested parameter to Rails", () => {
-    expect(() => affiliatedParams("filter[a][b]=1")).toThrow(HandBackToRails);
-    expect(() => affiliatedParams("filter[]=1")).toThrow(HandBackToRails);
-    expect(() => affiliatedParams("query[a]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("filter[a][b][c]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("filter[][a]=1")).toThrow(HandBackToRails);
     expect(() => affiliatedParams("filter=1&filter[a]=1")).toThrow(HandBackToRails);
-    expect(() => affiliatedParams("sort=name")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("filter[]=1&filter[a]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("query=a&query[b]=1")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("sort=name&sort[key]=name")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("sort[]=name")).toThrow(HandBackToRails);
+    expect(() => affiliatedParams("sort[key][x]=1")).toThrow(HandBackToRails);
   });
 });
 
