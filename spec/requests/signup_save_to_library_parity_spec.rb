@@ -108,7 +108,7 @@ describe "Save to library", type: :request do
     expect(response.parsed_body["success"]).to eq(false)
   end
 
-  it "hands an empty user hash to Rails", parity: true do
+  it "answers 400 for an empty user hash", parity: true do
     post "/save_to_library", params: { authenticity_token: csrf_token, user: {} }.to_json, headers: { "CONTENT_TYPE" => "application/json" }
 
     expect(response).to have_http_status(:bad_request)

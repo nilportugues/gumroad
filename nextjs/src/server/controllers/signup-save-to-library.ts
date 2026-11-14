@@ -4,7 +4,7 @@ import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { findPurchaseOrNil } from "../models/charge.ts";
 import { Users } from "../models/user.ts";
 
-import { HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations } from "./mutation.ts";
 import { buildSignupUser, isHash, isPresent } from "./signup-create.ts";
@@ -22,7 +22,7 @@ registerMutations({
     if (!isHash(user)) {
       return jsonResponse({ success: false, error_message: INVALID_EMAIL_MESSAGE }, 200, true);
     }
-    if (Object.keys(user).length === 0) throw new HandBackToRails("an empty user hash, which ParameterMissing answers");
+    if (Object.keys(user).length === 0) throw new ParameterMissing();
     if (!PERMITTED_KEYS.some((key) => key in user)) throw new HandBackToRails("a user hash with no permitted key");
     // `Purchase.find_by_external_id(params[:user][:purchase_id])&.attach_to_user_and_card`: an id that names no purchase attaches nothing, and
     // no card is saved here (`chargeable` is nil). Attaching a purchase that exists stays in Rails.
