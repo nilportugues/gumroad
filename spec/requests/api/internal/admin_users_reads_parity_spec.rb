@@ -367,12 +367,29 @@ describe "Internal admin API user reads", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a connection that is not Twitter to Rails", parity: true do
+    it "reports a YouTube, Instagram and TikTok connection as linked only while the identity row holds the same id", parity: true do
+      create(:user_youtube_identity, user:, channel_id: "channel-1")
       create(:social_connect_verification, user:, platform: "youtube", uid: "channel-1")
+      create(:user_instagram_identity, user:, instagram_user_id: "ig-new")
+      create(:social_connect_verification, user:, platform: "instagram", uid: "ig-old")
+      create(:social_connect_verification, user:, platform: "tiktok", uid: "tt-1")
+      create(:social_connect_verification, user: create(:user), platform: "youtube", uid: "channel-1")
 
       get "/internal/admin/users/social_connections", params: { user_id: user.external_id }, headers: headers
 
-      expect(response).to have_http_status(:ok)
+      connections = response.parsed_body["social_connections"]
+      expect(connections.map { [_1["platform"], _1["currently_linked"]] }).to eq([["instagram", false], ["tiktok", false], ["youtube", true]])
+      expect(connections.last["shared_identity_user_count"]).to eq(1)
+    end
+
+    it "reports a connection linked when the TikTok identity holds its id and a superseded one not", parity: true do
+      create(:user_tiktok_identity, user:, tiktok_open_id: "tt-1")
+      create(:social_connect_verification, user:, platform: "tiktok", uid: "tt-1", last_verified_at: 1.day.ago)
+      create(:social_connect_verification, user:, platform: "tiktok", uid: "tt-0", last_verified_at: 3.days.ago, superseded_at: 2.days.ago)
+
+      get "/internal/admin/users/social_connections", params: { user_id: user.external_id }, headers: headers
+
+      expect(response.parsed_body["social_connections"].map { _1["currently_linked"] }).to eq([true, false])
     end
 
     it "reads a shadow evaluation with fractional signals", parity: true do

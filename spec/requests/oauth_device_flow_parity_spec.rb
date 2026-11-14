@@ -343,7 +343,7 @@ describe "OAuth device flow", type: :request do
       expect(response.parsed_body["error"]).to eq("unsupported_grant_type")
     end
 
-    it "hands a device code that is not a string back to Rails", parity: true do
+    it "answers expired_token for a device code sent as an array", parity: true do
       post "/oauth/token", params: { grant_type:, client_id: device_app.uid, device_code: ["x"] }, headers: poll_headers
 
       expect(response).to have_http_status(:bad_request)

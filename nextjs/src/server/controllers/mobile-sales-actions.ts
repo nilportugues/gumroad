@@ -194,12 +194,34 @@ const sendPost = memberAction(async (sale, input, auth) => {
   throw new HandBackToRails("a post email");
 });
 
+// A gift sender's review is the giftee purchase's and a membership's is its original purchase's (Purchase#original_product_review). Only
+// the absence of any review there is answered here: a gift with no giftee purchase, and a membership none of whose purchases has one.
+async function isReviewMissingOnAnotherPurchase(sale: Sale): Promise<boolean> {
+  if (PurchaseFlags.isSet(sale.flags, "is_gift_sender_purchase")) {
+    const gifts = await selectRows<{ giftee_purchase_id: bigint | null }>(
+      Prisma.sql`SELECT ${column("gifts", "giftee_purchase_id")} FROM ${table("gifts")} WHERE ${column("gifts", "gifter_purchase_id")} = ${sale.id} LIMIT 2`,
+    );
+    if (gifts.length > 1) return false;
+    const giftee = gifts[0]?.giftee_purchase_id;
+    if (giftee === undefined || giftee === null) return true;
+    return !(await rowExists(
+      Prisma.sql`SELECT 1 FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${giftee} LIMIT 1`,
+    ));
+  }
+  return !(await rowExists(
+    Prisma.sql`SELECT 1 FROM ${table("product_reviews")} INNER JOIN ${table("purchases")} ON ${column("purchases", "id")} = ${column("product_reviews", "purchase_id")} WHERE ${column("purchases", "subscription_id")} = ${sale.subscription_id} LIMIT 1`,
+  ));
+}
+
 // SalesController#update_review_response. `Purchase#original_product_review` reads another purchase's review for a subscription's
 // recurrence or a gift's sender. The reply is `review.response || review.build_response`, saved with the acting user; only its
 // creation mails the reviewer (ProductReviewResponse's after_create_commit).
 const updateReviewResponse = memberAction(async (sale, input, auth) => {
-  if (sale.subscription_id !== null || PurchaseFlags.isSet(sale.flags, "is_gift_sender_purchase"))
-    throw new HandBackToRails("the review of a subscription or gift sale");
+  if (sale.subscription_id !== null || PurchaseFlags.isSet(sale.flags, "is_gift_sender_purchase")) {
+    if (!(await isReviewMissingOnAnotherPurchase(sale)))
+      throw new HandBackToRails("the review of a subscription or gift sale");
+    return renderJson({ success: false, message: "Could not find review" }, NOT_FOUND);
+  }
   const [review] = await selectRows<{ id: bigint }>(
     Prisma.sql`SELECT ${column("product_reviews", "id")} FROM ${table("product_reviews")} WHERE ${column("product_reviews", "purchase_id")} = ${sale.id} LIMIT 1`,
   );

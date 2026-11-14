@@ -13,3 +13,16 @@ export const MCP_PROTOCOL_FLAG = "mcp_protocol_2026_07_28";
 // Reserved for the modern transport; the legacy -32000..-32019 sub-range is not extended.
 export const HEADER_MISMATCH = -32020;
 export const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+// Mcp::OauthClientRegistration::MCP_SCOPES and LEGACY_SCOPES
+export const MCP_SCOPES = [
+  "view_public",
+  "view_profile",
+  "view_sales",
+  "edit_products",
+  "view_payouts",
+  "view_library",
+];
+// Not granted by default, but accepted from a client that still names it.
+export const LEGACY_SCOPES = ["account"];
+// Mcp::Server::Error's default code, the one a scope failure answers with.
+export const SERVER_ERROR = -32000;

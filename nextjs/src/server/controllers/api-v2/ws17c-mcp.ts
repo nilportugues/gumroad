@@ -4,7 +4,14 @@
 import { randomUUID } from "node:crypto";
 
 import { isFeatureEnabled } from "../../infra/flipper.ts";
-import { METHOD_HEADER, MCP_PROTOCOL_FLAG, NAME_HEADER, VERSION_HEADER } from "../../mcp/constants.ts";
+import {
+  LEGACY_SCOPES,
+  METHOD_HEADER,
+  MCP_PROTOCOL_FLAG,
+  MCP_SCOPES,
+  NAME_HEADER,
+  VERSION_HEADER,
+} from "../../mcp/constants.ts";
 import { recordProtocolTelemetry } from "../../mcp/protocol-telemetry.ts";
 import { RpcSession, rpcHttpStatus } from "../../mcp/server.ts";
 import { type PaperTrailRequest, withPaperTrailRequest } from "../../models/concerns/paper-trail.ts";
@@ -17,10 +24,6 @@ import { remoteIp } from "../mutation.ts";
 import { present } from "./base.ts";
 import { head, renderJson, type ApiCall } from "./ws17c-base.ts";
 
-// Mcp::OauthClientRegistration::MCP_SCOPES
-const MCP_SCOPES = ["view_public", "view_profile", "view_sales", "edit_products", "view_payouts", "view_library"];
-// Not granted by default, but accepted from a client that still names it.
-const LEGACY_SCOPES = ["account"];
 // Native-app callbacks that are neither https nor loopback, accepted only as exact strings.
 const NATIVE_APP_REDIRECT_URIS = ["cursor://anysphere.cursor-mcp/oauth/callback"];
 // Doorkeeper.configuration.public_scopes
@@ -114,8 +117,10 @@ export async function protectedResourceMetadata(call: ApiCall): Promise<ActionRe
 }
 
 // RFC 6750 challenge: `Bearer realm="Gumroad", scope="...", resource_metadata="..."`.
-export const bearerChallenge = (path: string) =>
-  `Bearer realm="Gumroad", scope="${MCP_SCOPES.join(" ")}", resource_metadata="${baseUrl()}/.well-known/oauth-protected-resource${path}"`;
+export const bearerChallenge = (path: string, stepUp?: { scope: string; message: string }) =>
+  stepUp === undefined
+    ? `Bearer realm="Gumroad", scope="${MCP_SCOPES.join(" ")}", resource_metadata="${baseUrl()}/.well-known/oauth-protected-resource${path}"`
+    : `Bearer realm="Gumroad", error="insufficient_scope", scope="${stepUp.scope}", resource_metadata="${baseUrl()}/.well-known/oauth-protected-resource${path}", error_description="${stepUp.message}"`;
 
 // The 401 of McpController: Doorkeeper's headers with its own WWW-Authenticate.
 export const mcpUnauthorized = (path: string, headers: Record<string, string>) =>
@@ -174,6 +179,11 @@ export async function mcp(call: ApiCall): Promise<ActionResult> {
   // A tool call that hands back leaves before this point, so Rails records its own requests.
   await recordProtocolTelemetry(connector, session.counts);
   if (reply === null) return head(202, {}, false);
+  // MCP scope challenge: the header names the scopes to step up to; the body keeps the text.
+  if (session.insufficientScope !== null)
+    return renderJson(reply, 403, {
+      headers: { "WWW-Authenticate": bearerChallenge(call.url.pathname, session.insufficientScope) },
+    });
   return renderJson(reply, rpcHttpStatus(reply, session.protocolEra));
 }
 

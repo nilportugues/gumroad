@@ -56,16 +56,16 @@ describe "Devise confirmation pages", type: :request do
       expect(response.body).to include('class="group/body mac"')
     end
 
-    it "hands a request that asks for JSON to Rails", parity: true do
+    it "answers 406 to a request that asks for JSON", parity: true do
       get "/users/confirmation/new", headers: { "Accept" => "application/json" }
 
-      expect(response).not_to be_successful
+      expect(response).to have_http_status(:not_acceptable)
     end
 
-    it "hands a request from the Inertia client to Rails", parity: true do
+    it "renders the form for a request from the Inertia client", parity: true do
       get "/users/confirmation/new", headers: { "X-Inertia" => "true" }
 
-      expect(response.status).to be < 500
+      expect(response).to be_successful
     end
   end
 end

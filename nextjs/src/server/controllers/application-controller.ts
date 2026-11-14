@@ -99,10 +99,21 @@ export class RoutingError extends Error {}
 // `params.require(:key)` on a missing or blank value: ActionController::ParameterMissing, a 400.
 export class ParameterMissing extends Error {}
 
+// An action asked for a format it has no template for: ActionController::UnknownFormat, a 406.
+export class NotAcceptable extends Error {}
+
 // ActionDispatch::ExceptionWrapper.rescue_responses: the exceptions Rails answers with a public error page rather than a 500.
 // `save!`/`update!` raising RecordInvalid in an action is a 422.
 export const exceptionStatus = (error: unknown): number =>
-  error instanceof RoutingError ? 404 : error instanceof RecordInvalid ? 422 : error instanceof ParameterMissing ? 400 : 500;
+  error instanceof RoutingError
+    ? 404
+    : error instanceof RecordInvalid
+      ? 422
+      : error instanceof ParameterMissing
+        ? 400
+        : error instanceof NotAcceptable
+          ? 406
+          : 500;
 
 export type BeforeAction = "redirect_to_custom_subdomain" | "check_suspended";
 
@@ -776,7 +787,12 @@ function applyCorsVary(headers: Headers): void {
 // so `application/json, text/html` is JSON and `text/html, application/json` is the HTML page. Only json, xml
 // and yaml have a `Hash#to_<symbol>`; every other format gets public/<status>.html. A HEAD request answers
 // with the first format's content type and no body, even for a format that has no body to render.
-const PUBLIC_EXCEPTION_MESSAGES: Record<number, string> = { 400: "Bad Request", 404: "Not Found", 422: "Unprocessable Content" };
+const PUBLIC_EXCEPTION_MESSAGES: Record<number, string> = {
+  400: "Bad Request",
+  404: "Not Found",
+  406: "Not Acceptable",
+  422: "Unprocessable Content",
+};
 export function publicException(request: RailsRequest, status: number): { headers: Headers; body: string } {
   const message = PUBLIC_EXCEPTION_MESSAGES[status] ?? "Internal Server Error";
   const formats: Record<string, () => string> = {
@@ -792,10 +808,12 @@ export function publicException(request: RailsRequest, status: number): { header
   } catch (error) {
     if (!(error instanceof InvalidMimeType)) throw error;
   }
-  // Test environment only (consider_all_requests_local): DebugExceptions answers an exception (400, 404, 422, 500) with its HTML page
+  // Test environment only (consider_all_requests_local): DebugExceptions answers an exception (400, 404, 406, 422, 500) with its HTML page
   // whatever the Accept header says, or its plain-text report for an XHR. A HEAD request is still answered by PublicExceptions.
   const debugPage =
-    railsEnv() === "test" && (status === 400 || status === 404 || status === 422 || status === 500) && request.method !== "HEAD";
+    railsEnv() === "test" &&
+    (status === 400 || status === 404 || status === 406 || status === 422 || status === 500) &&
+    request.method !== "HEAD";
   // An Inertia XHR (X-Inertia) still gets the HTML page: every recorded debug-page 404/500 with X-Inertia is text/html.
   if (
     debugPage &&
