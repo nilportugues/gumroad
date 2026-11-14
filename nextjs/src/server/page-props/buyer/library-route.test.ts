@@ -157,7 +157,7 @@ describe("GET /library?purchase_id=", () => {
   });
 
   it("renders the visible purchase as a receipt purchase and leaves purchase_analytics empty", async () => {
-    answering({ purchases: [{ id: 5n, email: "buyer@example.com", link_id: 9n, subscription_id: null, flags: 0n }] });
+    answering({ users: [seller({ name: "Ana" })], purchases: [{ id: 5n, email: "buyer@example.com", seller_id: 3n, price_cents: 0, shipping_cents: 0, link_id: 9n, subscription_id: null, flags: 0n }] });
     link.findUniqueOrThrow.mockResolvedValue({ id: 9n, user_id: 3n, unique_permalink: "abc", flags: 0n });
     const props = await page.props({}, {
       context: { loggedInUser: user, impersonatedUser: null },
@@ -166,7 +166,7 @@ describe("GET /library?purchase_id=", () => {
     } as unknown as ActionContext);
     expect(props).toMatchObject({
       purchase_analytics: {},
-      receipt_purchases: [{ id: EXTERNAL_ID, email: "buyer@example.com", permalink: "abc", has_third_party_analytics: false }],
+      receipt_purchases: [{ id: EXTERNAL_ID, email: "buyer@example.com", free: true, seller_name: "Ana", permalink: "abc", has_third_party_analytics: false }],
     });
   });
 

@@ -46,6 +46,9 @@ function answering({ users = [], purchases = [], analytics = [], links = [] }: A
 const purchaseRow = (overrides: Record<string, unknown> = {}) => ({
   id: 5n,
   email: "buyer@example.com",
+  seller_id: 3n,
+  price_cents: 0,
+  shipping_cents: 0,
   link_id: 9n,
   subscription_id: null,
   flags: 0n,
@@ -135,22 +138,34 @@ describe("receiptPurchases", () => {
   });
 
   it("lists the visible purchase with its email, permalink and receipt analytics flag", async () => {
-    answering({ purchases: [purchaseRow()], analytics: [{ 1: 1 }] });
+    answering({ purchases: [purchaseRow()], analytics: [{ 1: 1 }], users: [sellerRow({ name: "Ana" })] });
     link.findUniqueOrThrow.mockResolvedValue(productRow());
     expect(await receiptPurchases(1n, [EXTERNAL_ID])).toEqual([
-      { id: EXTERNAL_ID, email: "buyer@example.com", permalink: "abc", has_third_party_analytics: true },
+      { id: EXTERNAL_ID, email: "buyer@example.com", free: true, seller_id: "seller-ext", seller_name: "Ana", permalink: "abc", has_third_party_analytics: true },
     ]);
   });
 
+  it("marks a purchase that paid anything as not free and names a seller without a name by username", async () => {
+    answering({ purchases: [purchaseRow({ price_cents: 500 })], users: [sellerRow({ username: "ana" })] });
+    link.findUniqueOrThrow.mockResolvedValue(productRow());
+    expect((await receiptPurchases(1n, [EXTERNAL_ID]))[0]).toMatchObject({ free: false, seller_name: "ana" });
+  });
+
+  it("treats a purchase with only shipping paid as not free", async () => {
+    answering({ purchases: [purchaseRow({ shipping_cents: 100 })], users: [sellerRow()] });
+    link.findUniqueOrThrow.mockResolvedValue(productRow());
+    expect((await receiptPurchases(1n, [EXTERNAL_ID]))[0]).toMatchObject({ free: false, seller_name: "seller-ext" });
+  });
+
   it("reports no third-party analytics when neither the product nor its seller has one for the receipt", async () => {
-    const statements = answering({ purchases: [purchaseRow()], analytics: [] });
+    const statements = answering({ purchases: [purchaseRow()], analytics: [], users: [sellerRow()] });
     link.findUniqueOrThrow.mockResolvedValue(productRow());
     expect((await receiptPurchases(1n, [EXTERNAL_ID]))[0]!.has_third_party_analytics).toBe(false);
-    expect(statements.at(-1)).toContain("`location` IN ('receipt', 'all')");
+    expect(statements.find((statement) => statement.includes("FROM `third_party_analytics`"))).toContain("`location` IN ('receipt', 'all')");
   });
 
   it("lists each visible tracked purchase", async () => {
-    answering({ purchases: [purchaseRow(), purchaseRow({ id: 6n })] });
+    answering({ purchases: [purchaseRow(), purchaseRow({ id: 6n })], users: [sellerRow()] });
     link.findUniqueOrThrow.mockResolvedValue(productRow());
     expect((await receiptPurchases(1n, [EXTERNAL_ID, encrypt(6)])).map((receipt) => receipt.id)).toEqual([
       EXTERNAL_ID,
@@ -173,7 +188,7 @@ describe("receiptPurchases", () => {
   });
 
   it("keeps a membership purchase whose subscription row is missing", async () => {
-    answering({ purchases: [purchaseRow({ subscription_id: 4n })] });
+    answering({ purchases: [purchaseRow({ subscription_id: 4n })], users: [sellerRow()] });
     link.findUniqueOrThrow.mockResolvedValue(productRow({ flags: RECURRING }));
     subscription.findUnique.mockResolvedValue(null);
     expect(await receiptPurchases(1n, [EXTERNAL_ID])).toHaveLength(1);
