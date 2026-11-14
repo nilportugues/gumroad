@@ -60,7 +60,9 @@ const wrapsNothing = (input: MutationInput, attributes: string[]) =>
 // `ActiveStorage::Blob.find_signed` answers nil for an id whose signature does not verify. One that verifies may still name a blob
 // that is gone, which only Rails can tell.
 const signedBlobIdIsForged = (value: unknown) =>
-  typeof value === "string" && present(value) && railsMessageVerifierVerified(BLOB_VERIFIER, value, BLOB_PURPOSE) === null;
+  typeof value === "string" &&
+  present(value) &&
+  railsMessageVerifierVerified(BLOB_VERIFIER, value, BLOB_PURPOSE) === null;
 
 // AssetPreviewPolicy and ThumbnailPolicy: the seller's admin and marketing roles.
 const writer = linkPolicy.create;

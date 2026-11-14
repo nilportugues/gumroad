@@ -4,9 +4,9 @@
 // validations, creation callbacks, URLs) is ported.
 import { Prisma, type ActiveStorageAttachment, type AssetPreview, type Link } from "@prisma/client";
 
-import { purgeBlobLater } from "./active-storage-blob.ts";
 import { loadOembed } from "../presenters/asset-preview.ts";
 
+import { purgeBlobLater } from "./active-storage-blob.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { Links, invalidateProductCache } from "./link.ts";
 import { findById, findOneBy } from "./row-reads.ts";
