@@ -6,7 +6,7 @@
 // physical products, PPP, merchant accounts).
 //
 // Handed to Rails: #create and #update (SaveUpsellService builds offer codes and rewrites variants and selected products), and #destroy of an upsell that has an offer code (OfferCode's save callbacks
-// reindex products and clear caches). A sort by revenue or uses, a page past the last and a non-text parameter hand back as well.
+// reindex products and clear caches). A non-text parameter hands back as well.
 import { Prisma, type Upsell, type UpsellVariant } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
