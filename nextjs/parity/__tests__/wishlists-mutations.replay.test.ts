@@ -137,8 +137,8 @@ describe.skipIf(!url)("wishlists mutations", () => {
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
     rewriteRequest: (request: Parameters<typeof reencryptCookies>[0], loaded: Parameters<typeof reencryptCookies>[1], now: Date) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    // The 404 page body is not recorded.
-    compare: name.includes("404") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
+    // The 404 and 400 page bodies are not recorded.
+    compare: name.includes("404") || name.includes("answers-400") ? { ignore: [...COMPARE.ignore, "response.body"] } : COMPARE,
   });
 
   it("finds the fixtures", () => {

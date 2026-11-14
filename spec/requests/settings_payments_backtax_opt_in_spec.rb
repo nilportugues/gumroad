@@ -129,7 +129,7 @@ describe "Opting in to Australian backtax collection when signed in", type: :req
     expect(agreements.count).to eq(0)
   end
 
-  it "hands a blank signature to Rails, which fails the validation", parity: true do
+  it "answers 422 to a blank signature, which fails the validation", parity: true do
     log_in(seller)
 
     opt_in(signature: "  ")
@@ -138,7 +138,7 @@ describe "Opting in to Australian backtax collection when signed in", type: :req
     expect(agreements.count).to eq(0)
   end
 
-  it "hands a request with no signature to Rails", parity: true do
+  it "answers 422 to a request with no signature from a seller with no compliance information", parity: true do
     log_in(seller)
 
     opt_in({})
