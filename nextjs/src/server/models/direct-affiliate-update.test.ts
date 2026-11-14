@@ -80,8 +80,10 @@ describe("updateBlocker", () => {
     expect(await updateBlocker(requested, edited)).toMatch(/no longer exists/u);
   });
 
-  it("hands back a fee above the allowed range", async () => {
+  it("refuses a fee above the allowed range with the validation message", async () => {
     reads();
-    expect(await updateBlocker(requested, { ...edited, basisPoints: 9000 })).toMatch(/fee/u);
+    expect(await updateBlocker(requested, { ...edited, basisPoints: 9000 })).toEqual({
+      refusal: "Affiliate commission must be between 1% and 75%.",
+    });
   });
 });

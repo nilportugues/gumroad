@@ -166,11 +166,21 @@ describe "Affiliates update", type: :request, parity_timeline: true, parity_mail
     expect(response).to have_http_status(:see_other)
   end
 
-  it "hands an edit to a fee above the allowed range", parity: true do
+  it "refuses an edit to a fee above the allowed range", parity: true do
     price_assignment(direct_affiliate, 500)
     log_in(seller)
 
     send_update(direct_affiliate, body(fee_percent: 90))
+
+    expect(response).to have_http_status(:see_other)
+    expect(response.location).to end_with("/affiliates/#{direct_affiliate.external_id}/edit")
+  end
+
+  it "refuses an edit to a fee below the allowed range", parity: true do
+    price_assignment(direct_affiliate, 500)
+    log_in(seller)
+
+    send_update(direct_affiliate, body(fee_percent: 0))
 
     expect(response).to have_http_status(:see_other)
     expect(response.location).to end_with("/affiliates/#{direct_affiliate.external_id}/edit")
