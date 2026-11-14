@@ -3179,7 +3179,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendPostBlastEmailsSliceJob: {
     file: "app/sidekiq/send_post_blast_emails_slice_job.rb",
@@ -3511,7 +3511,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: true,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SubmitToIndexnowJob: {
     file: "app/sidekiq/submit_to_indexnow_job.rb",
