@@ -1,4 +1,4 @@
-// GENERATED from db/schema.rb (version 2026_12_23_000005) by scripts/schema-rb-to-prisma.ts. Do not edit.
+// GENERATED from db/schema.rb (version 2026_12_26_000002) by scripts/schema-rb-to-prisma.ts. Do not edit.
 generator client {
   provider = "prisma-client-js"
 }
@@ -255,7 +255,7 @@ model ProductAffiliate {
   @@map("affiliates_links")
 }
 
-model AiConversation {
+model AiConversationsArchived20261106 {
   id BigInt @id @default(autoincrement())
   seller_id BigInt
   title String? @db.VarChar(255)
@@ -263,15 +263,12 @@ model AiConversation {
   created_at DateTime @db.DateTime(6)
   updated_at DateTime @db.DateTime(6)
 
-  seller User @relation("AiConversation_seller", fields: [seller_id], references: [id])
-  ai_messages AiMessage[] @relation("AiMessage_ai_conversation")
-
   @@index([seller_id, deleted_at, updated_at, id], map: "index_ai_conversations_latest_per_seller")
   @@index([seller_id], map: "index_ai_conversations_on_seller_id")
-  @@map("ai_conversations")
+  @@map("ai_conversations_archived_20261106")
 }
 
-model AiMessage {
+model AiMessagesArchived20261106 {
   id BigInt @id @default(autoincrement())
   ai_conversation_id BigInt
   role String @db.VarChar(255)
@@ -280,10 +277,8 @@ model AiMessage {
   created_at DateTime @db.DateTime(6)
   updated_at DateTime @db.DateTime(6)
 
-  ai_conversation AiConversation @relation("AiMessage_ai_conversation", fields: [ai_conversation_id], references: [id])
-
   @@index([ai_conversation_id], map: "index_ai_messages_on_ai_conversation_id")
-  @@map("ai_messages")
+  @@map("ai_messages_archived_20261106")
 }
 
 model AssetPreview {
@@ -784,6 +779,26 @@ model ChargePurchase {
   @@index([charge_id], map: "index_charge_purchases_on_charge_id")
   @@index([purchase_id], map: "index_charge_purchases_on_purchase_id")
   @@map("charge_purchases")
+}
+
+model ChargebackRingSignal {
+  id BigInt @id @default(autoincrement())
+  seller_id BigInt
+  purchase_id BigInt
+  decision String @db.VarChar(255)
+  paid_sales Int?
+  dominant_card_country String? @db.VarChar(255)
+  dominant_share_pct Decimal? @db.Decimal(5, 2)
+  hosting_share_pct Decimal? @db.Decimal(5, 2)
+  distinct_browsers Int?
+  matched_cidr String? @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([decision, created_at], map: "index_chargeback_ring_signals_on_decision_and_created_at")
+  @@index([purchase_id], map: "index_chargeback_ring_signals_on_purchase_id")
+  @@index([seller_id, created_at], map: "index_chargeback_ring_signals_on_seller_id_and_created_at")
+  @@map("chargeback_ring_signals")
 }
 
 model Charge {
@@ -2022,6 +2037,26 @@ model MarketingHoldoutAssignment {
   @@map("marketing_holdout_assignments")
 }
 
+model McpEventSubscription {
+  id BigInt @id @default(autoincrement())
+  arguments Json
+  callback_url String @db.VarChar(2048)
+  created_at DateTime @db.DateTime(6)
+  event_name String @db.VarChar(255)
+  expires_at DateTime @db.DateTime(6)
+  key_digest String @db.VarChar(64)
+  oauth_application_id BigInt
+  secret String @db.VarChar(255)
+  updated_at DateTime @db.DateTime(6)
+  user_id BigInt
+
+  @@index([expires_at], map: "index_mcp_event_subscriptions_on_expires_at")
+  @@unique([key_digest], map: "index_mcp_event_subscriptions_on_key_digest")
+  @@index([oauth_application_id], map: "index_mcp_event_subscriptions_on_oauth_application_id")
+  @@index([user_id, event_name, expires_at], map: "index_mcp_event_subscriptions_on_user_id_event_name_expires_at")
+  @@map("mcp_event_subscriptions")
+}
+
 model MediaLocation {
   id BigInt @id @default(autoincrement())
   product_file_id BigInt
@@ -2086,6 +2121,7 @@ model OauthAccessGrant {
   code_challenge String? @db.VarChar(255)
   code_challenge_method String? @db.VarChar(255)
   resource String? @db.VarChar(255)
+  team_membership_id BigInt?
 
   @@index([application_id, revoked_at], map: "index_oauth_access_grants_on_application_id_and_revoked_at")
   @@index([created_at], map: "index_oauth_access_grants_on_created_at")
@@ -2135,6 +2171,7 @@ model OauthApplication {
   device_authorization_enabled Boolean @default(false)
   is_first_party_agent_app Boolean @default(false)
   mcp_dynamic_client Boolean @default(false)
+  is_partner Boolean @default(false)
 
   affiliate_credits AffiliateCredit[] @relation("AffiliateCredit_oauth_application")
   device_authorizations OauthDeviceAuthorization[] @relation("OauthDeviceAuthorization_oauth_application")
@@ -2172,6 +2209,7 @@ model OauthDeviceAuthorization {
   last_poll_user_agent String? @db.VarChar(255)
   created_at DateTime @db.DateTime(6)
   updated_at DateTime @db.DateTime(6)
+  team_membership_id BigInt?
 
   oauth_application OauthApplication @relation("OauthDeviceAuthorization_oauth_application", fields: [oauth_application_id], references: [id])
   access_token OauthAccessToken? @relation("OauthDeviceAuthorization_access_token", fields: [access_token_id], references: [id])
@@ -2241,6 +2279,18 @@ model OfferCodesOwnershipProduct {
   @@index([offer_code_id], map: "index_offer_codes_ownership_products_on_offer_code_id")
   @@index([product_id], map: "index_offer_codes_ownership_products_on_product_id")
   @@map("offer_codes_ownership_products")
+}
+
+model OfferCodesOwnershipVariant {
+  id BigInt @id @default(autoincrement())
+  offer_code_id BigInt
+  variant_id BigInt
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([offer_code_id, variant_id], map: "index_offer_codes_ownership_variants_on_code_and_variant")
+  @@index([variant_id], map: "index_offer_codes_ownership_variants_on_variant_id")
+  @@map("offer_codes_ownership_variants")
 }
 
 model OfferCodesProduct {
@@ -2315,6 +2365,62 @@ model Page {
 
   @@unique([pageable_type, pageable_id, slug], map: "index_pages_on_pageable_and_slug")
   @@map("pages")
+}
+
+model PartnerSeller {
+  id BigInt @id @default(autoincrement())
+  oauth_application_id Int
+  user_id BigInt
+  external_user_id String @db.VarChar(255)
+  migrated_at DateTime? @db.DateTime(6)
+  deleted_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([oauth_application_id, external_user_id], map: "index_partner_sellers_on_application_and_external_user")
+  @@unique([oauth_application_id, user_id], map: "index_partner_sellers_on_application_and_user")
+  @@index([user_id], map: "index_partner_sellers_on_user_id")
+  @@map("partner_sellers")
+}
+
+model PartnerMigration {
+  id BigInt @id @default(autoincrement())
+  oauth_application_id Int
+  external_user_id String @db.VarChar(255)
+  public_id String @db.VarChar(21)
+  code_digest String @db.VarChar(255)
+  products Json
+  results Json?
+  status String @default("pending") @db.VarChar(255)
+  user_id BigInt?
+  expires_at DateTime @db.DateTime(6)
+  claimed_at DateTime? @db.DateTime(6)
+  completed_at DateTime? @db.DateTime(6)
+  failure_reason String? @db.VarChar(255)
+  resumes_count Int @default(0)
+  email String? @db.VarChar(255)
+  profile Json?
+  account_created Boolean @default(false)
+  account_setup_token_digest String? @db.VarChar(255)
+  account_setup_password_digest String? @db.VarChar(255)
+  account_setup_sent_at DateTime? @db.DateTime(6)
+  account_setup_emails_count Int @default(0)
+  notified_at DateTime? @db.DateTime(6)
+  notification_failed_email String? @db.VarChar(255)
+  failure_notified_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+  import_started_at DateTime? @db.DateTime(6)
+  part Int @default(1)
+
+  @@unique([account_setup_token_digest], map: "index_partner_migrations_on_account_setup_token_digest")
+  @@unique([code_digest], map: "index_partner_migrations_on_code_digest")
+  @@index([notified_at, completed_at], map: "index_partner_migrations_on_notified_at_and_completed_at")
+  @@unique([oauth_application_id, external_user_id, part], map: "index_partner_migrations_on_application_external_user_and_part")
+  @@unique([public_id], map: "index_partner_migrations_on_public_id")
+  @@index([status, updated_at], map: "index_partner_migrations_on_status_and_updated_at")
+  @@index([user_id], map: "index_partner_migrations_on_user_id")
+  @@map("partner_migrations")
 }
 
 model PaymentOption {
@@ -2401,6 +2507,17 @@ model PingDelivery {
   @@index([purchase_id, created_at], map: "index_ping_deliveries_on_purchase_id_and_created_at")
   @@index([user_id, created_at], map: "index_ping_deliveries_on_user_id_and_created_at")
   @@map("ping_deliveries")
+}
+
+model PingSigningSetting {
+  id BigInt @id @default(autoincrement())
+  user_id BigInt
+  secret String @db.VarChar(255)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([user_id], map: "index_ping_signing_settings_on_user_id")
+  @@map("ping_signing_settings")
 }
 
 model PiracyReport {
@@ -2574,6 +2691,23 @@ model ProcessorPaymentIntent {
   @@map("processor_payment_intents")
 }
 
+model ProductBuildPlaySession {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  product_build_id BigInt
+  purchase_id BigInt
+  started_at DateTime @db.DateTime(6)
+  last_heartbeat_at DateTime @db.DateTime(6)
+  replacement_id BigInt?
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([product_build_id], map: "index_product_build_play_sessions_on_product_build_id")
+  @@index([product_id, started_at], map: "index_product_build_play_sessions_on_product_id_and_started_at")
+  @@index([purchase_id], map: "index_product_build_play_sessions_on_purchase_id")
+  @@map("product_build_play_sessions")
+}
+
 model ProductBuildSave {
   id BigInt @id @default(autoincrement())
   purchase_id BigInt
@@ -2606,6 +2740,7 @@ model ProductBuild {
   site_file_count Int?
   site_byte_size BigInt?
   site_unpack_error String? @db.Text
+  demo_selected_at DateTime? @db.DateTime(6)
 
   product Link @relation("ProductBuild_product", fields: [product_id], references: [id])
   product_file ProductFile? @relation("ProductBuild_product_file", fields: [product_file_id], references: [id])
@@ -2795,6 +2930,24 @@ model ProductPermalinkRedirect {
   @@index([product_id], map: "index_product_permalink_redirects_on_product_id")
   @@unique([seller_id, permalink], map: "idx_product_permalink_redirects_on_seller_and_permalink")
   @@map("product_permalink_redirects")
+}
+
+model ProductPublishSchedule {
+  id BigInt @id @default(autoincrement())
+  product_id BigInt
+  scheduled_by_id BigInt
+  publish_at DateTime @db.DateTime(6)
+  status String @default("scheduled") @db.VarChar(255)
+  claimed_at DateTime? @db.DateTime(6)
+  published_at DateTime? @db.DateTime(6)
+  failure_message String? @db.VarChar(255)
+  notice_sent_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@unique([product_id], map: "index_product_publish_schedules_on_product_id")
+  @@index([status, publish_at], map: "index_product_publish_schedules_on_status_and_publish_at")
+  @@map("product_publish_schedules")
 }
 
 model ProductReviewResponse {
@@ -3111,6 +3264,21 @@ model PurchaseRefundPolicy {
 
   @@index([purchase_id], map: "index_purchase_refund_policies_on_purchase_id")
   @@map("purchase_refund_policies")
+}
+
+model PurchaseRefundRequest {
+  id BigInt @id @default(autoincrement())
+  purchase_id BigInt
+  email String @db.VarChar(255)
+  reason String @db.VarChar(255)
+  message String? @db.Text
+  escalated_at DateTime? @db.DateTime(6)
+  created_at DateTime @db.DateTime(6)
+  updated_at DateTime @db.DateTime(6)
+
+  @@index([escalated_at, created_at], map: "index_purchase_refund_requests_on_escalated_at_and_created_at")
+  @@unique([purchase_id], map: "index_purchase_refund_requests_on_purchase_id")
+  @@map("purchase_refund_requests")
 }
 
 model PurchaseSalesTaxInfo {
@@ -4597,7 +4765,6 @@ model User {
   /// No has_many/has_one in Rails; inverse of AdminApiToken.actor_user
   admin_api_tokens_via_actor_user_id AdminApiToken[] @relation("AdminApiToken_actor_user")
   affiliate_requests AffiliateRequest[] @relation("AffiliateRequest_seller")
-  ai_conversations AiConversation[] @relation("AiConversation_seller")
   audience_members AudienceMember[] @relation("AudienceMember_seller")
   /// No has_many/has_one in Rails; inverse of AustraliaBacktaxEmailInfo.user
   australia_backtax_email_infos_via_user_id AustraliaBacktaxEmailInfo[] @relation("AustraliaBacktaxEmailInfo_user")
