@@ -39,6 +39,10 @@ export const CHECKOUT_PAGES: Record<string, PageSpec> = {
       const ip = remoteIp(action.headers);
       const arrival = await checkoutArrival(requestParamsOf(action.url.search.replace(/^\?/u, "")), user, ip);
       return {
+        // A link that adds nothing for a closed or sold-out tier is handed back, and the filter hands back a cart with lines,
+        // so the notice and the owned lines are empty here.
+        sold_out_arrival: null,
+        owned_in_cart: [],
         cart: cartProps((action.state.cart as CheckoutCart | null) ?? null),
         checkout: await checkoutProps({
           user,
