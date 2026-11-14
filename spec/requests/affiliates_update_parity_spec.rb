@@ -166,6 +166,15 @@ describe "Affiliates update", type: :request, parity_timeline: true, parity_mail
     expect(response).to have_http_status(:see_other)
   end
 
+  it "answers 400 to an edit without the affiliate parameter", parity: true do
+    log_in(seller)
+
+    send_update(direct_affiliate, {})
+
+    expect(response).to have_http_status(:bad_request)
+    expect(direct_affiliate.reload.affiliate_basis_points).to eq(1000)
+  end
+
   it "refuses an edit to a fee above the allowed range", parity: true do
     price_assignment(direct_affiliate, 500)
     log_in(seller)
