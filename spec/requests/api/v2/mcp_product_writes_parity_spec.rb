@@ -845,15 +845,15 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
         update({ pay_what_you_want: true, suggested_price_cents: 300 })
       end
 
-      it "hands a pay what you want switch that is not a boolean back to Rails", parity: true do
+      it "refuses a pay what you want switch that is not a boolean", parity: true do
         update({ pay_what_you_want: "yes" })
       end
 
-      it "hands a suggested price that is not a whole number back to Rails", parity: true do
+      it "hands a suggested price with a decimal back to Rails", parity: true do
         update({ pay_what_you_want: true, suggested_price_cents: 9.5 })
       end
 
-      it "hands a null suggested price back to Rails", parity: true do
+      it "refuses a null suggested price", parity: true do
         product.update_columns(customizable_price: true, suggested_price_cents: 900)
         update({ suggested_price_cents: nil })
       end
