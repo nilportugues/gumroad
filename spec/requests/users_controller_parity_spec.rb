@@ -403,20 +403,30 @@ describe "UsersController", type: :request do
       expect(response.parsed_body).to eq("success" => false, "error_message" => "This is your customer's purchase, so it can't be moved into your account.")
     end
 
-    it "hands a purchase moved into a signed-in buyer's library to Rails", parity: true do
+    it "moves a purchase into a signed-in buyer's library", parity: true do
       log_in(buyer)
 
       add_to_library
 
-      expect(response.parsed_body["success"]).to eq(true)
+      expect(response.parsed_body).to eq("success" => true, "redirect_location" => library_path)
+      expect(purchase.reload.purchaser).to eq(buyer)
     end
 
-    it "hands an email an account owns to Rails", parity: true do
+    it "answers failure to a signed-out visitor who gives the wrong password of the account that owns the email", parity: true do
       create(:user, email: purchase.email, password: "a-correct-password-1")
 
       add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "wrong")
 
       expect(response.parsed_body).to eq("success" => false)
+      expect(purchase.reload.purchaser).to be_nil
+    end
+
+    it "hands the right password of the account that owns the email to Rails, which signs it in", parity: true do
+      create(:user, email: purchase.email, password: "a-correct-password-1")
+
+      add_to_library(purchase_id: purchase.external_id, purchase_email: purchase.email, password: "a-correct-password-1")
+
+      expect(response.parsed_body["success"]).to eq(true)
     end
 
     it "answers failure for a purchase id that is a list", parity: true do
