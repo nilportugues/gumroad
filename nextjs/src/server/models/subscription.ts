@@ -39,7 +39,7 @@ import {
 } from "./stripe-connect-routing.ts";
 import SUBSCRIPTION_DATA from "./subscription-data.generated.json" with { type: "json" };
 import { currentSubscriptionPriceCents } from "./subscription-pricing.ts";
-import { UserFlags } from "./user.ts";
+import { NotPortedError, UserFlags } from "./user.ts";
 
 export const SUBSCRIPTIONS = "subscriptions";
 
@@ -158,6 +158,14 @@ export const INDIA_CARD_MANDATE_RELIABILITY_FEATURE = "india_card_mandate_reliab
 export const MEMBERSHIP_RENEWAL_REMINDERS_FEATURE = "membership_renewal_reminders";
 const MERCHANT_MIGRATION_FEATURE = "merchant_migration";
 
+// `subscription.original_purchase` for a subscription that is not wrapped in a record.
+export async function findOriginalPurchase(subscriptionId: bigint): Promise<Purchase | null> {
+  const [row] = await selectRows(
+    Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(subscriptionId)} AND ${purchaseFlagScope("is_original_subscription_purchase", true)} AND ${purchaseFlagScope("is_archived_original_subscription_purchase", false)} LIMIT 1`,
+  );
+  return row ? castRow<Purchase>("Purchase", row) : null;
+}
+
 export class SubscriptionRecord {
   row: Subscription;
   deps: SubscriptionDeps;
@@ -222,12 +230,7 @@ export class SubscriptionRecord {
 
   // `has_one :original_purchase`, a scope on the flags.
   originalPurchase(): Promise<Purchase | null> {
-    return this.loaded("original_purchase", async () => {
-      const [row] = await selectRows(
-        Prisma.sql`${subscriptionPurchasesSelect()} WHERE ${forSubscription(this.id)} AND ${purchaseFlagScope("is_original_subscription_purchase", true)} AND ${purchaseFlagScope("is_archived_original_subscription_purchase", false)} LIMIT 1`,
-      );
-      return row ? castRow<Purchase>("Purchase", row) : null;
-    });
+    return this.loaded("original_purchase", () => findOriginalPurchase(this.id));
   }
 
   // ----- Feature flags and the seller's merchant account
@@ -501,6 +504,19 @@ export class SubscriptionRecord {
     if (lastRow === null) throw nilReceiver("chargedback_not_reversed_or_refunded?");
     if (isChargedbackNotReversedOrRefunded(lastRow) || (await this.lastPurchaseAt()) === null) return this.now();
     return advance((await this.lastPurchaseAt())!, await this.period());
+  }
+
+  // `renews_at`: a charge made after a reversal renews a period after itself, otherwise `end_time_of_subscription`.
+  async renewsAt(): Promise<Date> {
+    const last = await this.lastPurchaseRow();
+    if (last !== null && isChargedbackNotReversedOrRefunded(last)) {
+      // `all_charges_disputed?` reads every charge of an installment plan, a case no recording covers.
+      if (this.flag("is_installment_plan"))
+        throw new NotPortedError("Subscription#all_charges_disputed?", "subscription.rb:1767");
+      const lastAt = await this.lastPurchaseAt();
+      if (lastAt !== null) return advance(lastAt, await this.period());
+    }
+    return this.endTimeOfSubscription();
   }
 
   // `overdue_for_charge?`

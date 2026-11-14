@@ -23,7 +23,7 @@ SEEDED_AT = "2025-01-01 00:00:00"
 ORIGINAL_AT = "2020-01-01 00:00:00"
 TABLES = %w[users links subscriptions payment_options prices purchases installment_plan_snapshots product_installment_plans
             merchant_accounts sent_email_infos billing_details charges charge_purchases orders order_purchases product_reviews
-            offer_codes offer_codes_products offer_codes_excluded_products offer_codes_ownership_products offer_codes_variants
+            offer_codes offer_codes_products offer_codes_excluded_products offer_codes_ownership_products offer_codes_ownership_variants offer_codes_variants
             purchase_offer_code_discounts base_variants base_variants_purchases variant_categories tips].freeze
 
 # WS-52: the compliance records Stripe Connect routing reads.

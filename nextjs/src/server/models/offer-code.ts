@@ -293,13 +293,15 @@ export class OfferCodeRecord {
 
   // OfferCode#ownership_reference_products
   async ownershipReferenceProducts(product: Link | null): Promise<Link[]> {
-    // A row in offer_codes_ownership_variants counts only purchases of that option (#8969), which the months below do not read.
-    const [optionRows] = await selectRows<{ found: number | bigint }>(
-      Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_variants")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${this.id}) AS found`,
-    );
-    if (Number(optionRows?.found ?? 0) > 0)
-      throw new NotPortedError("OfferCode#ownership_variants", "offer_code.rb:464");
     const owned = await this.ownershipProducts();
+    // A row in offer_codes_ownership_variants counts only purchases of that option (#8969), which the months below do not read.
+    // Rails loads the association (`ownership_variants.present?`) right after ownership_products, so the read order matches.
+    const optionRows = await this.loaded("ownership_variants", () =>
+      selectRows(
+        Prisma.sql`SELECT ${star("base_variants")} FROM ${table("base_variants")} INNER JOIN ${table("offer_codes_ownership_variants")} ON ${column("base_variants", "id")} = ${column("offer_codes_ownership_variants", "variant_id")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${this.id}`,
+      ),
+    );
+    if (optionRows.length > 0) throw new NotPortedError("OfferCode#ownership_variants", "offer_code.rb:464");
     if (owned.length > 0) return owned;
     if (product !== null) return [product];
     throw new NotPortedError("OfferCode#applicable_products", "offer_code.rb:552");

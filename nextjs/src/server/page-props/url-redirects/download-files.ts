@@ -116,13 +116,17 @@ export async function contentItems(loaded: Loaded, loggedInUser: User | null, em
   const { redirect, purchase, product } = loaded;
   if (product === null) return [];
   const token = redirect.token;
+  // A completed commission lists its files next to the product's; one still in progress adds nothing.
   if (
     purchase &&
     (await db.commission.count({
-      where: { OR: [{ deposit_purchase_id: purchase.id }, { completion_purchase_id: purchase.id }] },
+      where: {
+        OR: [{ deposit_purchase_id: purchase.id }, { completion_purchase_id: purchase.id }],
+        status: "completed",
+      },
     })) > 0
   )
-    throw new HandBackToRails("a commission");
+    throw new HandBackToRails("a completed commission");
   const files = await aliveProductFiles(loaded, embedded, { versions: true });
   await assertNothingUnproven(files);
   if (files.length === 0) return [];

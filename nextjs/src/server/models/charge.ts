@@ -70,8 +70,14 @@ function chargeSuccessfulPurchases(charge: Charge, options: { first: boolean }):
 // `Purchase#has_invoice?`
 async function purchaseHasInvoice(purchase: Purchase): Promise<boolean> {
   const subscription = await findById<Subscription>("Subscription", purchase.subscription_id);
-  if (subscription !== null) return !PurchaseFlags.isSet(purchase.flags, "is_free_trial_purchase");
-  return !(purchase.price_cents === 0 && purchase.shipping_cents === 0);
+  const free = purchase.price_cents === 0 && purchase.shipping_cents === 0;
+  if (subscription === null) return !free;
+  if (PurchaseFlags.isSet(purchase.flags, "is_free_trial_purchase")) return false;
+  // `free_membership_purchase?` ends in `subscription.renews_free?`, which prices the renewal: no recording covers it.
+  const { findOriginalPurchase } = await import("./subscription.ts");
+  if ((await findOriginalPurchase(subscription.id)) !== null && free)
+    throw new NotPortedError("Subscription#renews_free?", "subscription.rb:257");
+  return true;
 }
 
 // `AutoInvoiceEligibility.eligible?(chargeable)`

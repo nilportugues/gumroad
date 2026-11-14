@@ -37,6 +37,7 @@ import { connectedTo, uncached } from "../../server/models/runtime/query-cache.t
 import {
   ensureMailerUniqueness,
   mailerKeyDigest,
+  type MailerArgument,
   sentEmailKeyExists,
   setSentEmailKey,
 } from "../../server/models/sent-email-info.ts";
@@ -145,18 +146,18 @@ export const chargeDeclinedReminderWorkerWith = (
 
 const ADVANCE = "advance";
 
-// RecurringChargeReminderWorker#advance_due?: not before the lead time of the advance notice, and
-// not once the final reminder is due.
-async function advanceDue(subscription: SubscriptionRecord): Promise<boolean> {
-  const lead = renewalAdvanceReminderEmailDays(await subscription.recurrence());
-  if (lead === null) return false;
+// RecurringChargeReminderWorker#due?: not before the lead time of the reminder, and not once its window
+// has closed (the renewal date for a final reminder, the final reminder's lead time for the advance notice).
+async function reminderDue(subscription: SubscriptionRecord, kind: JsonValue | undefined): Promise<boolean> {
+  const recurrence = await subscription.recurrence();
+  const finalLead = renewalReminderEmailDays(recurrence);
+  const lead = kind === ADVANCE ? renewalAdvanceReminderEmailDays(recurrence) : finalLead;
+  if (lead == null || finalLead == null) return false;
 
-  const renewsAt = await subscription.endTimeOfSubscription();
+  const renewsAt = await subscription.renewsAt();
   const now = subscription.now();
-  return (
-    advance(renewsAt, { days: -lead }).getTime() <= now.getTime() &&
-    advance(renewsAt, { days: -renewalReminderEmailDays(await subscription.recurrence())! }).getTime() > now.getTime()
-  );
+  const windowEndsAt = kind === ADVANCE ? advance(renewsAt, { days: -finalLead }) : renewsAt;
+  return advance(renewsAt, { days: -lead }).getTime() <= now.getTime() && windowEndsAt.getTime() > now.getTime();
 }
 
 // RecurringChargeReminderWorker
@@ -176,18 +177,9 @@ export const recurringChargeReminderWorkerWith = (
           (await subscription.indiaCardMandateReliabilityEnabled())) ||
         !(await subscription.sendRenewalReminders());
       if (skip) return "none" as const;
-      if (kind !== ADVANCE) {
-        mailerArgument(subscriptionId);
-        return "final" as const;
-      }
-      return (await advanceDue(subscription)) ? subscription : ("none" as const);
+      return (await reminderDue(subscription, kind)) ? subscription : ("none" as const);
     });
-
     if (plan === "none") return;
-    if (plan === "final") {
-      await deliverReminder(context, "subscription_renewal_reminder", subscriptionId);
-      return;
-    }
 
     // The marker is read from the primary: a cold replica can still lack the previous run's.
     await connectedTo("writing", async () => {
@@ -197,8 +189,8 @@ export const recurringChargeReminderWorkerWith = (
           CUSTOMER_LOW_PRIORITY_MAILER,
           "subscription_renewal_reminder",
           Number(subscription.id),
-          ADVANCE,
-          Math.floor((await subscription.endTimeOfSubscription()).getTime() / 1000),
+          (kind ?? null) as MailerArgument,
+          Math.floor((await subscription.renewsAt()).getTime() / 1000),
         ),
       );
       if (await sentEmailKeyExists(digest)) return;
