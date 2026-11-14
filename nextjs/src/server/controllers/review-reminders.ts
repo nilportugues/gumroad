@@ -6,6 +6,8 @@ import { RecordInvalid } from "../models/runtime/errors.ts";
 import { findUser, setFlag, Users, type UserRecord } from "../models/user.ts";
 import { type ActionOptions, type Chain, type FilterOutcome, HandBackToRails } from "./application-controller.ts";
 import { railsSegment } from "./mutation.ts";
+import { cgiEscape } from "./rails-params.ts";
+import { fullpath } from "./rails-request.ts";
 
 const TOKEN_SCOPE = "unsubscribe_review_reminders";
 const OPT_OUT_FLAG = "opted_out_of_review_reminders";
@@ -25,7 +27,9 @@ function filters(optedOut: boolean, byToken: boolean): (chain: Chain) => Promise
   return async (chain) => {
     if (!byToken) {
       const visitor = railsLoggedInUser(chain.auth.context);
-      if (visitor === null) throw new HandBackToRails("a signed-out visitor on a signed-in endpoint");
+      // before_action :authenticate_user!
+      if (visitor === null)
+        return { halt: { status: 302, location: `/login?next=${cgiEscape(fullpath(chain.request))}`, rescued: true } };
       const user = await findUser(visitor.id);
       if (user === null) throw new HandBackToRails("a user that vanished");
       // `update!` raises for an account that fails validation: that is Rails' error page.
