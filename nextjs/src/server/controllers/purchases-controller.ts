@@ -76,6 +76,20 @@ function publicPurchaseAction(reason: string) {
   };
 }
 
+// `receipt`: a visitor who is not signed in and sends no `email` is redirected to the form that asks for it. A signed-in viewer
+// (the purchaser or a team member) or an `email` to compare renders the mailer, which Node leaves to Rails.
+async function receipt(input: MutationInput): Promise<ActionResult> {
+  const purchase = await setPurchase(input.routeParams.id!);
+  const email = input.params.email;
+  if (railsLoggedInUser(input.context) !== null || (email !== undefined && email !== null && email !== ""))
+    throw new HandBackToRails("a receipt, rendered from the mailer");
+  return {
+    status: 302,
+    location: `/purchases/${encrypt(purchase.id)}/confirm_receipt_email`,
+    headers: { "x-robots-tag": "noindex" },
+  };
+}
+
 // `resend_receipt`: a receipt with no email to send to is a 404; a failed enqueue is "try again" (503), not a claim it was sent.
 async function resendReceiptAction(input: MutationInput): Promise<ActionResult> {
   const outcome = await resendReceipt(await setPurchase(input.routeParams.id!), { rescueEnqueueError: true });
@@ -148,7 +162,7 @@ registerMutations(
     method: "GET",
     pattern: "/purchases/:id/receipt",
     skipForgeryProtection: true,
-    run: publicPurchaseAction("a receipt, rendered from the mailer"),
+    run: receipt,
   },
   {
     method: "GET",
