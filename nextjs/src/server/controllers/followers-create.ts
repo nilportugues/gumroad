@@ -2,7 +2,7 @@
 // subscribe form of a seller and the embed form copied onto other sites. Both are throttled by Rack::Attack (controllers/rack-attack.ts).
 //
 // Left to Rails, before anything is written: a seller who needs a CAPTCHA on POST /follow (an unreviewed one: Google's verification is a call the
-// Rails test environment skips, so there is no recording of it; the embed form has no challenge, so its JSON refusal is served), a waitlist product that is neither plainly ignored nor a draft that takes signups, a seller under a newsletter cutover, and the HTML
+// Rails test environment skips, so there is no recording of it; the embed form has no challenge, so its JSON refusal is served), a waitlist product id that is not a string, a seller under a newsletter cutover, and the HTML
 // answer of #from_embed_form, which renders an Inertia page that a mutation cannot (its props are page-props/audience/follower-embed-form.ts).
 import { Prisma, type User } from "@prisma/client";
 
@@ -18,7 +18,7 @@ import { LinkFlags } from "../models/link.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, isRecordNotUnique, selectRows, table } from "../models/sql.ts";
-import { isAccountActive, isCompliant, Users } from "../models/user.ts";
+import { isAccountActive, isCompliant, subdomainWithProtocol, Users } from "../models/user.ts";
 import { findWaitlistEntry, WaitlistEntries } from "../models/waitlist-entry.ts";
 import { embedFormCaptchaProps, followConfirmationMessage } from "../page-props/audience/follower-embed-form.ts";
 
@@ -101,34 +101,44 @@ async function sendConfirmationEmail(follower: FollowerRecord, waitlistProductId
   );
 }
 
-// `waitlist_product_from_params`: the seller's own product whose page takes waitlist signups (Link#accepts_waitlist_signups?), else nil and the
-// follow goes on as a plain one. Recorded: a draft with the waitlist on (taken), a published product with it on, one with it off, and a product
-// of another seller (all but the first ignored). A product that is deleted, banned, taken down by an admin or unpublished without being a
-// draft, a seller that does not exist and a malformed id are not proven, so Rails keeps them.
-export async function waitlistProductFromParams(productId: unknown, seller: Seller | null): Promise<number | null> {
+type WaitlistProduct = { id: number; permalink: string };
+
+// `waitlist_product_from_params`: the seller's own product that takes waitlist signups (Link#accepts_waitlist_signups?: the waitlist on, not
+// published, not banned or taken down by an admin), else nil and the follow goes on as a plain one. A malformed or unknown id is nil too.
+// A product id that is not a string is not proven, so Rails keeps it.
+export async function waitlistProductFromParams(productId: unknown, seller: Seller): Promise<WaitlistProduct | null> {
   if (productId === undefined || productId === "") return null;
-  if (typeof productId === "string" && seller !== null) {
-    const id = decrypt(productId);
-    if (id !== null) {
-      const [row] = await selectRows<{
-        flags: bigint;
-        draft: number | boolean | null;
-        deleted_at: Date | null;
-        banned_at: Date | null;
-        purchase_disabled_at: Date | null;
-      }>(
-        Prisma.sql`SELECT ${column("links", "flags")}, ${column("links", "draft")}, ${column("links", "deleted_at")}, ${column("links", "banned_at")}, ${column("links", "purchase_disabled_at")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} AND ${column("links", "user_id")} = ${seller.get("id")} LIMIT 1`,
-      );
-      if (row === undefined || !LinkFlags.isSet(row.flags, "waitlist_enabled")) return null;
-      const alive =
-        row.deleted_at === null && row.banned_at === null && !LinkFlags.isSet(row.flags, "is_unpublished_by_admin");
-      const draft = row.draft === true || Number(row.draft) === 1;
-      // Published: no deleted_at, no purchase_disabled_at and not a draft.
-      if (alive && row.purchase_disabled_at === null && !draft) return null;
-      if (alive && draft) return Number(id);
-    }
-  }
-  throw new HandBackToRails("a follow from a waitlist");
+  if (typeof productId !== "string") throw new HandBackToRails("a follow from a waitlist");
+  const id = decrypt(productId);
+  if (id === null) return null;
+  const [row] = await selectRows<{
+    flags: bigint;
+    draft: number | boolean | null;
+    deleted_at: Date | null;
+    banned_at: Date | null;
+    purchase_disabled_at: Date | null;
+    custom_permalink: string | null;
+    unique_permalink: string | null;
+  }>(
+    Prisma.sql`SELECT ${column("links", "flags")}, ${column("links", "draft")}, ${column("links", "deleted_at")}, ${column("links", "banned_at")}, ${column("links", "purchase_disabled_at")}, ${column("links", "custom_permalink")}, ${column("links", "unique_permalink")} FROM ${table("links")} WHERE ${column("links", "id")} = ${id} AND ${column("links", "user_id")} = ${seller.get("id")} LIMIT 1`,
+  );
+  if (row === undefined || !LinkFlags.isSet(row.flags, "waitlist_enabled")) return null;
+  // A deleted product follows plainly in Rails, but its replay enqueues a ReindexSellerOfferCodesJob nobody explains: left to Rails.
+  if (row.deleted_at !== null) throw new HandBackToRails("a follow from the waitlist of a deleted product");
+  if (row.banned_at !== null || LinkFlags.isSet(row.flags, "is_unpublished_by_admin")) return null;
+  const draft = row.draft === true || Number(row.draft) === 1;
+  // `published?` is no deleted_at, no purchase_disabled_at and not a draft.
+  if (row.purchase_disabled_at === null && !draft) return null;
+  const custom = row.custom_permalink;
+  return { id: Number(id), permalink: custom !== null && custom.trim() !== "" ? custom : (row.unique_permalink ?? "") };
+}
+
+// Link#long_url on the seller's subdomain.
+function productLongUrl(product: WaitlistProduct, seller: Seller): string {
+  const host = subdomainWithProtocol(seller);
+  // The fallback to the root domain is not recorded.
+  if (host === null) throw new HandBackToRails("a seller with no subdomain");
+  return `${host}/l/${encodeURIComponent(product.permalink)}`;
 }
 
 type Outcome = { follower: FollowerRecord | null; seller: Seller | null; waitlistProductId: number | null };
@@ -137,8 +147,9 @@ type Outcome = { follower: FollowerRecord | null; seller: Seller | null; waitlis
 async function createFollower(input: MutationInput, source: string | null): Promise<Outcome> {
   const { params } = input;
   const seller = await followedUser(params);
-  const waitlistProductId = await waitlistProductFromParams(params.product_id, seller);
-  if (seller === null || !isAccountActive(seller)) return { follower: null, seller, waitlistProductId };
+  // A seller who is unknown or not active is refused before the product is looked at, so even a malformed product id changes nothing.
+  if (seller === null || !isAccountActive(seller)) return { follower: null, seller, waitlistProductId: null };
+  const waitlistProductId = (await waitlistProductFromParams(params.product_id, seller))?.id ?? null;
 
   const email = params.email;
   if (email !== undefined && typeof email !== "string") throw new HandBackToRails("an email that is not a string");
@@ -232,14 +243,25 @@ async function fromEmbedForm(input: MutationInput): Promise<ActionResult> {
   if (format !== "json") throw new HandBackToRails("the HTML answer of the embed form, an Inertia page");
   const seller = await followedUser(input.params);
   if (seller !== null && captchaRequired(seller)) {
-    // The refusal is decided before the CAPTCHA widget could matter (the embed form has none). A posted product may turn it into the
-    // waitlist wording, which is not modelled.
-    const productId = input.params.product_id;
-    if (productId !== undefined && productId !== null && productId !== "")
-      throw new HandBackToRails("a CAPTCHA refusal of the embed form for a product");
-    const { message, subscribe_url: destination } = embedFormCaptchaProps(seller);
+    // The refusal is decided before the CAPTCHA widget could matter (the embed form has none). A product that takes waitlist signups sends the
+    // visitor to its page instead of the subscribe page.
+    const waitlistProduct = await waitlistProductFromParams(input.params.product_id, seller);
+    const { message, subscribe_url: subscribeUrl } = embedFormCaptchaProps(seller);
     // The JSON callers get the destination inside the sentence.
-    return json({ success: false, message: destination ? `${message} ${destination}` : message }, UNPROCESSABLE_ENTITY);
+    if (waitlistProduct !== null) {
+      const nativeUrl = productLongUrl(waitlistProduct, seller);
+      return json(
+        {
+          success: false,
+          message: `Please join the waitlist from the product page so we can confirm you're not a bot. ${nativeUrl}?native=true`,
+        },
+        UNPROCESSABLE_ENTITY,
+      );
+    }
+    return json(
+      { success: false, message: subscribeUrl ? `${message} ${subscribeUrl}` : message },
+      UNPROCESSABLE_ENTITY,
+    );
   }
 
   const { follower, waitlistProductId } = await createFollower(input, EMBED_FORM);
