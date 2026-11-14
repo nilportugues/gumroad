@@ -17,6 +17,7 @@ import {
 import {
   fetchCart,
   storedDiscountCodeCount,
+  aliveLinesOfCart,
   visibleCartProductCount,
   cartStateOf,
 } from "../page-props/checkout/checkout.ts";
@@ -119,6 +120,8 @@ async function checkoutFilters(chain: Chain): Promise<FilterOutcome> {
     return { state: { cart: null } };
   }
   if (storedDiscountCodeCount(cart) > 0 || (await visibleCartProductCount(cart.id)) > 0) throw new HandBackToRails();
+  // `owned_in_cart` lists alive lines the buyer owns, archived products included.
+  if (cart.user_id !== null && (await aliveLinesOfCart(cart.id)) > 0) throw new HandBackToRails();
   await assertArrivalRenderable(chain, user);
   return { state: { cart: cartStateOf(cart) } };
 }
