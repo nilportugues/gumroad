@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   load: vi.fn(() => {
     throw new Error("the validation answers come before the product is locked");
   }),
-  selectRows: vi.fn(() => Promise.resolve([{ product_id: 5n }])),
+  selectRows: vi.fn((): Promise<Record<string, unknown>[]> => Promise.resolve([{ product_id: 5n }])),
 }));
 vi.mock("./product-json.ts", () => ({ productsApiJson: mocks.productsApiJson }));
 vi.mock("../products-mutations.ts", () => ({ deleteProductBang: vi.fn() }));
