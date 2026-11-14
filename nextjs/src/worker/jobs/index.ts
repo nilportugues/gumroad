@@ -103,6 +103,7 @@ import {
 import { generateLargeSellersAnalyticsCacheWorker } from "./generate-large-sellers-analytics-cache-worker.ts";
 import { generateMerchantCenterFeedWorker } from "./generate-merchant-center-feed-worker.ts";
 import { generateProductFilesArchivesJob } from "./generate-product-files-archives-job.ts";
+import { generateSslCertificate } from "./generate-ssl-certificate.ts";
 import {
   generateSubscribePreviewJob,
   generateSubscribePreviewJobRetriesExhausted,
@@ -320,6 +321,7 @@ import {
   taxFormTransactionReportJob,
   taxFormTransactionReportJobRetriesExhausted,
 } from "./tax-form-transaction-report-job.ts";
+import { transcodeVideoForStreamingWorker } from "./transcode-video-for-streaming-worker.ts";
 import { transferDropboxFileToS3Worker } from "./transfer-dropbox-file-to-s3-worker.ts";
 import type { JobHandler } from "./types.ts";
 import { unstickStuckInProgressPurchasesJob } from "./unstick-stuck-in-progress-purchases-job.ts";
@@ -594,6 +596,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   AnnualPayoutExportWorker: annualPayoutExportWorker,
   ExportPayoutData: exportPayoutData,
   ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
+  GenerateSslCertificate: generateSslCertificate,
+  TranscodeVideoForStreamingWorker: transcodeVideoForStreamingWorker,
   BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
   UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,
   GenerateMerchantCenterFeedWorker: generateMerchantCenterFeedWorker,
