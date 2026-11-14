@@ -123,7 +123,8 @@ async function productIdOf(record: VariantWrite): Promise<bigint | null> {
 // pay what you want. A tier with no live price, or any paid one, keeps its flag.
 async function setCustomizablePrice(record: VariantWrite): Promise<void> {
   const productId = await productIdOf(record);
-  if (productId === null || !LinkFlags.isSet((await findLinkBang(productId)).get("flags"), "is_tiered_membership")) return;
+  if (productId === null || !LinkFlags.isSet((await findLinkBang(productId)).get("flags"), "is_tiered_membership"))
+    return;
   const [prices] = await selectRows<{ total: number | bigint; paid: number | bigint | null }>(
     Prisma.sql`SELECT COUNT(*) AS total, SUM(${column("prices", "price_cents")} > 0) AS paid FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${record.get("id")} AND ${column("prices", "deleted_at")} IS NULL`,
   );
