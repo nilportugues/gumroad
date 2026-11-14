@@ -349,6 +349,15 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       show(purchase)
     end
 
+    it "hands back a sale that carries URL parameters", parity: true do
+      purchase = sold(priced)
+      PurchaseUrlParameter.create!(purchase:, params: { "discord_id" => "42" })
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]["url_params"]).to eq("discord_id" => "42")
+    end
+
     describe "tracking URL" do
       let(:shipped) { sold(create(:physical_product, user: seller), country: "United States") }
 
