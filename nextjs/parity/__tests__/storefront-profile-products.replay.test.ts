@@ -59,7 +59,7 @@ const COMPARE = {
 // Rails' exception debug page (a production 500 the test environment cannot render) is not recorded and sets the profiler cookie.
 const debugPageIgnores = (file: string) =>
   readFileSync(file, "utf8").includes("rails exception debug page")
-    ? { ignore: [...COMPARE.ignore, "response.cookies", "response.body", "response.json", "response.headers.content-type"] }
+    ? { ignore: [...COMPARE.ignore, "response.cookies", "response.body", "response.json"] }
     : COMPARE;
 
 const allCases = readdirSync(FIXTURE_DIR)

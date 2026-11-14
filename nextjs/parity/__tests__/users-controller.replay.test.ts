@@ -114,7 +114,7 @@ describe.skipIf(!url)("UsersController", () => {
     const ignore = [...COMPARE.ignore];
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
-      ignore.push("response.cookies", "response.body", "response.json", "response.headers.content-type");
+      ignore.push("response.cookies", "response.body", "response.json");
     // The page's updated_at is seeded as `<now-Nh>`: the same instant to the hour, not to the second.
     if (file.includes("reports-the-live-version")) ignore.push("response.json.version");
     return replayOptionsFor({ ignore });
