@@ -133,7 +133,7 @@ describe "OAuth tokens", type: :request do
       expect(response.parsed_body["error"]).to eq("invalid_grant")
     end
 
-    it "hands a client_id that is not a string back to Rails", parity: true do
+    it "answers invalid_client for a client_id sent as an array", parity: true do
       post "/ifttt/v1/oauth2/token", params: { grant_type: "authorization_code", code: "unknown", client_id: [public_app.uid], redirect_uri: public_app.redirect_uri }.to_json, headers: { "Content-Type" => "application/json" }
 
       expect(response).to have_http_status(:unauthorized)
@@ -391,7 +391,7 @@ describe "OAuth tokens", type: :request do
       expect(token.reload.revoked_at).to be_nil
     end
 
-    it "hands a token that is not a string back to Rails", parity: true do
+    it "answers 200 for a token sent as a hash", parity: true do
       post "/oauth/revoke", params: { token: { a: 1 }, client_id: public_app.uid }.to_json, headers: { "Content-Type" => "application/json" }
 
       expect(response).to have_http_status(:ok)

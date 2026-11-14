@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/oauth_tokens_parity_spec.rb",
-  "example": "OAuth tokens POST /ifttt/v1/oauth2/token hands a client_id that is not a string back to Rails",
+  "example": "OAuth tokens POST /ifttt/v1/oauth2/token answers invalid_client for a client_id sent as an array",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -57,7 +57,8 @@
               "confidential": "tinyint",
               "device_authorization_enabled": "tinyint",
               "is_first_party_agent_app": "tinyint",
-              "mcp_dynamic_client": "tinyint"
+              "mcp_dynamic_client": "tinyint",
+              "is_partner": "tinyint"
             },
             "primaryKey": [
               "id"
@@ -65,9 +66,9 @@
             "rows": [
               {
                 "id": 1,
-                "name": "app19",
-                "uid": "s2fKJS3uoFefZ8WwZGklKFeNm9FPm8g3f-V8NbbWRBg",
-                "secret": "Hq9aJyHNSOpraNmr7rIKxmwYScIpxeAwBvR-_SFg2Eg",
+                "name": "app17",
+                "uid": "qPViJOMtfF-JTAUiXHQRoSSIiF61rcKDowmaAhBfg0o",
+                "secret": "IoB2MdyPf_UwXCz1MRgXxj1rOfPr578yqlNR6cQ1fPQ",
                 "redirect_uri": "https://foo",
                 "created_at": "<now>",
                 "updated_at": "<now>",
@@ -79,7 +80,8 @@
                 "confidential": 0,
                 "device_authorization_enabled": 0,
                 "is_first_party_agent_app": 0,
-                "mcp_dynamic_client": 0
+                "mcp_dynamic_client": 0,
+                "is_partner": 0
               }
             ]
           },
@@ -185,20 +187,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar164e63f7_55@gumroad.com",
-                "encrypted_password": "$2a$04$3DmVe9LC5fqCV5.4UN5HQecAlYeZahsosbsoG7cCwFXk9KGh5r8B6",
+                "email": "edgar4ee168f1_47@gumroad.com",
+                "encrypted_password": "$2a$04$KwfkB2yJEA6WzhnZS7lSu.TV0GEXYJCctNCkOtY.iqvNebNuOscg6",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "228.161.56.123",
-                "last_sign_in_ip": "221.68.0.50",
+                "current_sign_in_ip": "203.61.109.204",
+                "last_sign_in_ip": "122.178.54.98",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": null,
-                "payment_address": "edgar700fc9f1_56@gumroad.com",
+                "payment_address": "edgarafa204d5_48@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -210,7 +212,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar8d02fdc928",
+                "username": "edgar399d2cd524",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -223,8 +225,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "9591418316921",
-                "account_created_ip": "46.37.81.3",
+                "external_id": "4683201317161",
+                "account_created_ip": "255.73.89.61",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -242,7 +244,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "AVFGYA2BWDUOTGHIXOVIKLCPPSZLEGNF",
+                "otp_secret_key": "F2BLZTL74RJG3NHEWEYAMG7WHBMVCJDB",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -306,7 +308,7 @@
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "{\"grant_type\":\"authorization_code\",\"code\":\"unknown\",\"client_id\":[\"s2fKJS3uoFefZ8WwZGklKFeNm9FPm8g3f-V8NbbWRBg\"],\"redirect_uri\":\"https://foo\"}"
+        "body": "{\"grant_type\":\"authorization_code\",\"code\":\"unknown\",\"client_id\":[\"qPViJOMtfF-JTAUiXHQRoSSIiF61rcKDowmaAhBfg0o\"],\"redirect_uri\":\"https://foo\"}"
       },
       "response": {
         "status": 401,
@@ -323,7 +325,7 @@
         },
         "cookies": {
           "_gumroad_app_session_test": {
-            "value": "LRo6wwbfcnYjAbEplXDaWbMaPIchlLj2BoguKZAgHOjvMLCneVDigAsFWwlbaS829QuD4HHXn1U/kmQGtZulrwgeKXXbfuMZtdo/HlZrYi/jnDFyqttT1hGhO57GRRikWN6gdZ7pEUvLxFBu3ucPn/xWUy3L/CYLHDaVXsbKHjkOTGAx/cdVZgXyuO3Otk7+cOykm+yJy4K8GcQ9dkngztY9gDuHrww=--KO6kDvKMK7iRcMWv--4vfDlAR/5tyPcZjJYVfoIg==",
+            "value": "QNAgJFZBRmFT31U5EDvD6NpBaL1tHpUvAU0Y1YaID6t1SaEyRVbotHK6AaN2+Ict74f3NIMB0kQbhKzC4CrHi3uqFq/mf6BAQ6A4SRPPu/NcI9AGyK3zdLv6sFH+93UxB2T/XxUtlejyW1/m8SZtjgzM5yPMmIUsL0xjaiX4rdr1U90BEuYvYIOVwKT9mRAeaVrp6NNUaVB53EPs4a4YqzBJu/ikWCk=--2cx5LoM1090evfer--V6Dy4Mh0kXHA2uOpj7PQLg==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
