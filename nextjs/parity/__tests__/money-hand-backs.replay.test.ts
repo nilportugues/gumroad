@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
@@ -40,6 +40,13 @@ const ROUTE_FLAGS = ["nextjs_purchases_seller_guards", "nextjs_payouts_guards", 
   ",",
 );
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
+// An instant payout request carries the day it was made on (`{"date":"2026-11-12"}`) while its balances are seeded as `<today-1d>`, so on a
+// later day the balances fall after the requested date and Node finds nothing to pay. The clock of the test and of the server is pinned to
+// the recording day (every instant payout fixture was recorded on 2026-11-12) the way purchase-refund-request.replay does: the server reads
+// the real clock plus a fixed offset, and the worker's fake Date is re-anchored to the same formula before each example.
+const PARITY_NOW = Date.parse("2026-11-12T12:00:00Z");
+const realNow = () => performance.timeOrigin + performance.now();
+let clockOffset = 0;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
 const testEnv = (name: string) => new RegExp(`^${name}="?([^"\\n]+)"?$`, "mu").exec(envTest)?.[1];
@@ -183,8 +190,11 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
     });
     await new Promise<void>((resolve) => rails.listen(0, "127.0.0.1", resolve));
     const railsPort = (rails.address() as { port: number }).port;
+    clockOffset = PARITY_NOW - realNow();
     server = await startNextServer({
       RAILS_ENV: "test",
+      NODE_OPTIONS: `--require ${path.resolve(import.meta.dirname, "..", "src", "fixed-clock-preload.cjs")}`,
+      PARITY_CLOCK_OFFSET_MS: String(clockOffset),
       OUTBOUND_HTTP_STAND_IN: stripe.url,
       // Only its presence is compared; the stand-in never sees a real key.
       STRIPE_API_KEY: "sk_test_parity_stand_in",
@@ -202,7 +212,12 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
     });
+    vi.useFakeTimers({ now: realNow() + clockOffset, toFake: ["Date"], shouldAdvanceTime: true });
   }, FIRST_COMPILE_TIMEOUT_MS);
+
+  beforeEach(() => {
+    vi.setSystemTime(realNow() + clockOffset);
+  });
 
   const replayOptions = (name: string | typeof INSTANT_PAYOUT_COMPARE) => ({
     sql,
@@ -227,6 +242,7 @@ describe.skipIf(!url)("requests that call a payment processor", () => {
   });
 
   afterAll(async () => {
+    vi.useRealTimers();
     await server.stop();
     rails.close();
     await stripe.close();

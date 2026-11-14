@@ -171,6 +171,12 @@ const COMPARE = {
 
 const HANDED_BACK = /hands-|through-rails/u;
 
+// The spec dated the affiliate at 2026-03-02T03:30Z, recorded as `<now-6154h>`: seeded from a replay clock a day later it falls on the other
+// side of Pacific midnight. Only the seed resolves against the pinned instant, which is that date plus the 6,154 hours.
+const PINNED_CLOCKS: [fragment: string, recordedAt: string][] = [
+  ["dates-an-affiliate-in-the-affiliate-s-own-time-zone", "2026-11-13T13:30:00Z"],
+];
+
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   if (!existsSync(dir)) return [];
@@ -251,7 +257,13 @@ describe.skipIf(!url)("rest sweep 2", () => {
     process.env = saved;
   });
 
+  const pinnedClock = (name: string) => {
+    const pinned = PINNED_CLOCKS.find(([fragment]) => name.includes(fragment));
+    return pinned ? { driftDates: false, seedClock: new Date(pinned[1]) } : {};
+  };
+
   const options = (name = "") => ({
+    ...pinnedClock(name),
     sql,
     redis: {
       reset: async (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => {

@@ -141,6 +141,42 @@ function checkScheduledTime(
   expect([`<now+${hours * 60}m>`, `<now+${hours * 60 - 1}m>`]).toContain(inserted);
 }
 
+// A fixed `local_time` years out (2031) is recorded as `<now+Nh>` from the recording, so the replay re-measures it from its own clock:
+// the instant is the wall-clock time in the seller's zone (the examples are named after it), and Rails' hours must put the recording on
+// the day the fixture was made, or the rebasing would hide a wrong stored instant.
+const RECORDED_ZONES: [fragment: string, zone: string][] = [
+  ["in-chicago", "America/Chicago"],
+  ["in-kolkata", "Asia/Kolkata"],
+  ["in-london", "Europe/London"],
+  ["in-paris", "Europe/Paris"],
+  ["in-sydney", "Australia/Sydney"],
+  ["in-tokyo", "Asia/Tokyo"],
+];
+const FIXED_TIME_MIN_HOURS = 24 * 365;
+const MS_PER_HOUR = 3_600_000;
+
+function fixedTimeRecording(name: string, fixture: ReturnType<typeof loadFixture>, index: number) {
+  const zone = RECORDED_ZONES.find(([fragment]) => name.includes(fragment))?.[1];
+  const exchange = fixture.exchanges[index]!;
+  const sent = JSON.parse(exchange.request.body ?? "{}") as Record<string, unknown>;
+  const recordedHours = /^<now\+(\d+)h>$/u.exec(
+    (exchange.db?.product_publish_schedules as { inserted?: { publish_at?: string }[] } | undefined)?.inserted?.[0]
+      ?.publish_at ?? "",
+  )?.[1];
+  if (!zone || typeof sent.local_time !== "string" || sent.parity_zone !== undefined || recordedHours === undefined)
+    return undefined;
+  const [year, month, day, hour, minute] = sent.local_time.split(/[-T:]/u).map(Number) as number[];
+  const wall = Date.UTC(year!, month! - 1, day, hour, minute);
+  const offsets = Array.from({ length: 113 }, (_, step) => (step - 56) * 15);
+  const instants = offsets
+    .map((offset) => wall - offset * 60_000)
+    .filter((at) => wallClock(new Date(at), zone) === sent.local_time);
+  expect(instants).toHaveLength(1);
+  const recordedAt = new Date(instants[0]! - Number(recordedHours) * MS_PER_HOUR);
+  expect(recordedAt.toISOString().slice(0, 10)).toBe(fixture.recordedOn);
+  return recordedAt;
+}
+
 const cases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
   return readdirSync(dir)
@@ -203,7 +239,7 @@ describe.skipIf(!url)("Product publish schedules", () => {
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
 
-  const replayOptions = (file: string) => {
+  const replayOptions = (file: string, recordedAt?: Date) => {
     const ignore = [...COMPARE.ignore];
     // Rails' debug page for a 404 is not recorded and sets the profiler cookie.
     if (readFileSync(file, "utf8").includes("rails exception debug page"))
@@ -214,7 +250,10 @@ describe.skipIf(!url)("Product publish schedules", () => {
     if (recorded.includes("parity_hours_ahead")) ignore.push("response.json.publish_schedule.label");
     if (recorded.includes("parity_hours_ahead") || recorded.includes("parity_zone"))
       ignore.push("db.product_publish_schedules.inserted.*.publish_at");
-    return replayOptionsFor({ ignore });
+    return {
+      ...replayOptionsFor({ ignore }),
+      ...(recordedAt ? { recordedAt, rebaseMinHours: FIXED_TIME_MIN_HOURS } : {}),
+    };
   };
 
   const replayOptionsFor = (compare: { ignore: string[] }) => ({
@@ -273,7 +312,11 @@ describe.skipIf(!url)("Product publish schedules", () => {
           expect(Object.keys(handed.exchanges[0]!.actual.db)).toEqual([]);
           return;
         }
-        const result = await replayFixtureExchange(fixture, index, replayOptions(file));
+        const result = await replayFixtureExchange(
+          fixture,
+          index,
+          replayOptions(file, fixedTimeRecording(name, fixture, index)),
+        );
         assertParity(result);
         checkScheduledTime(fixture.exchanges[index]!, result.exchanges[0]!.actual);
       } catch (error) {

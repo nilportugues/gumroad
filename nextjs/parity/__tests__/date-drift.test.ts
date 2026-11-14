@@ -59,4 +59,13 @@ describe("rebaseFarInstants", () => {
     );
     expect(rebased.response.json).toEqual({ a: "<now-48h>", b: "<now+5h>", c: "<now>" });
   });
+
+  it("re-measures an instant a few years out only when the minimum hours says so", () => {
+    const later = new Date("2026-11-14T04:00:00Z");
+    const written = { offer_codes: { inserted: [{ valid_at: "<now+27486h>" }] } };
+    // 2030-01-01T10:00Z is 27486 hours after the recording and 27462 after the replay's clock.
+    const rebased = rebaseFarInstants(exchange({}, written), new Date("2026-11-13T04:00:00Z"), later, 24 * 365);
+    expect(rebased.db).toEqual({ offer_codes: { inserted: [{ valid_at: "<now+27462h>" }] } });
+    expect(rebaseFarInstants(exchange({}, written), new Date("2026-11-13T04:00:00Z"), later).db).toEqual(written);
+  });
 });
