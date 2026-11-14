@@ -235,6 +235,19 @@ function codeVerifierMatches(grant: AccessGrantRow, codeVerifier: string | null)
   return false;
 }
 
+// A one-element client_id array (JSON body), with no Basic header and no client_secret, finds no client even when its uid is the
+// application's: invalid_client rather than the invalid_grant of a client that was found.
+function arrayClientId(input: MutationInput): boolean {
+  const { client_id: clientId, client_secret: secret } = input.params;
+  return (
+    Array.isArray(clientId) &&
+    clientId.length === 1 &&
+    typeof clientId[0] === "string" &&
+    (secret === undefined || secret === null) &&
+    !input.request.headers.has("authorization")
+  );
+}
+
 // OAuth::AuthorizationCodeRequest#authorize
 async function authorizationCode(input: MutationInput, state: string | null, now: Date): Promise<ActionResult> {
   const code = stringParam(input.params, "code");
@@ -245,7 +258,7 @@ async function authorizationCode(input: MutationInput, state: string | null, now
   }
   if (!isPresent(code)) return oauthError("invalid_request", missingParam("code"), BAD_REQUEST, state);
 
-  const client = await authenticateClient(clientCredentials(input));
+  const client = arrayClientId(input) ? null : await authenticateClient(clientCredentials(input));
   const redirectUri = stringParam(input.params, "redirect_uri");
   const codeVerifier = stringParam(input.params, "code_verifier");
   // validate :params
@@ -368,13 +381,21 @@ async function refreshTokenGrant(input: MutationInput, state: string | null, now
   return application === null ? run() : withApplicationLock(application.id, true, run);
 }
 
+// OauthDeviceAuthorization.digest hashes `value.to_s`, so a one-element array of plain characters is looked up as its inspected form.
+function deviceCodeParam(input: MutationInput): string | null {
+  const value = input.params.device_code;
+  if (Array.isArray(value) && value.length === 1 && typeof value[0] === "string" && /^[\w-]+$/u.test(value[0]))
+    return `["${value[0]}"]`;
+  return stringParam(input.params, "device_code");
+}
+
 // Oauth::TokensController#create_device_access_token. The connector aliases do not offer the grant.
 async function deviceCodeGrant(input: MutationInput): Promise<ActionResult> {
   const { application, refusal } = await authenticateOauthApplication(input);
   if (refusal !== null) return refusalJson(input, refusal);
   if (!truthy(application.device_authorization_enabled))
     return oauthJsonError(input, "unauthorized_client", "Client is not allowed to use device authorization");
-  const deviceCode = stringParam(input.params, "device_code");
+  const deviceCode = deviceCodeParam(input);
   if (!isPresent(deviceCode)) return oauthJsonError(input, "invalid_request", "device_code is required");
 
   const expiredToken = () => oauthJsonError(input, "expired_token", "Device code is invalid or expired");
@@ -434,6 +455,10 @@ async function revoke(input: MutationInput): Promise<ActionResult> {
   assertPlainSession(input);
   const client = await authenticateClient(clientCredentials(input));
   if (client === null) return revocationRefusal();
+  // A non-empty hash names no token.
+  const sent = input.params.token;
+  if (typeof sent === "object" && sent !== null && !Array.isArray(sent) && Object.keys(sent).length > 0)
+    return jsonBody({}, 200);
   const token = await tokenFromParams(input);
   if (token === null) return jsonBody({}, 200);
   const application = await findApplicationById(token.application_id);

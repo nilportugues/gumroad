@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { RecordInvalid } from "../models/runtime/errors.ts";
+
 import { HandBackToRails, RoutingError } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
@@ -45,6 +47,8 @@ vi.mock("../models/direct-affiliate-removal.ts", () => ({
 vi.mock("../models/direct-affiliate-create.ts", () => ({
   creationBlocker: mocks.creationBlocker,
   createDirectAffiliate: mocks.createDirectAffiliate,
+  FEE_RANGE_MESSAGE: "Affiliate commission must be between 1% and 75%.",
+  feeOutsideRange: (points: number | null) => points !== null && (points < 100 || points > 7500),
   // The Ruby to_i itself is pinned by its golden in direct-affiliate-create.test.ts.
   rubyToI: (value: unknown) => Number.parseInt(String(value ?? 0), 10) || 0,
 }));
@@ -282,6 +286,19 @@ describe("DELETE /affiliates/:id", () => {
     mocks.selectRows.mockResolvedValue([{ id: 7 }]);
     mocks.removalBlocker.mockResolvedValue("an affiliate that is already deleted");
     await expect(call(destroy, undefined)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(mocks.markDeletedBang).not.toHaveBeenCalled();
+    expect(mocks.deliverLater).not.toHaveBeenCalled();
+  });
+
+  it("refuses a removal of a fee outside the range with a validation error, writing and mailing nothing", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValue([{ id: 7, affiliate_basis_points: 50 }]);
+    const refused = await call(destroy, undefined).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(RecordInvalid);
+    expect((refused as RecordInvalid).message).toBe(
+      "Validation failed: Affiliate commission must be between 1% and 75%.",
+    );
+    expect(mocks.removalBlocker).not.toHaveBeenCalled();
     expect(mocks.markDeletedBang).not.toHaveBeenCalled();
     expect(mocks.deliverLater).not.toHaveBeenCalled();
   });
