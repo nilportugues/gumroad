@@ -27,8 +27,14 @@ const LOOKUP_FIELDS = ["stripe_fingerprint", "browser_guid", "ip_address"] as co
 const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
 const TERMINAL_REFUND_STATUSES = ["failed", "canceled"];
 const PAYPAL_CARD_TYPE = "paypal";
-// AdminSearchService filters that need the card index; Node does not serve them.
 const CARD_SEARCH_PARAMS = ["purchase_date", "card_last4", "card_type", "charge_amount", "expiry_date"];
+// The card filters whose date parsing (purchase_date, in the app's zone) and expiry reading Node does not reproduce.
+const UNPORTED_CARD_SEARCH_PARAMS = ["purchase_date", "expiry_date"];
+// ChargeableVisual::LENGTH_TO_FORMAT, in the order its three entries are matched.
+const CARD_VISUAL_FORMATS = ["**** **** **** ", "**** ****** *", "**** ****** "];
+// AdminSearchService matches a charge amount between 75% and 125% of it.
+const CHARGE_AMOUNT_FLOOR = 75n;
+const CHARGE_AMOUNT_CEILING = 125n;
 const SEARCH_PARAMS = [
   "query",
   "email",
@@ -469,6 +475,24 @@ async function searchConditions(
     if (license === null) return null;
     conditions.push(Prisma.sql`purchases.id = ${license.purchase_id}`);
   }
+  if (CARD_SEARCH_PARAMS.some((key) => key in search)) {
+    conditions.push(Prisma.sql`purchases.stripe_fingerprint IS NOT NULL`);
+    if (search.card_type !== undefined) conditions.push(Prisma.sql`purchases.card_type = ${search.card_type}`);
+    if (search.card_last4 !== undefined) {
+      const visuals = CARD_VISUAL_FORMATS.map(
+        (prefix) => Prisma.sql`purchases.card_visual = ${prefix + search.card_last4}`,
+      );
+      conditions.push(Prisma.sql`(${Prisma.join(visuals, " OR ")})`);
+    }
+    if (search.charge_amount !== undefined) {
+      const [whole = "", fraction = ""] = search.charge_amount.split(".");
+      const digits = BigInt(whole + fraction);
+      const scale = 10n ** BigInt(fraction.length);
+      conditions.push(
+        Prisma.sql`purchases.price_cents BETWEEN ${(digits * CHARGE_AMOUNT_FLOOR) / scale} AND ${(digits * CHARGE_AMOUNT_CEILING) / scale}`,
+      );
+    }
+  }
   return { conditions, joinsLink };
 }
 
@@ -490,7 +514,23 @@ defineAdminRoute(
           400,
         );
       }
-      if (CARD_SEARCH_PARAMS.some((key) => key in search)) throw new NotPortedError("a card search", SOURCE);
+      if (UNPORTED_CARD_SEARCH_PARAMS.some((key) => key in search))
+        throw new NotPortedError("a card search by purchase or expiry date", SOURCE);
+      // BigDecimal#to_d reads anything else (an exponent, a sign, trailing text) differently.
+      if (search.charge_amount !== undefined && !/^\d+(?:\.\d+)?$/u.test(search.charge_amount))
+        throw new NotPortedError("a charge amount that is not plain digits", SOURCE);
+      if (
+        search.card_last4 !== undefined &&
+        search.query === undefined &&
+        search.email === undefined &&
+        search.creator_email === undefined &&
+        search.license_key === undefined &&
+        search.card_type === undefined
+      )
+        return failure(
+          "card_last4 needs a narrower search: also provide card_type, purchase_date, query, email, creator_email, or license_key.",
+          400,
+        );
 
       const limit = searchLimit(admin.params.limit);
       const found = await searchConditions(search);
