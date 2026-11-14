@@ -173,10 +173,11 @@ describe "Twitter OAuth", type: :request do
       expect(response).to have_http_status(:found)
     end
 
-    it "hands a request with a wrong authenticity token to Rails", parity: true do
+    it "sends a request with a wrong authenticity token to the sign-in page and writes no cookie", parity: true do
       post "/users/auth/twitter", params: { authenticity_token: "wrong" }
 
-      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to("/users/sign_in")
+      expect(response.headers["Set-Cookie"]).to be_nil
     end
   end
 
