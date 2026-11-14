@@ -87,6 +87,57 @@ describe "ProductReviewVideos", type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
+    it "redirects a signed-out visitor to the dashboard when an HTML request is refused", parity: true do
+      record = pending_video
+
+      get product_review_video_streaming_urls_path(record.external_id)
+
+      expect(response).to have_http_status(:found)
+      expect(response).to redirect_to(dashboard_url)
+      expect(flash[:alert]).to eq("You are not allowed to perform this action.")
+    end
+
+    it "redirects another signed-in user to the dashboard when an HTML request is refused", parity: true do
+      record = pending_video
+      log_in(create(:user, name: "Bystander"))
+
+      get product_review_video_streaming_urls_path(record.external_id)
+
+      expect(response).to have_http_status(:found)
+      expect(flash[:alert]).to eq("You are not allowed to perform this action.")
+    end
+
+    it "redirects without a flash when the refused request comes from an account switch", parity: true do
+      record = pending_video
+
+      get product_review_video_streaming_urls_path(record.external_id, account_switched: "true")
+
+      expect(response).to have_http_status(:found)
+      expect(flash[:alert]).to be_nil
+    end
+
+    it "answers 401 for a pending video when the digest is a list", parity: true do
+      record = pending_video
+
+      get "#{product_review_video_streaming_urls_path(record.external_id)}?purchase_email_digest[]=#{CGI.escape(purchase.email_digest)}", headers: { "Accept" => "application/json" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "answers 401 for a pending video when the digest is a hash", parity: true do
+      record = pending_video
+
+      get "#{product_review_video_streaming_urls_path(record.external_id)}?purchase_email_digest[a]=#{CGI.escape(purchase.email_digest)}", headers: { "Accept" => "application/json" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "hands an allowed request whose digest is a list to Rails", parity: true do
+      get "#{product_review_video_streaming_urls_path(video.external_id)}?purchase_email_digest[]=abc", headers: { "Accept" => "application/json" }
+
+      expect(response).to have_http_status(:ok)
+    end
+
     it "answers 404 for a video that does not exist", parity: true do
       get_json product_review_video_streaming_urls_path("nosuchvideo")
 
@@ -140,6 +191,14 @@ describe "ProductReviewVideos", type: :request do
       log_in(create(:user, name: "Bystander"))
 
       get product_review_video_stream_path(record.external_id, format: :smil)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "answers 401 for a pending video when the digest is a list", parity: true do
+      record = pending_video
+
+      get "#{product_review_video_stream_path(record.external_id, format: :smil)}?purchase_email_digest[]=#{CGI.escape(purchase.email_digest)}"
 
       expect(response).to have_http_status(:unauthorized)
     end

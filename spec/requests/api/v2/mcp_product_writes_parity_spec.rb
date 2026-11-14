@@ -3,7 +3,7 @@
 require "spec_helper"
 
 # The create_draft_product and update_product tools of Mcp::Server through the full Rack stack, recorded for the Next.js port and replayed by
-# nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. Node saves a plain digital draft (a USD price above zero and a description with no markup)
+# nextjs/parity/__tests__/api-v2-ws17c.replay.test.ts. Node saves a plain digital draft (a USD price, pay what you want and a description with no markup)
 # and updates the name, description, price, permalink, summary, additional details and receipt texts of a product with one buy price; every other call goes to Rails whole, in an example named
 # "hands ... back". `parity_timeline` records the order of the statements and jobs.
 describe "API v2 MCP product writes", type: :request, parity_timeline: true do
@@ -146,8 +146,65 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       create_draft({ name: "Notebook", price_cents: 500, currency: "xyz" })
     end
 
-    it "hands a pay what you want price back to Rails", parity: true do
+    it "saves a pay what you want draft with a suggested price", parity: true do
       create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true, suggested_price_cents: 900 })
+
+      expect(created.customizable_price).to be true
+      expect(created.suggested_price_cents).to eq(900)
+    end
+
+    it "saves a pay what you want draft with no suggested price", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true })
+
+      expect(created.customizable_price).to be true
+      expect(created.suggested_price_cents).to be_nil
+    end
+
+    it "saves a draft with pay what you want turned off", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: false })
+
+      expect(created.customizable_price).to be false
+    end
+
+    it "saves a free pay what you want draft with a suggested price", parity: true do
+      create_draft({ name: "Freebie", price_cents: 0, pay_what_you_want: true, suggested_price_cents: 300 })
+    end
+
+    it "refuses a suggested price while pay what you want is off", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: false, suggested_price_cents: 900 })
+
+      expect(Link.count).to eq(0)
+    end
+
+    it "refuses a suggested price with no pay what you want", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, suggested_price_cents: 900 })
+    end
+
+    it "reports a suggested price below the price as a tool error", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true, suggested_price_cents: 100 })
+
+      expect(Link.count).to eq(0)
+    end
+
+    it "reports a negative suggested price as a tool error", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true, suggested_price_cents: -1 })
+    end
+
+    it "reports a suggested price over the maximum as a tool error", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true, suggested_price_cents: 2_147_483_648 })
+    end
+
+    it "answers the argument error of a suggested price ahead of the scope check", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, suggested_price_cents: 900 }, scopes: "view_sales")
+    end
+
+    it "hands a pay what you want draft back to Rails without the edit scope", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true }, scopes: "view_sales")
+    end
+
+    it "hands a pay what you want draft of a seller who prices in another currency back to Rails", parity: true do
+      seller.update_columns(currency_type: "eur")
+      create_draft({ name: "Notebook", price_cents: 500, pay_what_you_want: true })
     end
 
     it "hands a membership tier with a suggested price back to Rails", parity: true do

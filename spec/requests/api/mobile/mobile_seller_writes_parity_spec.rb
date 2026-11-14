@@ -97,10 +97,65 @@ describe "Mobile API seller writes and the Agent tab", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "hands a completion of a commission to Rails", parity: true do
-      post "/mobile/commissions/#{commission_of(seller).external_id}/complete", params: auth(seller)
+    def attach_file(commission)
+      commission.files.attach(io: StringIO.new("final artwork"), filename: "artwork.txt", content_type: "text/plain")
+    end
 
-      expect(response.parsed_body).to include("success")
+    def complete(commission)
+      post "/mobile/commissions/#{commission.external_id}/complete", params: auth(seller)
+    end
+
+    it "answers success for a commission that is already completed", parity: true do
+      commission = commission_of(seller)
+      commission.update_columns(status: Commission::STATUS_COMPLETED)
+
+      complete(commission)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true)
+      expect(commission.reload.status).to eq(Commission::STATUS_COMPLETED)
+    end
+
+    it "answers success when the balance was already charged", parity: true do
+      commission = commission_of(seller)
+      completion = purchase_row(link: commission.deposit_purchase.link, seller:, email: "customer@example.com", purchase_state: "in_progress", is_commission_deposit_purchase: false, is_commission_completion_purchase: true)
+      commission.update_columns(status: Commission::STATUS_IN_PROGRESS, completion_purchase_id: completion.id)
+
+      complete(commission)
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body).to eq("success" => true)
+      expect(commission.reload.status).to eq(Commission::STATUS_IN_PROGRESS)
+    end
+
+    it "refuses a commission with no status", parity: true do
+      complete(commission_of(seller))
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "This commission's deposit is no longer in a completable state, so it can no longer be completed.")
+    end
+
+    it "refuses a commission whose deposit was refunded", parity: true do
+      commission = commission_of(seller)
+      commission.update_columns(status: Commission::STATUS_IN_PROGRESS)
+      commission.deposit_purchase.update_columns(stripe_refunded: true)
+      attach_file(commission)
+
+      complete(commission)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["message"]).to eq("This commission's deposit is no longer in a completable state, so it can no longer be completed.")
+    end
+
+    it "asks for a file before completing", parity: true do
+      commission = commission_of(seller)
+      commission.update_columns(status: Commission::STATUS_IN_PROGRESS)
+
+      complete(commission)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Attach at least one file before completing this commission.")
+      expect(commission.reload.completion_purchase_id).to be_nil
     end
   end
 

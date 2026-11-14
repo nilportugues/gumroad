@@ -11,7 +11,7 @@ import { transaction } from "../models/runtime/transaction.ts";
 import { TeamMemberships } from "../models/team-membership.ts";
 import { deviseFriendlyToken, findUser, setPassword, Users, type UserRecord } from "../models/user.ts";
 
-import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, type ActionResult } from "./application-controller.ts";
 import { json } from "./json-actions.ts";
 import { registerMutations, remoteIp, type MutationInput } from "./mutation.ts";
 import { accountEmailRequired } from "./seller-json.ts";
@@ -51,6 +51,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
 
   // params.require(:brand_account).permit(:email, ...): a missing hash is a 400, and only scalars are permitted.
   const attributes = input.params.brand_account;
+  if (!("brand_account" in input.params)) throw new ParameterMissing();
   if (
     typeof attributes !== "object" ||
     attributes === null ||

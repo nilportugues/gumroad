@@ -44,6 +44,8 @@ import { MAX_PRICE_USD_CENTS_UNLESS_VERIFIED, NotPortedError, UserFlags } from "
 
 // BasePrice::Shared::MAX_PRICE_CENTS
 const MAX_PRICE_CENTS = 2_147_483_647;
+// BasePrice::Shared::MIN_PRICE_CENTS
+const MIN_PRICE_CENTS = -2_147_483_648;
 const USD = "usd";
 const PRICE_TOO_LARGE = "Sorry, the price entered is too large.";
 const NO_PRICE = "New products should be created with a price";
@@ -515,6 +517,20 @@ const validations: Callback<Link>[] = [
       if (suggested == null || !link.get("customizable_price") || link.get("price_cents") == null) return;
       if (suggested < Number(link.get("price_cents")))
         link.errors.add("base", "The suggested price you entered was too low.");
+    },
+  },
+  {
+    // Product::Prices#suggested_price_must_be_within_storage_range
+    name: "suggested_price_must_be_within_storage_range",
+    run(link) {
+      const suggested = link.get("suggested_price_cents");
+      if (suggested == null || (suggested >= MIN_PRICE_CENTS && suggested <= MAX_PRICE_CENTS)) return;
+      link.errors.add(
+        "base",
+        suggested > 0
+          ? "Sorry, the suggested price entered is too large."
+          : "Sorry, the suggested price entered is too low.",
+      );
     },
   },
   {

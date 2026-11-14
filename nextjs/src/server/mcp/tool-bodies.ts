@@ -1316,10 +1316,12 @@ const tiersPrice = (tiers: unknown): boolean =>
 // is checked after them. A membership, a seller pricing in another currency, and a description with markup other than
 // paragraphs go to Rails whole, before the first write.
 async function createDraftProduct(args: Hash, context: ToolContext): Promise<Hash> {
-  // Currency, pay what you want and a suggested price (on the product or on a tier) are checked and written by Rails, which answers their
-  // argument errors ahead of the scope check.
-  if (["currency", "pay_what_you_want", "suggested_price_cents"].some((key) => key in args) || tiersPrice(args.tiers))
+  // A currency, a tier price option and a membership's pay what you want are checked and written by Rails, which answers their argument
+  // errors ahead of the scope check.
+  if ("currency" in args || tiersPrice(args.tiers))
     throw new HandBackToRails("a draft product with a currency or a pay-what-you-want price");
+  if (args.product_type === "membership" && ["pay_what_you_want", "suggested_price_cents"].some((key) => key in args))
+    throw new HandBackToRails("a draft membership with a pay-what-you-want price");
   if (args.product_type === "membership") {
     if ("price_cents" in args)
       throw new ToolRpcError(
@@ -1331,6 +1333,15 @@ async function createDraftProduct(args: Hash, context: ToolContext): Promise<Has
   }
   if (!("price_cents" in args)) throw new ToolRpcError("price_cents is required", INVALID_PARAMS);
   if ("tiers" in args) throw new ToolRpcError("tiers are only accepted with product_type membership", INVALID_PARAMS);
+  // Rails reads the two arguments as they come; a value that is not a boolean or a whole number goes to it.
+  const payWhatYouWant = args.pay_what_you_want;
+  const suggested = args.suggested_price_cents;
+  if (payWhatYouWant !== undefined && typeof payWhatYouWant !== "boolean")
+    throw new HandBackToRails("a pay_what_you_want that is not a boolean");
+  if (suggested !== undefined && !Number.isSafeInteger(suggested))
+    throw new HandBackToRails("a suggested price that is not a whole number");
+  if (suggested !== undefined && payWhatYouWant !== true)
+    throw new ToolRpcError("suggested_price_cents needs pay_what_you_want: true in the same call", INVALID_PARAMS);
   requireScopes(context.token, ["edit_products", "account"]);
   const rawName = args.name as string;
   if (rawName.includes("\0")) throw new HandBackToRails("a name with a NUL character");
@@ -1363,7 +1374,16 @@ async function createDraftProduct(args: Hash, context: ToolContext): Promise<Has
   await transaction(async () => {
     outcome = await createApiLink(
       seller,
-      { name, description, priceCents, currency: USD, taxonomyId: null, customSummary: null },
+      {
+        name,
+        description,
+        priceCents,
+        currency: USD,
+        taxonomyId: null,
+        customSummary: null,
+        ...(payWhatYouWant !== undefined && { customizablePrice: payWhatYouWant }),
+        ...(suggested !== undefined && { suggestedPriceCents: suggested as number }),
+      },
       context.now,
     );
   });
