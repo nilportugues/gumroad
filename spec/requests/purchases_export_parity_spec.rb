@@ -53,6 +53,8 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
 
   def csv = CSV.parse(response.body.dup.force_encoding(Encoding::UTF_8))
 
+  def column(name) = csv.map { |row| row[csv.first.index(name)] }
+
   it "exports a sale as a row of the CSV followed by the totals", parity: true do
     sell(price_cents: 500, fee_cents: 100, referrer: "twitter.com")
 
@@ -195,12 +197,44 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands a mobile export with an access token to Rails", parity: true do
+  it "sends a request with an access token that is not the mobile token to the login page", parity: true do
     sell
 
     get "/purchases/export", params: { access_token: "unknown", mobile_token: "unknown" }
 
     expect(response).to have_http_status(:found)
+    expect(response.location).to include("/login")
+  end
+
+  it "sends a request with an access token and no mobile token to the login page", parity: true do
+    get "/purchases/export", params: { access_token: "unknown" }
+
+    expect(response).to have_http_status(:found)
+    expect(response.location).to include("/login")
+  end
+
+  it "reads the access token of a request with a blank one as no token", parity: true do
+    get "/purchases/export", params: { access_token: " ", mobile_token: Api::Mobile::BaseController::MOBILE_TOKEN }
+
+    expect(response).to have_http_status(:found)
+    expect(response.location).to include("/login")
+  end
+
+  it "ignores the access token of a signed-in request", parity: true do
+    sell
+
+    export({ access_token: "unknown", mobile_token: Api::Mobile::BaseController::MOBILE_TOKEN })
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.size).to eq(3)
+  end
+
+  it "hands a mobile export with the mobile token and an access token to Rails", parity: true do
+    sell
+
+    get "/purchases/export", params: { access_token: "unknown", mobile_token: Api::Mobile::BaseController::MOBILE_TOKEN }
+
+    expect(response).to have_http_status(:unauthorized)
   end
 
   # Pacific midnight of 2026-01-11 is 08:00 UTC and of 2026-01-13 is 08:00 UTC; the sales sit hours away from both.
@@ -461,17 +495,91 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.map { |row| row[csv.first.index("Upsold?")] }).to include("1")
   end
 
-  it "hands a sale of a licensed product with a variant to Rails", parity: true do
-    licensed = create(:product, user: seller, name: "Licensed versions", is_licensed: true)
-    category = create(:variant_category, link: licensed, title: "Edition")
-    edition = create(:variant, variant_category: category, name: "Pro", price_difference_cents: 100)
-    keyed = sell(of: licensed, price_cents: 600)
-    keyed.variant_attributes << edition
-    License.create!(purchase: keyed, link: licensed, serial: "IIII-JJJJ-KKKK-LLLL", uses: 1)
+  describe "of a licensed product with versions" do
+    let(:licensed) { create(:product, user: seller, name: "Licensed versions", is_licensed: true) }
+    let(:edition) { create(:variant, variant_category: create(:variant_category, link: licensed, title: "Edition"), name: "Pro", price_difference_cents: 100) }
+    let(:other_edition) { create(:variant, variant_category: edition.variant_category, name: "Lite", price_difference_cents: 0) }
+    let(:plain_page) { [{ "type" => "paragraph", "content" => [{ "type" => "text", "text" => "Welcome" }] }] }
+    let(:key_page) { plain_page + [{ "type" => "licenseKey" }] }
 
-    export
+    def keyed_sale(variant, serial, **attributes)
+      sell(of: licensed, price_cents: 600, **attributes).tap do |row|
+        row.variant_attributes << variant
+        License.create!(purchase: row, link: licensed, serial:, uses: 1)
+      end
+    end
 
-    expect(response).to have_http_status(:ok)
+    it "writes the license key of a sale of a version that has no content of its own", parity: true do
+      keyed_sale(edition, "IIII-JJJJ-KKKK-LLLL")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("License Key")).to include("IIII-JJJJ-KKKK-LLLL")
+    end
+
+    it "leaves out the license key of a version whose content has no license key block and keeps it for one that has the block", parity: true do
+      create(:rich_content, entity: edition, description: plain_page)
+      create(:rich_content, entity: other_edition, description: key_page)
+      keyed_sale(edition, "HIDE-AAAA-BBBB-CCCC")
+      keyed_sale(other_edition, "SHOW-AAAA-BBBB-CCCC")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("License Key")).to include("SHOW-AAAA-BBBB-CCCC")
+      expect(column("License Key")).not_to include("HIDE-AAAA-BBBB-CCCC")
+    end
+
+    it "keeps the license key of a version whose only content page was deleted", parity: true do
+      create(:rich_content, entity: edition, description: plain_page, deleted_at: Time.utc(2026, 2, 1))
+      keyed_sale(edition, "GONE-AAAA-BBBB-CCCC")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("License Key")).to include("GONE-AAAA-BBBB-CCCC")
+    end
+
+    it "keeps the license key when the content is shared by every version at the product level", parity: true do
+      licensed.update_columns(flags: licensed.flags | Link.flag_mapping["flags"][:has_same_rich_content_for_all_variants])
+      create(:rich_content, entity: licensed, description: plain_page)
+      keyed_sale(edition, "SAME-AAAA-BBBB-CCCC")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("License Key")).to include("SAME-AAAA-BBBB-CCCC")
+    end
+
+    it "leaves out the license key of a version whose content was hidden at the product level", parity: true do
+      licensed.update_columns(flags: licensed.flags | Link.flag_mapping["flags"][:has_same_rich_content_for_all_variants])
+      create(:rich_content, entity: edition, description: plain_page)
+      keyed_sale(edition, "HIDN-AAAA-BBBB-CCCC")
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("License Key")).not_to include("HIDN-AAAA-BBBB-CCCC")
+    end
+
+    it "reads the license key of a gift from the receiver's version content", parity: true do
+      create(:rich_content, entity: edition, description: plain_page)
+      create(:rich_content, entity: other_edition, description: key_page)
+      [[edition, "GIFT-DDDD-EEEE-FFFF"], [other_edition, "GIFT-GGGG-HHHH-IIII"]].each_with_index do |(version, serial), index|
+        sent = sell(of: licensed, price_cents: 700, email: "gifter#{index}@example.com", is_gift_sender_purchase: true)
+        received = sell(of: licensed, price_cents: 0, state: "gift_receiver_purchase_successful", email: "giftee#{index}@example.com", is_gift_receiver_purchase: true)
+        received.variant_attributes << version
+        Gift.create!(link: licensed, gifter_purchase: sent, giftee_purchase: received, gifter_email: "gifter#{index}@example.com", giftee_email: "giftee#{index}@example.com", state: "successful")
+        License.create!(purchase: received, link: licensed, serial:, uses: 1)
+      end
+
+      export
+
+      expect(response).to have_http_status(:ok)
+      expect(column("License Key")).to include("GIFT-GGGG-HHHH-IIII")
+      expect(column("License Key")).not_to include("GIFT-DDDD-EEEE-FFFF")
+    end
   end
 
   it "transliterates an address and keeps the original of one with a character Rails cannot transliterate", parity: true do
@@ -989,12 +1097,16 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(csv.first.last(3)).to eq(%w[Größe 名前 Mood])
   end
 
-  it "hands a custom field value that Ruby escapes in its inspect to Rails", parity: true do
-    sell.purchase_custom_fields.create!(name: "Note", value: "zero#{"\u200B"}width", field_type: "text")
+  it "writes a custom field name and value that String#inspect leaves as they are or escapes", parity: true do
+    answered = sell
+    answered.purchase_custom_fields.create!(name: "Note", value: "zero#{"\u200B"}width#{"\u00A0"}space#{"\uE000"}private", field_type: "text")
+    answered.purchase_custom_fields.create!(name: "Control#{"\u0085"}", value: "line#{"\u2028"}and#{"\u2029"}paragraph#{"\u0085"}next", field_type: "long_text")
+    answered.purchase_custom_fields.create!(name: "Unassigned", value: "gap#{"\u0378"}#{"\u{E0080}"}#{"\u{2EBF0}"}#{"\u{10FFFF}"}end", field_type: "text")
 
     export
 
     expect(response).to have_http_status(:ok)
+    expect(csv.first.last(3)).to eq(["Note", "Control\u0085", "Unassigned"])
   end
 
   it "writes the giftee's email and reads the review and license key of a gift from the giftee's purchase", parity: true do
@@ -1027,21 +1139,6 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
 
     expect(response).to have_http_status(:ok)
     expect(csv.map { |row| row[csv.first.index("Variants")] }).to include("(Large)")
-  end
-
-  it "hands a gift of a licensed product whose receiver holds a variant to Rails", parity: true do
-    licensed = create(:product, user: seller, name: "Licensed gift", is_licensed: true)
-    category = create(:variant_category, link: licensed, title: "Size")
-    large = create(:variant, variant_category: category, name: "Large")
-    sent = sell(of: licensed, price_cents: 700, email: "gifter@example.com", is_gift_sender_purchase: true)
-    received = sell(of: licensed, price_cents: 0, state: "gift_receiver_purchase_successful", email: "giftee@example.com", is_gift_receiver_purchase: true)
-    received.variant_attributes << large
-    Gift.create!(link: licensed, gifter_purchase: sent, giftee_purchase: received, gifter_email: "gifter@example.com", giftee_email: "giftee@example.com", state: "successful")
-    License.create!(purchase: received, link: licensed, serial: "GIFT-DDDD-EEEE-FFFF", uses: 1)
-
-    export
-
-    expect(response).to have_http_status(:ok)
   end
 
   it "flags a pre-order authorization and writes the authorization time on its charge", parity: true do

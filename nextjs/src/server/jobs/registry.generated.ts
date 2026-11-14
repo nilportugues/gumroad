@@ -1117,7 +1117,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Exports::AffiliateExportWorker": {
     file: "app/sidekiq/exports/affiliate_export_worker.rb",
