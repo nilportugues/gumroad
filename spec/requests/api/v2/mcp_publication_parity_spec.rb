@@ -87,7 +87,7 @@ describe "API v2 MCP product publication", type: :request, parity_timeline: true
       publish(create(:product, user: create(:user)).external_id)
     end
 
-    it "hands back a publish of a seller with no payment method", parity: true do
+    it "reports a seller with no payment method as a tool error", parity: true do
       seller.update_columns(payment_address: nil)
       publish
     end

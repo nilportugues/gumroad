@@ -187,7 +187,7 @@ describe "API v2 emails", type: :request do
         schedule "2099-06-01T25:00:00+02:00"
       end
 
-      it "hands back text that is not an ISO 8601 time", parity: true do
+      it "rejects text that is not an ISO 8601 time", parity: true do
         schedule "tomorrow-ish"
       end
 

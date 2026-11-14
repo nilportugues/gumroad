@@ -109,7 +109,6 @@ async function enable(input: ApiV2Input) {
 
 async function destroy(input: ApiV2Input) {
   const product = productOf(input);
-  if (product.deleted_at !== null) throw new HandBackToRails("a product that is already deleted");
   await deleteProductBang(input.owner.id, Links.load(product));
   return successWithObject("product", null);
 }
