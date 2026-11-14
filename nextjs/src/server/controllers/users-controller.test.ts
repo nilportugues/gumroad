@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HandBackToRails } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
-const { specs, selectRows, findLink, findUser, loggedInUser } = vi.hoisted(() => ({
-  specs: [] as MutationSpec[],
-  selectRows: vi.fn(),
-  findLink: vi.fn(),
-  findUser: vi.fn(),
-  loggedInUser: vi.fn(),
-}));
+const { specs, selectRows, findLink, findUser, findPurchase, loggedInUser, changePurchaser, validPassword } =
+  vi.hoisted(() => ({
+    specs: [] as MutationSpec[],
+    selectRows: vi.fn(),
+    findLink: vi.fn(),
+    findUser: vi.fn(),
+    findPurchase: vi.fn(),
+    loggedInUser: vi.fn(),
+    changePurchaser: vi.fn(),
+    validPassword: vi.fn(),
+  }));
 
 vi.mock("./mutation.ts", () => ({
   registerMutations: (...registered: MutationSpec[]) => void specs.push(...registered),
@@ -20,10 +24,13 @@ vi.mock("../models/sql.ts", () => ({
   table: (name: string) => name,
   quoteName: (name: string) => name,
 }));
-vi.mock("../../lib/db.ts", () => ({ db: { link: { findUnique: findLink }, user: { findFirst: findUser } } }));
+vi.mock("../../lib/db.ts", () => ({
+  db: { link: { findUnique: findLink }, purchase: { findUnique: findPurchase }, user: { findFirst: findUser } },
+}));
 vi.mock("../../lib/obfuscate-ids.ts", () => ({ decrypt: (id: string) => (id === "unknown" ? null : 7) }));
 vi.mock("../auth/resolve.ts", () => ({ railsLoggedInUser: loggedInUser }));
-vi.mock("../auth/devise-password.ts", () => ({ validPassword: (_hash: string, password: string | undefined) => Promise.resolve(password === "secret") }));
+vi.mock("../auth/devise-password.ts", () => ({ validPassword }));
+vi.mock("../models/purchase-delivery-writes.ts", () => ({ changePurchaser }));
 
 await import("./users-controller.ts");
 
@@ -42,6 +49,7 @@ describe("POST /add_purchase_to_library", () => {
     selectRows.mockResolvedValue([PURCHASE]);
     findLink.mockResolvedValue({ user_id: 11n });
     findUser.mockResolvedValue(null);
+    findPurchase.mockResolvedValue({ id: 7n, full: true });
     loggedInUser.mockReturnValue(null);
   });
 
@@ -86,20 +94,25 @@ describe("POST /add_purchase_to_library", () => {
     });
   });
 
-  it("hands a signed-in buyer's move to Rails", async () => {
+  it("moves the purchase into a signed-in buyer's library", async () => {
     loggedInUser.mockReturnValue({ id: 12n, email: "buyer@example.com" });
-    await expect(call(VALID)).rejects.toBeInstanceOf(HandBackToRails);
+    expect(await body(VALID)).toEqual({ success: true, redirect_location: "/library" });
+    expect(changePurchaser).toHaveBeenCalledWith({ id: 7n, full: true }, 12n);
   });
 
-  it("answers failure for a wrong or missing password of the account that owns the email", async () => {
-    findUser.mockResolvedValue({ id: 5n, encrypted_password: "hash" });
-    expect(await body({ ...VALID, password: "wrong" })).toEqual({ success: false });
-    expect(await body(VALID)).toEqual({ success: false });
+  it("answers failure for a wrong password of the account that owns the email", async () => {
+    findUser.mockResolvedValue({ encrypted_password: "hash" });
+    validPassword.mockResolvedValue(false);
+    expect(await body({ ...VALID, password: "secret" })).toEqual({ success: false });
+    expect(validPassword).toHaveBeenCalledWith("hash", "secret");
+    expect(changePurchaser).not.toHaveBeenCalled();
   });
 
   it("hands the right password of the account that owns the email to Rails", async () => {
-    findUser.mockResolvedValue({ id: 5n, encrypted_password: "hash" });
+    findUser.mockResolvedValue({ encrypted_password: "hash" });
+    validPassword.mockResolvedValue(true);
     await expect(call({ ...VALID, password: "secret" })).rejects.toBeInstanceOf(HandBackToRails);
+    expect(changePurchaser).not.toHaveBeenCalled();
   });
 
   it("answers failure for a purchase id that is a list or a hash", async () => {

@@ -19,11 +19,12 @@ registerMutations({
   pattern: "/discover_search_autocomplete",
   // No Pundit here, so a JSON or XML request gets the same 204.
   formats: ["any"],
+  dropNils: true,
   run: async ({ request, context, chain, url, rawBody }) => {
     // A JSON number written as a float stays a RubyFloat, which the column's text cast spells like Float#to_s.
-    const raw = requestParams(url, request.headers.get("content-type"), rawBody, true).query;
+    const raw = requestParams(url, request.headers.get("content-type"), rawBody, true, true).query;
     // `where(query: 42)` compares the column's text cast (`'42'`, `true` is `'1'`); a list is an IN of those. A hash raises while
-    // quoting and a list inside a list is Rails' call (a null in a list never gets here: the params parser hands it back).
+    // quoting and a list inside a list is Rails' call (deep_munge already dropped the nulls of a list).
     const castScalar = (value: unknown) => (typeof value === "string" ? value : (stringValue(value) as string));
     const isList = Array.isArray(raw);
     if (raw !== undefined && raw !== null && !isList && typeof raw === "object" && !(raw instanceof RubyFloat))

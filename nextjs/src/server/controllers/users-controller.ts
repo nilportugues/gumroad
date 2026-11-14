@@ -15,9 +15,10 @@ import * as Routes from "@/lib/navigation/routes";
 
 import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
-import { railsLoggedInUser } from "../auth/resolve.ts";
 import { validPassword } from "../auth/devise-password.ts";
+import { railsLoggedInUser } from "../auth/resolve.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
+import { changePurchaser } from "../models/purchase-delivery-writes.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { isAccountActive, nameOrUsername, Users } from "../models/user.ts";
 import { sellerGuard } from "../page-props/audience/seller-guard.ts";
@@ -316,18 +317,25 @@ async function addPurchaseToLibrary(input: MutationInput): Promise<ActionResult>
       BigInt(product.user_id) === BigInt(visitor.id) &&
       (purchase.purchaser_id !== null || (purchase.email ?? "").toLowerCase() !== (visitor.email ?? "").toLowerCase());
     if (claimed) return json({ success: false, error_message: CLAIM_ERROR });
-    throw new HandBackToRails("a purchase moved into the visitor's library");
+    // The password branch below signs the owner in; this one only moves the purchase.
+    const row = await db.purchase.findUnique({ where: { id: purchase.id } });
+    if (row === null) throw new HandBackToRails("a purchase that vanished");
+    await changePurchaser(row, BigInt(visitor.id));
+    return json({ success: true, redirect_location: Routes.library_path() });
   }
   // `User.alive.find_by(email: purchase.email)`; a nil email would match accounts without one.
   if (!isPresent(purchase.email ?? "")) throw new HandBackToRails("a purchase without an email");
   const owner = await db.user.findFirst({
     where: { email: purchase.email!, deleted_at: null },
-    select: { id: true, encrypted_password: true },
+    select: { encrypted_password: true },
   });
   if (owner === null) return failure();
-  // `user.valid_password?`: a wrong password, a blank one and a non-bcrypt hash all fall through to the failure; only a right one writes.
-  if (!(await validPassword(owner.encrypted_password, text(password)))) return failure();
-  throw new HandBackToRails("an account whose password matches, which takes the purchase and signs in");
+  // A right password moves the purchase and signs the owner in (two-factor challenge, session): Rails keeps that.
+  if (
+    await validPassword(owner.encrypted_password, password === undefined || password === null ? null : text(password))
+  )
+    throw new HandBackToRails("an account whose password is right");
+  return failure();
 }
 
 // ActiveSupport::SecurityUtils.secure_compare

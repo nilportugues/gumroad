@@ -2034,6 +2034,8 @@ export type SubscriptionPurchaseRow = {
   flags: bigint | null;
   email: string | null;
   created_micros: bigint;
+  // `giftee_email` of every gift the purchase sent, read for the ones flagged as gift senders.
+  giftee_emails?: (string | null)[];
 };
 export type SubscriptionsQuery = {
   sellerId: bigint;
@@ -2089,12 +2091,20 @@ export const readSubscriptions: SubscriptionsReader = {
     const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT id, subscription_id, purchase_state, flags, email,
         ${microsOf("created_at")} AS created_micros
       FROM purchases WHERE subscription_id IN (${Prisma.join(subscriptionIds)})`;
+    if (rows.length === 0) return [];
+    const gifts = await db.$queryRaw<
+      { gifter_purchase_id: bigint; giftee_email: string | null }[]
+    >`SELECT gifter_purchase_id,
+        giftee_email FROM gifts WHERE gifter_purchase_id IN (${Prisma.join(rows.map((row) => row.id as bigint))})`;
     return rows.map((row) => ({
       ...(row as unknown as SubscriptionPurchaseRow),
       id: BigInt(row.id as bigint),
       subscription_id: BigInt(row.subscription_id as bigint),
       flags: row.flags === null ? null : BigInt(row.flags as bigint),
       created_micros: BigInt(row.created_micros as bigint),
+      giftee_emails: gifts
+        .filter((gift) => BigInt(gift.gifter_purchase_id) === BigInt(row.id as bigint))
+        .map((gift) => gift.giftee_email),
     }));
   },
 };
@@ -2112,8 +2122,12 @@ function subscriptionEmail(row: SubscriptionRow, purchases: SubscriptionPurchase
     .sort((a, b) => Number(a.id - b.id));
   const trueOriginal = originals[0];
   if (trueOriginal === undefined) return null;
-  // The giftee's address lives on the gift row.
-  if (isPurchaseFlag(trueOriginal, "is_gift_sender_purchase")) throw new HandBackToRails("a gifted subscription");
+  // The giftee's address lives on the gift row; `gift_given` is a has_one with no order, so two gift rows are Rails's to pick from.
+  if (isPurchaseFlag(trueOriginal, "is_gift_sender_purchase")) {
+    const giftees = trueOriginal.giftee_emails ?? [];
+    if (giftees.length > 1) throw new HandBackToRails("a gifted subscription with several gift rows");
+    return giftees.length === 0 ? null : presentText(giftees[0]!);
+  }
   const candidates = originals.filter(
     (purchase) => !isPurchaseFlag(purchase, "is_archived_original_subscription_purchase"),
   );

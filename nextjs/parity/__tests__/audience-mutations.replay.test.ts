@@ -41,6 +41,7 @@ const MAIL_FOLLOW_CASES = [
   "follows-plainly-when-the-product-is-banned",
   "follows-plainly-when-an-admin-took-the-product-down",
   "follows-plainly-when-the-product-id-is-malformed",
+  "follows-plainly-when-the-product-was-deleted",
   "records-the-entry-of-a-product-that-was-published-and-then",
   "from-a-product-s-waitlist-records-the-waitlist-entry-and-asks",
   "from-a-product-s-waitlist-keeps-the-entry",

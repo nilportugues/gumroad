@@ -969,6 +969,21 @@ export const setCustomizablePrice: Callback<Link> = {
   },
 };
 
+// Link#publish_schedule_invalidated?: a delete, a manual publish, a disable, a ban or an admin takedown ends a pending schedule.
+export function publishScheduleInvalidated(link: LinkRecord): boolean {
+  const flagsChange = link.savedChanges.flags;
+  return (
+    (link.savedChangeTo("deleted_at") && link.get("deleted_at") != null) ||
+    link.savedChangeTo("draft", { to: false }) ||
+    (link.savedChangeTo("purchase_disabled_at") && link.get("purchase_disabled_at") != null) ||
+    (link.savedChangeTo("banned_at") && link.get("banned_at") != null) ||
+    // A new draft already has purchase_disabled_at, so taking one down changes only this flag.
+    (flagsChange !== undefined &&
+      isFlagSet(link, "is_unpublished_by_admin") &&
+      !LinkFlags.isSet(link.attributeBeforeLastSave("flags"), "is_unpublished_by_admin"))
+  );
+}
+
 export const Links = defineModel<Link>({
   rubyClass: "Link",
   prismaModel: "Link",
@@ -1022,6 +1037,16 @@ export const Links = defineModel<Link>({
     },
   ],
   afterSave: [
+    {
+      // ProductPublishSchedule.cancel_pending!: a schedule the job has already claimed is left alone
+      name: "cancel_pending_publish_schedule",
+      if: publishScheduleInvalidated,
+      async run(link) {
+        await execute(
+          Prisma.sql`DELETE FROM ${table("product_publish_schedules")} WHERE ${column("product_publish_schedules", "status")} = 'scheduled' AND ${column("product_publish_schedules", "product_id")} = ${link.get("id")}`,
+        );
+      },
+    },
     {
       name: "stage_renamed_custom_permalink",
       if: (link) => link.savedChangeTo("custom_permalink"),

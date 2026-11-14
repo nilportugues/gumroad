@@ -17,11 +17,11 @@ import { NotPortedError } from "./user.ts";
 
 const golden = loadGolden("purchase-affiliate-balance.golden.json");
 
-let onJob: (jobClass: string) => void = () => {};
+let onJob: (jobClass: string, args: unknown) => void = () => {};
 vi.mock("./concerns/job-runtime.ts", async (importActual) => ({
   ...(await importActual<typeof import("./concerns/job-runtime.ts")>()),
-  performAsync: vi.fn((jobClass: string) => {
-    onJob(jobClass);
+  performAsync: vi.fn((jobClass: string, args: unknown) => {
+    onJob(jobClass, args);
     return Promise.resolve("jid");
   }),
 }));
@@ -48,7 +48,14 @@ describe("Purchase#increment_sellers_balance! with an affiliate", () => {
       const { span, purchase } = setupSale(c, "increment");
       const ordered = nodeOrder(span).filter((entry) => !("marker" in entry));
       const sql = sqlReplay(ordered.filter(isSql));
-      onJob = (jobClass) => sql.log.push(`JOB ${jobClass}`);
+      const pushed: unknown[] = [];
+      onJob = (jobClass, args) => {
+        sql.log.push(`JOB ${jobClass}`);
+        pushed.push(args);
+      };
+      const jobArgs = ordered.flatMap((entry) =>
+        "job" in entry ? [(entry as unknown as { args: unknown }).args] : [],
+      );
       const flips = span.filter((entry): entry is Extract<Entry, { flipper: string }> => "flipper" in entry);
       withContext(purchase, {
         ...(purchase.ivars.context as object),
@@ -66,6 +73,7 @@ describe("Purchase#increment_sellers_balance! with an affiliate", () => {
       );
 
       expect(sql.log).toEqual(ordered.map(label));
+      expect(JSON.parse(JSON.stringify(pushed, (_, v) => (typeof v === "bigint" ? Number(v) : v)))).toEqual(jobArgs);
       expect(purchase.get("purchase_success_balance_id")).toBe(c.purchase_success_balance_id);
     });
   }
