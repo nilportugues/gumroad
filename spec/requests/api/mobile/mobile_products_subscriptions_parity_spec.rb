@@ -273,7 +273,7 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
         expect(response.parsed_body["product"]).not_to have_key("preorder_data")
       end
 
-      it "hands a charged preorder whose charge purchase has a url redirect to Rails", parity: true do
+      it "serves a charged preorder whose charge purchase has a url redirect", parity: true do
         create(:url_redirect, purchase: charge, link: product)
 
         get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }

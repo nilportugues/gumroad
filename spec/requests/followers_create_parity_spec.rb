@@ -231,6 +231,53 @@ describe "Subscribing to a seller", type: :request do
         expect(WaitlistEntry.count).to eq(0)
       end
 
+      # Signups close at launch, and a takedown ends them: none of these products takes a waitlist signup.
+      it "follows plainly when the product is banned", parity: true do
+        waitlist_product.update_columns(banned_at: Time.utc(2025, 2, 5, 12))
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
+      it "follows plainly when an admin took the product down", parity: true do
+        waitlist_product.update_columns(purchase_disabled_at: Time.utc(2025, 2, 5, 12))
+        waitlist_product.is_unpublished_by_admin = true
+        waitlist_product.save!(validate: false)
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
+      it "records the entry of a product that was published and then unpublished", parity: true do
+        unpublished = create(:product, user: seller, waitlist_enabled: true)
+        unpublished.update_columns(purchase_disabled_at: Time.utc(2025, 2, 5, 12))
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: unpublished.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "You're on the list for Followed Seller's launch. Check your inbox to confirm.")
+        expect(Follower.find_by(email: "visitor@example.com").waitlist_entries.pluck(:product_id)).to eq([unpublished.id])
+        expect(confirmation_job[:args].last["args"].last).to eq(unpublished.id)
+      end
+
+      it "follows plainly when the product id is malformed", parity: true do
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: "not-a-product" })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
+      it "refuses an unknown seller before it looks at the product", parity: true do
+        subscribe(follow_user_path, { seller_id: "unknownseller", email: "visitor@example.com", product_id: waitlist_product.external_id })
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body).to eq("success" => false, "message" => "Sorry, something went wrong.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
       it "records the waitlist entry of an embed form signup", parity: true do
         subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: waitlist_product.external_id })
 
@@ -363,13 +410,25 @@ describe "Subscribing to a seller", type: :request do
       expect(response.parsed_body).to eq("success" => false, "message" => "Please subscribe from #{seller.external_id}'s subscribe page so we can confirm you're not a bot. #{seller.subdomain_with_protocol}/subscribe")
     end
 
-    it "hands a JSON CAPTCHA refusal for a waitlist product to Rails", parity: true do
+    it "sends a seller who is not reviewed to the product page when the product takes waitlist signups", parity: true do
       seller.update_columns(user_risk_state: "not_reviewed")
       product = create(:product, user: seller, draft: true, waitlist_enabled: true)
 
       subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: product.external_id })
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Please join the waitlist from the product page so we can confirm you're not a bot. #{product.long_url}?native=true")
+      expect(WaitlistEntry.count).to eq(0)
+    end
+
+    it "sends a seller who is not reviewed to the subscribe page when the product does not take waitlist signups", parity: true do
+      seller.update_columns(user_risk_state: "not_reviewed")
+      product = create(:product, user: seller, waitlist_enabled: true)
+
+      subscribe(follow_user_from_embed_form_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: product.external_id })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body).to eq("success" => false, "message" => "Please subscribe from Followed Seller's subscribe page so we can confirm you're not a bot. #{seller.subdomain_with_protocol}/subscribe")
     end
 
     it "answers an unknown seller with a JSON 404", parity: true do

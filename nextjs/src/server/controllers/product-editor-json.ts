@@ -20,6 +20,8 @@ import { isBot } from "../page-props/discover/discover.ts";
 import { authorize } from "../policies/authorize.ts";
 import { collaboratingProductIds, linkPolicy, productsVariantsLinkPolicy } from "../policies/link.ts";
 import { type SellerContext } from "../policies/seller-context.ts";
+import { linkOptions } from "../presenters/product-props.ts";
+import { findLink } from "../presenters/product-reads.ts";
 
 import {
   type ActionContext,
@@ -291,8 +293,12 @@ async function variantsIndex(action: ActionContext, routeParams: Record<string, 
       const product = await fetchOwnedProduct(routeParams.link_id ?? null, seller.id);
       const denied = await authorizeJson(action, () => authorize(productsVariantsLinkPolicy.index, sellerContext));
       if (denied) return denied;
-      if (LinkFlags.isSet(product.flags, "is_tiered_membership") || LinkFlags.isSet(product.flags, "skus_enabled"))
-        throw new HandBackToRails("options of a tiered membership or a product with SKUs");
+      if (LinkFlags.isSet(product.flags, "is_tiered_membership") || LinkFlags.isSet(product.flags, "skus_enabled")) {
+        // Link#options: the tiers with their recurrence prices, or the live non-default SKUs.
+        const link = await findLink(product.id);
+        if (link === null) throw new RoutingError("Not Found");
+        return json(await linkOptions(link));
+      }
       const [category] = await selectRows<{ id: bigint }>(
         Prisma.sql`SELECT ${column("variant_categories", "id")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL ORDER BY ${column("variant_categories", "id")} ASC LIMIT 1`,
       );
