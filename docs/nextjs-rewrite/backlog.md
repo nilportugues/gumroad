@@ -134,11 +134,11 @@ The 40 files with the most sites:
 | `nextjs/src/server/controllers/users-controller.ts` | 14 | E14 |
 | `nextjs/src/server/controllers/bundle-mutations.ts` | 13 | E19 |
 | `nextjs/src/server/controllers/foreign-webhooks.ts` | 13 | E05 |
-| `nextjs/src/server/controllers/internal-admin/users-search.ts` | 13 | E14 |
 | `nextjs/src/server/controllers/oauth-authorizations.ts` | 13 | E07 |
 | `nextjs/src/server/controllers/omniauth-twitter.ts` | 13 | E07 |
 | `nextjs/src/server/erb/home-layout.ts` | 13 | E09 |
 | `nextjs/src/server/models/purchase-success.ts` | 13 | E01 |
+| `nextjs/src/server/services/pages-profile-data.ts` | 13 | E09 |
 
 ## 6. Recorded unported shapes (Rails examples that say Rails keeps the request)
 
@@ -155,7 +155,7 @@ The 40 specs with the most. Each example is a concrete shape with a fixture; ser
 | `spec/requests/api/v2/mcp_products_parity_spec.rb` | 15 | E11 |
 | `spec/requests/checkout_cart_parity_spec.rb` | 15 | E01 |
 | `spec/requests/purchases_controller_parity_spec.rb` | 15 | E17 |
-| `spec/requests/api/internal/admin_purchases_parity_spec.rb` | 13 | E14 |
+| `spec/requests/api/internal/admin_purchases_parity_spec.rb` | 14 | E14 |
 | `spec/requests/api/internal/admin_user_write_guards_parity_spec.rb` | 13 | E14 |
 | `spec/requests/purchases_refund_fee_retention_parity_spec.rb` | 13 | E03 |
 | `spec/requests/api/internal/admin_payouts_and_risk_parity_spec.rb` | 11 | E02 |
@@ -177,7 +177,6 @@ The 40 specs with the most. Each example is a concrete shape with a fixture; ser
 | `spec/requests/twitter_omniauth_parity_spec.rb` | 7 | E07 |
 | `spec/requests/affiliates_create_parity_spec.rb` | 6 | E16 |
 | `spec/requests/affiliates_update_parity_spec.rb` | 6 | E16 |
-| `spec/requests/api/internal/admin_users_reads_parity_spec.rb` | 6 | E14 |
 | `spec/requests/api/mobile/mobile_products_subscriptions_parity_spec.rb` | 6 | E10 |
 | `spec/requests/api/mobile/mobile_sales_actions_parity_spec.rb` | 6 | E10 |
 | `spec/requests/api/mobile/mobile_seller_writes_parity_spec.rb` | 6 | E10 |
@@ -186,6 +185,7 @@ The 40 specs with the most. Each example is a concrete shape with a fixture; ser
 | `spec/requests/api/v2/product_builds_writes_parity_spec.rb` | 6 | E10 |
 | `spec/requests/api/v2/users_parity_spec.rb` | 6 | E10 |
 | `spec/requests/internal_api_parity_spec.rb` | 6 | E19 |
+| `spec/requests/oauth_device_flow_parity_spec.rb` | 6 | E07 |
 
 ## 7. Epics: the task list
 
