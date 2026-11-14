@@ -693,5 +693,40 @@ describe "Checkout page arrivals", type: :request do
 
       expect(props["cart"]["items"].size).to eq(1)
     end
+
+    it "hands a membership link whose only tier is closed to new buyers to Rails", parity: true do
+      membership = create(:membership_product, user: seller, name: "Club", created_at: Time.utc(2025, 1, 3))
+      tier = membership.tiers.first
+      Feature.activate_user(:close_membership_tier_to_new_buyers, seller)
+      tier.update!(closed_to_new_purchases: true)
+
+      get checkout_path(product: membership.unique_permalink, option: tier.external_id)
+
+      expect(props["sold_out_arrival"]).to include("message" => "Club isn't open to new members right now.")
+      expect(added).to eq([])
+    end
+
+    it "hands a membership link whose tier has sold out to Rails", parity: true do
+      membership = create(:membership_product, user: seller, name: "Club", created_at: Time.utc(2025, 1, 3))
+      tier = membership.tiers.first
+      tier.update!(max_purchase_count: 0)
+
+      get checkout_path(product: membership.unique_permalink, option: tier.external_id)
+
+      expect(props["sold_out_arrival"]).to include("message" => "Club is sold out.")
+      expect(added).to eq([])
+    end
+
+    it "hands a signed-in cart whose only line is an archived product to Rails", parity: true do
+      log_in(buyer)
+      archived = create(:product, user: seller, name: "Archived course", archived: true, created_at: Time.utc(2025, 1, 3))
+      build(:purchase, link: archived, purchaser: buyer, email: buyer.email, seller:, purchase_state: "successful").save!(validate: false)
+      create(:cart_product, cart: create(:cart, user: buyer), product: archived)
+
+      get checkout_path
+
+      expect(props["cart"]["items"]).to eq([])
+      expect(props["owned_in_cart"].pluck("name")).to eq(["Archived course"])
+    end
   end
 end

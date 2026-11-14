@@ -131,7 +131,7 @@ type Context = { buyerId: bigint | null; ip: string | null };
 async function product(row: LinkRow, context: Context, cartParams: CartParams, params: CheckoutParams) {
   const seller = row.user_id === null ? null : await findUserById(row.user_id);
   if (seller === null) throw new NotPortedError("a product without a seller");
-  return checkoutProduct(row, { cartParams, arrival: true, ...context, params });
+  return checkoutProduct(row, { cartParams, arrival: true, singleProduct: true, ...context, params });
 }
 
 // CheckoutPresenter#add_single_product_props

@@ -72,6 +72,14 @@ export async function visibleCartProductCount(cartId: bigint): Promise<number> {
   return Number(row?.count ?? 0);
 }
 
+// Cart#alive_cart_products, which CheckoutPresenter#owned_products_in_cart reads (visible_cart_products leaves archived products out).
+export async function aliveLinesOfCart(cartId: bigint): Promise<number> {
+  const [row] = await selectRows<{ count: bigint | number }>(
+    Prisma.sql`SELECT COUNT(*) AS count FROM \`cart_products\` WHERE \`cart_id\` = ${cartId} AND \`deleted_at\` IS NULL`,
+  );
+  return Number(row?.count ?? 0);
+}
+
 // A stored `discount_codes` of a cart: JSON, [] when unset.
 export function storedDiscountCodeCount(cart: CartRow): number {
   const codes = typeof cart.discount_codes === "string" ? (JSON.parse(cart.discount_codes) as unknown) : cart.discount_codes;
