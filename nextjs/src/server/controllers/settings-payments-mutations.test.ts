@@ -125,13 +125,27 @@ describe("POST /settings/payments/opt_in_to_au_backtax_collection", () => {
     expect(createComment).not.toHaveBeenCalled();
   });
 
-  it("hands a signature that fails the presence validation to Rails and leaves no audit note", async () => {
+  it("lets the presence validation failure of a blank signature through as RecordInvalid and leaves no audit note", async () => {
     aliveUserComplianceInfoRow.mockResolvedValue(null);
     createAgreement.mockRejectedValue(invalid());
 
-    await expect(optIn.run(input({ signature: "  " }, ADMIN))).rejects.toBeInstanceOf(HandBackToRails);
+    await expect(optIn.run(input({ signature: "  " }, ADMIN))).rejects.toBeInstanceOf(RecordInvalid);
     expect(createComment).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, null])(
+    "creates with a null signature for a seller with no compliance information (%s)",
+    async (signature) => {
+      aliveUserComplianceInfoRow.mockResolvedValue(null);
+      createAgreement.mockRejectedValue(invalid());
+
+      await expect(optIn.run(input(signature === undefined ? {} : { signature }, ADMIN))).rejects.toBeInstanceOf(
+        RecordInvalid,
+      );
+      expect(createAgreement).toHaveBeenCalledWith(expect.objectContaining({ signature: null }));
+      expect(createComment).not.toHaveBeenCalled();
+    },
+  );
 
   it("writes no audit note when the seller opts in", async () => {
     await optIn.run(input({ signature: "Chuck Bartowski" }));

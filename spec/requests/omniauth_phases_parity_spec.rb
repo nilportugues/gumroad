@@ -84,7 +84,7 @@ describe "OmniAuth phases", type: :request do
       expect(response.location).to start_with("https://connect.stripe.com/oauth/authorize?")
     end
 
-    it "hands a Google request with a wrong authenticity token to Rails", parity: true do
+    it "redirects a Google request with a wrong authenticity token to the sign-in page", parity: true do
       csrf_token
       post "/users/auth/google_oauth2", params: { authenticity_token: "forged" }
 
@@ -92,7 +92,7 @@ describe "OmniAuth phases", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Actioncontroller::invalidauthenticitytoken\".")
     end
 
-    it "hands a Stripe Connect request without an authenticity token to Rails", parity: true do
+    it "redirects a Stripe Connect request without an authenticity token to the sign-in page", parity: true do
       csrf_token
       post "/users/auth/stripe_connect"
 
@@ -100,7 +100,7 @@ describe "OmniAuth phases", type: :request do
       expect(flash[:alert]).to eq("Could not authenticate you from StripeConnect because \"Actioncontroller::invalidauthenticitytoken\".")
     end
 
-    it "hands a request with an authenticity token that belongs to no session to Rails", parity: true do
+    it "redirects a request with an authenticity token that belongs to no session to the sign-in page", parity: true do
       post "/users/auth/google_oauth2", params: { authenticity_token: "forged" }
 
       expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")

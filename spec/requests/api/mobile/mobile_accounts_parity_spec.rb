@@ -62,6 +62,30 @@ describe "Mobile API accounts and consumption", type: :request do
       expect(response.parsed_body["success"]).to eq(true)
     end
 
+    it "issues a brand token with the scopes of an admin and stamps the membership", parity: true do
+      brand = create(:user, name: "Switch Brand")
+      membership = create(:team_membership, user:, seller: brand, role: TeamMembership::ROLE_ADMIN)
+
+      post "/mobile/accounts", params: first_party_auth.merge(id: brand.external_id)
+
+      expect(response.parsed_body).to include("success" => true)
+      expect(response.parsed_body["account"]).to include("id" => brand.external_id, "is_active" => true)
+      token = Doorkeeper::AccessToken.find_by(resource_owner_id: brand.id)
+      expect(token.team_membership_id).to eq(membership.id)
+      expect(token.scopes.to_a).to eq(%w[mobile_api creator_api view_public edit_products view_sales edit_emails view_profile edit_profile view_payouts view_tax_data edit_sales refund_sales mark_sales_as_shipped])
+      expect(membership.reload.last_accessed_at).to be_present
+    end
+
+    it "restores the own-account scopes when switching back from a brand", parity: true do
+      brand = create(:user)
+      membership = create(:team_membership, user:, seller: brand, role: TeamMembership::ROLE_ADMIN)
+      brand_token = MobileAccountToken.issue!(application: first_party_application, scopes: "mobile_api creator_api view_public", expires_in: nil, resource_owner: brand, team_membership: membership)
+
+      post "/mobile/accounts", params: { mobile_token:, access_token: brand_token.token, id: user.external_id }
+
+      expect(response.parsed_body["account"]).to include("id" => user.external_id)
+    end
+
     it "answers 404 for an account that does not exist", parity: true do
       post "/mobile/accounts", params: first_party_auth.merge(id: "nope")
 

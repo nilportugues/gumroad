@@ -15,17 +15,6 @@ describe "Mobile API hand backs", type: :request do
     expect(response).to have_http_status(:created)
   end
 
-  it "hands a switch to a brand account to Rails", parity: true do
-    first_party = create(:oauth_application, owner: user, uid: OauthApplication::MOBILE_API_OAUTH_APPLICATION_UID)
-    brand = create(:user)
-    create(:team_membership, user:, seller: brand, role: TeamMembership::ROLE_ADMIN)
-    token = create("doorkeeper/access_token", application: first_party, resource_owner_id: user.id, scopes: "mobile_api creator_api").token
-
-    post "/mobile/accounts", params: { mobile_token:, access_token: token, id: brand.external_id }
-
-    expect(response.parsed_body["success"]).to eq(true)
-  end
-
   it "hands a consumed_at that is not ISO 8601 to Rails", parity: true do
     buyer = create(:user)
     product = create(:product, user: user)
