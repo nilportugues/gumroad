@@ -220,7 +220,7 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
     compare: {
       ignore: [
         ...COMPARE.ignore,
-        ...(name.includes("404") ? ["response.body", "response.json", "response.headers.content-type"] : []),
+        ...(name.includes("404") ? ["response.body", "response.json"] : []),
         ...(name.includes("generates-a-permalink") ? ["db.utm_links.inserted.*.permalink"] : []),
       ],
     },

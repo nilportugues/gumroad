@@ -196,6 +196,24 @@ export type SalesReader = {
   findProductId: SalesTotalsReader["findProductId"];
 };
 
+// A purchase in the buyer's own library (list_purchases).
+export type LibraryPurchaseRow = {
+  id: bigint;
+  link_id: bigint;
+  product_exists: boolean;
+  product_name: string | null;
+  product_permalink: string | null;
+  seller_id: bigint | null;
+  seller_name: string | null;
+  seller_username: string | null;
+  displayed_price_cents: number | null;
+  displayed_price_currency_type: string | null;
+  created_at: Date;
+  stripe_refunded: boolean;
+};
+export type LibraryQuery = { buyerId: bigint; cursor: { at: string; id: bigint } | null; limit: number };
+export type LibraryReader = { list: (query: LibraryQuery) => Promise<LibraryPurchaseRow[]> };
+
 export type ProductListRow = {
   id: bigint;
   created_at: Date;
@@ -255,6 +273,7 @@ export type ToolContext = {
   customers?: CustomerReader;
   salesTotals?: SalesTotalsReader;
   sales?: SalesReader;
+  library?: LibraryReader;
   products?: ProductsReader;
   // Link#successful_sales_count and Link#total_usd_cents (both Elasticsearch searches).
   analytics?: AnalyticsReader;
@@ -564,6 +583,50 @@ export const readSales: SalesReader = {
       subscription_flags: row.subscription_flags === null ? null : BigInt(row.subscription_flags as bigint),
       stripe_refunded: Boolean(row.stripe_refunded),
       utm_driven_count: num(row.utm_driven_count),
+    }));
+  },
+};
+
+// Purchase::ALL_SUCCESS_STATES
+const LIBRARY_STATES = [
+  "preorder_authorization_successful",
+  "successful",
+  "not_charged",
+  "gift_receiver_purchase_successful",
+];
+
+export const readLibrary: LibraryReader = {
+  async list(query) {
+    const conditions = [
+      Prisma.sql`purchases.purchaser_id = ${query.buyerId}`,
+      Prisma.sql`purchases.purchase_state IN (${Prisma.join(LIBRARY_STATES)})`,
+      // not_is_gift_sender_purchase and not_recurring_charge
+      flagSql("is_gift_sender_purchase", false),
+      Prisma.sql`(purchases.subscription_id IS NULL OR ${flagSql("is_original_subscription_purchase", true)} OR ${flagSql("is_gift_receiver_purchase", true)})`,
+      Prisma.sql`purchases.link_id IS NOT NULL`,
+    ];
+    if (query.cursor !== null)
+      conditions.push(
+        Prisma.sql`(purchases.created_at < ${query.cursor.at} OR (purchases.created_at = ${query.cursor.at} AND purchases.id < ${query.cursor.id}))`,
+      );
+    const rows = await db.$queryRaw<Record<string, unknown>[]>`SELECT purchases.id AS id, purchases.link_id AS link_id,
+        links.id IS NOT NULL AS product_exists, links.name AS product_name, links.unique_permalink AS product_permalink,
+        sellers.id AS seller_id, sellers.name AS seller_name, sellers.username AS seller_username,
+        purchases.displayed_price_cents AS displayed_price_cents,
+        purchases.displayed_price_currency_type AS displayed_price_currency_type,
+        purchases.created_at AS created_at, purchases.stripe_refunded AS stripe_refunded
+      FROM purchases
+      LEFT JOIN links ON links.id = purchases.link_id
+      LEFT JOIN users sellers ON sellers.id = purchases.seller_id
+      WHERE ${Prisma.join(conditions, " AND ")}
+      ORDER BY purchases.created_at DESC, purchases.id DESC LIMIT ${query.limit}`;
+    return rows.map((row) => ({
+      ...(row as unknown as LibraryPurchaseRow),
+      id: BigInt(row.id as bigint),
+      link_id: BigInt(row.link_id as bigint),
+      product_exists: Boolean(row.product_exists),
+      seller_id: row.seller_id === null ? null : BigInt(row.seller_id as bigint),
+      stripe_refunded: Boolean(row.stripe_refunded),
     }));
   },
 };
@@ -1231,6 +1294,47 @@ async function listSales(args: Hash, context: ToolContext): Promise<Hash> {
   const last = page[page.length - 1];
   return {
     sales,
+    ...(rows.length > limit && last !== undefined
+      ? { next_cursor: `${BigInt(last.created_at.getTime()) * 1000n}_${last.id}` }
+      : {}),
+  };
+}
+
+// tool_list_purchases: the buyer's own successful purchases, one row per purchase, with `paginate` over (created_at, id). The
+// limit counts rows whose product row is gone, and Ruby drops them after paging.
+async function listPurchases(args: Hash, context: ToolContext): Promise<Hash> {
+  const limit = limitFor(args, 25);
+  const cursor = parseCursor(args);
+  const rows = await (context.library ?? readLibrary).list({
+    buyerId: BigInt(context.user.id),
+    cursor,
+    limit: limit + 1,
+  });
+  const page = rows.slice(0, limit);
+  const { protocol, domain } = domainConfig(process.env);
+  const purchases: Hash[] = [];
+  for (const row of page) {
+    if (!row.product_exists) continue;
+    // Rails raises on a purchase without a seller or a stored price; User#display_name falls back to the email.
+    if (row.seller_id === null || row.displayed_price_cents === null || row.displayed_price_currency_type === null)
+      throw new HandBackToRails("a library purchase without a seller, a displayed price or a currency");
+    if (!isPresent(row.seller_name) && !isPresent(row.seller_username))
+      throw new HandBackToRails("a library purchase whose seller has no name or username");
+    purchases.push({
+      id: encrypt(row.id),
+      product_name: row.product_name,
+      product_permalink: row.product_permalink,
+      seller_name: isPresent(row.seller_name) ? row.seller_name : row.seller_username,
+      price_cents: row.displayed_price_cents,
+      currency: row.displayed_price_currency_type,
+      purchased_at: iso8601(row.created_at),
+      refunded: row.stripe_refunded,
+      url: `${protocol}://${domain}/library`,
+    });
+  }
+  const last = page[page.length - 1];
+  return {
+    purchases,
     ...(rows.length > limit && last !== undefined
       ? { next_cursor: `${BigInt(last.created_at.getTime()) * 1000n}_${last.id}` }
       : {}),
@@ -2329,6 +2433,10 @@ export async function toolBody(name: string, args: Hash, context: ToolContext): 
     case "list_sales":
       await requireScopes(context.token, ["view_sales", "account"]);
       return listSales(args, context);
+    case "list_purchases":
+      // Deliberately not "account": the buyer's library has its own scope.
+      await requireScopes(context.token, ["view_library"]);
+      return listPurchases(args, context);
     case "get_product":
       await requireScopes(context.token, ["view_profile", "view_public", "edit_products", "account"]);
       return getProduct(args, context);

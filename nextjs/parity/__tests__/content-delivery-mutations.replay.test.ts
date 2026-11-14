@@ -220,7 +220,7 @@ describe.skipIf(!url)("mutations of library and content delivery", () => {
     compare: name.includes("current-time")
       ? { ignore: [...COMPARE.ignore, "response.body"] }
       : name.includes("404")
-        ? { ignore: [...COMPARE.ignore, "response.body", "response.json", "response.headers.content-type"] }
+        ? { ignore: [...COMPARE.ignore, "response.body", "response.json"] }
         : name.includes("publishes-a-workflow")
           ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
             {
