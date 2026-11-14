@@ -13,6 +13,7 @@ import { closeAllRedis } from "@/server/infra/redis";
 import { unwrapActiveJob } from "../src/active-job";
 import type { JobsChannel, RawJob } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { recreateIndex, replayIndexName } from "../src/elasticsearch";
 import { assertNonceMatchesCsp, maskVolatile } from "../src/erb-layout";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -51,8 +52,10 @@ const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
 // A lane sets PARITY_ES_INDEX_SUFFIX so its replay does not recreate the index another lane is reading.
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "";
 // The sending limit counts the seller's audience in Elasticsearch: an empty audience_members index (no seller in these fixtures has one).
+// The eligibility check reads the seller's sales from the purchases index, which a lane's own suffix leaves missing until some replay builds it.
 async function resetAudienceIndex() {
   const es = new ElasticsearchClient({ node: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200" });
+  await recreateIndex(es, { model: "Purchase", name: replayIndexName("purchases", ES_INDEX_SUFFIX) });
   await es.indices.delete({ index: `audience_members${ES_INDEX_SUFFIX}` }, { ignore: [404] });
   await es.indices.create({
     index: `audience_members${ES_INDEX_SUFFIX}`,
