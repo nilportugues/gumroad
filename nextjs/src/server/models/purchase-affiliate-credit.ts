@@ -26,6 +26,10 @@ import { type CheckoutEffects } from "./checkout-effects.ts";
 import { performAsync } from "./concerns/job-runtime.ts";
 import { setJsonDataForAttr } from "./concerns/json-data.ts";
 import { associationCache, belongsToRequired, setAssociation, type BelongsTo } from "./concerns/rails-validations.ts";
+import {
+  attributesCommitted,
+  transactionalAttributeChangeTracker,
+} from "./concerns/transactional-attribute-change-tracker.ts";
 import { MerchantAccounts } from "./merchant-account.ts";
 import type { PurchaseRecord } from "./purchase-create.ts";
 import { defineModel, type SaveOptions } from "./runtime/define-model.ts";
@@ -73,6 +77,8 @@ export const AFFILIATE_USER: BelongsTo = { ...belongsTo("affiliate_user", "users
 const SELLER = belongsTo("seller", "users", "User");
 const PURCHASE = belongsTo("purchase", "purchases", "Purchase");
 
+const tracker = transactionalAttributeChangeTracker<AffiliateCredit>();
+
 export const AffiliateCredits = defineModel<AffiliateCredit>({
   rubyClass: "AffiliateCredit",
   prismaModel: "AffiliateCredit",
@@ -105,17 +111,23 @@ export const AffiliateCredits = defineModel<AffiliateCredit>({
       },
     },
   ],
+  afterSave: tracker.afterSave,
+  beforeCommit: tracker.beforeCommit,
   afterCommit: [
     {
       // Purchase::Searchable::AffiliateCreditCallbacks#update_purchase_index
       name: "update_purchase_index",
       on: ["create", "update"],
       async run(credit) {
-        const changed = Object.keys(credit.savedChanges).filter((name) =>
+        const changed = attributesCommitted(credit).filter((name) =>
           (TRACKED_COLUMNS as readonly string[]).includes(name),
         );
         if (changed.length === 0) return;
-        const fields = changed.map((name) => `affiliate_credit_${name}`);
+        // A direct credit's document has no `id` field
+        const fields = credit.get("is_direct_affiliate_credit")
+          ? changed.filter((name) => name !== "id").map((name) => `direct_affiliate_credit_${name}`)
+          : changed.map((name) => `affiliate_credit_${name}`);
+        if (fields.length === 0) return;
         await performAsync(
           "ElasticsearchIndexerWorker",
           ["update", { record_id: credit.get("purchase_id"), class_name: "Purchase", fields }] as never,

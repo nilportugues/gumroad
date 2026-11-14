@@ -4,6 +4,7 @@
 import type { AffiliatePartialRefund } from "@prisma/client";
 
 import { performAsync } from "./concerns/job-runtime.ts";
+import { attributesCommitted, transactionalAttributeChangeTracker } from "./concerns/transactional-attribute-change-tracker.ts";
 import { loadBelongsTo, validatesAssociationPresence, type BelongsTo } from "./concerns/rails-validations.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import { connection } from "./sql.ts";
@@ -26,6 +27,8 @@ export const PARTIAL_REFUND_ASSOCIATIONS = {
   balance: association("balance", "balances", "Balance"),
 } as const;
 
+const tracker = transactionalAttributeChangeTracker<AffiliatePartialRefund>();
+
 export const AffiliatePartialRefunds = defineModel<AffiliatePartialRefund>({
   rubyClass: "AffiliatePartialRefund",
   prismaModel: "AffiliatePartialRefund",
@@ -33,12 +36,14 @@ export const AffiliatePartialRefunds = defineModel<AffiliatePartialRefund>({
   validations: Object.values(PARTIAL_REFUND_ASSOCIATIONS).map((belongsTo) =>
     validatesAssociationPresence<AffiliatePartialRefund>(belongsTo),
   ),
+  afterSave: tracker.afterSave,
+  beforeCommit: tracker.beforeCommit,
   afterCommit: [
     {
       name: "update_purchase_index",
       on: ["create", "update"],
       async run(partialRefund) {
-        if (!("amount_cents" in partialRefund.savedChanges)) return;
+        if (!attributesCommitted(partialRefund).includes("amount_cents")) return;
         const credit = await loadBelongsTo(partialRefund, PARTIAL_REFUND_ASSOCIATIONS.affiliate_credit, {
           tx: (await connection()) as never,
         });
@@ -49,7 +54,7 @@ export const AffiliatePartialRefunds = defineModel<AffiliatePartialRefund>({
             ]
           : [
               "affiliate_credit_amount_partially_refunded_cents",
-              "affiliate_credit_amount_fee_partially_refunded_cents",
+              "affiliate_credit_fee_partially_refunded_cents",
             ];
         await performAsync(
           "ElasticsearchIndexerWorker",
