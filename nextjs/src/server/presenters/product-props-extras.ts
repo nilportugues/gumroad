@@ -21,8 +21,10 @@ const exists = async (from: Prisma.Sql): Promise<boolean> =>
 
 // `Link#display_asset_previews.as_json` and `main_preview&.guid`. A cover that is an Unsplash URL or an oEmbed document is
 // a row alone; an uploaded image reads its blob (asset-preview-upload.ts). Uploaded videos stay with Rails.
+// `without` leaves one preview out, as the list reads once that preview is deleted.
 export async function coverProps(
-  row: LinkRow,
+  row: Pick<LinkRow, "id">,
+  without?: bigint,
 ): Promise<{ covers: Record<string, unknown>[]; main_cover_id: string | null }> {
   const previews = await selectRows<{
     id: bigint;
@@ -30,7 +32,7 @@ export async function coverProps(
     oembed: string | null;
     unsplash_url: string | null;
   }>(
-    Prisma.sql`SELECT ${column("asset_previews", "id")}, ${column("asset_previews", "guid")}, ${column("asset_previews", "oembed")}, ${column("asset_previews", "unsplash_url")} FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${row.id} AND ${column("asset_previews", "deleted_at")} IS NULL ORDER BY ${column("asset_previews", "position")} ASC, ${column("asset_previews", "created_at")} ASC`,
+    Prisma.sql`SELECT ${column("asset_previews", "id")}, ${column("asset_previews", "guid")}, ${column("asset_previews", "oembed")}, ${column("asset_previews", "unsplash_url")} FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${row.id} AND ${column("asset_previews", "deleted_at")} IS NULL${without === undefined ? Prisma.empty : Prisma.sql` AND ${column("asset_previews", "id")} <> ${without}`} ORDER BY ${column("asset_previews", "position")} ASC, ${column("asset_previews", "created_at")} ASC`,
   );
   if (previews.length === 0) return { covers: [], main_cover_id: null };
   const files = await uploadedFiles(previews.map((preview) => preview.id));
