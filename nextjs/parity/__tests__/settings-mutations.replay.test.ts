@@ -294,8 +294,8 @@ describe.skipIf(!url)("mutations of the settings pages", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => withCurrentTotpCode(name, reencryptCookies(request, loaded, SECRET_KEY_BASE, now), loaded, now),
-    // The test environment answers a 422 with its exception debug page, which the fixture does not keep.
-    compare: /422|unknown-invitation/u.test(name)
+    // The test environment answers a 400 or 422 with its exception debug page, which the fixture does not keep.
+    compare: /422|answers-400|unknown-invitation/u.test(name)
       ? { ignore: [...COMPARE.ignore, "response.body"] }
       : // The test environment answers a 404 with its debug page whatever the Accept header says.
         name.includes("404")

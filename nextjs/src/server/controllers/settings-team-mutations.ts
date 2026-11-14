@@ -20,7 +20,7 @@ import { settingsTeamMembershipPolicy } from "../policies/settings/team-membersh
 import { settingsTeamUserPolicy } from "../policies/settings/team-user.ts";
 import { userPolicy } from "../policies/user.ts";
 
-import { HandBackToRails, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, type ActionResult } from "./application-controller.ts";
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 
@@ -91,6 +91,8 @@ function memberAction(
 // `params.require(:team_membership).permit(:role)`
 export function permittedRole(params: Record<string, unknown>): { role?: string } {
   const value = params.team_membership;
+  // `require` on an absent key raises ParameterMissing, a 400.
+  if (!("team_membership" in params)) throw new ParameterMissing();
   if (!isHash(value) || Object.keys(value).length === 0)
     throw new HandBackToRails("a request without a team_membership hash");
   if (!("role" in value)) return {};

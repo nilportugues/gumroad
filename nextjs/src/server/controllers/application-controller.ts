@@ -802,6 +802,9 @@ export function publicException(request: RailsRequest, status: number): { header
     return { headers: new Headers({ "content-type": `${first!.string}; charset=utf-8` }), body: render() };
   }
   const file = path.join(railsRoot(), "public", `${status}.html`);
+  // public/400.html does not exist, so only the test environment's debug page answers a 400 with HTML.
+  if (!existsSync(file) && debugPage)
+    return { headers: new Headers({ "content-type": "text/html; charset=utf-8" }), body: "" };
   if (!existsSync(file)) return { headers: new Headers({ "x-cascade": "pass" }), body: "" };
   return {
     headers: new Headers({ "content-type": "text/html; charset=utf-8" }),
