@@ -126,23 +126,31 @@ async function cartItem(input: MutationInput): Promise<ActionResult> {
   );
 }
 
-// `@upsell.upsell_variants.each(&:mark_deleted)` then `@upsell.mark_deleted`. An upsell with a discount code goes to Rails whole, before any write.
-export async function softDeleteUpsell(row: Upsell): Promise<void> {
+// `@upsell.upsell_variants.each(&:mark_deleted)` then `@upsell.mark_deleted`. An upsell with a discount code goes to Rails whole, before any
+// write. One that no longer validates keeps its deleted versions and answers `errors.first.message`; the v2 API, whose error shape is not
+// recorded, asks for a hand back instead (checked before the first write).
+export async function softDeleteUpsell(
+  row: Upsell,
+  options: { handBackWhenInvalid: boolean } = { handBackWhenInvalid: true },
+): Promise<string | null> {
   if (row.offer_code_id !== null) throw new HandBackToRails("an upsell with an offer code");
 
   const upsell = Upsells.load(row);
-  // Rails deletes the variants before it learns the upsell no longer validates; check first so a hand-back writes nothing.
-  upsell.set("deleted_at", new Date());
-  if (!(await Upsells.valid(upsell))) throw new HandBackToRails("an upsell that no longer validates");
-  upsell.set("deleted_at", row.deleted_at);
+  if (options.handBackWhenInvalid) {
+    upsell.set("deleted_at", new Date());
+    if (!(await Upsells.valid(upsell))) throw new HandBackToRails("an upsell that no longer validates");
+    upsell.set("deleted_at", row.deleted_at);
+  }
 
   const variants = await selectRows(
     Prisma.sql`SELECT ${table("upsell_variants")}.* FROM ${table("upsell_variants")} WHERE ${column("upsell_variants", "upsell_id")} = ${row.id} ORDER BY ${column("upsell_variants", "id")}`,
   );
   for (const variant of variants)
     await UpsellVariantDeletable.markDeleted(UpsellVariants.load(castRow<UpsellVariant>("UpsellVariant", variant)));
-  if (!(await UpsellDeletable.markDeleted(upsell)))
-    throw new NotPortedError("An upsell that fails to delete", "Checkout::UpsellsController#destroy");
+  if (await UpsellDeletable.markDeleted(upsell)) return null;
+  const message = upsell.errors.details[0]?.message;
+  if (message === undefined) throw new NotPortedError("An upsell that fails to delete", "Checkout::UpsellsController#destroy");
+  return message;
 }
 
 async function destroy(input: MutationInput): Promise<ActionResult> {
@@ -153,7 +161,8 @@ async function destroy(input: MutationInput): Promise<ActionResult> {
       const row = await findUpsell(input, { alive: false });
       const denied = await authorizeJson(input, () => authorize(checkoutUpsellPolicy.destroy, context, row));
       if (denied) return denied;
-      await softDeleteUpsell(row);
+      const error = await softDeleteUpsell(row, { handBackWhenInvalid: false });
+      if (error !== null) return json({ success: false, error });
 
       const { upsells, pagination } = await fetchUpsells(
         input.context.currentSeller!.id,
