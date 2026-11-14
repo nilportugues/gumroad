@@ -323,17 +323,34 @@ describe "Purchases controller guards", type: :request do
       expect(flash[:alert]).to eq("Wrong email. Please try again.")
     end
 
+    it "hands the page that shows the wrong email alert to Rails", parity: true do
+      get "/purchases/#{purchase.external_id}/receipt", params: { email: "someone@example.com" }
+      follow_redirect!
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Wrong email. Please try again.")
+    end
+
     it "answers 404 for the page that asks for the email of a purchase that does not exist", parity: true do
       get "/purchases/nosuchpurchase/confirm_receipt_email"
 
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the page that asks for the email to Rails", parity: true do
+    it "renders the page that asks for the email", parity: true do
       get "/purchases/#{purchase.external_id}/confirm_receipt_email"
 
       expect(response).to have_http_status(:ok)
       expect(response.body).to include("Confirm your email address")
+    end
+
+    it "renders the page that asks the giftee for the email the gift was sent to", parity: true do
+      purchase.update_columns(flags: purchase.flags | Purchase.flag_mapping["flags"][:is_gift_receiver_purchase])
+
+      get "/purchases/#{purchase.external_id}/confirm_receipt_email"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("this gift was sent to")
     end
   end
 
@@ -433,7 +450,7 @@ describe "Purchases controller guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the resubscribe page to Rails", parity: true do
+    it "renders the resubscribe page", parity: true do
       get "/purchases/#{purchase.external_id}/subscribe"
 
       expect(response).to have_http_status(:ok)

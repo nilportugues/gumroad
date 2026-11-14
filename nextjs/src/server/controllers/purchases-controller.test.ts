@@ -38,6 +38,7 @@ vi.mock("../policies/seller-context.ts", async (original) => ({
   loadSellerContext,
 }));
 vi.mock("../models/purchase-contact-writes.ts", () => ({ changeCanContact }));
+vi.mock("./purchases-pages.ts", () => ({ confirmReceiptEmailPage: vi.fn(), subscribePage: vi.fn() }));
 vi.mock("./purchase-resend-receipt.ts", () => ({ resendReceipt }));
 vi.mock("../auth/rails-cookies.ts", () => ({ readEncryptedCookie }));
 vi.mock("../auth/rails-session-config.ts", () => ({ railsCookieSecrets: () => ({}) }));
@@ -169,11 +170,16 @@ describe("GET /purchases/:id/receipt", () => {
   });
 });
 
-describe.each([
-  ["GET", "/purchases/:id/confirm_receipt_email"],
-  ["GET", "/purchases/:id/subscribe"],
-  ["POST", "/purchases/:id/subscribe"],
-])("%s %s", (method, pattern) => {
+describe("the pages of purchases-pages.ts", () => {
+  it("serves the email form and the resubscribe prompt from it", async () => {
+    const pages = await import("./purchases-pages.ts");
+
+    expect(find("GET", "/purchases/:id/confirm_receipt_email").run).toBe(pages.confirmReceiptEmailPage);
+    expect(find("GET", "/purchases/:id/subscribe").run).toBe(pages.subscribePage);
+  });
+});
+
+describe.each([["POST", "/purchases/:id/subscribe"]])("%s %s", (method, pattern) => {
   const action = find(method, pattern);
 
   it("raises a routing error for a purchase that does not exist", async () => {

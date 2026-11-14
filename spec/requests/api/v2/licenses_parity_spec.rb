@@ -18,7 +18,7 @@ describe "API v2 licenses", type: :request do
   def verify(params = {}, options = {}) = api_call(:post, "/licenses/verify", params:, **options)
 
   def write(action, params = {}, options = {})
-    api_call(:put, "/licenses/#{action}", params:, token: options.fetch(:token) { api_token(seller) })
+    api_call(:put, "/licenses/#{action}", params:, token: options.fetch(:token) { api_token(seller) }, as: options[:as])
   end
 
   # Creating the customer of a licensed product mints its license.
@@ -86,6 +86,12 @@ describe "API v2 licenses", type: :request do
       verify(product_id: product.external_id, license_key: key, increment_uses_count: "0")
 
       expect(response.parsed_body["uses"]).to eq(5)
+    end
+
+    it "answers 404 for an empty list of keys sent as JSON", parity: true do
+      verify({ product_id: product.external_id, license_key: [] }, as: :json)
+
+      expect(response).to have_http_status(:not_found)
     end
 
     it "serializes the quantity of the purchase", parity: true do
@@ -860,10 +866,32 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["message"]).to eq("Access to the purchase associated with this license has expired.")
     end
 
-    it "hands a license key that is a list to Rails", parity: true do
+    it "enables a license whose key arrives in a list", parity: true do
+      license.update_column(:disabled_at, 1.day.ago)
+
       write(:enable, "product_id" => product.external_id, "license_key" => [key])
 
       expect(response).to have_http_status(:ok)
+      expect(license.reload.disabled?).to eq(false)
+    end
+
+    it "enables a license whose key sits in a list beside a key that matches nothing", parity: true do
+      write(:enable, "product_id" => product.external_id, "license_key" => ["NOSUCHKEY", key])
+
+      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["uses"]).to eq(0)
+    end
+
+    it "answers 404 for a list of keys that matches no license", parity: true do
+      write(:enable, "product_id" => product.external_id, "license_key" => ["NOSUCHKEY"])
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "answers 404 for an empty list of keys sent as JSON", parity: true do
+      write(:enable, { "product_id" => product.external_id, "license_key" => [] }, as: :json)
+
+      expect(response).to have_http_status(:not_found)
     end
 
     it "enables a license of a purchase with a variant", parity: true do

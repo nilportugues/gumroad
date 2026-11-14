@@ -19,6 +19,7 @@ import { registerMutations, type MutationInput } from "./mutation.ts";
 import { setPurchase } from "./purchase-access-writes.ts";
 import { refundPurchase } from "./purchase-refund.ts";
 import { resendReceipt } from "./purchase-resend-receipt.ts";
+import { confirmReceiptEmailPage, subscribePage } from "./purchases-pages.ts";
 import { authorizeJson, noContent, notFoundJson } from "./seller-json.ts";
 
 const UNSUBSCRIBE_SCOPE = "unsubscribe";
@@ -68,7 +69,7 @@ function sellerPurchaseAction(
 
 // ----- the buyer's and the visitor's actions
 
-// receipt, confirm_receipt_email and subscribe: `Purchase.find_by_external_id(params[:id]) || e404`.
+// subscribe over POST: `Purchase.find_by_external_id(params[:id]) || e404`.
 function publicPurchaseAction(reason: string) {
   return async (input: MutationInput): Promise<ActionResult> => {
     await setPurchase(input.routeParams.id!);
@@ -186,13 +187,13 @@ registerMutations(
     method: "GET",
     pattern: "/purchases/:id/confirm_receipt_email",
     skipForgeryProtection: true,
-    run: publicPurchaseAction("the receipt email confirmation page"),
+    run: confirmReceiptEmailPage,
   },
   {
     method: "GET",
     pattern: "/purchases/:id/subscribe",
     skipForgeryProtection: true,
-    run: publicPurchaseAction("the resubscribe page"),
+    run: subscribePage,
   },
   {
     method: "POST",

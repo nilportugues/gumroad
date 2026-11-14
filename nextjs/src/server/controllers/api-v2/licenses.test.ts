@@ -301,8 +301,17 @@ describe("Api::V2::LicensesController#verify parameters", () => {
     }
   });
 
-  it("hands back an empty list or hash, which Rails reads as blank", async () => {
-    await expect(verify.before!(call({ license_key: [] }))).rejects.toThrow(HandBackToRails);
+  it("answers 404 for an empty license key list, which matches no license", async () => {
+    const rendered = (await verify.before!(call({ license_key: [] }))) as { status: number };
+
+    expect(rendered.status).toBe(404);
+    expect(body(rendered)).toEqual({
+      success: false,
+      message: "That license does not exist for the provided product.",
+    });
+  });
+
+  it("hands back an empty hash, which Rails reads as blank", async () => {
     await expect(verify.before!(call({ license_key: "x", product_id: {} }))).rejects.toThrow(HandBackToRails);
   });
 
@@ -337,11 +346,25 @@ describe("Api::V2::LicensesController writes", () => {
     ]);
   });
 
-  it("hands back a license key that is not text", async () => {
-    const enable = registeredApiV2Routes().find((route) => route.pattern === "/v2/licenses/enable")!;
+  const enable = () => registeredApiV2Routes().find((route) => route.pattern === "/v2/licenses/enable")!;
+  const enableCall = (params: Record<string, unknown>) => ({ params, routeParams: {}, state: {} }) as never;
 
-    await expect(
-      enable.before!({ params: { license_key: ["x"] }, routeParams: {}, state: {} } as never),
-    ).rejects.toThrow(HandBackToRails);
+  it("hands back a license key that is not text", async () => {
+    await expect(enable().before!(enableCall({ license_key: { a: "x" } }))).rejects.toThrow(HandBackToRails);
+    await expect(enable().before!(enableCall({ license_key: ["x", 1] }))).rejects.toThrow(HandBackToRails);
+  });
+
+  it("hands back a list of keys that matches several licenses, whose order Rails leaves to the database", async () => {
+    database({ licenses: [{ id: 1n }, { id: 2n }] });
+
+    await expect(enable().before!(enableCall({ license_key: ["x", "y"] }))).rejects.toThrow(/several licenses/u);
+  });
+
+  it("answers 404 for a list of keys that matches nothing", async () => {
+    database({ licenses: [] });
+
+    const rendered = (await enable().before!(enableCall({ license_key: ["x", "y"] }))) as { status: number };
+
+    expect(rendered.status).toBe(404);
   });
 });

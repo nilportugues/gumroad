@@ -656,15 +656,17 @@ export const DEFAULT_FOOTER_CONTENT =
 // `<%= yield :script %>` with nothing to yield: its indentation and the newline.
 const YIELD_SCRIPT_LINE = "    \n";
 
-// layouts/application.html.erb around a page that keeps the base entrypoint (`@hide_layouts` unset). `view` is the template's output.
-// `footer` is the `content_for :footer` block, if the view set one.
+// layouts/application.html.erb. `view` is the template's output; `footer` is the `content_for :footer` block, if the view set one.
+// `hideBase` is `@hide_layouts`, which drops the base entrypoint script, and `bodyId` is `@body_id`.
+export type ApplicationLayoutOptions = { hideBase?: boolean; bodyId?: string };
+
 export function renderApplicationLayout(
   ctx: LayoutContext,
   view: string,
   requestOrigin: string,
   footer?: string,
+  { hideBase = false, bodyId = "" }: ApplicationLayoutOptions = {},
 ): string {
-  if (ctx.hideLayouts) throw new NotPortedError("a page that hides the base entrypoint");
   const bodyClass = [
     "group/body",
     ...(ctx.userAgent?.includes("Macintosh") ? ["mac"] : []),
@@ -673,7 +675,7 @@ export function renderApplicationLayout(
   return `<!DOCTYPE html>
 <html lang="en">
   ${head(ctx)}
-  <body id="" class="${bodyClass.join(" ")}" style="${ctx.asEmbed ? "background: transparent" : ""}">
+  <body id="${bodyId}" class="${bodyClass.join(" ")}" style="${ctx.asEmbed ? "background: transparent" : ""}">
     <div id="design-settings" data-settings="${escapeHtml(designSettings(ctx.config, requestOrigin))}" style="display: none;"></div>
     ${flashPartial(ctx)}
     <div class="flex flex-col lg:flex-row h-screen">
@@ -683,8 +685,7 @@ export function renderApplicationLayout(
         </div>
 ${footer === undefined ? "" : applicationFooter(footer)}      </main>
     </div>
-      ${viteTypescriptTag("base").tags}
-${YIELD_SCRIPT_LINE}  </body>
+${hideBase ? "" : `      ${viteTypescriptTag("base").tags}\n`}${YIELD_SCRIPT_LINE}  </body>
 </html>
 `;
 }

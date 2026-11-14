@@ -11,10 +11,11 @@ import { closeAllRedis } from "@/server/infra/redis";
 
 import { jobKey, redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { assertNonceMatchesCsp, maskVolatile } from "../src/erb-layout";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { withoutRailsOnly } from "../src/rails-only";
-import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { assertParity, httpTransport, replayFixtureExchange, type Transport } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // Replays the PurchasesController guards: spec/requests/purchases_controller_parity_spec.rb. Each fixture is a login (the seller's actions), a CSRF fetch and
@@ -57,6 +58,17 @@ const COMPARE = {
     "http",
   ],
 };
+
+// The two ERB pages (the email form and the resubscribe prompt) carry the random masked CSRF tokens, which maskVolatile blanks on both sides.
+const maskingTransport =
+  (inner: Transport): Transport =>
+  async (request) => {
+    const response = await inner(request);
+    if (!(response.headers.get("content-type") ?? "").includes("html")) return response;
+    const raw = await response.text();
+    assertNonceMatchesCsp(raw, response.headers.get("content-security-policy"));
+    return new Response(maskVolatile(raw), { status: response.status, headers: response.headers });
+  };
 
 const allCases = SPECS.flatMap((spec) => {
   const dir = path.join(FIXTURES, spec);
@@ -115,6 +127,7 @@ describe.skipIf(!url)("PurchasesController guards", () => {
       ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION") && testEnv("SECURE_EXTERNAL_ID__KEYS__1")
         ? {
             SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION: testEnv("SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION")!,
@@ -140,7 +153,7 @@ describe.skipIf(!url)("PurchasesController guards", () => {
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
-    transport: httpTransport(server.baseUrl),
+    transport: maskingTransport(httpTransport(server.baseUrl)),
     interceptHttp: false,
     jobs: redisJobsChannel(redis, IGNORED_JOBS),
     rewriteRequest: (
@@ -187,6 +200,7 @@ describe.skipIf(!url)("PurchasesController guards", () => {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
+        if (typeof expected.response.body === "string") expected.response.body = maskVolatile(expected.response.body);
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         const { file: _file, ...options } = replayOptions(file, name);
         if (/hands-(a|the)-/u.test(name)) {

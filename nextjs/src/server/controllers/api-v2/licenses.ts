@@ -89,6 +89,16 @@ function stringParam(input: ApiV2Input, key: string): string | null {
   return value;
 }
 
+// `params[:license_key]`: a string, or the list of strings a `license_key[]` pair builds, which `find_by(serial: [...])` reads as IN.
+function serialParam(input: ApiV2Input): string | string[] | null {
+  const value = input.params.license_key;
+  if (Array.isArray(value)) {
+    if (!value.every((key) => typeof key === "string")) throw new HandBackToRails("a license key list of non-text");
+    return value as string[];
+  }
+  return stringParam(input, "license_key");
+}
+
 const matchesPermalink = (product: LinkRow, permalink: string | null): boolean => {
   if (!present(permalink)) return false;
   const wanted = permalink.toLowerCase();
@@ -98,16 +108,25 @@ const matchesPermalink = (product: LinkRow, permalink: string | null): boolean =
 };
 
 // The licenses row for `serial`, within the product when there is one: `find_by(serial:)` compares under the column's collation.
-async function findBySerial(serial: string | null, productId?: bigint): Promise<LicenseRecord | null> {
-  const [row] = await selectRows<{ id: bigint }>(
-    Prisma.sql`SELECT ${column("licenses", "id")} FROM ${table("licenses")} WHERE ${serial === null ? Prisma.sql`${column("licenses", "serial")} IS NULL` : Prisma.sql`${column("licenses", "serial")} = ${serial}`}${productId === undefined ? Prisma.empty : Prisma.sql` AND ${column("licenses", "link_id")} = ${productId}`} LIMIT 1`,
+// A list of keys is `serial IN (...)` with `LIMIT 1` and no order, so it is answered only when at most one row can match.
+async function findBySerial(serial: string | string[] | null, productId?: bigint): Promise<LicenseRecord | null> {
+  if (Array.isArray(serial) && serial.length === 0) return null;
+  const match =
+    serial === null
+      ? Prisma.sql`${column("licenses", "serial")} IS NULL`
+      : Array.isArray(serial)
+        ? Prisma.sql`${column("licenses", "serial")} IN (${Prisma.join(serial)})`
+        : Prisma.sql`${column("licenses", "serial")} = ${serial}`;
+  const rows = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("licenses", "id")} FROM ${table("licenses")} WHERE ${match}${productId === undefined ? Prisma.empty : Prisma.sql` AND ${column("licenses", "link_id")} = ${productId}`} LIMIT 2`,
   );
-  return row === undefined ? null : findLicense(row.id);
+  if (rows.length > 1) throw new HandBackToRails("a list of license keys that matches several licenses");
+  return rows[0] === undefined ? null : findLicense(rows[0].id);
 }
 
 // `before_action :fetch_valid_license`
 async function fetchValidLicense(input: ApiV2Input) {
-  const licenseKey = stringParam(input, "license_key");
+  const licenseKey = serialParam(input);
   const productId = stringParam(input, "product_id");
   const productPermalink = stringParam(input, "product_permalink");
 

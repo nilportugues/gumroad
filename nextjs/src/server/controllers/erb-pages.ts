@@ -109,13 +109,28 @@ export async function renderHomePage(
   return renderErbPage(request, action, "home", page, view, response);
 }
 
-// A page in layouts/application.html.erb that keeps the base entrypoint, as Devise's views do.
+// `hideBase` is `@hide_layouts`, which drops the base entrypoint, and `bodyId` is `@body_id`.
+type ApplicationPageOptions = {
+  footer?: string;
+  status?: number;
+  analyticsFirst?: boolean;
+  hideBase?: boolean;
+  bodyId?: string;
+  // `set_meta_tag(title:)` in the action, after the defaults.
+  title?: string;
+  analyticsEnabled?: boolean;
+  headers?: Record<string, string>;
+  // Rails' flash toast markup is generated from ui/Alert (the partials under layouts/shared/flash), which the layout port does not carry yet.
+  handBackFlash?: boolean;
+};
+
+// A page in layouts/application.html.erb, which keeps the base entrypoint unless `hideBase` is set, as Devise's views do.
 export function renderApplicationPage(
   request: RailsRequest,
   action: ActionContext,
   page: PageMeta | null,
   view: ErbView,
-  options: { footer?: string; status?: number; analyticsFirst?: boolean } = {},
+  options: ApplicationPageOptions = {},
 ): Promise<Rendered> {
   return renderErbPage(request, action, "application", page, view, {}, options);
 }
@@ -127,7 +142,7 @@ async function renderErbPage(
   page: PageMeta | ((origin: string) => PageMeta) | null,
   view: ErbView,
   response: { paramsRead?: boolean; headers?: Record<string, string> },
-  options: { footer?: string; status?: number; analyticsFirst?: boolean } = {},
+  options: ApplicationPageOptions = {},
 ): Promise<Rendered> {
   const config = domainConfig(process.env);
   // `signed_in?` is the Warden session, which an impersonating admin has as themselves.
@@ -135,6 +150,8 @@ async function renderErbPage(
   const origin = `${config.protocol}://${request.hostWithPort}`;
   const githubStars = layout === "home" ? await cachedGithubStars() : null;
   const state = action.takeRenderState();
+  if (options.handBackFlash === true && Object.keys(state.flash).length > 0)
+    throw new HandBackToRails("a flash toast, whose markup Rails generates from ui/Alert");
   const meta = new MetaTagBuilder();
   await applicationMetaTags(meta, {
     context: action.context,
@@ -143,7 +160,9 @@ async function renderErbPage(
     ports: PORTS,
     // Devise's controllers re-declare the meta before_actions, which puts the analytics tags first; ApplicationController's do not.
     analyticsFirst: options.analyticsFirst ?? layout === "application",
+    analyticsEnabled: options.analyticsEnabled,
   });
+  if (options.title !== undefined) meta.set({ title: options.title });
   if (page !== null) pageMetaTags(meta, typeof page === "function" ? page(origin) : page);
   const nonce = generateCspNonce();
   const ctx: LayoutContext = {
@@ -166,8 +185,8 @@ async function renderErbPage(
     const content = view(ctx, state.csrfToken);
     if (layout === "home") renderedBody = renderHomeLayout(ctx, content, origin);
     else {
-      renderedBody = renderApplicationLayout(ctx, content, origin, options.footer);
-      link = `${link},${viteTypescriptTag("base").linkHeader}`;
+      renderedBody = renderApplicationLayout(ctx, content, origin, options.footer, options);
+      if (options.hideBase !== true) link = `${link},${viteTypescriptTag("base").linkHeader}`;
     }
   } catch (error) {
     if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
@@ -177,7 +196,7 @@ async function renderErbPage(
     status: options.status ?? 200,
     body: renderedBody,
     contentType: HTML,
-    headers: { ...response.headers, link },
+    headers: { ...response.headers, ...options.headers, link },
     cspNonce: nonce,
     paramsRead: response.paramsRead ?? true,
   };
