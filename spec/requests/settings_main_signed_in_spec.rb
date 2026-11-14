@@ -5,7 +5,7 @@ require "spec_helper"
 # Settings::MainController#update and #resend_confirmation_email the way the Inertia form sends them (JSON body, X-Inertia, the CSRF
 # token in a header), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/settings-main.replay.test.ts, which sends the last request of each example. Node serves the saves that send no
-# mail; a new or pending email address, a username change, a null time zone, a refund policy the fine print classifier must read and
+# mail; a new email address, a seller with an email change awaiting confirmation whose form sends another one, a null time zone, a refund policy the fine print classifier must read and
 # the resend of a confirmation email are handed to Rails ("hands a ..." examples).
 describe "Settings main when signed in", type: :request do
   include Parity::AudienceSignedIn
@@ -641,6 +641,83 @@ describe "Settings main when signed in", type: :request do
       end
     end
 
+    describe "username" do
+      def rename(username)
+        log_in(seller)
+        send_form(:put, settings_main_path, settings(username:))
+      end
+
+      it "saves a new username", parity: true do
+        rename("renamedmain")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(seller.reload.username).to eq("renamedmain")
+      end
+
+      it "saves a blank username as none", parity: true do
+        rename("")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(seller.reload.read_attribute(:username)).to be_nil
+      end
+
+      it "saves a null username as none", parity: true do
+        rename(nil)
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.read_attribute(:username)).to be_nil
+      end
+
+      it "strips the spaces around a new username", parity: true do
+        rename("  paddedmain  ")
+
+        expect(response).to have_http_status(:see_other)
+        expect(seller.reload.username).to eq("paddedmain")
+      end
+
+      it "answers a username that is too short with its validation error", parity: true do
+        rename("ab")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("Username is too short (minimum is 3 characters)")
+        expect(seller.reload.username).to eq("settingsmain")
+      end
+
+      it "answers a username another seller has with its validation error", parity: true do
+        create(:user, username: "takenmain")
+
+        rename("takenmain")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("Username has already been taken")
+        expect(seller.reload.username).to eq("settingsmain")
+      end
+
+      it "answers a username with upper case letters with its format error", parity: true do
+        rename("Shouting")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("Username has to contain at least one letter and may only contain lower case letters and numbers.")
+      end
+
+      it "answers a reserved username with its validation error", parity: true do
+        rename("admin")
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to start_with("Username")
+        expect(seller.reload.username).to eq("settingsmain")
+      end
+
+      it "answers a username sent as a number with its format error", parity: true do
+        rename(12_345)
+
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq("Username has to contain at least one letter and may only contain lower case letters and numbers.")
+      end
+    end
+
     describe "who may save" do
       it "sends an admin to the dashboard", parity: true do
         member_with_role(TeamMembership::ROLE_ADMIN)
@@ -663,16 +740,7 @@ describe "Settings main when signed in", type: :request do
         expect(seller.reload.unconfirmed_email).to eq("new-address@example.com")
       end
 
-      it "hands a username change to Rails", parity: true do
-        log_in(seller)
-
-        send_form(:put, settings_main_path, settings(username: "renamedmain"))
-
-        expect(response).to have_http_status(:see_other)
-        expect(seller.reload.username).to eq("renamedmain")
-      end
-
-      it "hands a seller with an email change awaiting confirmation to Rails", parity: true do
+      it "clears the pending email change when the form sends the confirmed address", parity: true do
         log_in(seller)
         seller.update_columns(unconfirmed_email: "pending@example.com")
 

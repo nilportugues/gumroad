@@ -365,7 +365,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(product_json).to include("refunded" => true)
       end
 
-      it "hands a live membership with files and a tier to Rails", parity: true do
+      it "serves a live membership with files and a tier", parity: true do
         create(:readable_document, link: membership, position: 0)
         create(:url_redirect, purchase: original, link: membership)
         original.variant_attributes << membership.tiers.first
@@ -373,6 +373,19 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
 
         expect(product_json).to have_key("file_data")
+      end
+
+      it "lists the files of the tier a live membership bought", parity: true do
+        tier = membership.tiers.first
+        tier_file = create(:readable_document, link: membership, position: 0)
+        create(:readable_document, link: membership, position: 1)
+        tier.product_files << tier_file
+        create(:url_redirect, purchase: original, link: membership)
+        original.variant_attributes << tier
+
+        get "/mobile/purchases/purchase_attributes/#{original.external_id}", params: auth(buyer)
+
+        expect(product_json["file_data"].pluck("id")).to eq([tier_file.external_id])
       end
     end
 
@@ -498,7 +511,7 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id)
       end
 
-      it "hands a preorder whose charge purchase has a url redirect to Rails", parity: true do
+      it "serves a preorder whose charge purchase has a url redirect", parity: true do
         charge = charge_purchase
         create(:url_redirect, purchase: charge, link: preorder_product)
 
