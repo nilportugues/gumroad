@@ -362,7 +362,7 @@ describe "Url redirect download page content", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands the license key of a version to Rails", parity: true do
+    it "shows the license key of a version with no pages", parity: true do
       product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:is_licensed])
       create(:license, link: product, purchase:, serial: "VERSION-KEY-0000-1111")
       buy(premium)
@@ -370,7 +370,7 @@ describe "Url redirect download page content", type: :request do
 
       get url_redirect_download_page_path(token)
 
-      expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "license", "license_key")).to eq("VERSION-KEY-0000-1111")
     end
   end
 
