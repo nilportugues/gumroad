@@ -71,6 +71,7 @@ const jobKey = (job: { class: string; args: unknown; queue?: string }) =>
 
 // A fixture recorded with `parity_mail_jobs: true` holds its mail job in `jobs`; the others never queued one, so Node's is ignored.
 let compareMailJobs = false;
+let warmedDelete = false;
 
 // Jobs Node enqueues are BullMQ jobs wrapping the Sidekiq item; the key of a job is what its Sidekiq twin is compared by.
 function redisJobs(redis: Redis): JobsChannel {
@@ -128,7 +129,10 @@ function redisJobs(redis: Redis): JobsChannel {
           ...(item.at === undefined ? {} : { at: item.at }),
         });
       }
-      return jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      // A product touched by a request is reindexed: the replay holds no document for it, so Node queues the fallback job Rails never needed.
+      return jobs
+        .filter((job) => job.class !== "SendToElasticsearchWorker")
+        .sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
     },
   };
 }
@@ -151,9 +155,12 @@ const COMPARE = {
     // The seed is stamped with the replay's clock, so a row Rails touched seconds after the factory made it is not touched in the same second.
     "db.licenses.updated.*.changes.updated_at",
     "db.calls.updated.*.changes.updated_at",
+    "db.custom_domains.updated.*.changes.updated_at",
     "db.purchases.updated.*.changes.updated_at",
     "db.product_review_videos.updated.*.changes.updated_at",
     "db.media_locations.updated.*.changes.updated_at",
+    // A client with no cookie gets a guid minted per request, which the event row keeps.
+    "db.events.inserted.*.browser_guid",
     // Doorkeeper mints the tokens at random.
     "db.oauth_access_tokens.inserted.*.token",
     "db.oauth_access_tokens.inserted.*.refresh_token",
@@ -283,6 +290,12 @@ describe.skipIf(!url)("Mobile API parity", () => {
         const fixture = loadFixture(file);
         const expected = fixture.exchanges[index]!;
         compareMailJobs = (expected.jobs ?? []).some((job) => job.activeJob === true);
+        // The first DELETE compiles its route (seconds), which would age the seeded timestamps past the replayer's tolerance.
+        if (expected.request.method === "DELETE" && !warmedDelete) {
+          warmedDelete = true;
+          await replayFixtureExchange(loadFixture(file), index, replayOptions()).catch(() => undefined);
+          handedBack.length = 0;
+        }
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
         if (/hands-an?-/u.test(name)) {
           handedBack.length = 0;
