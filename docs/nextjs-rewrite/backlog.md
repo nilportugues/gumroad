@@ -182,7 +182,6 @@ The 40 specs with the most. Each example is a concrete shape with a fixture; ser
 | `spec/requests/affiliates_create_parity_spec.rb` | 7 | E16 |
 | `spec/requests/affiliates_update_parity_spec.rb` | 7 | E16 |
 | `spec/requests/api/mobile/mobile_sales_actions_parity_spec.rb` | 7 | E10 |
-| `spec/requests/api/mobile/mobile_seller_writes_parity_spec.rb` | 7 | E10 |
 | `spec/requests/api/v2/product_enable_parity_spec.rb` | 7 | E10 |
 | `spec/requests/api/v2/upsells_writes_parity_spec.rb` | 7 | E10 |
 | `spec/requests/apple_omniauth_parity_spec.rb` | 7 | E07 |
@@ -193,6 +192,7 @@ The 40 specs with the most. Each example is a concrete shape with a fixture; ser
 | `spec/requests/twitter_omniauth_parity_spec.rb` | 7 | E07 |
 | `spec/requests/api/internal/admin_users_reads_parity_spec.rb` | 6 | E14 |
 | `spec/requests/api/mobile/mobile_products_subscriptions_parity_spec.rb` | 6 | E10 |
+| `spec/requests/api/mobile/mobile_seller_writes_parity_spec.rb` | 6 | E10 |
 | `spec/requests/api/v2/licenses_parity_spec.rb` | 6 | E10 |
 | `spec/requests/api/v2/links_parity_spec.rb` | 6 | E10 |
 | `spec/requests/api/v2/offer_codes_writes_parity_spec.rb` | 6 | E10 |
@@ -213,13 +213,13 @@ Each epic owns the hand-back sites and recorded shapes whose file path matches i
 | E07 | Sign-in providers and account security | 195 | 59 | mostly done (Apple, Twitter, Google, YouTube, Instagram, TikTok, TOTP, team join, passkey login and registration in Node); the Stripe Connect callback, the POST callbacks and the unprovable passkey shapes (signed attestation formats, non-ES256 keys) left |
 | E08 | Content delivery and downloads (WS-16) | 158 | 14 | partial (access gates done; bytes, rich content, posts, integrations, licenses, polls hand back) |
 | E09 | Product pages, profiles and custom HTML (WS-11/12) | 227 | 44 | in progress (covers, nav done; Interpolator wiring and custom HTML pages being ported) |
-| E10 | Public/v2 API and mobile API (WS-17) | 384 | 182 | in progress (v2 create/update done for plain digital products; mobile sales/library shapes left) |
+| E10 | Public/v2 API and mobile API (WS-17) | 384 | 181 | in progress (v2 create/update done for plain digital products; mobile sales/library shapes left) |
 | E11 | MCP and AI (WS-19) | 76 | 46 | in progress (read tools done; OAuth client registration and permalink changes done; memberships in create_draft_product, add_cover, add_file, bundle tools, ProductFileIngest left) |
 | E12 | Audience, emails, workflows and the receipt mailer (WS-13/15) | 230 | 30 | partial (renewal receipts, fixed-length, installment and gifted membership receipts hand back; export variants hand back) |
 | E13 | Subscriptions, preorders and memberships | 20 | 7 | partial (cancellations done; charges and plan changes hand back) |
 | E14 | Settings, team and admin (WS-10/18) | 187 | 56 | mostly done; brand accounts that copy a payout setup and the admin web UIs (Flipper, Sidekiq web) left |
 | E15 | Sidekiq jobs and cron (WS-30) | 30 | 0 | in progress (two agents on it; 187 of 296 classes run in Node, many with prefix hand-backs) |
-| E16 | Affiliates, collaborators, wishlists, comments and reviews | 167 | 49 | partial (most reads and writes done; each controller still refuses some shapes) |
+| E16 | Affiliates, collaborators, wishlists, comments and reviews | 167 | 50 | partial (most reads and writes done; each controller still refuses some shapes) |
 | E17 | Purchase management (customers, receipts JSON, license JSON) | 127 | 37 | partial (revoke access, search, export done; refund, update, resend receipt, confirm and charge actions hand back) |
 | E18 | Request and response fidelity (Rails params/body parsing, ERB, rate limits) | 67 | 5 | ongoing (generic refusals for inputs Rails munges or rejects; each is a deliberate hand-back, not a missing feature) |
 | E19 | Product editor, bundles and internal endpoints | 195 | 50 | partial (editor JSON and mutations mostly done; sections, files and rich content shapes hand back) |
