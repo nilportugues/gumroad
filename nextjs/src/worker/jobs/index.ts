@@ -103,7 +103,7 @@ import {
 import { generateLargeSellersAnalyticsCacheWorker } from "./generate-large-sellers-analytics-cache-worker.ts";
 import { generateMerchantCenterFeedWorker } from "./generate-merchant-center-feed-worker.ts";
 import { generateProductFilesArchivesJob } from "./generate-product-files-archives-job.ts";
-import { generateSslCertificate } from "./generate-ssl-certificate.ts";
+import { generateSslCertificate, generateSslCertificateRetriesExhausted } from "./generate-ssl-certificate.ts";
 import {
   generateSubscribePreviewJob,
   generateSubscribePreviewJobRetriesExhausted,
@@ -660,4 +660,5 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   PerformPayoutsUpToDelayDaysAgoWorker: performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
   GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
   GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJobRetriesExhausted,
+  GenerateSslCertificate: generateSslCertificateRetriesExhausted,
 };

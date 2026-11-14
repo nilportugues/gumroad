@@ -1,10 +1,13 @@
 // Replays generate-ssl-certificate.golden.json (scripts/golden/generate-ssl-certificate.rb): GenerateSslCertificate run by the real app as
 // a Sidekiq job in each Rails environment. Node finishes where the environment is not supported without a read, sends the
 // `CustomDomain.find` Rails sent where it is, ends a missing or deleted domain as Rails did, and hands a live one back before the order.
-import { afterAll, beforeAll, describe } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { createJobsRuntime } from "../../server/jobs/runtime.ts";
+
+import { recordingSidekiqRedis, rubyRuntimeRegistry, sequentialJids } from "./__fixtures__/golden.ts";
 import { loadGolden, replayJobGolden, type JobCase } from "./__fixtures__/replay-job-golden.ts";
-import { generateSslCertificateWith } from "./generate-ssl-certificate.ts";
+import { generateSslCertificateRetriesExhausted, generateSslCertificateWith } from "./generate-ssl-certificate.ts";
 
 type EnvCase = JobCase & { rails_env: string; branch_deployment: string | null };
 
@@ -43,3 +46,23 @@ for (const group of [...new Set(golden.cases.map(key))]) {
     );
   });
 }
+
+// The exhausted block is not recorded (it ends in ErrorNotifier); it must hand back before any read or push.
+describe("GenerateSslCertificate retries exhausted", () => {
+  it("hands back whole without a read or a push", async () => {
+    const recording = recordingSidekiqRedis();
+    const runtime = createJobsRuntime({
+      sidekiqRedis: recording.redis,
+      bullmqRedis: recording.redis,
+      registry: rubyRuntimeRegistry(),
+      now: () => golden.now,
+      newJid: sequentialJids(),
+    });
+    await expect(
+      Promise.resolve().then(() =>
+        generateSslCertificateRetriesExhausted({ args: [1], jid: "j" } as never, new Error("boom"), { runtime }),
+      ),
+    ).rejects.toMatchObject({ name: "HandBackToRuby" });
+    expect(recording.snapshot()).toEqual({});
+  });
+});

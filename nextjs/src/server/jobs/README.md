@@ -334,7 +334,7 @@ read. Golden: `scripts/golden/export-payout-data.rb`. `SendYearInReviewEmailJob`
 
 `generate-ssl-certificate.ts` and `transcode-video-for-streaming-worker.ts` run only the reads that open the Ruby job. `GenerateSslCertificate`
 finishes outside production (or staging outside a branch deployment), finds the custom domain and ends a deleted one; a live domain goes back
-before the ACME order and its rate-limit reschedule. `TranscodeVideoForStreamingWorker` ends a Link, finds the ProductFile and ends a deleted
+before the ACME order and its rate-limit reschedule; its retries-exhausted block (a find_by and ErrorNotifier, nothing a recording compares) hands back whole. `TranscodeVideoForStreamingWorker` ends a Link, finds the ProductFile and ends a deleted
 one; a live file goes back before `attempt_to_transcode?` (the `transcoded_videos` reads, then the TranscodedVideo row and MediaConvert or GRMC).
 A class other than `ProductFile` and `Link`, and an id Rails casts, go back before any read.
 

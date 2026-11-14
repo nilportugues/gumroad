@@ -5,6 +5,7 @@
 // Golden: __fixtures__/generate-ssl-certificate.golden.json (scripts/golden/generate-ssl-certificate.rb).
 import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
+import type { RetriesExhausted } from "../retry.ts";
 
 import { supportedEnvironment } from "./renew-custom-domain-ssl-certificates.ts";
 import { modelJob } from "./support/job-deps.ts";
@@ -20,3 +21,9 @@ export const generateSslCertificateWith = modelJob({ min: 1, max: 2 }, async ([i
   throw new HandBackToRuby("the SSL certificate is ordered from the ACME server");
 });
 export const generateSslCertificate = generateSslCertificateWith();
+
+// The exhausted block reads `CustomDomain.find_by` and reports to ErrorNotifier (Sentry), which no recording here can compare, so it goes
+// back whole: Rails makes one last attempt and then runs its own block.
+export const generateSslCertificateRetriesExhausted: RetriesExhausted = () => {
+  throw new HandBackToRuby("the retries-exhausted block reports to ErrorNotifier");
+};
