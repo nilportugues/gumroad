@@ -6,6 +6,7 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rails-cookies";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { jobKey, redisJobsChannel } from "../src/active-job";
@@ -207,6 +208,19 @@ describe.skipIf(!url)("PurchasesController guards", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
+        // The session cookie is encrypted with a random IV and left out of the comparison, so the flash it carries is read from both.
+        if (name.includes("sends-another-email")) {
+          const secrets = deriveRailsCookieSecrets(fixture.secretKeyBase!);
+          const flashOf = (cookies: Record<string, { value?: string }> | undefined) =>
+            (
+              readEncryptedCookie(secrets, fixture.sessionCookie!, cookies?.[fixture.sessionCookie!]?.value) as {
+                flash?: unknown;
+              } | null
+            )?.flash;
+          const { expected, actual } = result.exchanges[0]!;
+          expect(flashOf(actual.response.cookies)).toEqual(flashOf(expected.response.cookies));
+          expect(flashOf(expected.response.cookies)).toBeDefined();
+        }
       } catch (error) {
         const logs = server
           .output()

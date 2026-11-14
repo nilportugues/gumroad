@@ -8,7 +8,7 @@ import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
 import { modelJob } from "./support/job-deps.ts";
 
 // Ruby tests `ENV["BRANCH_DEPLOYMENT"]` for nil only, so an empty value still counts as a branch deployment.
-const supportedEnvironment = () =>
+export const supportedEnvironment = () =>
   railsEnv() === "production" || (railsEnv() === "staging" && process.env.BRANCH_DEPLOYMENT === undefined);
 
 export const renewCustomDomainSslCertificatesWith = modelJob({ min: 0 }, () => {

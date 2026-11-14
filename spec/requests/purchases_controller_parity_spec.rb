@@ -316,10 +316,11 @@ describe "Purchases controller guards", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands a visitor who sends another email to Rails, which flashes the error", parity: true do
+    it "redirects a visitor who sends another email to the page that asks for it, with a wrong email alert", parity: true do
       get "/purchases/#{purchase.external_id}/receipt", params: { email: "someone@example.com" }
 
       expect(response).to redirect_to("/purchases/#{purchase.external_id}/confirm_receipt_email")
+      expect(flash[:alert]).to eq("Wrong email. Please try again.")
     end
 
     it "answers 404 for the page that asks for the email of a purchase that does not exist", parity: true do
