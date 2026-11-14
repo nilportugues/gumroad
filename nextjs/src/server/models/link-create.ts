@@ -771,6 +771,8 @@ export type ApiCreateParams = {
   maxPurchaseCount?: number | null;
   customizablePrice?: boolean;
   suggestedPriceCents?: number | null;
+  // `@product.created_via_cli = true if request_from_cli?`
+  viaCli?: boolean;
 };
 
 // Api::V2::LinksController#create from `links.build` to the first `save!`: a digital product that starts as a draft with purchases
@@ -801,7 +803,7 @@ export async function createApiLink(
     draft: true,
     purchase_disabled_at: (now ?? (() => new Date()))(),
     taxonomy_id: taxonomyId,
-    flags: LinkFlags.set(0n, "display_product_reviews", true),
+    flags: LinkFlags.set(LinkFlags.set(0n, "display_product_reviews", true), "created_via_cli", params.viaCli === true),
     json_data: rubyJsonGenerate(new RubyHash(jsonData)),
     ...(params.maxPurchaseCount !== undefined && { max_purchase_count: params.maxPurchaseCount }),
     ...(params.customizablePrice !== undefined && { customizable_price: params.customizablePrice }),
