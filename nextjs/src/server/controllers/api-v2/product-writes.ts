@@ -40,7 +40,7 @@ import {
   successWithObject,
   toSentence,
 } from "./base.ts";
-import { hasApplicableOfferCodes } from "./offer-codes.ts";
+import { hasApplicableOfferCodes, offerCodePriceError } from "./offer-codes.ts";
 import { productsApiJson } from "./product-json.ts";
 import { accountLevelRefundPolicyEnabled } from "./refund-policies.ts";
 import { blankParam, isHash, rubyToI, rubyToS } from "./ruby-params.ts";
@@ -412,10 +412,11 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
 
   const draft = createAsDraft(params);
+  let priceError: string | null = null;
   if (!draft) {
-    // validate_product_price_against_all_offer_codes? reads every code that applies; publish! follows only what assertPlainPublish proves.
-    if (await hasApplicableOfferCodes(owner, { id: 0n, price_currency_type: currency } as Link))
-      throw new HandBackToRails("the publication of a product beside discount codes");
+    // The product is not saved yet: its one buy price is what the create writes. A missing price fails the create before any publish.
+    if (priceCents !== null)
+      priceError = await offerCodePriceError(owner, { id: 0n, price_currency_type: currency } as Link, [priceCents]);
     await assertPlainPublish({ id: 0n, deleted_at: null, flags: 0n, draft: true } as Link, owner);
   }
 
@@ -461,7 +462,7 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
   const additionalInfo: Record<string, unknown> = {};
   if (!draft) {
     const row = (await db.link.findUnique({ where: { id } }))!;
-    const refused = await publishBang(row, owner);
+    const refused = priceError ?? (await publishBang(row, owner));
     if (refused !== null) additionalInfo.warning = `Saved as a draft: ${refused}`;
   }
   return successWithObject("product", await json((await db.link.findUnique({ where: { id } }))!), additionalInfo);

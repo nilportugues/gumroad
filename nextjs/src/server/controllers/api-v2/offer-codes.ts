@@ -8,6 +8,7 @@ import { Prisma, type Link, type OfferCode } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../../lib/obfuscate-ids.ts";
 import { withPaperTrailRequest } from "../../models/concerns/paper-trail.ts";
+import { currencyOf } from "../../models/link.ts";
 import {
   addProduct,
   assertPlainCode,
@@ -91,20 +92,25 @@ export async function hasApplicableOfferCodes(owner: { id: bigint }, product: Li
   return Number(row?.found ?? 0) > 0;
 }
 
-// validate_product_price_against_all_offer_codes? for codes that leave the price at 0 or above the minimum after the discount: true.
-// A code outside the plain shape, or one that puts the price under the minimum (the error message), goes to Rails.
-export async function enableWithValidOfferCodes(owner: { id: bigint }, product: Link): Promise<void> {
+// validate_product_price_against_all_offer_codes? for codes of the plain shape: the error it adds, or null when every code leaves the price
+// at 0 or above the minimum. A code outside the plain shape goes to Rails. `prices` stands in for a product that is not saved yet.
+export async function offerCodePriceError(
+  owner: { id: bigint },
+  product: Link,
+  prices?: (number | null)[],
+): Promise<string | null> {
   const rows = [
     ...(await selectOfferCodes(productCodes(product.id))),
     ...(await selectOfferCodes(universalCodes(owner.id, product.price_currency_type, product.id))),
   ];
-  if (rows.length === 0) return;
+  if (rows.length === 0) return null;
   await assertPlainProducts([product]);
   for (const { created_usec: _usec, ...row } of rows) {
     await assertPlainCode(row);
-    if (!(await isAmountValid(OfferCodes.load(row), product)))
-      throw new HandBackToRails("an enable of a product a discount code puts under the minimum price");
+    if (!(await isAmountValid(OfferCodes.load(row), product, prices)))
+      return `An existing discount code puts the price of this product below the ${currencyOf(product.price_currency_type)!.min_price_formatted} minimum after discount.`;
   }
+  return null;
 }
 
 // find_by_external_id: nil for an id that does not decrypt.
