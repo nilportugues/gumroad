@@ -238,6 +238,7 @@ import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-cert
 import { requeueTransientlyFailedPayoutsJob } from "./requeue-transiently-failed-payouts-job.ts";
 import { resendConfirmationEmailJob } from "./resend-confirmation-email-job.ts";
 import { resizeOversizedAssetPreviewWorker } from "./resize-oversized-asset-preview-worker.ts";
+import { partnerMigrationImportJob, partnerMigrationImportJobRetriesExhausted } from "./partner-migration-import-job.ts";
 import { resumeStalledPartnerMigrationsJob } from "./resume-stalled-partner-migrations-job.ts";
 import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-worker.ts";
 import { retryPendingMandateChargeJob } from "./retry-pending-mandate-charge-job.ts";
@@ -612,6 +613,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PublishScheduledProductJob: publishScheduledProductJob,
   PartnerMigrationNotificationJob: partnerMigrationNotificationJob,
   ResumeStalledPartnerMigrationsJob: resumeStalledPartnerMigrationsJob,
+  PartnerMigrationImportJob: partnerMigrationImportJob,
   SendWorkflowEmailToOpenedNonClickerJob: sendWorkflowEmailToOpenedNonClickerJob,
   ScheduleOpenedNoClickWorkflowEmailsJob: scheduleOpenedNoClickWorkflowEmailsJob,
   SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
@@ -661,4 +663,5 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
   GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJobRetriesExhausted,
   GenerateSslCertificate: generateSslCertificateRetriesExhausted,
+  PartnerMigrationImportJob: partnerMigrationImportJobRetriesExhausted,
 };
