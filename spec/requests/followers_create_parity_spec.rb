@@ -263,6 +263,15 @@ describe "Subscribing to a seller", type: :request do
         expect(confirmation_job[:args].last["args"].last).to eq(unpublished.id)
       end
 
+      it "follows plainly when the product was deleted", parity: true do
+        waitlist_product.delete!
+
+        subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: waitlist_product.external_id })
+
+        expect(response.parsed_body).to eq("success" => true, "message" => "Check your inbox to confirm your follow request to Followed Seller.")
+        expect(WaitlistEntry.count).to eq(0)
+      end
+
       it "follows plainly when the product id is malformed", parity: true do
         subscribe(follow_user_path, { seller_id: seller.external_id, email: "visitor@example.com", product_id: "not-a-product" })
 
