@@ -113,13 +113,29 @@ async function destroy(input: ApiV2Input) {
   return successWithObject("product", null);
 }
 
-const SECTIONS_ERROR = "sections must be an array of section ids.";
+// Api::V2::ProductSectionsWriter
+const ENTRY_MESSAGE = "sections must be an array of section ids or objects.";
+const OWNERSHIP_MESSAGE = "One or more sections do not belong to this product.";
+const MAX_HEADER_LENGTH = 255;
+const CREATE_TYPES = ["featured_product", "products"];
+const ENTRY_KEYS = [
+  "featured_product",
+  "shown_products",
+  "default_product_sort",
+  "show_filters",
+  "add_new_products",
+  "id",
+  "type",
+  "header",
+];
 const NON_NEGATIVE_INTEGER = /^\d+$/u;
+
+const isJsonBody = (input: ApiV2Input) =>
+  /^application\/json(\s*;|$)/iu.test(input.request.headers.get("content-type") ?? "");
 
 // raw_sections_param: a JSON body is read raw (a `[null]` is not munged to `[]`), anything else from the params.
 function sectionsParam(input: ApiV2Input): unknown {
-  const contentType = input.request.headers.get("content-type") ?? "";
-  if (!/^application\/json(\s*;|$)/iu.test(contentType)) return input.params.sections;
+  if (!isJsonBody(input)) return input.params.sections;
   try {
     const body: unknown = JSON.parse(Buffer.from(input.rawBody).toString("utf8"));
     return typeof body === "object" && body !== null && !Array.isArray(body)
@@ -132,18 +148,68 @@ function sectionsParam(input: ApiV2Input): unknown {
 
 const decryptAll = (ids: string[]) => ids.map((id) => decrypt(id));
 
+// Object#blank? for a JSON value.
+const isBlank = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  value === false ||
+  (typeof value === "string" && !/[^\s]/u.test(value)) ||
+  (Array.isArray(value) && value.length === 0) ||
+  (typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0);
+
+type ParsedEntry = { id: number } | { error: string };
+
+// ProductSectionsWriter#parse_entry. An entry that keeps a section as it is is served here; one that creates or
+// changes a section writes, so it goes to Rails whole.
+async function parseEntry(entry: unknown, product: Link, json: boolean): Promise<ParsedEntry> {
+  if (!json && typeof entry !== "string") throw new HandBackToRails("a section entry of a form body that is not an id");
+  const attributes = typeof entry === "string" ? { id: entry } : entry;
+  if (typeof attributes !== "object" || attributes === null || Array.isArray(attributes))
+    return { error: ENTRY_MESSAGE };
+  const fields = attributes as Record<string, unknown>;
+  const unknownKey = Object.keys(fields).find((key) => !ENTRY_KEYS.includes(key));
+  if (unknownKey !== undefined)
+    return { error: `${unknownKey} is not a section field. Allowed: ${ENTRY_KEYS.join(", ")}.` };
+  const { id, type, header } = fields;
+  if ("header" in fields && typeof header !== "string") return { error: "header must be a string." };
+  if (typeof header === "string" && [...header].length > MAX_HEADER_LENGTH)
+    return { error: `header must be at most ${MAX_HEADER_LENGTH} characters.` };
+  if (!isBlank(id) && !isBlank(type))
+    return { error: "A section entry takes either id (an existing section) or type (a new one), not both." };
+  if (isBlank(id) && isBlank(type)) return { error: "Each object in sections must have an id or a type." };
+
+  if (isBlank(id)) {
+    if (typeof type !== "string" || !CREATE_TYPES.includes(type))
+      return { error: `type must be one of: ${CREATE_TYPES.join(", ")}.` };
+    throw new HandBackToRails("a new profile section");
+  }
+  if (typeof id !== "string") return { error: ENTRY_MESSAGE };
+  const decrypted = decrypt(id);
+  if (decrypted === null) return { error: "One or more sections were not found." };
+  const [section] = await selectRows<{ product_id: bigint | null }>(
+    Prisma.sql`SELECT ${column("seller_profile_sections", "product_id")} FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "id")} = ${decrypted}`,
+  );
+  if (section === undefined || section.product_id === null || Number(section.product_id) !== Number(product.id))
+    return { error: OWNERSHIP_MESSAGE };
+  if (Object.keys(fields).some((key) => key !== "id" && key !== "type"))
+    throw new HandBackToRails("a change to the contents of a profile section");
+  return { id: decrypted };
+}
+
 export async function updateSections(input: ApiV2Input) {
   const product = productOf(input);
   await apiJson(input, product);
   const sections = sectionsParam(input);
-  if (!Array.isArray(sections) || !sections.every((id) => typeof id === "string"))
-    return renderResponse(false, { message: SECTIONS_ERROR });
-  const sectionIds = decryptAll(sections);
-  if (sectionIds.some((id) => id === null))
-    return renderResponse(false, { message: "One or more sections were not found." });
-  if (new Set(sectionIds).size !== sectionIds.length)
+  if (!Array.isArray(sections)) return renderResponse(false, { message: ENTRY_MESSAGE });
+  const json = isJsonBody(input);
+  const ids: number[] = [];
+  for (const entry of sections) {
+    const parsed = await parseEntry(entry, product, json);
+    if ("error" in parsed) return renderResponse(false, { message: parsed.error });
+    ids.push(parsed.id);
+  }
+  if (new Set(ids).size !== ids.length)
     return renderResponse(false, { message: "sections must not list the same section twice." });
-  const ids = sectionIds as number[];
 
   let knownIds: (number | null)[] | null = null;
   if ("known_section_ids" in input.params) {
