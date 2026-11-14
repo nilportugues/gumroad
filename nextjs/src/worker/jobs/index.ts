@@ -4,6 +4,7 @@ import type { RetriesExhausted, RetryIn } from "../retry.ts";
 import { activateIntegrationsWorker } from "./activate-integrations-worker.ts";
 import { alertOnBlockedEstablishedBuyersJob } from "./alert-on-blocked-established-buyers-job.ts";
 import { alertOnBlockedEstablishedSubscribersJob } from "./alert-on-blocked-established-subscribers-job.ts";
+import { alertOnNegativeDestinationBalancesJob } from "./alert-on-negative-destination-balances-job.ts";
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
 import { alertOnStaleBlocksHoldingEstablishedBuyersJob } from "./alert-on-stale-blocks-holding-established-buyers-job.ts";
 import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
@@ -30,6 +31,7 @@ import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
 import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
 import { chargePreorderWorker } from "./charge-preorder-worker.ts";
 import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-worker.ts";
+import { checkIndianCardMandateRegistrationJob } from "./check-indian-card-mandate-registration-job.ts";
 import { collectUnclaimedBalancesOfInactiveStripeAccountsJob } from "./collect-unclaimed-balances-of-inactive-stripe-accounts-job.ts";
 import {
   contentModerationAdminCommentJob,
@@ -88,6 +90,8 @@ import {
   sendStripeBalanceSummariesReportJobRetriesExhausted,
   sendStripeCurrencyBalancesReportJob,
   sendStripeCurrencyBalancesReportJobRetriesExhausted,
+  uploadUsStatesSalesTaxToTaxjarJob,
+  uploadUsStatesSalesTaxToTaxjarJobRetriesExhausted,
 } from "./finance-report-jobs.ts";
 import { flushDeliveredEmailInfosJob } from "./flush-delivered-email-infos-job.ts";
 import { generateAvatarVariantJob } from "./generate-avatar-variant-job.ts";
@@ -309,8 +313,10 @@ import { sendRemindersForOutstandingUserComplianceInfoRequestsWorker } from "./s
 import { sendSignedPiracyNoticesJob } from "./send-signed-piracy-notices-job.ts";
 import { sendWishlistUpdatedEmailsJob } from "./send-wishlist-updated-emails-job.ts";
 import { sendWorkflowEmailToOpenedNonClickerJob } from "./send-workflow-email-to-opened-non-clicker-job.ts";
+import { sendWorkflowEmailsToOpenedNonClickersJob } from "./send-workflow-emails-to-opened-non-clickers-job.ts";
 import { sendWorkflowEmailsToPastCanceledMembersJob } from "./send-workflow-emails-to-past-canceled-members-job.ts";
 import { sendWorkflowInstallmentWorker } from "./send-workflow-installment-worker.ts";
+import { sendYearInReviewEmailJob } from "./send-year-in-review-email-job.ts";
 import {
   refreshSitemapDailyWorker,
   refreshSitemapMonthlyWorker,
@@ -635,6 +641,11 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   GenerateCanadaSalesReportJob: generateCanadaSalesReportJob,
   GenerateFeesByCreatorLocationReportJob: generateFeesByCreatorLocationReportJob,
   GenerateSalesReportJob: generateSalesReportJob,
+  CheckIndianCardMandateRegistrationJob: checkIndianCardMandateRegistrationJob,
+  AlertOnNegativeDestinationBalancesJob: alertOnNegativeDestinationBalancesJob,
+  SendWorkflowEmailsToOpenedNonClickersJob: sendWorkflowEmailsToOpenedNonClickersJob,
+  SendYearInReviewEmailJob: sendYearInReviewEmailJob,
+  UploadUsStatesSalesTaxToTaxjarJob: uploadUsStatesSalesTaxToTaxjarJob,
   AnnualPayoutExportWorker: annualPayoutExportWorker,
   CollectUnclaimedBalancesOfInactiveStripeAccountsJob: collectUnclaimedBalancesOfInactiveStripeAccountsJob,
   PostToPingEndpointsWorker: postToPingEndpointsWorker,
@@ -720,5 +731,6 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   GenerateCanadaSalesReportJob: generateCanadaSalesReportJobRetriesExhausted,
   GenerateFeesByCreatorLocationReportJob: generateFeesByCreatorLocationReportJobRetriesExhausted,
   GenerateSalesReportJob: generateSalesReportJobRetriesExhausted,
+  UploadUsStatesSalesTaxToTaxjarJob: uploadUsStatesSalesTaxToTaxjarJobRetriesExhausted,
   PartnerMigrationImportJob: partnerMigrationImportJobRetriesExhausted,
 };

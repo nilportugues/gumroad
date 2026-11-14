@@ -1,9 +1,10 @@
 // Ports of the finance report jobs that only build and mail a report in production (EmailOutstandingBalancesCsvWorker,
 // SendStripeCurrencyBalancesReportJob, SendDeferredRefundsReportWorker, SendFinancesReportWorker, SendStripeBalanceSummariesReportJob,
-// SendDailyFinanceLedgerReportJob): `return unless Rails.env.production?` leaves nothing but the bookkeeping of the two modules they
+// SendDailyFinanceLedgerReportJob, UploadUsStatesSalesTaxToTaxjarJob): `return unless Rails.env.production?` leaves nothing but the bookkeeping of the two modules they
 // include, which runs in Node. LongRunningJobTracking holds a deploy-blocking token in a sorted set for the length of the run;
-// FinanceReportCompletionTracking records the completion once perform returns. In production the report build and the mail hand back
-// to Rails, before the token is taken. Their sidekiq_retries_exhausted (FinanceReportFailureAlert) mails the failure.
+// FinanceReportCompletionTracking records the completion once perform returns. In production the report build and the mail (for
+// UploadUsStatesSalesTaxToTaxjarJob, the TaxJar push) hand back to Rails, before the token is taken. Their sidekiq_retries_exhausted
+// (FinanceReportFailureAlert) mails the failure; UploadUsStatesSalesTaxToTaxjarJob's own block mails a TaxJar failure and hands back.
 // Golden: __fixtures__/finance-report-jobs.golden.json (scripts/golden/finance-report-jobs.rb).
 import { randomUUID } from "node:crypto";
 
@@ -227,6 +228,13 @@ export const SEND_DAILY_FINANCE_LEDGER_REPORT_JOB: FinanceReportJob = {
   defaultAlertArgs: previousUtcDay,
 };
 
+export const UPLOAD_US_STATES_SALES_TAX_TO_TAXJAR_JOB: FinanceReportJob = {
+  name: "UploadUsStatesSalesTaxToTaxjarJob",
+  longRunning: true,
+  maxArgs: 1,
+  defaultAlertArgs: previousUtcDay,
+};
+
 export const FINANCE_REPORT_JOBS: readonly FinanceReportJob[] = [
   EMAIL_OUTSTANDING_BALANCES_CSV_WORKER,
   SEND_STRIPE_CURRENCY_BALANCES_REPORT_JOB,
@@ -234,6 +242,7 @@ export const FINANCE_REPORT_JOBS: readonly FinanceReportJob[] = [
   SEND_FINANCES_REPORT_WORKER,
   SEND_STRIPE_BALANCE_SUMMARIES_REPORT_JOB,
   SEND_DAILY_FINANCE_LEDGER_REPORT_JOB,
+  UPLOAD_US_STATES_SALES_TAX_TO_TAXJAR_JOB,
 ];
 
 export const emailOutstandingBalancesCsvWorker = financeReportJobWith(EMAIL_OUTSTANDING_BALANCES_CSV_WORKER);
@@ -242,6 +251,7 @@ export const sendDeferredRefundsReportWorker = financeReportJobWith(SEND_DEFERRE
 export const sendFinancesReportWorker = financeReportJobWith(SEND_FINANCES_REPORT_WORKER);
 export const sendStripeBalanceSummariesReportJob = financeReportJobWith(SEND_STRIPE_BALANCE_SUMMARIES_REPORT_JOB);
 export const sendDailyFinanceLedgerReportJob = financeReportJobWith(SEND_DAILY_FINANCE_LEDGER_REPORT_JOB);
+export const uploadUsStatesSalesTaxToTaxjarJob = financeReportJobWith(UPLOAD_US_STATES_SALES_TAX_TO_TAXJAR_JOB);
 
 export const emailOutstandingBalancesCsvWorkerRetriesExhausted = financeReportRetriesExhaustedWith(
   EMAIL_OUTSTANDING_BALANCES_CSV_WORKER,
@@ -259,3 +269,9 @@ export const sendStripeBalanceSummariesReportJobRetriesExhausted = financeReport
 export const sendDailyFinanceLedgerReportJobRetriesExhausted = financeReportRetriesExhaustedWith(
   SEND_DAILY_FINANCE_LEDGER_REPORT_JOB,
 );
+
+// Its own block, not FinanceReportFailureAlert: it mails `us_states_sales_tax_taxjar_upload_failed` with the day the run was for
+// (`job["args"].first`, else yesterday) and is not recorded, so it hands back.
+export const uploadUsStatesSalesTaxToTaxjarJobRetriesExhausted: RetriesExhausted = () => {
+  throw new HandBackToRuby("the TaxJar upload failure is mailed through AccountingMailer");
+};
