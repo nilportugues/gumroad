@@ -2,8 +2,10 @@
 // product_affiliate.rb, Affiliate::AudienceMember): the product's row lock, the affiliate, the assignment with its workflow schedule
 // token, the seller's audience member, and after the commit the schedule job and the invitation mail.
 //
+// A fee outside 1%..75% is answered, not handed back: `creationBlocker` returns its validation message once nothing earlier fails.
+//
 // Not ported, and refused before the first write by `creationBlocker`: more than one product or all products (the presenter decides the
-// list), a destination URL (validated), a fee outside 1%..75%, a collab product, a deleted product, a Brazilian Stripe Connect account on
+// list), a destination URL (validated), a collab product, a deleted product, a Brazilian Stripe Connect account on
 // either side, an email Gumroad would not treat as an audience member, and any live direct affiliation of the account (uniqueness).
 import { randomUUID } from "node:crypto";
 
@@ -36,6 +38,11 @@ export type NewAffiliate = {
   productBasisPoints: number;
 };
 
+export const FEE_RANGE_MESSAGE = `Affiliate commission must be between ${MIN_BASIS_POINTS / 100}% and ${MAX_BASIS_POINTS / 100}%.`;
+
+// A shape Node answers itself (`refusal`) or one it passes to Rails whole (a string).
+export type Blocker = string | { refusal: string };
+
 // The shape of the request, as `creationBlocker` reads it. `enabledProducts` are the ones sent with `enabled` set.
 export type Requested = {
   applyToAllProducts: boolean;
@@ -52,13 +59,11 @@ export async function creationBlocker(
   affiliate: Pick<NewAffiliate, "sellerId" | "affiliateUserId" | "affiliateUserEmail" | "basisPoints" | "productId">,
   // An edit already has the live affiliation the uniqueness read looks for.
   options: { editing?: boolean } = {},
-): Promise<string | null> {
+): Promise<Blocker | null> {
   if (requested.applyToAllProducts) return "an affiliate for all products, whose list the presenter decides";
   if (requested.enabledProducts.length !== 1) return "an affiliate with several products";
   if (present(requested.destinationUrl) || requested.enabledProducts.some((p) => present(p.destinationUrl)))
     return "an affiliate with a destination URL, whose format is validated";
-  if (affiliate.basisPoints < MIN_BASIS_POINTS || affiliate.basisPoints > MAX_BASIS_POINTS)
-    return "a fee outside the allowed range, which fails validation";
   if (!isValidEmailFormat(affiliate.affiliateUserEmail)) return "an account whose email is not an audience member's";
 
   const [product] = await selectRows<{ flags: unknown; deleted_at: unknown }>(
@@ -73,6 +78,10 @@ export async function creationBlocker(
     Prisma.sql`SELECT ${column("merchant_accounts", "id")} FROM ${table("merchant_accounts")} WHERE ${column("merchant_accounts", "user_id")} IN (${affiliate.sellerId}, ${affiliate.affiliateUserId}) AND ${column("merchant_accounts", "country")} = ${BRAZIL} LIMIT 1`,
   );
   if (brazilian !== undefined) return "an account with a Brazilian Stripe Connect account";
+
+  // The range validation comes before the uniqueness one, and the Brazilian check (Affiliate's own) before both.
+  if (affiliate.basisPoints < MIN_BASIS_POINTS || affiliate.basisPoints > MAX_BASIS_POINTS)
+    return { refusal: FEE_RANGE_MESSAGE };
 
   if (options.editing === true) return null;
   const [existing] = await selectRows(
