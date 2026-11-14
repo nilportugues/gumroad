@@ -109,9 +109,9 @@ export async function assertPlainCode(row: OfferCode): Promise<void> {
   const tiers = row.ownership_duration_tiers;
   if (tiers != null && !(Array.isArray(tiers) && tiers.length === 0)) notPorted("a code with duration tiers");
   const [related] = await selectRows<{ found: number | bigint }>(
-    Prisma.sql`SELECT (EXISTS (SELECT 1 FROM ${table("upsells")} WHERE ${column("upsells", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_excluded_products")} WHERE ${column("offer_codes_excluded_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_variants")} WHERE ${column("offer_codes_variants", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_products")} WHERE ${column("offer_codes_ownership_products", "offer_code_id")} = ${row.id})) AS found`,
+    Prisma.sql`SELECT (EXISTS (SELECT 1 FROM ${table("upsells")} WHERE ${column("upsells", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_excluded_products")} WHERE ${column("offer_codes_excluded_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_variants")} WHERE ${column("offer_codes_variants", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_products")} WHERE ${column("offer_codes_ownership_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_variants")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${row.id})) AS found`,
   );
-  if (Number(related?.found ?? 0) > 0) notPorted("a code with an upsell, exclusions, options or ownership products");
+  if (Number(related?.found ?? 0) > 0) notPorted("a code with an upsell, exclusions, options or ownership products or options");
 }
 
 // ---------------------------------------------------------------------------------------------

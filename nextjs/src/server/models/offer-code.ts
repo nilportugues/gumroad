@@ -293,6 +293,11 @@ export class OfferCodeRecord {
 
   // OfferCode#ownership_reference_products
   async ownershipReferenceProducts(product: Link | null): Promise<Link[]> {
+    // A row in offer_codes_ownership_variants counts only purchases of that option (#8969), which the months below do not read.
+    const [optionRows] = await selectRows<{ found: number | bigint }>(
+      Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_variants")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${this.id}) AS found`,
+    );
+    if (Number(optionRows?.found ?? 0) > 0) throw new NotPortedError("OfferCode#ownership_variants", "offer_code.rb:464");
     const owned = await this.ownershipProducts();
     if (owned.length > 0) return owned;
     if (product !== null) return [product];
