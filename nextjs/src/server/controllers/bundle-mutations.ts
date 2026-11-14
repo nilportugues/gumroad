@@ -2,10 +2,11 @@
 // bundle candidate, the policy, and the refusals each action decides before it saves.
 //
 // Ported: those guards, #share's redirect for an unpublished bundle, #content's "Products must be an array." refusal, the product
-// list save of #content (add, remove, re-add, reorder; models/bundle-products.ts), #update_purchases_content and #remove_file's 404
-// for a file that is not attached.
-// Handed to Rails before any write: the product and share saves, a content save that publishes, unpublishes or redirects, and
-// removing a file that is attached.
+// list save of #content (add, remove, re-add, reorder; models/bundle-products.ts) with its unpublish and its redirect_to target,
+// #update_purchases_content and #remove_file's 404 for a file that is not attached.
+// Handed to Rails before any write: the product and share saves, a content save that publishes a bundle that is not published (the
+// publish gates, content moderation and the seller plan), a redirect_to that stays on a subdomain (the test environment's root domain
+// carries a port, so no recording reaches it), and removing a file that is attached.
 import { Prisma, type Link } from "@prisma/client";
 
 import { decrypt, encrypt as externalId } from "../../lib/obfuscate-ids.ts";
@@ -30,7 +31,7 @@ import type { LinkRow } from "../presenters/product-reads.ts";
 
 import { allowedReferrer, HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { requestFormat } from "./rails-params.ts";
+import { requestFormat, safeRedirectPath } from "./rails-params.ts";
 import { accountEmailRequired, authorizeJson, json, NOT_FOUND } from "./seller-json.ts";
 import { signedOutRefusal } from "./wishlists-mutations.ts";
 
@@ -98,10 +99,30 @@ async function updateShare(input: MutationInput): Promise<ActionResult> {
 const SEE_OTHER = 303;
 const NATIVE_TYPE_BUNDLE = "bundle";
 const SAVED_NOTICE = "Changes saved!";
+const UNPUBLISHED_NOTICE = "Unpublished!";
 const QUEUED_NOTICE = "Queued an update to the content of all outdated purchases.";
 const SCALAR_KEYS = ["product_id", "variant_id", "quantity", "position"] as const;
 
-const present = (value: unknown) => value !== undefined && value !== null && value !== "" && value !== false;
+// `Object#present?` for a parameter: blank is nil, false, a blank string, or an empty array or hash.
+const present = (value: unknown) => {
+  if (value === undefined || value === null || value === false) return false;
+  if (typeof value === "string")
+    return !/^[\s\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]*$/u.test(value);
+  if (Array.isArray(value)) return value.length > 0;
+  if (isHash(value)) return Object.keys(value).length > 0;
+  return true;
+};
+
+// `safe_redirect_path(params[:redirect_to])` for a target that stays on this host: a path, or an absolute URL of this host.
+function redirectTarget(input: MutationInput): string {
+  const target = input.params.redirect_to;
+  if (typeof target !== "string") throw new HandBackToRails("a redirect target that is not text");
+  const { rootDomain } = domainConfig(process.env);
+  const path = safeRedirectPath(target, input.request, { rootDomain });
+  if (path !== safeRedirectPath(target, input.request, { allowSubdomainHost: false, rootDomain }))
+    throw new HandBackToRails("a redirect target on a subdomain");
+  return path;
+}
 
 // `redirect_back fallback_location:, notice:, status: :see_other`
 const redirectBack = (
@@ -164,9 +185,11 @@ async function updateContent(input: MutationInput): Promise<ActionResult> {
       throw new HandBackToRails("a products parameter whose strong-parameters shape Node does not reproduce");
     return { status: FOUND, location: editContentPath(bundle), flash: { alert: PRODUCTS_NOT_AN_ARRAY } };
   }
-  // Publishing, unpublishing and a redirect target run Link#publish!/unpublish! or a redirect to another host.
-  if (present(input.params.publish) || present(input.params.unpublish) || input.params.redirect_to !== undefined)
-    throw new HandBackToRails("a bundle content save that publishes, unpublishes or redirects");
+  const isPublished = published(bundle);
+  // Publishing runs the publish gates, content moderation and the seller plan check; for a published bundle it is a plain save.
+  if (present(input.params.publish) && !isPublished) throw new HandBackToRails("a bundle content save that publishes");
+  const shouldUnpublish = present(input.params.unpublish) && isPublished;
+  const redirectTo = !shouldUnpublish && present(input.params.redirect_to) ? redirectTarget(input) : null;
   const entries = productEntries(products);
   // The save also flips is_bundle and native_type, and validates an installment plan against the new products.
   if (
@@ -179,7 +202,14 @@ async function updateContent(input: MutationInput): Promise<ActionResult> {
   const parsed = await parseBundleProducts(entries);
   const record = await loadBundleRecord(bundle.id);
   try {
-    await transaction(() => updateBundleProducts(record, parsed));
+    await transaction(async () => {
+      await updateBundleProducts(record, parsed);
+      if (shouldUnpublish) {
+        // `unpublish!`: `purchase_disabled_at ||= Time.current`, then `save!`.
+        record.set("purchase_disabled_at", record.get("purchase_disabled_at") ?? new Date());
+        await Links.saveBang(record);
+      }
+    });
   } catch (error) {
     if (error instanceof BundleProductNotFound) throw new RoutingError("Not Found");
     if (!(error instanceof RecordInvalid || error instanceof RecordNotSaved || error instanceof LinkInvalid))
@@ -187,6 +217,8 @@ async function updateContent(input: MutationInput): Promise<ActionResult> {
     const message = record.errors.fullMessages()[0] ?? error.message;
     return { status: FOUND, location: editContentPath(bundle), flash: { alert: message } };
   }
+  if (shouldUnpublish) return redirectBack(input.request, editContentPath(bundle), { notice: UNPUBLISHED_NOTICE });
+  if (redirectTo !== null) return { status: SEE_OTHER, location: redirectTo, flash: { notice: SAVED_NOTICE } };
   return redirectBack(input.request, editContentPath(bundle), { notice: SAVED_NOTICE });
 }
 

@@ -4,14 +4,14 @@
 //
 // Not ported, and refused before the first write by `updateBlocker`: an edit that changes the account, the products, the
 // all-products flag or a destination URL (they rewrite assignments and the audience member), and the shapes `creationBlocker`
-// refuses (a fee outside 1%..75%, a collab or deleted product, a Brazilian Stripe Connect account).
+// hands back (a collab or deleted product, a Brazilian Stripe Connect account). A fee outside 1%..75% is refused with its message.
 import { Prisma, type Affiliate, type ProductAffiliate } from "@prisma/client";
 
 import { deliverLater } from "../mail/active-job.ts";
 import { mailRoute } from "../mail/delivery.ts";
 
 import { currentJobsRuntime } from "./concerns/job-runtime.ts";
-import { creationBlocker, ProductAffiliates, type Requested } from "./direct-affiliate-create.ts";
+import { creationBlocker, ProductAffiliates, type Blocker, type Requested } from "./direct-affiliate-create.ts";
 import { DIRECT_AFFILIATE, DirectAffiliates } from "./direct-affiliate-removal.ts";
 import { PRODUCT_AFFILIATES } from "./product-affiliate.ts";
 import { transaction } from "./runtime/transaction.ts";
@@ -49,7 +49,7 @@ async function currentRows(id: number): Promise<Rows | null> {
 }
 
 // Why the edit cannot be answered here, or null. Reads only: nothing has been written.
-export async function updateBlocker(requested: Requested, edited: EditedAffiliate): Promise<string | null> {
+export async function updateBlocker(requested: Requested, edited: EditedAffiliate): Promise<Blocker | null> {
   const rows = await currentRows(edited.id);
   if (rows === null) return "an affiliate that no longer exists";
   const { affiliate, assignments } = rows;

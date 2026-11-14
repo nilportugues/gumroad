@@ -79,8 +79,9 @@ const FLAG_PARAMS: readonly UserFlag[] = [
   "disable_affiliate_requests",
 ];
 const STRING_PARAMS = ["support_email", "locale", "timezone", "currency_type"] as const;
-// NOT NULL columns: a null is a database error Rails rescues, which the port does not reproduce.
-const NOT_NULL_PARAMS: readonly string[] = ["locale", "timezone"];
+// A NOT NULL column: the test database coerces a null to "" where production raises, so the recording cannot prove the answer.
+// `locale` is nullable and is served.
+const NOT_NULL_PARAMS: readonly string[] = ["timezone"];
 // `email` and `username` are permitted but only served unchanged (`assertUnchangedIdentity`).
 const PERMITTED_USER_KEYS = new Set<string>([...FLAG_PARAMS, ...STRING_PARAMS, "purchasing_power_parity_limit"]);
 
@@ -153,10 +154,15 @@ function renderedVersion(value: unknown): number {
   if (value instanceof RubyFloat) return UNKNOWN_VERSION;
   if (typeof value === "bigint") return BEYOND_ANY_VERSION;
   if (value === undefined || value === null || typeof value === "boolean" || value === "") return UNKNOWN_VERSION;
+  // A list's text ("[0]") is never an Integer.
+  if (Array.isArray(value) && value.length > 0) return UNKNOWN_VERSION;
   if (typeof value === "number" && Number.isSafeInteger(value)) return value;
   if (typeof value === "string" && /^(?:0|-?[1-9]\d*)$/u.test(value)) return Number.parseInt(value, 10);
   throw new HandBackToRails("a feature announcements version that Integer() parses differently");
 }
+
+const isFilledContainer = (value: unknown) =>
+  (Array.isArray(value) && value.length > 0) || (isHash(value) && Object.keys(value).length > 0);
 
 type AnnouncementResult = "unchanged" | "updated" | "stale";
 const ANNOUNCEMENTS = "feature_announcement_subscriptions";
@@ -202,15 +208,48 @@ function decryptedIds(value: unknown): bigint[] {
     .map(BigInt);
 }
 
+// A step that raises in Rails after the earlier ones committed: the action's rescue-all answers the generic alert.
+class RescuedStepError extends Error {}
+
+// What `params[:user][:purchasing_power_parity_excluded_product_ids]` held. Only the shapes a recording proves are served: a list of
+// strings, a missing or null value (`nil.include?` raises once a product is looked at), a string (`String#include?` is a substring
+// test) and a list of integers (`Array.wrap(5).map { decrypt }` finds nothing). A string or integer that does decrypt to an id would
+// match a product, which no recording covers.
+type ExcludedIds =
+  | { kind: "list"; ids: string[] }
+  | { kind: "absent" }
+  | { kind: "text"; text: string }
+  | { kind: "integers" };
+
+function excludedIds(value: unknown): ExcludedIds {
+  if (value === undefined || value === null) return { kind: "absent" };
+  if (typeof value === "string") {
+    if (decrypt(value) !== null) throw new HandBackToRails("excluded products sent as text that decrypts to an id");
+    return { kind: "text", text: value };
+  }
+  if (!Array.isArray(value)) throw new HandBackToRails("excluded products that are not a list, a string or null");
+  if (value.every((id) => typeof id === "string")) return { kind: "list", ids: value as string[] };
+  if (value.every((id) => typeof id === "number" && Number.isSafeInteger(id))) {
+    if (value.some((id) => decrypt(String(id)) !== null))
+      throw new HandBackToRails("excluded products that are integers decrypting to an id");
+    return { kind: "integers" };
+  }
+  throw new HandBackToRails("excluded products that mix types");
+}
+
 // User#update_purchasing_power_parity_excluded_products!: `products.purchasing_power_parity_disabled.or(products.by_external_ids(ids))`.
-async function updateExcludedProducts(seller: UserRecord, externalIds: string[]): Promise<void> {
+async function updateExcludedProducts(seller: UserRecord, excluded: ExcludedIds): Promise<void> {
+  const externalIds = excluded.kind === "list" ? excluded.ids : [];
   const ids = decryptedIds(externalIds);
   const rows = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${seller.get("id")} AND (${LinkFlags.condition("purchasing_power_parity_disabled")} OR ${columnIn("links", "id", ids)})`,
   );
   for (const row of rows) {
     const product = Links.load(castRow<Link>("Link", row));
-    const shouldDisable = externalIds.includes(encrypt(product.get("id")));
+    if (excluded.kind === "absent") throw new RescuedStepError("undefined method 'include?' for nil");
+    const externalId = encrypt(product.get("id"));
+    const shouldDisable =
+      excluded.kind === "text" ? excluded.text.includes(externalId) : externalIds.includes(externalId);
     if (shouldDisable && LinkFlags.isSet(product.get("flags"), "purchasing_power_parity_disabled")) continue;
     // Validations are skipped, as in `save!(validate: false)`: a product can carry errors unrelated to this flag.
     await Links.updateBang(
@@ -221,33 +260,65 @@ async function updateExcludedProducts(seller: UserRecord, externalIds: string[])
   }
 }
 
-type SupportEmailEntry = { email: string; ids: bigint[] };
+// An integer email reaches the format validator and fails it.
+type SupportEmailEntry = { email: string | number | null; ids: bigint[] };
+// The service's constructor raised on the shape of the entries, after the steps before it committed.
+const MALFORMED_SUPPORT_EMAILS = "malformed" as const;
 
-// Product::BulkUpdateSupportEmailService#reject_blank_entries. An entry with no email or no list is not rejected by Rails and means
-// "clear these products"; the port leaves it to Rails.
-function supportEmailEntries(value: unknown): SupportEmailEntry[] {
+// A blank entry is skipped; a missing email or list is not blank (`nil&.blank?`) and clears products. Product ids that are text or
+// integers are looked up as external ids and find nothing, which a recording proves only for ones that do not decrypt.
+function entryProductIds(value: unknown): bigint[] | null {
   if (value === undefined || value === null) return [];
+  if (typeof value === "string") {
+    if (isBlank(value)) return null;
+    if (decrypt(value) !== null)
+      throw new HandBackToRails("support email product ids sent as text that decrypts to an id");
+    return [];
+  }
+  if (!Array.isArray(value)) throw new HandBackToRails("support email product ids that are not a list");
+  if (value.length === 0) return null;
+  if (value.every((id) => typeof id === "number" && Number.isSafeInteger(id))) {
+    if (value.some((id) => decrypt(String(id)) !== null))
+      throw new HandBackToRails("support email product ids that are integers decrypting to an id");
+    return [];
+  }
+  return decryptedIds(value);
+}
+
+// Product::BulkUpdateSupportEmailService#reject_blank_entries. A string where the list or an entry belongs raises on `entry[:email]`.
+function supportEmailEntries(value: unknown): SupportEmailEntry[] | typeof MALFORMED_SUPPORT_EMAILS {
+  if (value === undefined || value === null) return [];
+  if (typeof value === "string" && !isBlank(value)) return MALFORMED_SUPPORT_EMAILS;
   if (!Array.isArray(value)) throw new HandBackToRails("product-level support emails that are not a list");
   const entries: SupportEmailEntry[] = [];
   for (const entry of value) {
+    if (typeof entry === "string" && !isBlank(entry)) return MALFORMED_SUPPORT_EMAILS;
     if (!isHash(entry)) throw new HandBackToRails("a support email entry that is not a hash");
     const { email, product_ids: productIds } = entry;
-    if (typeof email !== "string" || !Array.isArray(productIds))
-      throw new HandBackToRails("a support email entry without an email or a list");
-    if (isBlank(email) || productIds.length === 0) continue;
-    entries.push({ email, ids: decryptedIds(productIds) });
+    if (email !== undefined && email !== null && typeof email !== "string" && !isIntegerEmail(email, productIds))
+      throw new HandBackToRails("a support email entry with an email of an unproven type");
+    if (typeof email === "string" && isBlank(email)) continue;
+    const ids = entryProductIds(productIds);
+    if (ids === null) continue;
+    entries.push({ email: (email ?? null) as SupportEmailEntry["email"], ids });
   }
   return entries;
 }
+
+// The recording sends an integer email alongside a list of product ids.
+const isIntegerEmail = (email: unknown, productIds: unknown) =>
+  typeof email === "number" && Number.isSafeInteger(email) && Array.isArray(productIds) && productIds.length > 0;
 
 // The ActiveModel::ValidationError of ReplicateSupportEmailValidationsOnLink#validate!, which the action rescues.
 class SupportEmailInvalid extends Error {}
 
 // User#update_product_level_support_emails!
 async function updateProductLevelSupportEmails(seller: UserRecord, entries: SupportEmailEntry[]): Promise<void> {
-  for (const { email } of entries)
-    if (!isValidEmailFormat(email) || isReservedEmailDomain(email))
+  for (const { email } of entries) {
+    if (email === null) continue;
+    if (typeof email === "number" || !isValidEmailFormat(email) || isReservedEmailDomain(email))
       throw new SupportEmailInvalid(`Validation failed: Support email ${email}`);
+  }
 
   const sellerId = seller.get("id");
   const affected = entries.flatMap((entry) => entry.ids);
@@ -268,7 +339,7 @@ type RefundPolicyParams = { max_refund_period_in_days: number | null; fine_print
 // out is assigned nil, so it clears the stored value.
 function refundPolicyParams(user: Record<string, unknown>): RefundPolicyParams {
   const policy = user.seller_refund_policy;
-  if (!isHash(policy)) throw new HandBackToRails("a refund policy section that is not a hash");
+  if (!isHash(policy)) throw new RescuedStepError("undefined method 'permit'");
   const days = policy.max_refund_period_in_days;
   const finePrint = policy.fine_print;
   return {
@@ -291,6 +362,19 @@ async function refundPolicyEditable(seller: UserRecord): Promise<boolean> {
   const row = seller.attributes as User;
   if (UserFlags.isSet(row.flags, "refund_policy_enforced")) return false;
   return accountLevelRefundPolicyEnabled(row);
+}
+
+// A section that is not a hash raises `permit` on it once the user is saved. A recording proves a string, a list, a number and a
+// missing or null section; a boolean, a float or a huge integer is Rails' call.
+function assertSectionKind(section: unknown): void {
+  if (isHash(section) || section === undefined || section === null) return;
+  if (
+    typeof section === "string" ||
+    Array.isArray(section) ||
+    (typeof section === "number" && Number.isSafeInteger(section))
+  )
+    return;
+  throw new HandBackToRails("a refund policy section that is neither a hash nor a recorded shape");
 }
 
 async function updateRefundPolicy(seller: UserRecord, user: Record<string, unknown>): Promise<string | null> {
@@ -324,8 +408,13 @@ async function update(input: MutationInput): Promise<ActionResult> {
   assertUnchangedIdentity(seller, user);
 
   const announcing = "feature_announcements_subscribed" in user;
-  if (announcing && !isPermittedScalar(user.feature_announcements_subscribed))
-    throw new HandBackToRails("a non-scalar feature announcements flag");
+  // Boolean casts any list or hash, even `[false]`, to true; an empty one is not recorded.
+  if (
+    announcing &&
+    !isPermittedScalar(user.feature_announcements_subscribed) &&
+    !isFilledContainer(user.feature_announcements_subscribed)
+  )
+    throw new HandBackToRails("an empty feature announcements flag container");
   const subscribed = castBoolean(user.feature_announcements_subscribed);
   const version = announcing ? renderedVersion(user.feature_announcements_version) : UNKNOWN_VERSION;
 
@@ -333,11 +422,10 @@ async function update(input: MutationInput): Promise<ActionResult> {
   if (editable) {
     const row = await sellerRefundPolicy(seller.attributes as User);
     if (!row) throw new HandBackToRails("a seller without an account-level refund policy");
-    assertNoClassifierNeeded(row, refundPolicyParams(user));
+    assertSectionKind(user.seller_refund_policy);
+    if (isHash(user.seller_refund_policy)) assertNoClassifierNeeded(row, refundPolicyParams(user));
   }
-  const excluded = user.purchasing_power_parity_excluded_product_ids;
-  if (!Array.isArray(excluded) || excluded.some((id) => typeof id !== "string"))
-    throw new HandBackToRails("excluded products that are not a list of strings");
+  const excluded = excludedIds(user.purchasing_power_parity_excluded_product_ids);
   const supportEmails = supportEmailEntries(user.product_level_support_emails);
 
   return transaction(async () => {
@@ -356,7 +444,9 @@ async function update(input: MutationInput): Promise<ActionResult> {
         const failure = await updateRefundPolicy(seller, user);
         if (failure !== null) return redirect(failure);
       }
-      await updateExcludedProducts(seller, excluded as string[]);
+      await updateExcludedProducts(seller, excluded);
+      if (supportEmails === MALFORMED_SUPPORT_EMAILS)
+        throw new RescuedStepError("no implicit conversion of Symbol into Integer");
       await updateProductLevelSupportEmails(seller, supportEmails);
     } catch (error) {
       if (error instanceof NotPortedError || error instanceof HandBackToRails) throw error;

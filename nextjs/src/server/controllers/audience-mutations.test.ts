@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const { specs, enqueueAudienceExport } = vi.hoisted(() => ({
@@ -56,7 +56,12 @@ describe("POST /audience/export", () => {
     expect(enqueueAudienceExport).toHaveBeenCalledWith(7n, 3n, { followers: true });
   });
 
-  it.each([[undefined], [null], [""], [{}], ["followers"], [[{ followers: true }]], [{ followers: 1 }]])(
+  it("raises ParameterMissing for options that are absent", async () => {
+    await expect(run(input(undefined))).rejects.toBeInstanceOf(ParameterMissing);
+    expect(enqueueAudienceExport).not.toHaveBeenCalled();
+  });
+
+  it.each([[null], [""], [{}], ["followers"], [[{ followers: true }]], [{ followers: 1 }]])(
     "hands options %j to Rails, which raises or renders them itself",
     async (options) => {
       await expect(run(input(options))).rejects.toBeInstanceOf(HandBackToRails);
