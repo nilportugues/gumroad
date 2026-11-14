@@ -91,7 +91,14 @@ describe("customersSalesFilters", () => {
     const options = await customersSalesFilters(seller, filters({ minimum_amount_cents: "500", maximum_amount_cents: " " }));
     expect(options.price_greater_than).toBe(500);
     expect("price_less_than" in options).toBe(false);
-    await expect(customersSalesFilters(seller, filters({ maximum_amount_cents: "12.5" }))).rejects.toThrow(HandBackToRails);
+    await expect(customersSalesFilters(seller, filters({ maximum_amount_cents: "1e3" }))).rejects.toThrow(HandBackToRails);
+  });
+
+  it("passes a decimal amount of a seller paid in dollars as given and hands back one of another currency", async () => {
+    const options = await customersSalesFilters(seller, filters({ minimum_amount_cents: "1399.5", maximum_amount_cents: "1400.5" }));
+    expect(options).toMatchObject({ price_greater_than: 1399.5, price_less_than: 1400.5 });
+    const euros = { id: 1n, currency_type: "eur", timezone: "Pacific Time (US & Canada)" } as never;
+    await expect(customersSalesFilters(euros, filters({ minimum_amount_cents: "10.5" }))).rejects.toThrow(HandBackToRails);
   });
 
   it("applies minimum_license_uses only while the feature is on", async () => {

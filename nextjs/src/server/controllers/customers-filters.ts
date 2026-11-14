@@ -15,6 +15,7 @@ import { castBoolean, type Params } from "../search/ruby-params.ts";
 import { HandBackToRails } from "./application-controller.ts";
 
 const MAX_AMOUNT_DIGITS = 15;
+const DECIMAL_AMOUNT = /^\d+\.\d+$/u;
 const DAY_MS = 86_400_000;
 const PLAIN_DATE = /^(\d{4})-(\d{2})-(\d{2})$/u;
 const ISO_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/u;
@@ -83,8 +84,11 @@ async function existingIds(tableName: "links" | "base_variants", externalIds: st
 // `get_usd_cents(current_seller.currency_type, amount)` for an amount string. `BigDecimal(amount)` accepts more
 // shapes (decimals, exponents, blanks around it); only digits are read here.
 async function usdCents(seller: User, amount: string): Promise<number> {
-  if (!/^\d+$/u.test(amount) || amount.length > MAX_AMOUNT_DIGITS) throw new HandBackToRails("an amount that is not a plain integer");
   if (seller.currency_type === null) throw new HandBackToRails("a seller without a currency type");
+  // `get_usd_cents` returns a dollar seller's amount as given, and Elasticsearch compares it as a number; another currency
+  // divides the `BigDecimal` by a rate, which only whole amounts have been recorded for.
+  if (seller.currency_type === "usd" && DECIMAL_AMOUNT.test(amount) && amount.length <= MAX_AMOUNT_DIGITS) return Number(amount);
+  if (!/^\d+$/u.test(amount) || amount.length > MAX_AMOUNT_DIGITS) throw new HandBackToRails("an amount that is not a plain integer");
   return getUsdCents(seller.currency_type, Number(amount));
 }
 
