@@ -189,12 +189,14 @@ async function refuseOrHandBack(
   if (editedId !== null) {
     const edited = { ...candidate, id: editedId, productBasisPoints: productFee };
     const editBlocker = await updateBlocker(requested, edited);
+    if (typeof editBlocker === "object" && editBlocker !== null) return refusal(failureLocation, editBlocker.refusal);
     if (editBlocker !== null) throw new HandBackToRails(editBlocker);
     await updateDirectAffiliate(edited);
     return { status: SEE_OTHER, location: AFFILIATES_PATH, flash: { notice: "Affiliate updated successfully" } };
   }
 
   const blocker = await creationBlocker(requested, candidate);
+  if (typeof blocker === "object" && blocker !== null) return refusal(failureLocation, blocker.refusal);
   if (blocker !== null) throw new HandBackToRails(blocker);
 
   await createDirectAffiliate({ ...candidate, productBasisPoints: productFee });

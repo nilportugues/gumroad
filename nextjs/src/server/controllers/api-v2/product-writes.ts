@@ -357,8 +357,7 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     throw new HandBackToRails(
       "a creation with attributes beyond name, description, price, limits, taxonomy, tags and summary",
     );
-  if (/^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? ""))
-    throw new HandBackToRails("a command line tool");
+  const viaCli = /^gumroad-cli\//iu.test(request.headers.get("user-agent") ?? "");
   if (currency !== "usd") throw new HandBackToRails("a product priced in a currency other than USD");
   if (has(params, "name") && typeof params.name !== "string") throw new HandBackToRails("a name that is not text");
 
@@ -444,6 +443,7 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
       maxPurchaseCount,
       customizablePrice,
       suggestedPriceCents,
+      viaCli,
     });
     if (!outcome.created) return;
     const id = outcome.link.get("id");

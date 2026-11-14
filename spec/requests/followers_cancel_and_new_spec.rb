@@ -116,10 +116,11 @@ describe "Follower cancel and follow page links", type: :request do
       expect(follower.reload.deleted_at).to be_present
     end
 
-    it "hands a JSON request for an unknown follower to Rails", parity: true do
+    it "answers a JSON request for an unknown follower with a JSON 404", parity: true do
       get cancel_follow_path("unknownid"), headers: json_headers
 
       expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
     end
 
     it "keeps the audience member of a follower who is also a customer", parity: true do
@@ -170,10 +171,11 @@ describe "Follower cancel and follow page links", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a JSON request for an unknown account to Rails", parity: true do
+    it "answers a JSON request for an unknown account with a JSON 404", parity: true do
       get follow_user_page_path("nobodyhere"), headers: json_headers
 
       expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
     end
   end
 end

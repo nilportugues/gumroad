@@ -205,6 +205,14 @@ describe("POST /affiliates", () => {
     expect(mocks.createDirectAffiliate).not.toHaveBeenCalled();
   });
 
+  it("sends a fee outside the range back to the form with the validation message", async () => {
+    mocks.creationBlocker.mockResolvedValue({ refusal: "Affiliate commission must be between 1% and 75%." });
+    expect(await call(create, affiliate())).toEqual(
+      refusal("/affiliates/new", "Affiliate commission must be between 1% and 75%."),
+    );
+    expect(mocks.createDirectAffiliate).not.toHaveBeenCalled();
+  });
+
   it("hands a seller's missing product to Rails, which raises on it", async () => {
     mocks.selectRows.mockReset();
     mocks.selectRows.mockResolvedValue([]);
@@ -247,6 +255,14 @@ describe("PATCH /affiliates/:id", () => {
       productId: 11,
       productBasisPoints: 1000,
     });
+  });
+
+  it("sends an edit to a fee outside the range back to the edit page with the validation message", async () => {
+    mocks.updateBlocker.mockResolvedValue({ refusal: "Affiliate commission must be between 1% and 75%." });
+    expect(await call(update, affiliate())).toEqual(
+      refusal("/affiliates/ext-5/edit", "Affiliate commission must be between 1% and 75%."),
+    );
+    expect(mocks.updateDirectAffiliate).not.toHaveBeenCalled();
   });
 
   it("hands an edit the model cannot prove to Rails before saving", async () => {

@@ -5,7 +5,7 @@ require "spec_helper"
 # Settings::MainController#update and #resend_confirmation_email the way the Inertia form sends them (JSON body, X-Inertia, the CSRF
 # token in a header), recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/settings-main.replay.test.ts, which sends the last request of each example. Node serves the saves that send no
-# mail; a new or pending email address, a username change, a refund policy the fine print classifier must read, a missing user hash and
+# mail; a new or pending email address, a username change, a null time zone, a refund policy the fine print classifier must read and
 # the resend of a confirmation email are handed to Rails ("hands a ..." examples).
 describe "Settings main when signed in", type: :request do
   include Parity::AudienceSignedIn
@@ -431,6 +431,213 @@ describe "Settings main when signed in", type: :request do
 
         expect(response).to have_http_status(:see_other)
         expect(seller.refund_policy.reload.fine_print).to eq("Ask nicely and we will refund.")
+      end
+    end
+
+    # Shapes the form never sends. Rails commits each step before the next, so a step that raises keeps the ones before it and the
+    # action's rescue-all answers the generic alert.
+    describe "unusual parameter shapes" do
+      let(:generic_alert) { "Something broke. We're looking into what happened. Sorry about this!" }
+
+      def save(**user)
+        log_in(seller)
+        send_form(:put, settings_main_path, settings(show_nsfw_products: true, **user))
+      end
+
+      def save_without(key, **user)
+        body = settings(show_nsfw_products: true, **user)
+        body[:user].delete(key)
+        log_in(seller)
+        send_form(:put, settings_main_path, body)
+      end
+
+      def expect_saved_with_alert
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:alert]).to eq(generic_alert)
+        expect(seller.reload.show_nsfw_products).to eq(true)
+      end
+
+      def expect_saved
+        expect(response).to have_http_status(:see_other)
+        expect(flash[:notice]).to eq("Your account has been updated!")
+        expect(seller.reload.show_nsfw_products).to eq(true)
+      end
+
+      it "saves a null locale", parity: true do
+        save(locale: nil)
+
+        expect_saved
+        expect(seller.locale).to be_nil
+      end
+
+      it "hands a null time zone to Rails", parity: true do
+        save(timezone: nil)
+
+        expect_saved
+      end
+
+      describe "excluded products" do
+        let!(:disabled_product) { create(:product, user: seller, purchasing_power_parity_disabled: true) }
+        # A step after the excluded products, which the raise must keep from running.
+        let(:later_step) { [{ email: "help@example.com", product_ids: [disabled_product.external_id] }] }
+
+        it "saves excluded products that were left out when no product is disabled", parity: true do
+          disabled_product.update!(purchasing_power_parity_disabled: false)
+          save_without(:purchasing_power_parity_excluded_product_ids)
+
+          expect_saved
+        end
+
+        it "saves null excluded products when no product is disabled", parity: true do
+          disabled_product.update!(purchasing_power_parity_disabled: false)
+          save(purchasing_power_parity_excluded_product_ids: nil)
+
+          expect_saved
+        end
+
+        it "keeps the earlier steps and answers the alert for null excluded products when a product is disabled", parity: true do
+          save(purchasing_power_parity_excluded_product_ids: nil, product_level_support_emails: later_step)
+
+          expect_saved_with_alert
+          expect(disabled_product.reload).to have_attributes(purchasing_power_parity_disabled: true, support_email: nil)
+        end
+
+        it "keeps the earlier steps and answers the alert for excluded products left out when a product is disabled", parity: true do
+          save_without(:purchasing_power_parity_excluded_product_ids, product_level_support_emails: later_step)
+
+          expect_saved_with_alert
+          expect(disabled_product.reload).to have_attributes(purchasing_power_parity_disabled: true, support_email: nil)
+        end
+
+        it "re-enables a disabled product for excluded products sent as a string", parity: true do
+          save(purchasing_power_parity_excluded_product_ids: "abc")
+
+          expect_saved
+          expect(disabled_product.reload.purchasing_power_parity_disabled).to eq(false)
+        end
+
+        it "re-enables a disabled product for excluded products that are integers", parity: true do
+          save(purchasing_power_parity_excluded_product_ids: [5])
+
+          expect_saved
+          expect(disabled_product.reload.purchasing_power_parity_disabled).to eq(false)
+        end
+      end
+
+      describe "refund policy section" do
+        before { seller.update!(refund_policy_enabled: true) }
+
+        {
+          "a string" => "30",
+          "a list" => [30],
+          "a number" => 30,
+          "null" => nil,
+        }.each do |label, value|
+          it "keeps the earlier steps and answers the alert for a refund policy section that is #{label}", parity: true do
+            save(seller_refund_policy: value)
+
+            expect_saved_with_alert
+            expect(seller.refund_policy.reload.max_refund_period_in_days).to eq(30)
+          end
+        end
+
+        it "keeps the earlier steps and answers the alert for a refund policy section that was left out", parity: true do
+          save_without(:seller_refund_policy)
+
+          expect_saved_with_alert
+          expect(seller.refund_policy.reload.max_refund_period_in_days).to eq(30)
+        end
+
+        it "skips the alert and the later steps for a refund policy section that is not a hash when the policy is not editable", parity: true do
+          seller.update!(refund_policy_enabled: false)
+          save(seller_refund_policy: "30")
+
+          expect_saved
+        end
+      end
+
+      describe "product-level support emails" do
+        let!(:product) { create(:product, user: seller, support_email: "old@example.com") }
+
+        it "answers the alert for support emails sent as a string and keeps the stored address", parity: true do
+          save(product_level_support_emails: "help@example.com")
+
+          expect_saved_with_alert
+          expect(product.reload.support_email).to eq("old@example.com")
+        end
+
+        it "answers the alert for a support email entry that is a string and keeps the stored address", parity: true do
+          save(product_level_support_emails: ["help@example.com"])
+
+          expect_saved_with_alert
+          expect(product.reload.support_email).to eq("old@example.com")
+        end
+
+        it "answers the alert for a support email that is an integer and keeps the stored address", parity: true do
+          save(product_level_support_emails: [{ email: 5, product_ids: [product.external_id] }])
+
+          expect_saved_with_alert
+          expect(product.reload.support_email).to eq("old@example.com")
+        end
+
+        it "answers the alert for an invalid email on an entry without product ids and keeps the stored address", parity: true do
+          save(product_level_support_emails: [{ email: "not-an-email" }])
+
+          expect_saved_with_alert
+          expect(product.reload.support_email).to eq("old@example.com")
+        end
+
+        it "clears every product for an entry without product ids", parity: true do
+          save(product_level_support_emails: [{ email: "help@example.com" }])
+
+          expect_saved
+          expect(product.reload.support_email).to be_nil
+        end
+
+        it "clears every product for an entry whose product ids are a string", parity: true do
+          save(product_level_support_emails: [{ email: "help@example.com", product_ids: "abc" }])
+
+          expect_saved
+          expect(product.reload.support_email).to be_nil
+        end
+
+        it "clears every product for an entry whose product ids are integers", parity: true do
+          save(product_level_support_emails: [{ email: "help@example.com", product_ids: [5] }])
+
+          expect_saved
+          expect(product.reload.support_email).to be_nil
+        end
+
+        it "clears the listed products for an entry without an email", parity: true do
+          save(product_level_support_emails: [{ product_ids: [product.external_id] }])
+
+          expect_saved
+          expect(product.reload.support_email).to be_nil
+        end
+      end
+
+      describe "feature announcements" do
+        it "subscribes for a flag sent as a list", parity: true do
+          save(feature_announcements_subscribed: [false], feature_announcements_version: 0)
+
+          expect_saved
+          expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 1)
+        end
+
+        it "subscribes for a flag sent as a hash", parity: true do
+          save(feature_announcements_subscribed: { enabled: false }, feature_announcements_version: 0)
+
+          expect_saved
+          expect(FeatureAnnouncementSubscription.find_by!(user_id: seller.id)).to have_attributes(subscribed: true, version: 1)
+        end
+
+        it "says the subscription changed for a version sent as a list", parity: true do
+          save(feature_announcements_subscribed: true, feature_announcements_version: [0])
+
+          expect(response).to have_http_status(:see_other)
+          expect(flash[:notice]).to eq("Your account has been updated, but Feature announcements changed elsewhere, so that setting was not saved.")
+          expect(FeatureAnnouncementSubscription.where(user_id: seller.id)).to be_empty
+        end
       end
     end
 

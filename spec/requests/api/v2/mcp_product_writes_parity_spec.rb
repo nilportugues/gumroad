@@ -735,8 +735,139 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       update({ category: "other" })
     end
 
-    it "hands a list of tags back to Rails", parity: true do
-      update({ tags: ["field-notes"] })
+    describe "tags" do
+      def tag_names = product.reload.tags.pluck(:name)
+
+      it "saves one tag", parity: true do
+        update({ tags: ["field-notes"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "hands a tag with spaces back to Rails", parity: true do
+        update({ tags: ["  Field   Notes "] })
+
+        expect(tag_names).to eq(["field notes"])
+      end
+
+      it "strips a tag", parity: true do
+        update({ tags: ["\n Field-Notes\t"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "saves a tag beside a name", parity: true do
+        update({ name: "Pen", tags: ["field-notes"] })
+
+        expect(product.reload.name).to eq("Pen")
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "keeps a tag the product already has", parity: true do
+        product.save_tags!(["field-notes"])
+        update({ tags: ["Field-Notes"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "swaps the tag the product has for another", parity: true do
+        product.save_tags!(["field-notes"])
+        update({ tags: ["sketching"] })
+
+        expect(tag_names).to eq(["sketching"])
+      end
+
+      it "reuses a tag another product holds", parity: true do
+        create(:product, user: seller, unique_permalink: "markerpk").save_tags!(["sketching"])
+        update({ tags: ["sketching"] })
+
+        expect(tag_names).to eq(["sketching"])
+        expect(Tag.find_by(name: "sketching").taggings_count).to eq(2)
+      end
+
+      it "removes every tag with an empty list", parity: true do
+        product.save_tags!(["field-notes"])
+        update({ tags: [] })
+
+        expect(tag_names).to eq([])
+      end
+
+      it "removes the several tags a product has with an empty list", parity: true do
+        product.save_tags!(["field-notes", "sketching", "stationery"])
+        update({ tags: [] })
+
+        expect(tag_names).to eq([])
+      end
+
+      it "keeps one of the several tags a product has", parity: true do
+        product.save_tags!(["field-notes", "sketching"])
+        update({ tags: ["sketching"] })
+
+        expect(tag_names).to eq(["sketching"])
+      end
+
+      it "collapses a tag written twice", parity: true do
+        update({ tags: ["field-notes", "Field-Notes"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "refuses a tag of one character", parity: true do
+        update({ tags: ["a"] })
+
+        expect(tag_names).to eq([])
+      end
+
+      it "refuses a tag of 21 characters", parity: true do
+        update({ tags: ["a" * 21] })
+      end
+
+      it "accepts a tag of 20 characters", parity: true do
+        update({ tags: ["a" * 20] })
+
+        expect(tag_names).to eq(["a" * 20])
+      end
+
+      it "refuses a tag that is not text", parity: true do
+        update({ tags: [5] })
+      end
+
+      it "refuses more than ten tags", parity: true do
+        update({ tags: (10..20).map { "tag-#{_1}" } })
+      end
+
+      it "rolls the other changes back when a tag is refused", parity: true do
+        update({ name: "Pen", price_cents: 450, tags: ["a"] })
+
+        expect(product.reload.name).to eq("Pencil")
+        expect(product.price_cents).to eq(300)
+      end
+
+      it "reports the name error before a tag error", parity: true do
+        update({ name: "  ", tags: ["a"] })
+      end
+
+      it "hands a pair of tags back to Rails", parity: true do
+        update({ tags: ["field-notes", "sketching"] })
+
+        expect(tag_names).to eq(["field-notes", "sketching"])
+      end
+
+      it "hands a tag with a comma back to Rails", parity: true do
+        update({ tags: ["field,notes"] })
+      end
+
+      it "hands a tag with a hash back to Rails", parity: true do
+        update({ tags: ["#notes"] })
+      end
+
+      it "hands a tag with a non-ASCII letter back to Rails", parity: true do
+        update({ tags: ["café"] })
+      end
+
+      it "refuses a tag list that is not a list", parity: true do
+        update({ tags: "field-notes" })
+      end
     end
 
     it "hands a currency back to Rails", parity: true do

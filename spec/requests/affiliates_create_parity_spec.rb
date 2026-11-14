@@ -165,12 +165,23 @@ describe "Affiliates create", type: :request, parity_timeline: true, parity_mail
     expect(response).to have_http_status(:see_other)
   end
 
-  it "hands an affiliate with a fee above the allowed range", parity: true do
+  it "refuses an affiliate with a fee above the allowed range", parity: true do
     affiliate_user
     product
     log_in(seller)
 
     send_create(body(products: [listed(fee_percent: 90)]))
+
+    expect(response).to have_http_status(:found)
+    expect(response.location).to end_with(new_affiliate_path)
+  end
+
+  it "refuses an affiliate with a fee below the allowed range", parity: true do
+    affiliate_user
+    product
+    log_in(seller)
+
+    send_create(body(products: [listed(fee_percent: 0)]))
 
     expect(response).to have_http_status(:found)
     expect(response.location).to end_with(new_affiliate_path)

@@ -62,7 +62,7 @@ describe "Audience export when signed in", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a request without options to Rails", parity: true do
+  it "answers a request without options with a 400", parity: true do
     log_in(seller)
 
     export({})

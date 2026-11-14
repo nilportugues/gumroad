@@ -30,6 +30,7 @@ import { cancelPreorderWorker } from "./cancel-preorder-worker.ts";
 import { cancelSubscriptionsForProductWorker } from "./cancel-subscriptions-for-product-worker.ts";
 import { chargePreorderWorker } from "./charge-preorder-worker.ts";
 import { chargeSuccessfulPreordersWorker } from "./charge-successful-preorders-worker.ts";
+import { collectUnclaimedBalancesOfInactiveStripeAccountsJob } from "./collect-unclaimed-balances-of-inactive-stripe-accounts-job.ts";
 import {
   contentModerationAdminCommentJob,
   detectLegalEntityCountryDriftJob,
@@ -164,6 +165,7 @@ import {
 } from "./payout-note-retries-exhausted-jobs.ts";
 import { pdfUnstampableNotifierJob } from "./pdf-unstampable-notifier-job.ts";
 import { blockEmailDomainsWorker, blockObjectWorker, unblockObjectWorker } from "./platform-block-jobs.ts";
+import { postToPingEndpointsWorker } from "./post-to-ping-endpoints-worker.ts";
 import { processAssetPreviewRetinaWorker } from "./process-asset-preview-retina-worker.ts";
 import { processEarlyFraudWarningJob } from "./process-early-fraud-warning-job.ts";
 import { processPaymentWorker } from "./process-payment-worker.ts";
@@ -191,6 +193,7 @@ import { pushNotificationWorker } from "./push-notification-worker.ts";
 import { radarSyncValueListsJob } from "./radar-sync-value-lists-job.ts";
 import { radarAddValueListItemJob, radarRemoveValueListItemJob } from "./radar-value-list-jobs.ts";
 import { rebuildGmailAbuseFilterJob } from "./rebuild-gmail-abuse-filter-job.ts";
+import { reconcileClientConfirmedChargeJob } from "./reconcile-client-confirmed-charge-job.ts";
 import { reconcilePendingPaypalRefundsJob } from "./reconcile-pending-paypal-refunds-job.ts";
 import { reconcileStripePayoutsPauseForSellerJob } from "./reconcile-stripe-payouts-pause-for-seller-job.ts";
 import { reconcileStripePayoutsPausesJob } from "./reconcile-stripe-payouts-pauses-job.ts";
@@ -224,6 +227,7 @@ import {
   refundPurchaseWorker,
   updateUserBalanceStatsCacheWorker,
 } from "./refund-payout-guard-jobs.ts";
+import { refundPurchaseForFraudWorker } from "./refund-purchase-for-fraud-worker.ts";
 import { regenerateCreatorAnalyticsCacheWorker } from "./regenerate-creator-analytics-cache-worker.ts";
 import { regenerateSalesRelatedProductsInfosJob } from "./regenerate-sales-related-products-infos-job.ts";
 import {
@@ -599,6 +603,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Exports::Sales::CompileChunksWorker": compileChunksWorker,
   "Exports::Sales::ProcessChunkWorker": processChunkWorker,
   AnnualPayoutExportWorker: annualPayoutExportWorker,
+  CollectUnclaimedBalancesOfInactiveStripeAccountsJob: collectUnclaimedBalancesOfInactiveStripeAccountsJob,
+  PostToPingEndpointsWorker: postToPingEndpointsWorker,
+  ReconcileClientConfirmedChargeJob: reconcileClientConfirmedChargeJob,
+  RefundPurchaseForFraudWorker: refundPurchaseForFraudWorker,
   ExportPayoutData: exportPayoutData,
   ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
   GenerateSslCertificate: generateSslCertificate,
