@@ -137,7 +137,11 @@ describe("GET /purchases/:id/receipt", () => {
 
   it("redirects a signed-out visitor without an email to the form that asks for it", async () => {
     selectRows.mockResolvedValueOnce([{ id: 5n, seller_id: 7n }]);
-    const result = (await action.run(visit({}))) as { status: number; location: string; headers: Record<string, string> };
+    const result = (await action.run(visit({}))) as {
+      status: number;
+      location: string;
+      headers: Record<string, string>;
+    };
     expect(result.status).toBe(302);
     expect(result.location).toMatch(/^\/purchases\/.+\/confirm_receipt_email$/u);
     expect(result.headers).toEqual({ "x-robots-tag": "noindex" });
