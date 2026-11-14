@@ -63,6 +63,26 @@ describe "Product editor when signed in", type: :request do
     expect(inertia_props_of(response)["product"]).to include("custom_permalink" => "plain", "is_published" => false, "custom_summary" => "A summary")
   end
 
+  # log_in resets the flag store, so the flag is switched on after it.
+  it "offers scheduling for a never-published draft when the feature is on", parity: true do
+    product.update!(draft: true)
+    log_in(seller)
+    Feature.activate_user(:scheduled_product_publishing, seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(inertia_props_of(response)["product"]).to include("can_create_publish_schedule" => true, "publish_schedule" => nil)
+  end
+
+  it "does not offer scheduling for a published product when the feature is on", parity: true do
+    log_in(seller)
+    Feature.activate_user(:scheduled_product_publishing, seller)
+
+    get edit_link_path(product.unique_permalink)
+
+    expect(inertia_props_of(response)["product"]).to include("can_create_publish_schedule" => false, "publish_schedule" => nil)
+  end
+
   it "reads a product-level refund policy, the profile sections and name suggestions", parity: true do
     product.update!(product_refund_policy_enabled: true)
     product.find_or_initialize_product_refund_policy.update!(max_refund_period_in_days: 14, fine_print: "No returns after download")

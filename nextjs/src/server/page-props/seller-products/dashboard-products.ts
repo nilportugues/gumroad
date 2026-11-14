@@ -1,6 +1,7 @@
 // DashboardProductsPagePresenter: the props of Products/Index and Products/Archived/Index.
 import { Prisma, type User } from "@prisma/client";
 
+import { HandBackToRails } from "../../controllers/application-controller.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
@@ -72,6 +73,8 @@ export async function assertListingSupported(
 ): Promise<{ products: LinkRow[]; memberships: LinkRow[] }> {
   assertTableSupported(params.products);
   assertTableSupported(params.memberships);
+  // sorted_by(key: "cut") inner-joins affiliates, which drops every product without one; only the collabs page ports it.
+  if (params.products.sort?.key === "cut" || params.memberships.sort?.key === "cut") throw new HandBackToRails();
   const [products, memberships] = await Promise.all([
     tableRows(seller, "products", archived, params),
     tableRows(seller, "memberships", archived, params),

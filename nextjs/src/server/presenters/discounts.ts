@@ -121,7 +121,10 @@ type LoadedCode = {
   ownershipProducts: LinkRow[];
   excludedProducts: LinkRow[];
   variants: BaseVariant[];
+  ownershipVariants: BaseVariant[];
   ownerOf: Map<string, bigint | number | null>;
+  // Variant categories by id: the product they belong to and whether they were deleted.
+  categoryDeleted: Map<string, boolean>;
 };
 
 async function loadCodes(rows: OfferCode[]): Promise<LoadedCode[]> {
@@ -130,26 +133,35 @@ async function loadCodes(rows: OfferCode[]): Promise<LoadedCode[]> {
   const ownership = await preloadHabtm("offer_codes_ownership_products", "product_id", ids, loadLinks);
   const excluded = await preloadHabtm("offer_codes_excluded_products", "product_id", ids, loadLinks);
   const variants = await preloadHabtm("offer_codes_variants", "variant_id", ids, loadVariants);
+  const ownershipVariants = await preloadHabtm("offer_codes_ownership_variants", "variant_id", ids, loadVariants);
   // Only a Variant has a category (a Sku reads its own link_id).
   const categoryIds = [
     ...new Set(
-      [...variants.values()]
+      [...variants.values(), ...ownershipVariants.values()]
         .flat()
         .filter((variant) => variant.type === "Variant" && variant.variant_category_id !== null)
         .map((variant) => variant.variant_category_id!),
     ),
   ];
   const categories = new Map<string, bigint | number | null>();
+  const categoryDeleted = new Map<string, boolean>();
   if (categoryIds.length > 0)
-    for (const row of await selectRows<{ id: bigint | number; link_id: bigint | number | null }>(
-      Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "link_id")} FROM ${table("variant_categories")} WHERE ${columnIn("variant_categories", "id", categoryIds)}`,
-    ))
+    for (const row of await selectRows<{
+      id: bigint | number;
+      link_id: bigint | number | null;
+      deleted_at: Date | null;
+    }>(
+      Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "link_id")}, ${column("variant_categories", "deleted_at")} FROM ${table("variant_categories")} WHERE ${columnIn("variant_categories", "id", categoryIds)}`,
+    )) {
       categories.set(String(row.id), row.link_id);
+      categoryDeleted.set(String(row.id), row.deleted_at !== null);
+    }
   return rows.map((row) => {
     const own = variants.get(row.id)!;
+    const ownedOptions = ownershipVariants.get(row.id)!;
     // BaseVariant#owning_product_id
     const ownerOf = new Map(
-      own.map(
+      [...own, ...ownedOptions].map(
         (variant) =>
           [
             String(variant.id),
@@ -165,7 +177,9 @@ async function loadCodes(rows: OfferCode[]): Promise<LoadedCode[]> {
       ownershipProducts: ownership.get(row.id)!,
       excludedProducts: excluded.get(row.id)!,
       variants: own,
+      ownershipVariants: ownedOptions,
       ownerOf,
+      categoryDeleted,
     };
   });
 }
@@ -229,6 +243,21 @@ export function offerCodeProps(loaded: LoadedCode, seller: User, sellerContext: 
     const key = encrypt(owner);
     optionIds.set(key, [...(optionIds.get(key) ?? []), encrypt(variant.id)]);
   }
+  // OfferCode#ownership_option_ids_by_product and Checkout::DiscountsPresenter#ownership_option_details
+  const ownershipOptionIds = new Map<string, string[]>();
+  const ownershipOptions: Record<string, { name: string; deleted: boolean }> = {};
+  for (const variant of loaded.ownershipVariants) {
+    const owner = loaded.ownerOf.get(String(variant.id)) ?? null;
+    if (owner === null) throw new NotPortedError("an option with no owning product", "offer_code.rb:348");
+    const key = encrypt(owner);
+    ownershipOptionIds.set(key, [...(ownershipOptionIds.get(key) ?? []), encrypt(variant.id)]);
+    ownershipOptions[encrypt(variant.id)] = {
+      name: variant.name ?? "",
+      deleted:
+        variant.deleted_at !== null ||
+        (variant.type === "Variant" && loaded.categoryDeleted.get(String(variant.variant_category_id)) === true),
+    };
+  }
   const cents = row.amount_cents !== null;
   return {
     id: encrypt(row.id),
@@ -251,6 +280,8 @@ export function offerCodeProps(loaded: LoadedCode, seller: User, sellerContext: 
     auto_apply: row.auto_apply,
     sale_label: row.sale_label,
     ownership_products: loaded.ownershipProducts.map((product) => productProps(product, seller)),
+    ownership_option_ids_by_product: Object.fromEntries(ownershipOptionIds),
+    ownership_options: ownershipOptions,
     ownership_duration_tiers: tiers,
     option_ids_by_product: Object.fromEntries(optionIds),
   };
@@ -261,7 +292,8 @@ type OptionRow = {
   name: string | null;
   variant_category_id: bigint | number | null;
   position_in_category: number | null;
-  created_at: Date;
+  // Rows written before base_variants recorded timestamps carry none.
+  created_at: Date | null;
 };
 
 // Checkout::DiscountsPresenter#product_props_by_product
@@ -306,7 +338,7 @@ export async function productPropsByProduct(seller: User) {
           (a, b) =>
             (a.position_in_category === null ? 0 : 1) - (b.position_in_category === null ? 0 : 1) ||
             (a.position_in_category ?? 0) - (b.position_in_category ?? 0) ||
-            a.created_at.getTime() - b.created_at.getTime(),
+            (a.created_at?.getTime() ?? 0) - (b.created_at?.getTime() ?? 0),
         );
     }
     if (options.length > 0)

@@ -30,12 +30,12 @@ const SPECS: Record<string, { flag: string; methods: string[]; exclude?: RegExp;
   product_reviews_controller_spec: { flag: "nextjs_api_v2_product_reviews", methods: ["GET"] },
   offer_codes_controller_spec: { flag: "nextjs_api_v2_offer_codes", methods: ["GET"] },
   resource_subscriptions_controller_spec: { flag: "nextjs_api_v2_resource_subscriptions", methods: ["GET", "DELETE"] },
-  // WS-17g: #show renders Purchase#as_json(version: 2); the writes, #summary and #export are not served yet. #index stays in Rails whole:
-  // Rack::Attack counts the requests past page 10 in its Redis, and a Node answer would skip that counter.
+  // WS-17g: #show renders Purchase#as_json(version: 2). #index is replayed only for its deprecated page ceiling (the 400 and the
+  // largest page that still answers): the rest of its examples need the sales index, which these replays do not seed.
   sales_controller_spec: {
     flag: "nextjs_api_v2_sales",
     methods: ["POST", "GET"],
-    include: /resend-receipt|get-show/u,
+    include: /resend-receipt|get-show|get-index-.*(too-large-for|largest-page|first-page-past)/u,
   },
   upsells_controller_spec: { flag: "nextjs_api_v2_upsells", methods: ["GET"] },
   licenses_controller_spec: { flag: "nextjs_api_v2_licenses", methods: ["POST", "PUT"] },

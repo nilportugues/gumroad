@@ -175,6 +175,16 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
     expect(customers_of(response).first["review"]).to include("rating" => 2, "message" => nil, "response" => nil)
   end
 
+  it "hides a review a refund removed", parity: true do
+    purchase = sell(product, days_ago: 3)
+    create(:product_review, purchase:, link: product, rating: 4, message: "Very good").update_columns(deleted_at: Time.current)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["review"]).to be_nil
+  end
+
   it "shows where the customer came from and the purchasing power discount", parity: true do
     sell(product, days_ago: 3, referrer: "https://twitter.com/somebody")
     sell(product, days_ago: 4, referrer: "direct")

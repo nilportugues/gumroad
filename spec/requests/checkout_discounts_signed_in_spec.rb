@@ -51,6 +51,20 @@ describe "Checkout discounts when signed in", type: :request do
       expect(response.parsed_body["component"]).to eq("Checkout/Discounts/Index")
     end
 
+    it "lists the versions of a product whose rows carry no position or timestamp", parity: true do
+      category = create(:variant_category, link: alpha, title: "Size")
+      untimestamped = [create(:variant, variant_category: category, name: "Small"), create(:variant, variant_category: category, name: "Large")]
+      untimestamped.each { |variant| variant.update_columns(position_in_category: nil, created_at: nil) }
+      create(:variant, variant_category: category, name: "Medium").update_columns(position_in_category: nil, created_at: Time.utc(2025, 1, 1))
+      seed_codes
+      log_in(seller)
+
+      inertia_visit checkout_discounts_path
+
+      expect(response).to be_successful
+      expect(response.parsed_body["props"]["products"].find { _1["name"] == "Alpha" }["options"].map { _1["name"] }).to match_array(%w[Small Large Medium])
+    end
+
     it "shows the Black Friday banner when the feature is on", parity: true do
       Feature.activate(:black_friday_seller_banner)
       seed_codes
@@ -216,6 +230,26 @@ describe "Checkout discounts when signed in", type: :request do
       fetch
 
       expect(response.parsed_body["offer_codes"].size).to eq(3)
+    end
+
+    it "lists the options an existing-customers code requires, live and deleted", parity: true do
+      category = create(:variant_category, link: alpha, title: "Size")
+      small = create(:variant, variant_category: category, name: "Small")
+      removed = create(:variant, variant_category: category, name: "Removed")
+      removed.mark_deleted!
+      gone_category = create(:variant_category, link: beta, title: "Gone")
+      stranded = create(:variant, variant_category: gone_category, name: "Stranded")
+      gone_category.mark_deleted!
+      loyal = create(:offer_code, :for_existing_customers, user: seller, products: [alpha], code: "LOYAL", amount_cents: 75)
+      loyal.ownership_variants << small
+      loyal.ownership_variants << removed
+      loyal.ownership_variants << stranded
+      stamp(loyal, 1)
+      log_in(seller)
+
+      fetch
+
+      expect(response.parsed_body["offer_codes"][0]["ownership_options"].values.map { _1["deleted"] }).to eq([false, true, true])
     end
 
     it "lets an accountant read but not edit", parity: true do

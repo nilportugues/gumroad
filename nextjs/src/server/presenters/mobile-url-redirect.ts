@@ -1,6 +1,6 @@
 // Port of UrlRedirect#product_json_data (the url-redirect half of Purchase#json_data_for_mobile) for a redirect of a purchase whose
-// files Node can list (url-redirects/files.ts hands back variants, rich content, preorders and stamped PDFs) and that has no
-// installment or subscription. The latest media location of each file is ported. Anything else throws, so the caller hands the request to Rails before writing.
+// files Node can list (url-redirects/files.ts hands back several or shared versions, rich content, preorders and stamped PDFs) and
+// that has no installment. A purchased version lists its own files, as on the download page. The latest media location of each file is ported. Anything else throws, so the caller hands the request to Rails before writing.
 import type { MediaLocation, ProductFile, Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
@@ -108,7 +108,7 @@ export type UrlRedirectMobileData = { urlRedirectExternalId: string; urlRedirect
 export async function urlRedirectMobileData(loaded: Loaded & { purchase: Purchase }): Promise<UrlRedirectMobileData> {
   const { redirect, purchase } = loaded;
   if (redirect.installment_id !== null) throw new NotPortedError("a url redirect of a post");
-  const files = await aliveProductFiles(loaded);
+  const files = await aliveProductFiles(loaded, undefined, { versions: true });
   // UrlRedirect#latest_mobile_media_locations_by_product_file_id: only the locations of alive files they fit
   const locations = new Map<bigint, MediaLocation>();
   for (const [fileId, location] of await latestLocationsByFile(purchase.id)) {

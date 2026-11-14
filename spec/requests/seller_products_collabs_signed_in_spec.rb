@@ -107,6 +107,74 @@ describe "Collabs page when signed in", type: :request do
     expect(response).to be_successful
   end
 
+  describe "sorted by cut" do
+    let(:other_collaborator) { create(:user, name: "Other collaborator") }
+
+    def names_of(key)
+      inertia_props_of(response)["products_data"]["products"].map { _1[key] }
+    end
+
+    def shared_product(collaborator, name, cut, **attributes)
+      create(:product, :is_collab, user: seller, collaborator:, collaborator_cut: cut, name:, **attributes)
+    end
+
+    before do
+      @first = create(:collaborator, seller:, affiliate_user: collaborator_user, affiliate_basis_points: 30_00)
+      @second = create(:collaborator, seller:, affiliate_user: other_collaborator, affiliate_basis_points: 50_00)
+      shared_product(@first, "Thirty", 30_00, created_at: Time.utc(2025, 1, 1))
+      shared_product(@second, "Fifty", 50_00, created_at: Time.utc(2025, 1, 2))
+      shared_product(@second, "Ten", 10_00, created_at: Time.utc(2025, 1, 3))
+      Link.find_each { ProductCachedValue.create!(product: _1) }
+    end
+
+    it "sorts by the seller's cut ascending", parity: true do
+      log_in(seller)
+
+      get products_collabs_path, params: { products_sort_key: "cut", products_sort_direction: "asc" }
+
+      expect(names_of("name")).to eq(%w[Fifty Thirty Ten])
+      expect(names_of("cut")).to eq([50, 70, 90])
+    end
+
+    it "sorts by the seller's cut descending", parity: true do
+      log_in(seller)
+
+      get products_collabs_path, params: { products_sort_key: "cut", products_sort_direction: "desc" }
+
+      expect(names_of("name")).to eq(%w[Ten Thirty Fifty])
+    end
+
+    it "sorts a collaborator's collabs by their own cut descending", parity: true do
+      log_in(other_collaborator)
+
+      get products_collabs_path, params: { products_sort_key: "cut", products_sort_direction: "desc" }
+
+      expect(names_of("name")).to eq(%w[Fifty Ten])
+      expect(names_of("cut")).to eq([50, 10])
+    end
+
+    it "sorts collab memberships by cut", parity: true do
+      membership = { is_recurring_billing: true, subscription_duration: :monthly, is_tiered_membership: true, native_type: Link::NATIVE_TYPE_MEMBERSHIP }
+      shared_product(@first, "Club low", 20_00, **membership, created_at: Time.utc(2025, 2, 1))
+      shared_product(@first, "Club high", 40_00, **membership, created_at: Time.utc(2025, 2, 2))
+      Link.find_each { ProductCachedValue.create!(product: _1) unless _1.product_cached_values.exists? }
+      log_in(collaborator_user)
+
+      get products_collabs_path, params: { memberships_sort_key: "cut", memberships_sort_direction: "asc" }
+
+      expect(inertia_props_of(response)["memberships_data"]["memberships"].map { _1["name"] }).to eq(["Club low", "Club high"])
+    end
+
+    it "lists a collab once per affiliate it has when sorted by cut", parity: true do
+      create(:direct_affiliate, seller:, affiliate_user: create(:user), products: [Link.find_by!(name: "Ten")])
+      log_in(seller)
+
+      get products_collabs_path, params: { products_sort_key: "cut", products_sort_direction: "desc" }
+
+      expect(names_of("name")).to eq(%w[Ten Ten Thirty Fifty])
+    end
+  end
+
   it "answers a partial reload of the tables", parity: true do
     one = collab_product(owner: seller, collaborator: collaborator_user, name: "Alpha collab")
     cache_values(one)

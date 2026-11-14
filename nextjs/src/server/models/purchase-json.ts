@@ -490,7 +490,13 @@ async function load(purchases: Row[]): Promise<Loaded> {
     shipments: first(await rowsBy("shipments", "purchase_id", ids), "purchase_id"),
     licenses: first(await rowsBy("licenses", "purchase_id", ids), "purchase_id"),
     reviews: first(
-      await rowsBy("product_reviews", "purchase_id", [...ids, ...trueOriginal.values(), ...gifteePurchases.keys()]),
+      // Purchase#alive_original_product_review: a review a refund, chargeback or access revoke removed is not printed.
+      await rowsBy(
+        "product_reviews",
+        "purchase_id",
+        [...ids, ...trueOriginal.values(), ...gifteePurchases.keys()],
+        Prisma.sql` AND ${column("product_reviews", "deleted_at")} IS NULL`,
+      ),
       "purchase_id",
     ),
     merchantAccountOf,
@@ -549,8 +555,34 @@ export type PurchaseJsonOptions = {
   now?: Date;
   // The is_following value to use per purchase id (the controller's lookup); `is_following?` is read when absent.
   isFollowing?: (purchase: Row) => boolean | Promise<boolean>;
+  // `include_url_params: true` (the Sales API only): the buyer's URL parameters under `url_params`.
+  includeUrlParams?: boolean;
   // as_json_for_license: included keys are renamed there; nothing differs here.
 };
+
+// `url_parameters.presence`: the `params` of the purchase's row; an empty hash prints nothing. `has_one` reads an arbitrary row
+// when there are several, which only Rails can follow.
+async function urlParametersByPurchase(purchases: Row[]): Promise<Map<string, unknown>> {
+  const rows = await rowsBy(
+    "purchase_url_parameters",
+    "purchase_id",
+    purchases.map((purchase) => purchase.id),
+  );
+  const out = new Map<string, unknown>();
+  for (const row of rows) {
+    const key = String(row.purchase_id);
+    if (out.has(key)) throw new NotPortedError("a sale with several URL parameter rows", "purchase.rb:3670");
+    const params: unknown = typeof row.params === "string" ? JSON.parse(row.params) : row.params;
+    const empty =
+      params === null ||
+      params === false ||
+      (Array.isArray(params) && params.length === 0) ||
+      (typeof params === "object" && !Array.isArray(params) && Object.keys(params).length === 0) ||
+      params === "";
+    if (!empty) out.set(key, params);
+  }
+  return out;
+}
 
 // Purchase#as_json(version: 2, include_buyer_presentment: true)
 export async function purchasesAsJsonV2(
@@ -560,8 +592,14 @@ export async function purchasesAsJsonV2(
   if (purchases.length === 0) return [];
   const loaded = await load(purchases);
   const now = options.now ?? new Date();
+  const urlParams = options.includeUrlParams ? await urlParametersByPurchase(purchases) : new Map<string, unknown>();
   const result: Record<string, unknown>[] = [];
-  for (const purchase of purchases) result.push(await one(purchase, loaded, now, options));
+  for (const purchase of purchases) {
+    const json = await one(purchase, loaded, now, options);
+    const params = urlParams.get(String(purchase.id));
+    if (params !== undefined) json.url_params = params;
+    result.push(json);
+  }
   return result;
 }
 

@@ -577,7 +577,15 @@ async function load(ids: string[], seller: User, variantOrder: VariantOrder = "j
   );
   const gifteeLicenses = await gifteeLicensesOf(gifts);
 
-  const reviews = byId(await rowsBy("product_reviews", "purchase_id", purchaseIds));
+  // CustomerPresenter reads Purchase#alive_original_product_review.
+  const reviews = byId(
+    await rowsBy(
+      "product_reviews",
+      "purchase_id",
+      purchaseIds,
+      Prisma.sql` AND ${column("product_reviews", "deleted_at")} IS NULL`,
+    ),
+  );
   const reviewsByPurchase = new Map([...reviews.values()].map((review) => [String(review.purchase_id), review]));
   const reviewIds = [...reviews.values()].map((review) => review.id);
   const reviewVideos = await shownReviewVideos(reviewIds);
