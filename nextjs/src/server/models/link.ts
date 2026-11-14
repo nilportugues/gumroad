@@ -13,8 +13,8 @@ import { railsCache } from "../cache/rails-cache.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { getRedis } from "../infra/redis.ts";
 
-import { getUsdCents as helperGetUsdCents } from "./concerns/currency-helper.ts";
 import { isAdult } from "./concerns/adult-keyword-detector.ts";
+import { getUsdCents as helperGetUsdCents } from "./concerns/currency-helper.ts";
 import { deletable } from "./concerns/deletable.ts";
 import { afterCommitEverywhere, performAsync } from "./concerns/job-runtime.ts";
 import {

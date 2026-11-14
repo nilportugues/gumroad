@@ -535,10 +535,80 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a tag that is not plain lowercase back to Rails", parity: true do
-    create_product({ name: "Notebook", price: 500, tags: ["Paper"] })
+  describe "tags that are not plain lowercase" do
+    it "lowercases a tag name", parity: true, parity_timeline: true do
+      create_product({ name: "Notebook", price: 500, tags: ["Paper", "notes"] })
 
-    expect(response.parsed_body).to include("success" => true)
+      expect(response.parsed_body.dig("product", "tags")).to match_array(%w[paper notes])
+    end
+
+    it "reuses an existing tag named in capitals", parity: true do
+      Tag.create!(name: "paper")
+
+      create_product({ name: "Notebook", price: 500, tags: ["PAPER"] })
+
+      expect(Tag.where(name: "paper").count).to eq(1)
+      expect(Tag.find_by(name: "paper").reload.taggings_count).to eq(1)
+    end
+
+    it "refuses a tag of one character and rolls the product back", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["paper", "a"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+      expect(Tag.count).to eq(0)
+    end
+
+    it "refuses a tag of one capital letter", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["A"] })
+
+      expect(response.parsed_body["success"]).to be false
+    end
+
+    it "refuses a tag with a comma", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["paper,pen"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "refuses a tag over twenty characters", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["a" * 21] })
+
+      expect(response.parsed_body["success"]).to be false
+    end
+
+    it "refuses a tag that repeats a name", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["paper", "paper"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "keeps a tag with a space and a tag with a dash", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["dot grid", "A5-size"] })
+
+      expect(response.parsed_body.dig("product", "tags")).to match_array(["dot grid", "a5-size"])
+    end
+
+    it "keeps punctuation in a tag name", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["C++", "node.js", "50%"] })
+
+      expect(response.parsed_body.dig("product", "tags")).to match_array(%w[c++ node.js 50%])
+    end
+
+    it "refuses a tag that starts with a hash", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["#paper"] })
+
+      expect(response.parsed_body["success"]).to be false
+      expect(Link.count).to eq(0)
+    end
+
+    it "refuses two spellings of one tag", parity: true do
+      create_product({ name: "Notebook", price: 500, tags: ["Paper", "paper"] })
+
+      expect(response.parsed_body["success"]).to be false
+    end
   end
 
   it "hands a description Nokogiri would rewrite back to Rails", parity: true do

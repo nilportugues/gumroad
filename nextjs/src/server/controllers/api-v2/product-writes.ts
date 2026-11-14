@@ -240,6 +240,9 @@ async function uploadedFileStorageError(files: Params[]): Promise<Rendered | nul
   return null;
 }
 
+// A Tag or ProductTagging that failed to save inside the create transaction: `render_response(false, message: e.record.errors.full_messages.to_sentence)`.
+class TagRefused extends Error {}
+
 async function hasMultipleRecurrences(productId: bigint): Promise<boolean> {
   const [row] = await selectRows<{ recurrences: bigint }>(
     Prisma.sql`SELECT COUNT(DISTINCT ${column("prices", "recurrence")}) AS recurrences FROM ${table("prices")} WHERE ${column("prices", "link_id")} = ${productId} AND ${column("prices", "deleted_at")} IS NULL AND ${column("prices", "flags")} & 1 = 0`,
@@ -406,7 +409,7 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     ? customizablePriceParam(params.customizable_price)
     : undefined;
   const tagWork = has(params, "tags")
-    ? await planTagChanges(0n, params.tags as string[], { plainOnly: true })
+    ? await planTagChanges(0n, params.tags as string[], { creating: true })
     : undefined;
   const files = has(params, "files") ? permittedNewFiles(params.files as Params[]) : undefined;
 
@@ -432,29 +435,42 @@ async function createDigitalProduct(input: ApiV2Input, nativeType: string, curre
     isTeamMember: UserFlags.isSet(owner.flags, "is_team_member"),
   };
   let outcome: Awaited<ReturnType<typeof createApiLink>> | undefined;
-  await transaction(async () => {
-    outcome = await createApiLink(seller, {
-      name: has(params, "name") ? (params.name as string) : null,
-      description,
-      priceCents,
-      currency,
-      taxonomyId,
-      customSummary,
-      maxPurchaseCount,
-      customizablePrice,
-      suggestedPriceCents,
-      viaCli,
+  try {
+    await transaction(async () => {
+      outcome = await createApiLink(seller, {
+        name: has(params, "name") ? (params.name as string) : null,
+        description,
+        priceCents,
+        currency,
+        taxonomyId,
+        customSummary,
+        maxPurchaseCount,
+        customizablePrice,
+        suggestedPriceCents,
+        viaCli,
+      });
+      if (!outcome.created) return;
+      const id = outcome.link.get("id");
+      // The description is saved again as SaveContentUpsellsService returns it.
+      if (description !== null) {
+        await Links.updateBang(await findLinkBang(id), { description: nokogiriRoundtrip(description) });
+      }
+      if (tagWork !== undefined) {
+        try {
+          await saveTags(id, tagWork);
+        } catch (caught) {
+          // The refused record is a Tag or ProductTagging, not the product: the action renders its own messages, not the product's.
+          if (caught instanceof RecordInvalid) throw new TagRefused(toSentence(caught.errors.fullMessages()));
+          throw caught;
+        }
+      }
+      // SaveFilesService.perform, then `@product.save!`; the product has no rich content, variant or archive to rebuild.
+      if (files !== undefined) await saveFilesForNewProduct(await findLinkBang(id), files);
     });
-    if (!outcome.created) return;
-    const id = outcome.link.get("id");
-    // The description is saved again as SaveContentUpsellsService returns it.
-    if (description !== null) {
-      await Links.updateBang(await findLinkBang(id), { description: nokogiriRoundtrip(description) });
-    }
-    if (tagWork !== undefined) await saveTags(id, tagWork);
-    // SaveFilesService.perform, then `@product.save!`; the product has no rich content, variant or archive to rebuild.
-    if (files !== undefined) await saveFilesForNewProduct(await findLinkBang(id), files);
-  });
+  } catch (caught) {
+    if (caught instanceof TagRefused) return refuse(caught.message);
+    throw caught;
+  }
   if (!outcome!.created) return errorWithCreatingObject("product", { errors: outcome!.errors.fullMessages() });
 
   const id = outcome!.link.get("id");
