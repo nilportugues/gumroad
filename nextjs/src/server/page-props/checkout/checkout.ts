@@ -12,9 +12,10 @@ import { getConfig } from "../../infra/config.ts";
 import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { geoIpLookup } from "../../infra/geo-ip.ts";
 import { getRedis } from "../../infra/redis.ts";
-import { LinkFlags } from "../../models/link.ts";
 import { alpha2ByName } from "../../models/compliance-countries.ts";
+import { LinkFlags } from "../../models/link.ts";
 import { selectRows } from "../../models/sql.ts";
+
 import type { Arrival } from "./arrivals.ts";
 import DATA from "./checkout-data.generated.json" with { type: "json" };
 
@@ -42,9 +43,13 @@ const present = (value: string | null | undefined): value is string => value != 
 
 // Cart.fetch_by: the user's first alive cart, else (for a visitor with a guid) the alive guest cart of that browser.
 export async function fetchCart(userId: bigint | null, browserGuid: string | null): Promise<CartRow | null> {
-  const columns = Prisma.raw("`carts`.`id`, `carts`.`email`, `carts`.`return_url`, `carts`.`reject_ppp_discount`, `carts`.`discount_codes`, `carts`.`browser_guid`, `carts`.`user_id`");
+  const columns = Prisma.raw(
+    "`carts`.`id`, `carts`.`email`, `carts`.`return_url`, `carts`.`reject_ppp_discount`, `carts`.`discount_codes`, `carts`.`browser_guid`, `carts`.`user_id`",
+  );
   if (userId !== null) {
-    const [row] = await selectRows<CartRow>(Prisma.sql`SELECT ${columns} FROM \`carts\` WHERE \`carts\`.\`deleted_at\` IS NULL AND \`carts\`.\`user_id\` = ${userId} ORDER BY \`carts\`.\`id\` ASC LIMIT 1`);
+    const [row] = await selectRows<CartRow>(
+      Prisma.sql`SELECT ${columns} FROM \`carts\` WHERE \`carts\`.\`deleted_at\` IS NULL AND \`carts\`.\`user_id\` = ${userId} ORDER BY \`carts\`.\`id\` ASC LIMIT 1`,
+    );
     return row ?? null;
   }
   if (!present(browserGuid) && (browserGuid ?? "") === "") return null;
@@ -82,7 +87,8 @@ export async function aliveLinesOfCart(cartId: bigint): Promise<number> {
 
 // A stored `discount_codes` of a cart: JSON, [] when unset.
 export function storedDiscountCodeCount(cart: CartRow): number {
-  const codes = typeof cart.discount_codes === "string" ? (JSON.parse(cart.discount_codes) as unknown) : cart.discount_codes;
+  const codes =
+    typeof cart.discount_codes === "string" ? (JSON.parse(cart.discount_codes) as unknown) : cart.discount_codes;
   return Array.isArray(codes) ? codes.length : codes == null ? 0 : 1;
 }
 
@@ -91,15 +97,26 @@ export type CheckoutCart = { email: string | null; returnUrl: string; rejectPppD
 // CartPresenter#cart_props with no visible line and no stored code.
 export function cartProps(cart: CheckoutCart | null) {
   if (cart === null) return null;
-  return { email: cart.email, returnUrl: cart.returnUrl, rejectPppDiscount: cart.rejectPppDiscount, discountCodes: [], items: [] };
+  return {
+    email: cart.email,
+    returnUrl: cart.returnUrl,
+    rejectPppDiscount: cart.rejectPppDiscount,
+    discountCodes: [],
+    items: [],
+  };
 }
 
 export function cartStateOf(cart: CartRow): CheckoutCart {
-  return { email: present(cart.email) ? cart.email : null, returnUrl: present(cart.return_url) ? cart.return_url : "", rejectPppDiscount: Boolean(Number(cart.reject_ppp_discount)) };
+  return {
+    email: present(cart.email) ? cart.email : null,
+    returnUrl: present(cart.return_url) ? cart.return_url : "",
+    rejectPppDiscount: Boolean(Number(cart.reject_ppp_discount)),
+  };
 }
 
 // TipOptionsService.get_tip_options / get_default_tip_option: unparsable or non-integer Redis values fall back.
-const isIntegerArray = (value: unknown): value is number[] => Array.isArray(value) && value.every((item) => Number.isInteger(item));
+const isIntegerArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((item) => Number.isInteger(item));
 
 export async function tipOptions(): Promise<number[]> {
   try {
@@ -126,18 +143,33 @@ function parseRubyInteger(text: string): number {
 async function recaptcha(user: User | null) {
   const scoreKey = getConfig(SCORE_SITE_KEY);
   const challengeKey = getConfig(MONEY_SITE_KEY) ?? null;
-  const scoreBased = present(scoreKey) && (await isFeatureEnabled(DATA.recaptchaCohortFeature, user ? userActor(user.id) : null));
+  const scoreBased =
+    present(scoreKey) && (await isFeatureEnabled(DATA.recaptchaCohortFeature, user ? userActor(user.id) : null));
   return { key: scoreBased ? scoreKey! : challengeKey, scoreBased, challengeKey };
 }
 
-type CreditCardRow = { card_type: string | null; visual: string | null; expiry_month: number | null; expiry_year: number | null; card_country: string | null; payment_method_type: string | null };
+type CreditCardRow = {
+  card_type: string | null;
+  visual: string | null;
+  expiry_month: number | null;
+  expiry_year: number | null;
+  card_country: string | null;
+  payment_method_type: string | null;
+};
 
 // CheckoutPresenter.saved_card
 async function savedCard(user: User | null) {
   if (!user?.credit_card_id) return null;
   const card = await db.creditCard.findUnique({
     where: { id: Number(user.credit_card_id) },
-    select: { card_type: true, visual: true, expiry_month: true, expiry_year: true, card_country: true, payment_method_type: true },
+    select: {
+      card_type: true,
+      visual: true,
+      expiry_month: true,
+      expiry_year: true,
+      card_country: true,
+      payment_method_type: true,
+    },
   });
   if (!card || card.card_type === PAYPAL_CARD_TYPE) return null;
   return savedCardProps(card);
@@ -149,7 +181,10 @@ export function savedCardProps(card: CreditCardRow) {
     type: card.card_type,
     number: card.visual,
     // CreditCard#expiry_visual
-    expiration_date: card.expiry_month == null || card.expiry_year == null ? null : `${String(card.expiry_month).padStart(2, "0")}/${String(card.expiry_year).slice(-2)}`,
+    expiration_date:
+      card.expiry_month == null || card.expiry_year == null
+        ? null
+        : `${String(card.expiry_month).padStart(2, "0")}/${String(card.expiry_year).slice(-2)}`,
     requires_mandate: !upi && card.card_country === INDIA_ALPHA2,
   };
 }
@@ -171,7 +206,10 @@ export async function checkoutProps({
   const geo = geoIpLookup(remoteIp);
   const detectedCountry = geo?.countryName ?? null;
   const country = user?.country ?? detectedCountry;
-  const detectedState = detectedCountry !== null && (detectedCountry === DATA.usaCommonName || detectedCountry === DATA.canCommonName) ? (geo?.regionName ?? null) : null;
+  const detectedState =
+    detectedCountry !== null && (detectedCountry === DATA.usaCommonName || detectedCountry === DATA.canCommonName)
+      ? (geo?.regionName ?? null)
+      : null;
   const captcha = await recaptcha(user);
 
   return {
