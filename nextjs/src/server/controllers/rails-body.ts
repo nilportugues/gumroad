@@ -18,6 +18,14 @@ export function assertMunged(value: unknown): void {
   } else if (isHash(value)) for (const item of Object.values(value)) assertMunged(item);
 }
 
+// The same cleaning, applied: `[nil, 1]` is `[1]` and `[nil]` is `[]`, children first.
+export function compactNils(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(compactNils).filter((item) => item !== null);
+  if (isHash(value) && !(value instanceof RubyFloat))
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, compactNils(item)]));
+  return value;
+}
+
 function decode(value: string): string {
   try {
     return decodeURIComponent(value.replaceAll("+", " "));
@@ -76,7 +84,7 @@ function parseJsonKeepingFloats(text: string): unknown {
   return (JSON.parse as (text: string, reviver: NumberReviver) => unknown)(text, reviver);
 }
 
-export function parseBody(contentType: string | null, bytes: Uint8Array, floats = false): Params {
+export function parseBody(contentType: string | null, bytes: Uint8Array, floats = false, dropNils = false): Params {
   const text = Buffer.from(bytes).toString("utf8");
   const type = (contentType ?? "").split(";")[0]!.trim().toLowerCase();
   if (type === "application/json") {
@@ -88,6 +96,7 @@ export function parseBody(contentType: string | null, bytes: Uint8Array, floats 
       throw new HandBackToRails("an invalid JSON body");
     }
     if (!isHash(parsed)) throw new HandBackToRails("a JSON body that is not an object");
+    if (dropNils) return compactNils(parsed) as Params;
     assertMunged(parsed);
     return parsed;
   }
@@ -97,6 +106,12 @@ export function parseBody(contentType: string | null, bytes: Uint8Array, floats 
 }
 
 // query parameters, then the body (`params` merges the body over the query string)
-export function requestParams(url: URL, contentType: string | null, bytes: Uint8Array, floats = false): Params {
-  return { ...parseNestedQuery(url.search.replace(/^\?/u, "")), ...parseBody(contentType, bytes, floats) };
+export function requestParams(
+  url: URL,
+  contentType: string | null,
+  bytes: Uint8Array,
+  floats = false,
+  dropNils = false,
+): Params {
+  return { ...parseNestedQuery(url.search.replace(/^\?/u, "")), ...parseBody(contentType, bytes, floats, dropNils) };
 }

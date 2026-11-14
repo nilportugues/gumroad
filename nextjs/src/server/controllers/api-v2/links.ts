@@ -25,7 +25,7 @@ import {
   successWithObject,
   toSentence,
 } from "./base.ts";
-import { enableWithValidOfferCodes } from "./offer-codes.ts";
+import { offerCodePriceError } from "./offer-codes.ts";
 import { decodePageKey, paginationInfo, USEC_FORMAT } from "./pagination.ts";
 import { productsApiJson } from "./product-json.ts";
 
@@ -98,10 +98,11 @@ async function disable(input: ApiV2Input) {
 async function enable(input: ApiV2Input) {
   const product = productOf(input);
   // validate_product_price_against_all_offer_codes? checks every code that applies to the product.
-  await enableWithValidOfferCodes(input.owner, product);
+  const priceError = await offerCodePriceError(input.owner, product);
   await assertPlainPublish(product, input.owner);
   // The response serializes the product: refuse what Node cannot before the write.
   await apiJson(input, product);
+  if (priceError !== null) return errorWithObject("product", { errors: [priceError] });
   const refused = await publishBang(product, input.owner);
   if (refused !== null) return errorWithObject("product", { errors: [refused] });
   return successWithObject("product", await apiJson(input, await reloaded(product)));

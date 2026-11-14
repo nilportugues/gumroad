@@ -198,7 +198,7 @@ describe "Discover search suggestions", type: :request do
       expect(second.reload).to be_deleted
     end
 
-    it "hands a list of queries holding a null to Rails", parity: true do
+    it "drops a null from a list of queries and removes the rest", parity: true do
       log_in(user)
       blank = suggest(nil, user:)
       named = suggest("listed", user:)
@@ -210,13 +210,27 @@ describe "Discover search suggestions", type: :request do
       expect(blank.reload).not_to be_deleted
     end
 
-    it "hands a list holding only a null to Rails", parity: true do
+    it "removes nothing for a list holding only a null", parity: true do
       log_in(user)
       blank = suggest(nil, user:)
 
       forget({ query: [nil] })
 
       expect(response).to have_http_status(:no_content)
+      expect(blank.reload).not_to be_deleted
+    end
+
+    it "drops the nulls around numbers and text in a list", parity: true do
+      log_in(user)
+      number = suggest("42", user:)
+      text = suggest("listed", user:)
+      blank = suggest(nil, user:)
+
+      forget({ query: [nil, 42, nil, "listed"] })
+
+      expect(response).to have_http_status(:no_content)
+      expect(number.reload).to be_deleted
+      expect(text.reload).to be_deleted
       expect(blank.reload).not_to be_deleted
     end
 
