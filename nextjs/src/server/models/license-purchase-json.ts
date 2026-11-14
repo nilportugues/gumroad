@@ -1,6 +1,6 @@
 // The `purchase` of a license response in Api::V2::LicensesController#success_with_license:
 // `purchase.payload_for_ping_notification.merge(purchase_as_json(purchase))`, where the second hash is the WHITELIST_PURCHASE_ATTRIBUTES
-// slice of `Purchase#as_json_for_license`. A SKU, several variants, a shipped product or
+// slice of `Purchase#as_json_for_license`. Several variants, a shipped product or
 // a gifted membership raises NotPortedError before anything is written, and the dispatcher hands the request to Rails.
 import { Prisma } from "@prisma/client";
 
@@ -63,9 +63,10 @@ async function subscriptionRecurrence(subscription: Row): Promise<string> {
 
 const BASE_VARIANT_IS_DEFAULT_SKU = 1;
 
-// `purchase.variant_attributes` as one tier of a Variant row. A SKU, several variants (the join has no order) and a default SKU
-// stay with Rails.
-async function singleVariant(purchase: Row): Promise<{ title: string; name: string } | null> {
+// `purchase.variant_attributes` as one tier of a Variant row. Several variants (the join has no order) stay with Rails. A SKU is
+// named by its row, and the default SKU is not displayed; the ping payload's `variants` hash is replaced by the string either way.
+type SingleVariant = { title: string; name: string; sku?: { id: string; custom: string | null }; hidden?: boolean };
+async function singleVariant(purchase: Row): Promise<SingleVariant | null> {
   const joins = await selectRows<Row>(
     Prisma.sql`SELECT ${Prisma.raw("`base_variants_purchases`.*")} FROM ${table("base_variants_purchases")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id}`,
   );
@@ -74,7 +75,17 @@ async function singleVariant(purchase: Row): Promise<{ title: string; name: stri
   const [variant] = await selectRows<Row>(
     Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${joins[0]!.base_variant_id} LIMIT 1`,
   );
-  if (variant === undefined || variant.type === "Sku") throw notPorted("a SKU");
+  if (variant === undefined) throw notPorted("a variant row that is gone");
+  if (variant.type === "Sku") {
+    const hidden = (Number(variant.flags ?? 0) & BASE_VARIANT_IS_DEFAULT_SKU) !== 0;
+    if (!hidden && variant.name === "Untitled") throw notPorted("a SKU named Untitled");
+    return {
+      title: "",
+      name: variant.name,
+      sku: { id: encrypt(variant.id), custom: present(variant.custom_sku) ? variant.custom_sku : null },
+      hidden,
+    };
+  }
   if ((Number(variant.flags ?? 0) & BASE_VARIANT_IS_DEFAULT_SKU) !== 0) throw notPorted("a default SKU");
   const [category] = await selectRows<Row>(
     Prisma.sql`SELECT ${Prisma.raw("`variant_categories`.*")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} = ${variant.variant_category_id} LIMIT 1`,
@@ -92,9 +103,8 @@ async function customFieldsOf(purchase: Row): Promise<{ name: string; value: str
     Prisma.sql`SELECT ${Prisma.raw("`purchase_custom_fields`.*")} FROM ${table("purchase_custom_fields")} WHERE ${column("purchase_custom_fields", "purchase_id")} = ${purchase.id} ORDER BY ${column("purchase_custom_fields", "id")} ASC`,
   );
   return rows.map((field) => {
-    // The payload sets each name as a key: a numeric key sorts first in a JS object, and `__proto__` is not a key.
-    if (/^\d+$/u.test(String(field.name)) || field.name === "__proto__")
-      throw notPorted("a custom field whose name is not an ordinary key");
+    // `__proto__` is not an own key of a JS object literal; a numeric key only moves in the serialized object, which clients read unordered.
+    if (field.name === "__proto__") throw notPorted("a custom field whose name is not an ordinary key");
     const boolean = field.field_type === "checkbox" || field.field_type === "terms";
     return { name: field.name, value: boolean ? castBoolean(field.value) : String(field.value ?? "") };
   });
@@ -197,12 +207,8 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
     gift = { price: gifter.price_cents, gifterEmail: gifter.email };
   }
   if (flags("is_gift_sender_purchase") && purchase.subscription_id != null) throw notPorted("a gifted membership");
-  if (
-    LinkFlags.isSet(link.flags, "is_physical") ||
-    LinkFlags.isSet(link.flags, "skus_enabled") ||
-    truthy(link.require_shipping)
-  )
-    throw notPorted("a shipped or SKU product");
+  if (LinkFlags.isSet(link.flags, "is_physical") || truthy(link.require_shipping))
+    throw notPorted("a shipped product");
   const affiliate = await affiliatePayload(purchase);
   const variant = await singleVariant(purchase);
   const customFields = await customFieldsOf(purchase);
@@ -266,6 +272,11 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   if (subscription !== null) payload.subscription_id = encrypt(subscription.id);
   if (affiliate.creditCents !== null) payload.affiliate_credit_amount_cents = affiliate.creditCents;
   if (variant !== null) payload.variants = { [variant.title]: variant.name };
+  // The "accutrak" and "printful" keys of the ping: a SKU-enabled product names the SKU, else the product (`pid_` + its external id).
+  if (LinkFlags.isSet(link.flags, "skus_enabled")) {
+    payload.sku_id = variant?.sku ? (variant.sku.custom ?? variant.sku.id) : `pid_${encrypt(link.id)}`;
+    if (variant?.sku?.custom != null) payload.original_sku_id = variant.sku.id;
+  }
   if (offerCode !== null) payload.offer_code = offerCode.code;
   if (purchaser !== null && String(purchaser.id) === String(seller.id)) payload.test = true;
   // Purchase#is_recurring_subscription_charge: a subscription's purchase that is not its original (a gifted membership is refused above)
@@ -295,7 +306,7 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   const asJson: Record<string, unknown> = {
     id: encrypt(purchase.id),
     created_at: timeJson(purchase.created_at),
-    variants: variant === null ? "" : variantsDisplayable(variant.name),
+    variants: variant === null || variant.hidden === true ? "" : variantsDisplayable(variant.name),
     custom_fields: customFields.map((field) => `${field.name}: ${field.value ?? ""}`),
   };
   if (offerCode !== null) asJson.offer_code = offerCode;
