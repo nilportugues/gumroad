@@ -1,7 +1,7 @@
 // CustomersController#index (`/customers`, `/customers/:link_id`): fetch_sales over PurchaseSearchService, CustomersPresenter
 // and CustomerPresenter#customer (app/presenters/customer{,s}_presenter.rb).
 //
-// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a UTM link of another seller or with a post whose seller has no subdomain, a non-USD price without a
+// Handed back to Rails (HandBackToRails) when a customer on the page needs a reading the port does not make: a UTM link of a seller who no longer exists or with a post whose seller has no subdomain, a non-USD price without a
 // stored rate or in a currency the port has no table for, a refund whose json_data is not plain JSON, a commission
 // completion in progress that holds a Stripe processor reference, and a review video whose thumbnail variant Rails has not processed.
 import { Prisma, type Purchase, type Subscription, type User } from "@prisma/client";
@@ -440,14 +440,23 @@ export async function utmLinkReadings(
   const linkRows = byId(await rowsBy("utm_links", "id", [...new Set(driven.map((sale) => sale.utm_link_id))]));
   if (driven.some((sale) => !linkRows.has(String(sale.utm_link_id)))) throw new HandBackToRails();
   const links = [...linkRows.values()] as unknown as UtmLinkRow[];
-  if (links.some((link) => String(link.seller_id) !== String(seller.id))) throw new HandBackToRails();
+  // UtmLink#utm_url builds the profile and subscribe urls from the link's own seller, whoever the buyer bought from.
+  const foreignIds = [...new Set(links.map((link) => String(link.seller_id)).filter((id) => id !== String(seller.id)))];
+  const foreign = byId(await rowsBy("users", "id", foreignIds));
+  if (foreignIds.some((id) => !foreign.has(id))) throw new HandBackToRails();
   const resolved = await utmTargets(links);
   const readings = new Map<string, Record<string, unknown>>();
   for (const sale of driven) {
     const link = linkRows.get(String(sale.utm_link_id)) as unknown as UtmLinkRow;
     let url: string | null;
     try {
-      url = utmUrl(seller, link, resolved);
+      url = utmUrl(
+        String(link.seller_id) === String(seller.id)
+          ? seller
+          : (foreign.get(String(link.seller_id)) as unknown as User),
+        link,
+        resolved,
+      );
     } catch (error) {
       // A post whose seller has no subdomain: Installment#full_url is Rails' to answer.
       if (error instanceof Error && error.name === "NotPortedError") throw new HandBackToRails();

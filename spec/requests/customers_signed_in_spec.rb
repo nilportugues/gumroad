@@ -786,4 +786,37 @@ describe "Customers page when signed in", type: :request, elasticsearch_wait_for
 
     expect(customers_of(response).first["subscription"]).to be_nil
   end
+
+  it "shows a sale driven by another seller's UTM link with that seller's own urls", parity: true do
+    sale = sell(product, days_ago: 4)
+    other_seller = create(:user, username: "elsewhere", name: "Elsewhere")
+    other_product = create(:product, user: other_seller, name: "Beta", unique_permalink: "betapack")
+    foreign_profile = create(:utm_link, seller: other_seller, target_resource_type: "profile_page", utm_source: "foreign")
+    create(:utm_link_driven_sale, utm_link: foreign_profile, utm_link_visit: create(:utm_link_visit, utm_link: foreign_profile), purchase: sale)
+    other_sale = sell(product, days_ago: 6)
+    foreign_subscribe = create(:utm_link, seller: other_seller, target_resource_type: "subscribe_page", utm_source: "subscribe")
+    create(:utm_link_driven_sale, utm_link: foreign_subscribe, utm_link_visit: create(:utm_link_visit, utm_link: foreign_subscribe), purchase: other_sale)
+    third_sale = sell(product, days_ago: 8)
+    foreign_product = create(:utm_link, seller: other_seller, target_resource_type: "product_page", target_resource_id: other_product.id, utm_source: "product")
+    create(:utm_link_driven_sale, utm_link: foreign_product, utm_link_visit: create(:utm_link_visit, utm_link: foreign_product), purchase: third_sale)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).map { _1["utm_link"]&.fetch("utm_url") }).to all(include("elsewhere"))
+  end
+
+  it "falls back to the external id for the subdomain in the url of a UTM link to a post whose seller has no username", parity: true do
+    sale = sell(product, days_ago: 4)
+    nameless = create(:user, name: "Nameless")
+    nameless.update_column(:username, nil)
+    post = create(:audience_installment, seller: nameless, name: "Launch post", shown_on_profile: true, published_at: Time.utc(2025, 1, 5))
+    post_link = create(:utm_link, seller:, target_resource_type: "post_page", target_resource_id: post.id, utm_source: "mail")
+    create(:utm_link_driven_sale, utm_link: post_link, utm_link_visit: create(:utm_link_visit, utm_link: post_link), purchase: sale)
+    sign_in_with_indexed_sales
+
+    get customers_path
+
+    expect(customers_of(response).first["utm_link"]["utm_url"]).to include("#{nameless.external_id}.", "/p/launch-post")
+  end
 end
