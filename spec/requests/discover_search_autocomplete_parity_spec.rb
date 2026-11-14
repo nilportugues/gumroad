@@ -165,6 +165,78 @@ describe "Discover search suggestions", type: :request do
     expect(suggestion.reload).not_to be_deleted
   end
 
+  describe "query shapes the form never sends" do
+    {
+      "an integer" => [42, "42"],
+      "a whole-number float" => [42.0, "42.0"],
+      "a fractional float" => [4.5, "4.5"],
+      "true" => [true, "1"],
+      "false" => [false, "0"]
+    }.each do |label, (sent, stored)|
+      it "reads a query sent as #{label} as its text", parity: true do
+        log_in(user)
+        suggestion = suggest(stored, user:)
+        kept = suggest("kept", user:)
+
+        forget({ query: sent })
+
+        expect(response).to have_http_status(:no_content)
+        expect(suggestion.reload).to be_deleted
+        expect(kept.reload).not_to be_deleted
+      end
+    end
+
+    it "reads a list of integers as a list of their text", parity: true do
+      log_in(user)
+      first = suggest("42", user:)
+      second = suggest("7", user:)
+
+      forget({ query: [42, 7] })
+
+      expect(response).to have_http_status(:no_content)
+      expect(first.reload).to be_deleted
+      expect(second.reload).to be_deleted
+    end
+
+    it "hands a list of queries holding a null to Rails", parity: true do
+      log_in(user)
+      blank = suggest(nil, user:)
+      named = suggest("listed", user:)
+
+      forget({ query: [nil, "listed"] })
+
+      expect(response).to have_http_status(:no_content)
+      expect(named.reload).to be_deleted
+      expect(blank.reload).not_to be_deleted
+    end
+
+    it "hands a list holding only a null to Rails", parity: true do
+      log_in(user)
+      blank = suggest(nil, user:)
+
+      forget({ query: [nil] })
+
+      expect(response).to have_http_status(:no_content)
+      expect(blank.reload).not_to be_deleted
+    end
+
+    it "reads a list mixing numbers, booleans and text as a list of their text", parity: true do
+      log_in(user)
+      number = suggest("42", user:)
+      boolean = suggest("1", user:)
+      text = suggest("listed", user:)
+      kept = suggest("kept", user:)
+
+      forget({ query: [42, true, "listed"] })
+
+      expect(response).to have_http_status(:no_content)
+      expect(number.reload).to be_deleted
+      expect(boolean.reload).to be_deleted
+      expect(text.reload).to be_deleted
+      expect(kept.reload).not_to be_deleted
+    end
+  end
+
   it "hands a request without a CSRF token to Rails", parity: true do
     log_in(user)
     suggestion = suggest("untokened", user:)
