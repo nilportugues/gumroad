@@ -70,6 +70,9 @@ type Permitted = {
 const isHash = (value: unknown): value is Params =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
+// `permit` drops a string where it asks for a hash or a list of hashes, so a string among them never reaches the save.
+const isKept = (value: unknown) => typeof value !== "string";
+
 // Rails leaves Vary: Accept on every answer of this action, whatever it read.
 const respondError = (message: string): ActionResult => ({
   ...json({ success: false, error_message: message }),
@@ -84,9 +87,9 @@ const SEE_OTHER = 303;
 function permitParams(params: Params): Permitted {
   if ("profile_picture_blob_id" in params)
     throw new HandBackToRails("a profile picture, which attaches or purges an Active Storage blob");
-  if ("user" in params && !isHash(params.user)) throw new HandBackToRails("a user parameter that is not a hash");
-  if ("seller_profile" in params && !isHash(params.seller_profile))
-    throw new HandBackToRails("a seller_profile parameter that is not a hash");
+  for (const key of ["user", "seller_profile"])
+    if (key in params && !isHash(params[key]) && typeof params[key] !== "string")
+      throw new HandBackToRails(`a ${key} parameter that is neither a hash nor text`);
 
   const user = isHash(params.user)
     ? permittedHash(params.user, [
@@ -100,10 +103,10 @@ function permitParams(params: Params): Permitted {
     : undefined;
 
   let tabs: Tab[] | undefined;
-  if ("tabs" in params) {
-    if (!Array.isArray(params.tabs)) throw new HandBackToRails("tabs that are not a list");
-    tabs = params.tabs.map((tab) => {
-      if (!isHash(tab)) throw new HandBackToRails("a tab that is not a hash");
+  if (typeof params.tabs !== "string" && "tabs" in params) {
+    if (!Array.isArray(params.tabs)) throw new HandBackToRails("tabs that are neither a list nor text");
+    tabs = params.tabs.filter(isKept).map((tab) => {
+      if (!isHash(tab)) throw new HandBackToRails("a tab that is neither a hash nor text");
       const sections = tab.sections;
       if (sections !== undefined && !(Array.isArray(sections) && sections.every((id) => typeof id === "string")))
         throw new HandBackToRails("tab sections that are not a list of strings");
@@ -114,10 +117,10 @@ function permitParams(params: Params): Permitted {
   }
 
   let sections: SectionParams[] | undefined;
-  if ("sections" in params) {
-    if (!Array.isArray(params.sections)) throw new HandBackToRails("sections that are not a list");
-    sections = params.sections.map((section) => {
-      if (!isHash(section)) throw new HandBackToRails("a section that is not a hash");
+  if (typeof params.sections !== "string" && "sections" in params) {
+    if (!Array.isArray(params.sections)) throw new HandBackToRails("sections that are neither a list nor text");
+    sections = params.sections.filter(isKept).map((section) => {
+      if (!isHash(section)) throw new HandBackToRails("a section that is neither a hash nor text");
       const { id, ...attributes } = section;
       if (id !== undefined && id !== null && typeof id !== "string")
         throw new HandBackToRails("a section id that is not a string");
