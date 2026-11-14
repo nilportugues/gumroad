@@ -5,6 +5,8 @@
 // branch, for a matrix of params and options.
 import { Prisma } from "@prisma/client";
 
+import { NotPortedError } from "../page-props/not-ported.ts";
+
 import { castBoolean } from "./with-filtering.ts";
 import { quote } from "./runtime/quoting.ts";
 import { selectRows } from "./sql.ts";
@@ -28,6 +30,7 @@ export type FilterParams = {
   affiliate_product_ids?: number[] | null;
   waitlisted_product_ids?: (number | null)[] | null;
   exclude_emails?: string[] | null;
+  include_emails?: string[] | null;
 };
 
 export type FilterOptions = { withIds?: boolean; ids?: number[] | null; asOf?: Date | null; purchaseIds?: number[] | null };
@@ -48,6 +51,7 @@ const FILTER_PARAM_KEYS = [
   "affiliate_product_ids",
   "waitlisted_product_ids",
   "exclude_emails",
+  "include_emails",
 ] as const;
 
 // `blank?` of a param value (compact_blank): nil, false, an empty string or collection.
@@ -153,6 +157,8 @@ const times = <T>(count: number, make: (index: number) => T): T[] => Array.from(
 // `AudienceMember.filter(seller_id:, params:, with_ids:, ids:, as_of:, purchase_ids:)`
 export function filterAudience(sellerId: number, rawParams: FilterParams, options: FilterOptions = {}): AudienceRelation {
   const params = normalizeFilterParams(rawParams);
+  // Only the Elasticsearch count reads `include_emails`; the SQL twin's `where(email:)` is not ported.
+  if (params.include_emails) throw new NotPortedError("include_emails in the SQL audience filter");
   const { withIds = false, ids = null, asOf = null, purchaseIds = null } = options;
 
   let baseScope = new Scope([`${AUDIENCE_MEMBERS}.\`seller_id\` = ${sellerId}`]);

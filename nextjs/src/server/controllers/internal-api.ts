@@ -15,7 +15,7 @@ import { getRedis } from "../infra/redis.ts";
 import { performAsync } from "../models/concerns/job-runtime.ts";
 import { rubyToI } from "../models/concerns/ruby-numeric.ts";
 import { urlClickCounts } from "../models/email-engagement-store.ts";
-import { audienceMembersFilterParams, behaviorAudience } from "../models/installment-audience.ts";
+import { audienceMembersFilterParams, behaviorAudience, behaviorFilterParams } from "../models/installment-audience.ts";
 import { InstallmentPost } from "../models/installment-post.ts";
 import { createBlast, RECIPIENT_FILTER_UNOPENED } from "../models/post-email-blast.ts";
 import { findAliveVideo, setApprovalStatusBang } from "../models/product-review-video.ts";
@@ -259,6 +259,33 @@ async function withSellerInstallment(
   return run(input, new InstallmentPost(installment));
 }
 
+const MINIMUM_BEHAVIOR_SEGMENT_SIZE = 5;
+// AudienceMember::Searchable::EMAIL_FILTER_SQL_FALLBACK_SIZE: a longer list counts through the SQL twin, which is not ported.
+const EMAIL_FILTER_SQL_FALLBACK_SIZE = 10_000;
+
+// Installment#displayed_audience_members_count for a post with one behavior filter: the count, or null when it or the part of
+// the wider audience it leaves out is below the floor (`behavior_count_withheld?`). Only a post with no other filter is
+// recorded; anything else, or both behavior filters at once, goes back to Rails.
+async function behaviorCount(
+  post: InstallmentPost,
+  behavior: Extract<Awaited<ReturnType<typeof behaviorAudience>>, { kind: "engagement" }>,
+): Promise<number | null> {
+  const resolved = await behaviorFilterParams(post, behavior);
+  if (resolved === null) throw new HandBackToRails("a post filtered by opens and clicks at once");
+  const { params, wider } = resolved;
+  if (Object.keys(wider).length > 0) throw new HandBackToRails("a behavior filter beside other filters");
+  const emails = params.include_emails ?? params.exclude_emails ?? [];
+  if (emails.length > EMAIL_FILTER_SQL_FALLBACK_SIZE) throw new HandBackToRails("a behavior filter over 10,000 addresses");
+  const sellerId = post.row.seller_id;
+  const count = await filterCount(sellerId, params);
+  if (count === null) throw new HandBackToRails("an audience count Elasticsearch did not answer");
+  if (count < MINIMUM_BEHAVIOR_SEGMENT_SIZE) return null;
+  const widerCount = await filterCount(sellerId, wider);
+  if (widerCount === null) throw new HandBackToRails("an audience count Elasticsearch did not answer");
+  const leftOut = widerCount - count;
+  return leftOut >= 1 && leftOut < MINIMUM_BEHAVIOR_SEGMENT_SIZE ? null : count;
+}
+
 // Api::Internal::Installments::AudienceCountsController#show
 export const installmentAudienceCount = (request: Request, routeParams: Record<string, string>) =>
   jsonAction(request, routeParams, {}, (input) =>
@@ -267,7 +294,7 @@ export const installmentAudienceCount = (request: Request, routeParams: Record<s
         // Installment#displayed_audience_members_count
         const behavior = await behaviorAudience(post);
         if (behavior.kind === "withheld") return json({ count: null });
-        if (behavior.kind === "engagement") throw new HandBackToRails("an audience filtered by opens or clicks");
+        if (behavior.kind === "engagement") return json({ count: await behaviorCount(post, behavior) });
         const count = await filterCount(post.row.seller_id, await audienceMembersFilterParams(post));
         return json({ count });
       }),

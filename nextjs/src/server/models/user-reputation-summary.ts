@@ -50,6 +50,11 @@ async function reputationAggregate(sellerId: bigint | number): Promise<[number, 
   return [toI(values[0]), toI(values[1]), toI(values[2])];
 }
 
+// `seller.seller_reputation_summary` for a seller whose flag is on.
+export async function sellerReputationSummary(sellerId: bigint | number): Promise<ReputationSummary | null> {
+  return buildReputationSummary(await reputationAggregate(sellerId));
+}
+
 // `seller.reputation_summary_enabled? ? { reputation: seller.seller_reputation_summary } : {}`: the key is
 // present, possibly null, only while the flag is on.
 export async function reputationProps(sellerId: bigint | number): Promise<{ reputation: ReputationSummary | null } | Record<string, never>> {

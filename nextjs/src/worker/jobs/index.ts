@@ -69,6 +69,7 @@ import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-sel
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
+import { exportPayoutData } from "./export-payout-data.ts";
 import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
 import { createAndEnqueueChunksWorker } from "./exports-sales-create-and-enqueue-chunks-worker.ts";
 import { finalizeBuyerPresentmentChargeJob } from "./finalize-buyer-presentment-charge-job.ts";
@@ -591,6 +592,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Exports::Sales::CompileChunksWorker": compileChunksWorker,
   "Exports::Sales::ProcessChunkWorker": processChunkWorker,
   AnnualPayoutExportWorker: annualPayoutExportWorker,
+  ExportPayoutData: exportPayoutData,
   ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
   BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
   UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,

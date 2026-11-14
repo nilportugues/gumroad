@@ -101,6 +101,46 @@ export async function summaries(installmentIds: (number | bigint)[]): Promise<Ma
   return new Map(ids.map((id) => [id, counts.get(id) ?? summaryFromItem(undefined)]));
 }
 
+// `partition_items(installment_id, prefix)`: every page of the partition's items whose sort key starts with `prefix`.
+async function partitionItems(installmentId: number | bigint, prefix: string): Promise<Item[]> {
+  const items: Item[] = [];
+  let startKey: unknown;
+  do {
+    const response = await call("Query", {
+      TableName: tableName(),
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: { ":pk": { S: String(installmentId) }, ":prefix": { S: prefix } },
+      ...(startKey === undefined ? {} : { ExclusiveStartKey: startKey }),
+    });
+    items.push(...((response.Items as Item[] | undefined) ?? []));
+    startKey = response.LastEvaluatedKey;
+  } while (startKey !== undefined && startKey !== null && Object.keys(startKey as object).length > 0);
+  return items;
+}
+
+const PURCHASE_INSTALLMENT_MAILER_METHOD = "purchase_installment";
+
+// `purchase_id_from_item(item)`: the first integer of `mailer_args`, for an item a purchase-keyed send wrote.
+function purchaseIdFromItem(item: Item): number | null {
+  const method = item.mailer_method;
+  if (method?.S === undefined || !method.S.endsWith(PURCHASE_INSTALLMENT_MAILER_METHOD)) return null;
+  const args = item.mailer_args;
+  if (args !== undefined && args.S === undefined) throw new NotPortedError("a mailer_args that is not a string");
+  const digits = /\d+/u.exec(args?.S ?? "")?.[0];
+  return digits === undefined ? null : Number(digits);
+}
+
+async function recipientPurchaseIds(installmentId: number | bigint, prefix: string): Promise<number[]> {
+  const ids = (await partitionItems(installmentId, prefix)).map(purchaseIdFromItem);
+  return [...new Set(ids.filter((id): id is number => id !== null))];
+}
+
+// EmailEngagementDynamoStore.clicked_recipient_purchase_ids(installment_id)
+export const clickedRecipientPurchaseIds = (installmentId: number | bigint) => recipientPurchaseIds(installmentId, "CLICKER#");
+
+// EmailEngagementDynamoStore.opened_recipient_purchase_ids(installment_id)
+export const openedRecipientPurchaseIds = (installmentId: number | bigint) => recipientPurchaseIds(installmentId, "OPEN#");
+
 // `display_url(url)`: how a stored click URL is shown. Distinct stored URLs can share it (http vs https, www).
 const displayUrl = (url: string): string => url.replace(/&#46;/gu, ".").replace(/^https?:\/\//iu, "").replace(/^www\./iu, "");
 
