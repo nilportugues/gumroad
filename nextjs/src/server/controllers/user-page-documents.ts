@@ -42,6 +42,28 @@ export function userPageEmbedDocument(
   ].join("\n");
 }
 
+// PagesController#preview of a slugged custom HTML page: the embed without the navigation and background bridges, which the editor pane
+// has no trusted wrapper to answer.
+export function pagePreviewDocument(interpolated: string, options: { tailwindHead: string }): string {
+  return [
+    "<!doctype html>",
+    "<html>",
+    "  <head>",
+    '    <meta charset="utf-8">',
+    '    <meta name="viewport" content="width=device-width, initial-scale=1">',
+    `    ${constants.sandbox_compat_script}`,
+    `    ${options.tailwindHead}`,
+    `    ${tailwindV3GradientCompatHead(interpolated)}`,
+    "  </head>",
+    "  <body>",
+    `    ${interpolated}`,
+    `    ${constants.follow_bridge_script}`,
+    "  </body>",
+    "</html>",
+    "",
+  ].join("\n");
+}
+
 export type UserPageWrapperOptions = {
   slug: string;
   pageTitle: string | null;

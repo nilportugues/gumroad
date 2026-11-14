@@ -252,7 +252,7 @@ describe "PagesController guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the preview of a rich text page to Rails", parity: true do
+    it "renders the preview of a rich text page", parity: true do
       rich_page
       log_in(seller)
 
@@ -261,7 +261,7 @@ describe "PagesController guards", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands the preview of a custom HTML page to Rails", parity: true do
+    it "renders the preview of a custom HTML page", parity: true do
       custom_page
       log_in(seller)
 
@@ -270,8 +270,36 @@ describe "PagesController guards", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
-    it "hands the preview of the profile takeover to Rails", parity: true do
+    it "renders the preview of the profile takeover", parity: true do
       profile_takeover
+      log_in(seller)
+
+      get "/pages/profile/preview"
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "interpolates the seller's name into the preview of a custom HTML page", parity: true do
+      create(:user_page, pageable: seller, slug: "my-landing", title: "Landing", content: nil, custom_html: "<main><h1 data-gumroad-field=\"name\">x</h1><p>Hi</p></main>")
+      log_in(seller)
+
+      get "/pages/my-landing/preview"
+
+      expect(response.body).to include("Pages Guard Seller")
+    end
+
+    it "renders the catalogue of the seller in the preview of the profile takeover", parity: true do
+      create(:product, user: seller, name: "Guide", unique_permalink: "guide", created_at: Time.utc(2025, 2, 1))
+      profile_takeover
+      log_in(seller)
+
+      get "/pages/profile/preview"
+
+      expect(response.body).to include("Guide")
+    end
+
+    it "hands the preview of a profile that references prices to Rails", parity: true do
+      create(:user_page, pageable: seller, slug: nil, title: nil, content: nil, custom_html: "<span data-gumroad-product=\"abc\" data-gumroad-field=\"price\">$1</span>")
       log_in(seller)
 
       get "/pages/profile/preview"
