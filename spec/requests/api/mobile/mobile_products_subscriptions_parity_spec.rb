@@ -218,6 +218,32 @@ describe "Mobile API products, subscriptions, preorders and installments", type:
         expect(response).to have_http_status(:ok)
       end
     end
+
+    describe "a charged preorder" do
+      let(:buyer) { create(:user) }
+      let(:product) { create(:product, user: seller, price_cents: 600, is_in_preorder_state: true) }
+      let(:preorder_link) { create(:preorder_link, link: product, release_at: Time.utc(2030, 1, 15, 12)) }
+      let(:preorder) { create(:preorder, preorder_link:, seller:, purchaser: buyer, state: "charge_successful") }
+      let!(:charge) do
+        purchase_row(:preorder_authorization_purchase, link: product, seller:, purchaser: buyer, email: buyer.email, preorder:, is_preorder_authorization: true)
+        purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, preorder:, purchase_state: "successful")
+      end
+
+      it "serves the charge purchase without the release date", parity: true do
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("name" => product.name, "purchase_id" => charge.external_id, "product_updates_data" => [], "is_archived" => false)
+        expect(response.parsed_body["product"]).not_to have_key("preorder_data")
+      end
+
+      it "hands a charged preorder whose charge purchase has a url redirect to Rails", parity: true do
+        create(:url_redirect, purchase: charge, link: product)
+
+        get "/mobile/preorders/preorder_attributes/#{preorder.external_id}", params: { mobile_token: }
+
+        expect(response.parsed_body["product"]).to include("purchase_id" => charge.external_id, "url_redirect_token" => be_present)
+      end
+    end
   end
 
   describe "installments" do

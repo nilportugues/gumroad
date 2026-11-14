@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Errors, RecordInvalid } from "../models/runtime/errors.ts";
 
-import { HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing } from "./application-controller.ts";
 import type { MutationInput, MutationSpec } from "./mutation.ts";
 
 const { specs, sellerMembershipById, updateBang, markUndeletedBang, teamMemberInfos, markDeletedBang, findUser } =
@@ -142,9 +142,13 @@ describe("PUT /settings/team/members/:id", () => {
     expect(updateBang).toHaveBeenCalledWith(expect.anything(), { role: saved });
   });
 
-  it("hands a request without a team_membership hash to Rails before writing", async () => {
-    await expect(update.run(input({}))).rejects.toBeInstanceOf(HandBackToRails);
+  it("answers a request without a team_membership key with a 400 before writing", async () => {
+    await expect(update.run(input({}))).rejects.toBeInstanceOf(ParameterMissing);
     expect(updateBang).not.toHaveBeenCalled();
+  });
+
+  it("hands back an empty team_membership hash, which no recording covers", async () => {
+    await expect(update.run(input({ team_membership: {} }))).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("changes nothing for an array role, which permit drops", async () => {

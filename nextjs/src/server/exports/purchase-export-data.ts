@@ -25,6 +25,7 @@ import { BaseVariantFlags } from "../models/base-variant.ts";
 import { chargeSubunitToUnit, UnknownCurrency } from "../models/concerns/money-formatter.ts";
 import { rubyInspect } from "../models/concerns/ruby-values.ts";
 import { LinkFlags } from "../models/link.ts";
+import { variantContentPermitsLicenseKey } from "../models/purchase-license-key.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { PurchaseFlags } from "../search/flags.ts";
 
@@ -36,11 +37,109 @@ const CENTS_PER_DOLLAR = 100;
 const TERMINAL_FAILURE_STATUSES = ["failed", "canceled"];
 // CustomField::BOOLEAN_TYPES
 const BOOLEAN_FIELD_TYPES = ["terms", "checkbox"];
-// String#inspect prints a non-ASCII letter, mark, number, punctuation or symbol as it is. The recordings prove no other category
-// (control, format, separator, private use, unassigned), so a custom field holding one stays with Rails.
-const PRINTED_RAW = /^[\p{L}\p{M}\p{N}\p{P}\p{S}]$/u;
-const inspectsRaw = (value: string): boolean =>
-  [...value].every((char) => char.codePointAt(0)! < 0x80 || PRINTED_RAW.test(char));
+// String#inspect escapes a non-ASCII control, line or paragraph separator, or unassigned character (as \uXXXX, or \u{XXXXX} above
+// the BMP) and prints every other as it is (format, private use, spaces, letters). Ruby 3.4 reads Unicode 15.0 and Node a later
+// version, so the characters assigned since then, which Ruby still calls unassigned, are listed (diffed against Ruby's `\p{Cn}`).
+const ASSIGNED_AFTER_RUBY_UNICODE: readonly (readonly [number, number])[] = [
+  [0x88f, 0x88f],
+  [0x897, 0x897],
+  [0xc5c, 0xc5c],
+  [0xcdc, 0xcdc],
+  [0x1acf, 0x1add],
+  [0x1ae0, 0x1aeb],
+  [0x1b4e, 0x1b4f],
+  [0x1b7f, 0x1b7f],
+  [0x1c89, 0x1c8a],
+  [0x20c1, 0x20c1],
+  [0x2427, 0x2429],
+  [0x2b96, 0x2b96],
+  [0x2ffc, 0x2fff],
+  [0x31e4, 0x31e5],
+  [0x31ef, 0x31ef],
+  [0xa7cb, 0xa7cf],
+  [0xa7d2, 0xa7d4],
+  [0xa7da, 0xa7dc],
+  [0xa7f1, 0xa7f1],
+  [0xfbc3, 0xfbd2],
+  [0xfd90, 0xfd91],
+  [0xfdc8, 0xfdce],
+  [0x105c0, 0x105f3],
+  [0x10940, 0x10959],
+  [0x10d40, 0x10d65],
+  [0x10d69, 0x10d85],
+  [0x10d8e, 0x10d8f],
+  [0x10ec2, 0x10ec7],
+  [0x10ed0, 0x10ed8],
+  [0x10efa, 0x10efc],
+  [0x11380, 0x1138b],
+  [0x1138e, 0x113c2],
+  [0x113c5, 0x113d8],
+  [0x113e1, 0x113e2],
+  [0x116d0, 0x116e3],
+  [0x11b60, 0x11b67],
+  [0x11bc0, 0x11be1],
+  [0x11bf0, 0x11bf9],
+  [0x11db0, 0x11ddb],
+  [0x11de0, 0x11de9],
+  [0x11f5a, 0x11f5a],
+  [0x13460, 0x143fa],
+  [0x16100, 0x16139],
+  [0x16d40, 0x16d79],
+  [0x16ea0, 0x16eb8],
+  [0x16ebb, 0x16ed3],
+  [0x16ff2, 0x16ff6],
+  [0x187f8, 0x187ff],
+  [0x18cff, 0x18cff],
+  [0x18d09, 0x18d1e],
+  [0x18d80, 0x18df2],
+  [0x1cc00, 0x1ccfc],
+  [0x1cd00, 0x1ceb3],
+  [0x1ceba, 0x1ced0],
+  [0x1cee0, 0x1cef0],
+  [0x1e5d0, 0x1e5fa],
+  [0x1e5ff, 0x1e5ff],
+  [0x1e6c0, 0x1e6f5],
+  [0x1e6fe, 0x1e6ff],
+  [0x1f6d8, 0x1f6d8],
+  [0x1f777, 0x1f77a],
+  [0x1f8b2, 0x1f8bb],
+  [0x1f8c0, 0x1f8c1],
+  [0x1f8d0, 0x1f8d8],
+  [0x1fa54, 0x1fa57],
+  [0x1fa89, 0x1fa8a],
+  [0x1fa8e, 0x1fa8f],
+  [0x1fabe, 0x1fabe],
+  [0x1fac6, 0x1fac8],
+  [0x1facd, 0x1facd],
+  [0x1fadc, 0x1fadc],
+  [0x1fadf, 0x1fadf],
+  [0x1fae9, 0x1faea],
+  [0x1faef, 0x1faef],
+  [0x1fbcb, 0x1fbef],
+  [0x1fbfa, 0x1fbfa],
+  [0x2b73a, 0x2b73f],
+  [0x2cea2, 0x2cead],
+  [0x2ebf0, 0x2ee5d],
+  [0x323b0, 0x33479],
+];
+const ESCAPED_BY_INSPECT = /^[\p{Cc}\p{Zl}\p{Zp}\p{Cn}]$/u;
+const BMP_LIMIT = 0xffff;
+function escapedByInspect(char: string, code: number): boolean {
+  return (
+    ESCAPED_BY_INSPECT.test(char) || ASSIGNED_AFTER_RUBY_UNICODE.some(([first, last]) => code >= first && code <= last)
+  );
+}
+// rubyInspect keeps every non-ASCII character as it is, so the ones Ruby escapes are rewritten on its output.
+function inspectString(value: string): string {
+  return [...rubyInspect(value)]
+    .map((char) => {
+      const code = char.codePointAt(0)!;
+      if (code < 0x80 || !escapedByInspect(char, code)) return char;
+      const hex = code.toString(16).toUpperCase();
+      return code <= BMP_LIMIT ? `\\u${hex.padStart(4, "0")}` : `\\u{${hex}}`;
+    })
+    .join("");
+}
 
 // convert_cents_to_dollars: (cents.to_f / 100).round(2)
 const dollars = (cents: number | null | undefined): RubyFloat =>
@@ -121,7 +220,7 @@ function hashInspect(entries: Map<string, string | boolean | null>): string {
   if (entries.size === 0) return "{}";
   const parts = [...entries].map(
     ([name, value]) =>
-      `${rubyInspect(name)} => ${typeof value === "boolean" ? String(value) : value === null ? "nil" : rubyInspect(value)}`,
+      `${inspectString(name)} => ${typeof value === "boolean" ? String(value) : value === null ? "nil" : inspectString(value)}`,
   );
   return `{${parts.join(", ")}}`;
 }
@@ -302,7 +401,6 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     gifts.map((gift) => [String(gift.gifter_purchase_id), gift.giftee_purchase_id!]),
   );
   const gifteeSubscription = new Map<string, bigint | null>();
-  let gifteeVariantHolders = new Set<string>();
   if (gifteeIds.length > 0) {
     // The review and the license key are read from the giftee's purchase: it must be a sale of the same product, plain or the
     // gift receiver of the sender's own subscription (the review is then its original purchase's, and the license is its own).
@@ -329,7 +427,6 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         throw new HandBackToRails("a gift whose receiver is on a subscription other than the sender's");
       gifteeSubscription.set(String(purchase.id), giftee.subscription_id);
     }
-    gifteeVariantHolders = await idsWithRows("base_variants_purchases", "purchase_id", gifteeIds);
   }
   // purchase.preorder.created_at for a pre-order's charge
   const preorderIds = [
@@ -533,17 +630,16 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
     if (licenseByPurchase.has(String(license.purchase_id))) throw new HandBackToRails("a sale with several licenses");
     licenseByPurchase.set(String(license.purchase_id), license);
   }
-  // Purchase#variant_content_permits_license_key? reads the variants' rich content, which is not ported.
+  // Purchase#license_key is nil unless Purchase#uses_license_key?: the licensed product's content for the variants of the purchase it is
+  // read from (main_or_giftee_purchase) does not leave the license key block out.
+  const licenseKeyHidden = new Set<string>();
   for (const purchase of purchases) {
     const link = linkById.get(String(purchase.link_id))!;
     if (!LinkFlags.isSet(link.flags, "is_licensed")) continue;
-    // A gift's key is read from the receiver's purchase, so its variants count with the sale's own.
-    const gifteeId = gifteeOf.get(String(purchase.id));
-    if (
-      variantByPurchase.has(String(purchase.id)) ||
-      (gifteeId !== undefined && gifteeVariantHolders.has(String(gifteeId)))
-    )
-      throw new HandBackToRails("a licensed product's sale with a variant");
+    const key = String(purchase.id);
+    const readKey = gifteeOf.has(key) ? String(gifteeOf.get(key)) : key;
+    if (!licenseByPurchase.has(String(licenseOwnerOf.get(key) ?? readKey)) || licenseKeyHidden.has(readKey)) continue;
+    if (!(await variantContentPermitsLicenseKey({ id: BigInt(readKey) }, link))) licenseKeyHidden.add(readKey);
   }
 
   const upsold = await idsWithRows("upsell_purchases", "purchase_id", purchaseIds);
@@ -614,8 +710,6 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
       const value = BOOLEAN_FIELD_TYPES.includes(answer.field_type ?? "")
         ? castBoolean(answer.value)
         : (answer.value ?? "");
-      if ((typeof value === "string" && !inspectsRaw(value)) || !inspectsRaw(name))
-        throw new HandBackToRails("a custom field whose String#inspect escapes a non-ASCII character");
       customFieldValues.set(name, value);
       addCustomField(name);
     }
@@ -633,6 +727,7 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
         tipCents: tipCents.get(key),
         review: reviewByPurchase.get(reviewKey),
         license: licenseByPurchase.get(licenseKey),
+        licenseKeyHidden: licenseKeyHidden.has(readKey),
         giftee: giftBySender.get(key),
         preorderTime: purchase.preorder_id === null ? undefined : preorderTimes.get(String(purchase.preorder_id)),
         upsold: upsold.has(key),
@@ -670,6 +765,7 @@ function purchaseFields(
     tipCents: number | undefined;
     review: { rating: number | null; message: string | null } | undefined;
     license: LicenseRow | undefined;
+    licenseKeyHidden: boolean;
     giftee: GiftRow | undefined;
     preorderTime: Date | undefined;
     upsold: boolean;
@@ -793,7 +889,10 @@ function purchaseFields(
     Rating: lookups.review?.rating ?? null,
     Review: lookups.review?.message ?? null,
     // Purchase#license_key: only a licensed product shows its serial.
-    "License Key": LinkFlags.isSet(link.flags, "is_licensed") ? (lookups.license?.serial ?? null) : null,
+    "License Key":
+      LinkFlags.isSet(link.flags, "is_licensed") && !lookups.licenseKeyHidden
+        ? (lookups.license?.serial ?? null)
+        : null,
     "License Key Activation Count": lookups.license === undefined ? null : (lookups.license.uses ?? null),
     "License Key Enabled?": lookups.license === undefined ? null : lookups.license.disabled_at === null ? 1 : 0,
     "Payment Type": paymentTypeLabel(purchase.card_type) ?? null,

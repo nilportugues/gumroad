@@ -224,7 +224,7 @@ describe "Brand accounts", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a request without the brand_account hash to Rails", parity: true do
+  it "answers 400 to a request without the brand_account hash", parity: true do
     log_in(creator)
 
     post sellers_brand_accounts_path,

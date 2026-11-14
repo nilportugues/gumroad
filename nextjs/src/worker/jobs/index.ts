@@ -69,6 +69,7 @@ import { enforceRefundPolicyForSellerJob } from "./enforce-refund-policy-for-sel
 import { enqueueMarketingXReconnectEmailJob } from "./enqueue-marketing-x-reconnect-email-job.ts";
 import { expireTranscodedVideosJob } from "./expire-transcoded-videos-job.ts";
 import { expiringCreditCardMessageWorker } from "./expiring-credit-card-message-worker.ts";
+import { exportPayoutData } from "./export-payout-data.ts";
 import { compileChunksWorker, processChunkWorker } from "./exports-sales-chunk-workers.ts";
 import { createAndEnqueueChunksWorker } from "./exports-sales-create-and-enqueue-chunks-worker.ts";
 import { finalizeBuyerPresentmentChargeJob } from "./finalize-buyer-presentment-charge-job.ts";
@@ -102,6 +103,7 @@ import {
 import { generateLargeSellersAnalyticsCacheWorker } from "./generate-large-sellers-analytics-cache-worker.ts";
 import { generateMerchantCenterFeedWorker } from "./generate-merchant-center-feed-worker.ts";
 import { generateProductFilesArchivesJob } from "./generate-product-files-archives-job.ts";
+import { generateSslCertificate, generateSslCertificateRetriesExhausted } from "./generate-ssl-certificate.ts";
 import {
   generateSubscribePreviewJob,
   generateSubscribePreviewJobRetriesExhausted,
@@ -319,6 +321,7 @@ import {
   taxFormTransactionReportJob,
   taxFormTransactionReportJobRetriesExhausted,
 } from "./tax-form-transaction-report-job.ts";
+import { transcodeVideoForStreamingWorker } from "./transcode-video-for-streaming-worker.ts";
 import { transferDropboxFileToS3Worker } from "./transfer-dropbox-file-to-s3-worker.ts";
 import type { JobHandler } from "./types.ts";
 import { unstickStuckInProgressPurchasesJob } from "./unstick-stuck-in-progress-purchases-job.ts";
@@ -591,7 +594,10 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   "Exports::Sales::CompileChunksWorker": compileChunksWorker,
   "Exports::Sales::ProcessChunkWorker": processChunkWorker,
   AnnualPayoutExportWorker: annualPayoutExportWorker,
+  ExportPayoutData: exportPayoutData,
   ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,
+  GenerateSslCertificate: generateSslCertificate,
+  TranscodeVideoForStreamingWorker: transcodeVideoForStreamingWorker,
   BackfillMembershipRenewalRemindersJob: backfillMembershipRenewalRemindersJob,
   UnstickStuckInProgressPurchasesJob: unstickStuckInProgressPurchasesJob,
   GenerateMerchantCenterFeedWorker: generateMerchantCenterFeedWorker,
@@ -654,4 +660,5 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   PerformPayoutsUpToDelayDaysAgoWorker: performPayoutsUpToDelayDaysAgoWorkerRetriesExhausted,
   GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
   GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJobRetriesExhausted,
+  GenerateSslCertificate: generateSslCertificateRetriesExhausted,
 };

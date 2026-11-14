@@ -321,3 +321,23 @@ job's unique-jobs lock.
 
 Left in Ruby: `HandlePaypalEventWorker`, `PerformDailyInstantPayoutsWorker`, `ProcessPurchaseEarlyFraudWarningJob` (money), `GenerateAvatarVariantJob`
 (its first read leads straight to an Active Storage resize), `AnnualTaxSummaryExportWorker` (see above).
+
+## ExportPayoutData (ws-jobs-small-10)
+
+`export-payout-data.ts` runs `Payment.where(id: ...).find_each` in Node and finishes a job that finds no payment (an empty list or nil sends
+no statement, as in Rails). A payment that is found goes back whole: the CSV (`Exports::Payouts::Csv`) is built before the same-seller
+check, and the zip and the mail with the file attached are `deliver_now`. An id Rails casts (a word reads as NULL) goes back before any
+read. Golden: `scripts/golden/export-payout-data.rb`. `SendYearInReviewEmailJob`, `AnnualTaxSummaryExportWorker` and
+`PostToPingEndpointsWorker` stay in Ruby.
+
+## Ported small jobs that hand back whole (ws-jobs-small-11)
+
+`generate-ssl-certificate.ts` and `transcode-video-for-streaming-worker.ts` run only the reads that open the Ruby job. `GenerateSslCertificate`
+finishes outside production (or staging outside a branch deployment), finds the custom domain and ends a deleted one; a live domain goes back
+before the ACME order and its rate-limit reschedule; its retries-exhausted block (a find_by and ErrorNotifier, nothing a recording compares) hands back whole. `TranscodeVideoForStreamingWorker` ends a Link, finds the ProductFile and ends a deleted
+one; a live file goes back before `attempt_to_transcode?` (the `transcoded_videos` reads, then the TranscodedVideo row and MediaConvert or GRMC).
+A class other than `ProductFile` and `Link`, and an id Rails casts, go back before any read.
+
+Left in Ruby: `SendWorkflowEmailsToOpenedNonClickersJob` and `ScheduleAbandonedCartEmailsJob` have no prefix short of DynamoDB or the
+`timeout_queries` scan; `SendYearInReviewEmailJob` has no mail recording; the reports, payout and payment-processor jobs move money or call
+Stripe, PayPal or S3.

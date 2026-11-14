@@ -60,6 +60,8 @@ export type ApiV2Route = {
   keepSession?: boolean;
   // The action reads the JSON body itself (`request.raw_post`), so a body that is an array or a scalar is not a hand-back.
   rawJsonBody?: boolean;
+  // Top-level keys the action reads from the raw body, whose nulls Rails' deep munge would drop from `params`: they are left out of the params.
+  rawJsonKeys?: string[];
   preAuth?(input: Pick<ApiV2Input, "request" | "url" | "params" | "rawBody">): void | Promise<void>;
   run(input: ApiV2Input): ActionResult | Promise<ActionResult>;
 };
@@ -165,7 +167,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
 
   let params: Params;
   try {
-    params = { ...(route.rawJsonBody ? rawJsonParams(url, request.headers.get("content-type"), bytes) : requestParams(url, request.headers.get("content-type"), bytes)), ...routeParams };
+    params = { ...(route.rawJsonBody ? rawJsonParams(url, request.headers.get("content-type"), bytes, route.rawJsonKeys) : requestParams(url, request.headers.get("content-type"), bytes)), ...routeParams };
   } catch (error) {
     if (error instanceof HandBackToRails) return handBack(request, error);
     throw error;
@@ -216,7 +218,7 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
 
 // For a `rawJsonBody` route: params are the query string, plus the body when it is an object. A JSON array or scalar is what the
 // action reads from the raw body, so it is not params. Any other body that fails to parse still hands back.
-function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array): Params {
+function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array, rawKeys: string[] = []): Params {
   try {
     return requestParams(url, contentType, bytes);
   } catch (error) {
@@ -227,7 +229,11 @@ function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array):
     } catch {
       throw error;
     }
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) throw error;
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+      const rest = Object.fromEntries(Object.entries(parsed).filter(([key]) => !rawKeys.includes(key)));
+      if (Object.keys(rest).length === Object.keys(parsed).length) throw error;
+      return requestParams(url, contentType, new TextEncoder().encode(JSON.stringify(rest)));
+    }
     return parseNestedQuery(url.search.replace(/^\?/u, ""));
   }
 }

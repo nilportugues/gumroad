@@ -1,0 +1,955 @@
+{
+  "now": 1793795445.1230001,
+  "cases": [
+    {
+      "name": "no payments at all",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 5 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          5
+        ],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an id that matches no payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          9
+        ],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "several ids that match no payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IN (8, 9) ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          8,
+          9
+        ],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a single id as an integer that matches no payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        9,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "an empty list of ids",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "nil in place of the ids",
+      "error": null,
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        null,
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "duplicate ids that match no payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IN (9, 9) ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          9,
+          9
+        ],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a payment of the seller",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          1
+        ],
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a single id as an integer that matches a payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        1,
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "two payments of the same seller",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IN (1, 2) ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ],
+              [
+                2,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          1,
+          2
+        ],
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "payments of two sellers",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IN (1, 3) ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ],
+              [
+                3,
+                2,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          1,
+          3
+        ],
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a payment and an id that matches none",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` IN (1, 9) ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          1,
+          9
+        ],
+        2
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "ids as digit strings that match no payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          "9"
+        ],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "ids as digit strings that match a payment",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 1 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": [
+              [
+                1,
+                1,
+                "completed",
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                {
+                  "$time": "2025-06-01T10:00:00.000000Z"
+                },
+                null,
+                null,
+                null,
+                "STRIPE",
+                1000,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "usd",
+                0,
+                null,
+                null,
+                null
+              ]
+            ]
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          "1"
+        ],
+        1
+      ],
+      "hands_back": true
+    },
+    {
+      "name": "a word in the ids",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = NULL ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          "abc"
+        ],
+        1
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "a recipient that does not exist",
+      "error": null,
+      "statements": [
+        {
+          "sql": "SELECT `payments`.* FROM `payments` WHERE `payments`.`id` = 9 ORDER BY `payments`.`id` ASC LIMIT 1000",
+          "result": {
+            "fields": [
+              "id",
+              "user_id",
+              "state",
+              "created_at",
+              "updated_at",
+              "txn_id",
+              "processor_fee_cents",
+              "correlation_id",
+              "processor",
+              "amount_cents",
+              "payment_address",
+              "payout_period_end_date",
+              "bank_account_id",
+              "amount_cents_in_local_currency",
+              "stripe_connect_account_id",
+              "stripe_transfer_id",
+              "stripe_internal_transfer_id",
+              "currency",
+              "flags",
+              "json_data",
+              "failure_reason",
+              "processor_reversing_payout_id"
+            ],
+            "rows": []
+          }
+        }
+      ],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          9
+        ],
+        99
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "no arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 0, expected 2)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [],
+      "hands_back": false
+    },
+    {
+      "name": "one argument",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 1, expected 2)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          9
+        ]
+      ],
+      "hands_back": false
+    },
+    {
+      "name": "three arguments",
+      "error": {
+        "class": "ArgumentError",
+        "message": "wrong number of arguments (given 3, expected 2)"
+      },
+      "statements": [],
+      "redis": {},
+      "cache": [],
+      "job": "ExportPayoutData",
+      "args": [
+        [
+          9
+        ],
+        1,
+        2
+      ],
+      "hands_back": false
+    }
+  ]
+}
