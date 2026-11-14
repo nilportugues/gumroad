@@ -24,6 +24,8 @@ export async function publishScheduleEditorProps(
   return {
     publish_schedule: null,
     can_create_publish_schedule:
-      Boolean(product.draft) && product.first_published_at === null && (await isFeatureEnabled(FEATURE_FLAG, userActor(sellerId))),
+      Boolean(product.draft) &&
+      product.first_published_at === null &&
+      (await isFeatureEnabled(FEATURE_FLAG, userActor(sellerId))),
   };
 }

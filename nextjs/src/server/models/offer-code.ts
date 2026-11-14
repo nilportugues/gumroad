@@ -297,7 +297,8 @@ export class OfferCodeRecord {
     const [optionRows] = await selectRows<{ found: number | bigint }>(
       Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_variants")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${this.id}) AS found`,
     );
-    if (Number(optionRows?.found ?? 0) > 0) throw new NotPortedError("OfferCode#ownership_variants", "offer_code.rb:464");
+    if (Number(optionRows?.found ?? 0) > 0)
+      throw new NotPortedError("OfferCode#ownership_variants", "offer_code.rb:464");
     const owned = await this.ownershipProducts();
     if (owned.length > 0) return owned;
     if (product !== null) return [product];
