@@ -160,7 +160,7 @@ export async function planTagChanges(
   const lowered = new Map<string, string>();
   for (const name of toAdd) {
     if (!(creating ? SPACED_ASCII : UNSPACED_ASCII).test(name))
-      notPorted("a tag name that is not printable ASCII without leading, trailing or doubled spaces");
+      notPorted("a tag name that is not printable ASCII without spaces");
     const lower = name.toLowerCase();
     if (!creating && lowered.has(lower) && lowered.get(lower) !== name) notPorted("two spellings of one tag name");
     lowered.set(lower, name);
