@@ -108,7 +108,8 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
 // pages print one, which is only proven for a version with no pages.
 async function licenseProps(purchase: Purchase | null, product: Link, provider: ContentProvider, pageCount: number) {
   if (!purchase || !LinkFlags.isSet(product.flags, "is_licensed")) return null;
-  if (provider.kind === "variant" && pageCount > 0) throw new HandBackToRails("the license key of a version with pages");
+  if (provider.kind === "variant" && pageCount > 0)
+    throw new HandBackToRails("the license key of a version with pages");
   const licenses = await db.license.findMany({ where: { purchase_id: Number(purchase.id) }, orderBy: { id: "asc" } });
   // has_one :license takes an unspecified row when there are several.
   if (licenses.length > 1) throw new HandBackToRails("a purchase with several licenses");

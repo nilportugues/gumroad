@@ -70,7 +70,14 @@ export const maskingTransport =
 
 export function describeErbLayoutReplay(
   title: string,
-  options: { routeFlags: string; seed: Record<string, number | null>; github?: number; select: (name: string) => boolean; spec?: string; env?: Record<string, string> },
+  options: {
+    routeFlags: string;
+    seed: Record<string, number | null>;
+    github?: number;
+    select: (name: string) => boolean;
+    spec?: string;
+    env?: Record<string, string>;
+  },
 ) {
   const FIXTURES = path.join("parity/fixtures/requests", options.spec ?? DEFAULT_SPEC);
   const url = process.env.PARITY_DATABASE_URL;
@@ -114,7 +121,9 @@ export function describeErbLayoutReplay(
       if (options.github !== undefined) {
         github = createServer((request, response) => {
           githubRequests.push({ path: request.url ?? "", version: String(request.headers["x-github-api-version"]) });
-          response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ stargazers_count: options.github }));
+          response
+            .writeHead(200, { "Content-Type": "application/json" })
+            .end(JSON.stringify({ stargazers_count: options.github }));
         });
         await new Promise<void>((resolve) => github!.listen(0, "127.0.0.1", resolve));
       }
@@ -169,7 +178,11 @@ export function describeErbLayoutReplay(
             rewriteRequest: (request, source, now) => reencryptCookies(request, source, SECRET_KEY_BASE, now),
             interceptHttp: false,
             compare: {
-              ignore: [...COMPARE.ignore, ...(options.github === undefined ? [] : ["http"]), ...(debugPage ? ["response.body"] : [])],
+              ignore: [
+                ...COMPARE.ignore,
+                ...(options.github === undefined ? [] : ["http"]),
+                ...(debugPage ? ["response.body"] : []),
+              ],
             },
           });
           if (name.includes("hands-a-")) {
