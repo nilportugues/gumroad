@@ -480,7 +480,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   CompileGumroadDailyAnalyticsJob: {
     file: "app/sidekiq/compile_gumroad_daily_analytics_job.rb",
@@ -1845,7 +1845,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   PartnerMigrationNotificationJob: {
     file: "app/sidekiq/partner_migration_notification_job.rb",
@@ -1958,7 +1958,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   ProcessAssetPreviewRetinaWorker: {
     file: "app/sidekiq/process_asset_preview_retina_worker.rb",
@@ -2155,7 +2155,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   ReconcilePendingPaypalRefundsJob: {
     file: "app/sidekiq/reconcile_pending_paypal_refunds_job.rb",
@@ -2508,7 +2508,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RefundPurchaseWorker: {
     file: "app/sidekiq/refund_purchase_worker.rb",
@@ -2850,7 +2850,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RetryStripeRejectedPayoutSetupsJob: {
     file: "app/sidekiq/retry_stripe_rejected_payout_setups_job.rb",
@@ -3179,7 +3179,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SendPostBlastEmailsSliceJob: {
     file: "app/sidekiq/send_post_blast_emails_slice_job.rb",
@@ -3511,7 +3511,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: true,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   SubmitToIndexnowJob: {
     file: "app/sidekiq/submit_to_indexnow_job.rb",

@@ -338,6 +338,17 @@ before the ACME order and its rate-limit reschedule; its retries-exhausted block
 one; a live file goes back before `attempt_to_transcode?` (the `transcoded_videos` reads, then the TranscodedVideo row and MediaConvert or GRMC).
 A class other than `ProductFile` and `Link`, and an id Rails casts, go back before any read.
 
+## Ported small jobs that hand back whole (ws-jobs-small-12)
+
+`partner-migration-import-job.ts` and `retry-stripe-rejected-payout-setup-for-seller-job.ts` run the reads that open the Ruby job.
+`PartnerMigrationImportJob` finds the migration (a missing one raises Rails' RecordNotFound) and locks it; a migration that is not claimed
+and has not completed ends there. A claimed one goes back before `import_started_at` is written, a completed one before the notification
+push, and its retries-exhausted block (a write and ErrorNotifier) hands back whole. `RetryStripeRejectedPayoutSetupForSellerJob` ends for no
+user, a suspended one, and a seller with no outstanding failure note, including the connected-Stripe and PayPal exits that have nothing to
+abandon. A seller with an outstanding note goes back before the first write, as does a note whose `json_data` is not a hash (Rails raises into
+its ErrorNotifier rescue), a seller on `merchant_migration` and a PayPal merchant account, whose reads Node does not port.
+Goldens: `scripts/golden/partner-migration-import-job.rb`, `scripts/golden/retry-stripe-rejected-payout-setup-for-seller-job.rb`.
+
 Left in Ruby: `SendWorkflowEmailsToOpenedNonClickersJob` and `ScheduleAbandonedCartEmailsJob` have no prefix short of DynamoDB or the
 `timeout_queries` scan; `SendYearInReviewEmailJob` has no mail recording; the reports, payout and payment-processor jobs move money or call
 Stripe, PayPal or S3.

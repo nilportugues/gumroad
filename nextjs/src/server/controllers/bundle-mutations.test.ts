@@ -34,6 +34,10 @@ vi.mock("../models/sql.ts", () => ({
   quoteName: (name: string) => name,
 }));
 vi.mock("../auth/resolve.ts", () => ({ railsLoggedInUser: mocks.loggedIn }));
+vi.mock("./wishlists-mutations.ts", () => ({
+  signedOutRefusal: () =>
+    mocks.loggedIn() === null ? { status: 404, body: { success: false, error: "Not found" }, rescued: true } : null,
+}));
 vi.mock("./rails-params.ts", () => ({ requestFormat: mocks.format }));
 vi.mock("../page-props/domain.ts", () => ({ domainConfig: () => ({}) }));
 vi.mock("../page-props/bundles/pages.ts", () => ({ findBundle: mocks.findBundle }));
@@ -153,9 +157,9 @@ describe("Bundles::ProductController#remove_file", () => {
     await expect(call(removeFile, { file_id: "f" })).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands a signed-out request back to Rails", async () => {
+  it("answers a signed-out request with the 404 JSON of authenticate_user!", async () => {
     mocks.loggedIn.mockReturnValue(null);
-    await expect(call(removeFile, { file_id: "f" })).rejects.toBeInstanceOf(HandBackToRails);
+    expect(await call(removeFile, { file_id: "f" })).toMatchObject({ status: 404, rescued: true });
   });
 
   it("hands a file id that is not text back to Rails", async () => {

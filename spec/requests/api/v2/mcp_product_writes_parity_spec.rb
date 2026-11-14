@@ -735,16 +735,278 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       update({ category: "other" })
     end
 
-    it "hands a list of tags back to Rails", parity: true do
-      update({ tags: ["field-notes"] })
+    describe "tags" do
+      def tag_names = product.reload.tags.pluck(:name)
+
+      it "saves one tag", parity: true do
+        update({ tags: ["field-notes"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "hands a tag with spaces back to Rails", parity: true do
+        update({ tags: ["  Field   Notes "] })
+
+        expect(tag_names).to eq(["field notes"])
+      end
+
+      it "strips a tag", parity: true do
+        update({ tags: ["\n Field-Notes\t"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "saves a tag beside a name", parity: true do
+        update({ name: "Pen", tags: ["field-notes"] })
+
+        expect(product.reload.name).to eq("Pen")
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "keeps a tag the product already has", parity: true do
+        product.save_tags!(["field-notes"])
+        update({ tags: ["Field-Notes"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "swaps the tag the product has for another", parity: true do
+        product.save_tags!(["field-notes"])
+        update({ tags: ["sketching"] })
+
+        expect(tag_names).to eq(["sketching"])
+      end
+
+      it "reuses a tag another product holds", parity: true do
+        create(:product, user: seller, unique_permalink: "markerpk").save_tags!(["sketching"])
+        update({ tags: ["sketching"] })
+
+        expect(tag_names).to eq(["sketching"])
+        expect(Tag.find_by(name: "sketching").taggings_count).to eq(2)
+      end
+
+      it "removes every tag with an empty list", parity: true do
+        product.save_tags!(["field-notes"])
+        update({ tags: [] })
+
+        expect(tag_names).to eq([])
+      end
+
+      it "removes the several tags a product has with an empty list", parity: true do
+        product.save_tags!(["field-notes", "sketching", "stationery"])
+        update({ tags: [] })
+
+        expect(tag_names).to eq([])
+      end
+
+      it "keeps one of the several tags a product has", parity: true do
+        product.save_tags!(["field-notes", "sketching"])
+        update({ tags: ["sketching"] })
+
+        expect(tag_names).to eq(["sketching"])
+      end
+
+      it "collapses a tag written twice", parity: true do
+        update({ tags: ["field-notes", "Field-Notes"] })
+
+        expect(tag_names).to eq(["field-notes"])
+      end
+
+      it "refuses a tag of one character", parity: true do
+        update({ tags: ["a"] })
+
+        expect(tag_names).to eq([])
+      end
+
+      it "refuses a tag of 21 characters", parity: true do
+        update({ tags: ["a" * 21] })
+      end
+
+      it "accepts a tag of 20 characters", parity: true do
+        update({ tags: ["a" * 20] })
+
+        expect(tag_names).to eq(["a" * 20])
+      end
+
+      it "refuses a tag that is not text", parity: true do
+        update({ tags: [5] })
+      end
+
+      it "refuses more than ten tags", parity: true do
+        update({ tags: (10..20).map { "tag-#{_1}" } })
+      end
+
+      it "rolls the other changes back when a tag is refused", parity: true do
+        update({ name: "Pen", price_cents: 450, tags: ["a"] })
+
+        expect(product.reload.name).to eq("Pencil")
+        expect(product.price_cents).to eq(300)
+      end
+
+      it "reports the name error before a tag error", parity: true do
+        update({ name: "  ", tags: ["a"] })
+      end
+
+      it "hands a pair of tags back to Rails", parity: true do
+        update({ tags: ["field-notes", "sketching"] })
+
+        expect(tag_names).to eq(["field-notes", "sketching"])
+      end
+
+      it "hands a tag with a comma back to Rails", parity: true do
+        update({ tags: ["field,notes"] })
+      end
+
+      it "hands a tag with a hash back to Rails", parity: true do
+        update({ tags: ["#notes"] })
+      end
+
+      it "hands a tag with a non-ASCII letter back to Rails", parity: true do
+        update({ tags: ["café"] })
+      end
+
+      it "refuses a tag list that is not a list", parity: true do
+        update({ tags: "field-notes" })
+      end
     end
 
     it "hands a currency back to Rails", parity: true do
       update({ currency: "eur" })
     end
 
-    it "hands a pay what you want change back to Rails", parity: true do
-      update({ pay_what_you_want: true })
+    describe "pay what you want" do
+      it "turns pay what you want on", parity: true do
+        update({ pay_what_you_want: true })
+
+        expect(product.reload.customizable_price).to be true
+        expect(product.suggested_price_cents).to be_nil
+      end
+
+      it "turns pay what you want on with a suggested price", parity: true do
+        update({ pay_what_you_want: true, suggested_price_cents: 900 })
+
+        expect(product.reload.customizable_price).to be true
+        expect(product.suggested_price_cents).to eq(900)
+      end
+
+      it "turns pay what you want off", parity: true do
+        product.update_columns(customizable_price: true, suggested_price_cents: 900)
+        update({ pay_what_you_want: false })
+
+        expect(product.reload.customizable_price).to be_falsey
+      end
+
+      it "keeps a pay what you want switch that does not change", parity: true do
+        product.update_columns(customizable_price: true)
+        update({ pay_what_you_want: true })
+      end
+
+      it "changes the suggested price of a product that has pay what you want on", parity: true do
+        product.update_columns(customizable_price: true, suggested_price_cents: 900)
+        update({ suggested_price_cents: 1200 })
+
+        expect(product.reload.suggested_price_cents).to eq(1200)
+      end
+
+      it "turns pay what you want on and changes the price together", parity: true do
+        update({ price_cents: 450, pay_what_you_want: true, suggested_price_cents: 600 })
+      end
+
+      it "turns pay what you want on for a draft", parity: true do
+        product.update_columns(draft: true, purchase_disabled_at: Time.current)
+        update({ pay_what_you_want: true, suggested_price_cents: 900 })
+      end
+
+      it "turns pay what you want on for a published product", parity: true do
+        product.update_columns(purchase_disabled_at: nil)
+        update({ pay_what_you_want: true })
+      end
+
+      it "turns pay what you want off while a suggested price is stored and a price above it is set", parity: true do
+        product.update_columns(customizable_price: true, suggested_price_cents: 400)
+        update({ pay_what_you_want: false, price_cents: 800 })
+
+        expect(product.reload.customizable_price).to be_falsey
+      end
+
+      it "turns pay what you want back on over a stored suggested price", parity: true do
+        product.update_columns(suggested_price_cents: 900)
+        update({ pay_what_you_want: true })
+      end
+
+      it "makes a product free and pay what you want", parity: true do
+        update({ price_cents: 0, pay_what_you_want: false })
+
+        expect(product.reload.customizable_price).to be true
+      end
+
+      it "refuses a suggested price while pay what you want is off", parity: true do
+        update({ suggested_price_cents: 900 })
+
+        expect(product.reload.suggested_price_cents).to be_nil
+      end
+
+      it "refuses a suggested price in a call that turns pay what you want off", parity: true do
+        product.update_columns(customizable_price: true)
+        update({ pay_what_you_want: false, suggested_price_cents: 900 })
+      end
+
+      it "reports a suggested price below the price as a tool error", parity: true do
+        update({ pay_what_you_want: true, suggested_price_cents: 100 })
+
+        expect(product.reload.customizable_price).to be_falsey
+      end
+
+      it "reports a price above the stored suggested price as a tool error", parity: true do
+        product.update_columns(customizable_price: true, suggested_price_cents: 400)
+        update({ price_cents: 800 })
+
+        expect(product.reload.price_cents).to eq(300)
+      end
+
+      it "reports a negative suggested price as a tool error", parity: true do
+        update({ pay_what_you_want: true, suggested_price_cents: -1 })
+      end
+
+      it "reports a suggested price over the maximum as a tool error", parity: true do
+        update({ pay_what_you_want: true, suggested_price_cents: 2_147_483_648 })
+      end
+
+      it "keeps a suggested price equal to the price", parity: true do
+        update({ pay_what_you_want: true, suggested_price_cents: 300 })
+      end
+
+      it "refuses a pay what you want switch that is not a boolean", parity: true do
+        update({ pay_what_you_want: "yes" })
+      end
+
+      it "hands a suggested price with a decimal back to Rails", parity: true do
+        update({ pay_what_you_want: true, suggested_price_cents: 9.5 })
+      end
+
+      it "refuses a null suggested price", parity: true do
+        product.update_columns(customizable_price: true, suggested_price_cents: 900)
+        update({ suggested_price_cents: nil })
+      end
+
+      it "hands a rename of a published product with pay what you want back to Rails", parity: true do
+        product.update_columns(purchase_disabled_at: nil)
+        update({ name: "Pen", pay_what_you_want: true })
+      end
+
+      it "hands a pay what you want change beside a discount code back to Rails", parity: true do
+        create(:offer_code, user: seller, products: [product], code: "tenoff", amount_cents: 10)
+        update({ pay_what_you_want: true })
+      end
+
+      it "hands a pay what you want change to a tiered membership back to Rails", parity: true do
+        membership = create(:membership_product, user: seller, unique_permalink: "clubpk")
+        call_tool("update_product", { id: membership.external_id, pay_what_you_want: true })
+      end
+
+      it "hands a pay what you want change without the edit scope back to Rails", parity: true do
+        update({ pay_what_you_want: true }, scopes: "view_sales")
+      end
     end
 
     it "hands a call without the edit scope back to Rails", parity: true do

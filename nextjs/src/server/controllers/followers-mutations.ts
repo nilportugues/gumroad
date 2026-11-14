@@ -27,6 +27,7 @@ import { HandBackToRails, RoutingError, type ActionResult } from "./application-
 import { json } from "./json-actions.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requestFormat } from "./rails-params.ts";
+import { notFoundJson } from "./seller-json.ts";
 import { profileUser } from "./users-controller.ts";
 
 const SEE_OTHER = 303;
@@ -100,8 +101,8 @@ async function cancel(input: MutationInput): Promise<ActionResult> {
   if (format === "other") throw new HandBackToRails("a format whose content type is not modelled");
   const follower = await findByExternalId(input.routeParams.id!);
   if (follower === null) {
-    // fetch_follower answers JSON with e404_json, which is not reproduced.
-    if (format === "json") throw new HandBackToRails("an unknown follow requested as JSON");
+    // Rendered from a before_action, which halts the chain: the after_actions (XSRF-TOKEN) do not run.
+    if (format === "json") return { ...notFoundJson(), rescued: true };
     throw new RoutingError("Not Found");
   }
   // The proxy sends an HTML request to the Followers/Cancel page; one that reaches this handler is not the page's to answer.
@@ -121,10 +122,10 @@ async function newFollow(input: MutationInput): Promise<ActionResult> {
   if (format === "other") throw new HandBackToRails("a format whose content type is not modelled");
   const user = await profileUser(input).catch((error: unknown) => {
     // error_if_user_not_found answers JSON with e404_json.
-    if (error instanceof RoutingError && format === "json")
-      throw new HandBackToRails("an unknown account requested as JSON");
+    if (error instanceof RoutingError && format === "json") return null;
     throw error;
   });
+  if (user === null) return { ...notFoundJson(), rescued: true };
   // `URI(nil)` raises in Rails.
   const profileUrl = subdomainWithProtocol(Users.load(user));
   if (profileUrl === null) throw new HandBackToRails("a seller without a subdomain");

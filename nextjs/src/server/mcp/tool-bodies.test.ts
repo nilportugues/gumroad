@@ -988,10 +988,10 @@ describe("get_product", () => {
 describe("fields Rails writes that Node does not", () => {
   it.each([
     ["update_product", { id: "x", category: "other" }],
-    ["update_product", { id: "x", tags: [] }],
     ["update_product", { id: "x", currency: "eur" }],
-    ["update_product", { id: "x", pay_what_you_want: true }],
-    ["update_product", { id: "x", suggested_price_cents: 5 }],
+    ["update_product", { id: "x", pay_what_you_want: "yes" }],
+    ["update_product", { id: "x", suggested_price_cents: 9.5 }],
+    ["update_product", { id: "x", suggested_price_cents: null }],
     ["create_draft_product", { name: "n", price_cents: 5, currency: "eur" }],
     ["create_draft_product", { name: "n", price_cents: 5, pay_what_you_want: "yes" }],
     ["create_draft_product", { name: "n", price_cents: 5, pay_what_you_want: true, suggested_price_cents: 9.5 }],

@@ -1,8 +1,8 @@
 // FollowersController#create and #from_embed_form (app/controllers/followers_controller.rb) with Follower::CreateService: the
 // subscribe form of a seller and the embed form copied onto other sites. Both are throttled by Rack::Attack (controllers/rack-attack.ts).
 //
-// Left to Rails, before anything is written: a seller who needs a CAPTCHA (an unreviewed one: Google's verification is a call the
-// Rails test environment skips, so there is no recording of it), a waitlist product, a seller under a newsletter cutover, and the HTML
+// Left to Rails, before anything is written: a seller who needs a CAPTCHA on POST /follow (an unreviewed one: Google's verification is a call the
+// Rails test environment skips, so there is no recording of it; the embed form has no challenge, so its JSON refusal is served), a waitlist product, a seller under a newsletter cutover, and the HTML
 // answer of #from_embed_form, which renders an Inertia page that a mutation cannot (its props are page-props/audience/follower-embed-form.ts).
 import { Prisma, type User } from "@prisma/client";
 
@@ -19,7 +19,7 @@ import { RecordInvalid } from "../models/runtime/errors.ts";
 import { transaction } from "../models/runtime/transaction.ts";
 import { castRow, column, isRecordNotUnique, selectRows, table } from "../models/sql.ts";
 import { isAccountActive, isCompliant, Users } from "../models/user.ts";
-import { followConfirmationMessage } from "../page-props/audience/follower-embed-form.ts";
+import { embedFormCaptchaProps, followConfirmationMessage } from "../page-props/audience/follower-embed-form.ts";
 
 import { HandBackToRails, type ActionResult } from "./application-controller.ts";
 import { json } from "./json-actions.ts";
@@ -190,7 +190,16 @@ async function fromEmbedForm(input: MutationInput): Promise<ActionResult> {
   // Every HTML answer past the CAPTCHA and the seller lookup is an Inertia page or a redirect that depends on the write.
   if (format !== "json") throw new HandBackToRails("the HTML answer of the embed form, an Inertia page");
   const seller = await followedUser(input.params);
-  if (captchaRequired(seller)) throw new HandBackToRails("a follow that needs a CAPTCHA");
+  if (seller !== null && captchaRequired(seller)) {
+    // The refusal is decided before the CAPTCHA widget could matter (the embed form has none). A posted product may turn it into the
+    // waitlist wording, which is not modelled.
+    const productId = input.params.product_id;
+    if (productId !== undefined && productId !== null && productId !== "")
+      throw new HandBackToRails("a CAPTCHA refusal of the embed form for a product");
+    const { message, subscribe_url: destination } = embedFormCaptchaProps(seller);
+    // The JSON callers get the destination inside the sentence.
+    return json({ success: false, message: destination ? `${message} ${destination}` : message }, UNPROCESSABLE_ENTITY);
+  }
 
   const { follower } = await createFollower(input, EMBED_FORM);
   if (follower === null || !follower.errors.isEmpty()) {

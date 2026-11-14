@@ -24,7 +24,7 @@ import { retryStripeJpAddressResyncsJobWith } from "./retry-stripe-jp-address-re
 import { modelJob } from "./support/job-deps.ts";
 
 // StripeMerchantAccountManager::{BANK_SYNC,POSTAL_CODE,NO_VERDICT}_FAILURE_NOTE_PREFIX
-const FAILURE_NOTE_PREFIXES = [
+export const FAILURE_NOTE_PREFIXES = [
   "Stripe bank sync failed",
   "Stripe postal code rejected",
   "Stripe payout setup failed without a verdict",
@@ -35,7 +35,7 @@ const RETRY_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 1_000;
 const SELLER_JOB = "RetryStripeRejectedPayoutSetupForSellerJob";
 
-type Json = ReturnType<typeof rubyJsonParse>;
+export type Json = ReturnType<typeof rubyJsonParse>;
 
 // `note.json_data`: a NULL or blank column is {}; anything but a Hash raises in Ruby.
 function jsonDataOf(note: Comment): RubyHash {
@@ -61,7 +61,8 @@ function jsonDataOf(note: Comment): RubyHash {
   throw new NotPortedError("json_data of a payout note that is a boolean or a float", "json_data.rb");
 }
 
-const isBlankJson = (value: unknown) => isBlank(value) || (value instanceof RubyHash && value.entries.length === 0);
+export const isBlankJson = (value: unknown) =>
+  isBlank(value) || (value instanceof RubyHash && value.entries.length === 0);
 
 // `note.json_data["retry_count"].to_i`
 function retryCount(hash: RubyHash): number | bigint {
