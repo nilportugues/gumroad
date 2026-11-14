@@ -601,7 +601,13 @@ registerMutations(
     },
   })),
   ...Object.values(STRATEGIES).flatMap((strategy) => [
-    { method: "POST", pattern: requestPath(strategy), options: BARE, skipForgeryProtection: true, run: requestPhase(strategy) },
+    {
+      method: "POST",
+      pattern: requestPath(strategy),
+      options: BARE,
+      skipForgeryProtection: true,
+      run: requestPhase(strategy),
+    },
     {
       method: "GET",
       pattern: callbackPath(strategy),
