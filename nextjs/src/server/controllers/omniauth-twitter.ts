@@ -126,7 +126,8 @@ async function requestPhase(input: MutationInput): Promise<ActionResult> {
   assertHtml(input);
   if (!csrfVerified(input.request, input.params)) {
     // A link request also runs the funnel hook for the signed-in seller; whether it runs before the check is not recorded.
-    if (LINK_STATES.includes(queryParams(input.url).state ?? "")) throw new HandBackToRails("a link request with a bad authenticity token");
+    if (LINK_STATES.includes(queryParams(input.url).state ?? ""))
+      throw new HandBackToRails("a link request with a bad authenticity token");
     return nullSessionFailure(input);
   }
   const { session } = input.chain;

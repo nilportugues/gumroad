@@ -527,7 +527,10 @@ describe.skipIf(!url)("Apple OmniAuth", () => {
           if (call.url === TOKEN_URL) expectClientSecret(call, recorded[at]!);
         });
         // A request that failed its CSRF check never reaches Apple: the redirect to the sign-in page carries no nonce cookie.
-        if (exchange.request.path === "/users/auth/apple" && exchange.response.location?.startsWith("https://appleid.apple.com/"))
+        if (
+          exchange.request.path === "/users/auth/apple" &&
+          exchange.response.location?.startsWith("https://appleid.apple.com/")
+        )
           expectRequestPhase(replayed.exchanges[0]!.expected, replayed.exchanges[0]!.actual);
         // The session the callback leaves behind: the flash, the spent OmniAuth keys and the return entry.
         const { expected, actual } = replayed.exchanges[0]!;
