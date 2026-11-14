@@ -347,8 +347,12 @@ describe "API v2 products", type: :request do
       put "/v2/products/#{product.external_id}/sections", params: { sections: [first.external_id, { type: "products" }] }.to_json, headers: json_headers
     end
 
-    it "hands a header change to Rails", parity: true do
+    it "changes the header of a section it keeps", parity: true do
       put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: first.external_id, header: "New" }] }.to_json, headers: json_headers
+    end
+
+    it "keeps a section whose header is sent unchanged", parity: true do
+      put "/v2/products/#{product.external_id}/sections", params: { sections: [{ id: first.external_id, header: first.header }] }.to_json, headers: json_headers
     end
 
     it "refuses a known_section_ids that is not a list", parity: true do

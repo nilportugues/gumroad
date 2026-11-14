@@ -137,7 +137,7 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       call_tool("get_product", { id: "sketchpk" })
     end
 
-    it "hands back a token without a scope the tool needs", parity: true do
+    it "asks a token without a scope the tool needs to step up", parity: true do
       call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
     end
   end
@@ -155,7 +155,7 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       call_tool("list_categories")
     end
 
-    it "hands back a token without a scope the tool needs", parity: true do
+    it "asks a token without a scope the tool needs to step up", parity: true do
       call_tool("list_categories", {}, scopes: "view_sales")
     end
   end
@@ -199,7 +199,7 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       call_tool("list_files", { id: "sketchpk" }, scopes: "edit_products")
     end
 
-    it "hands back a token without a scope the tool needs", parity: true do
+    it "asks a token without a scope the tool needs to step up", parity: true do
       call_tool("list_files", { id: "sketchpk" }, scopes: "view_public")
     end
   end
@@ -329,7 +329,7 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       analytics({ start_date: "March 1" })
     end
 
-    it "hands back a token without a sales scope", parity: true do
+    it "asks a token without a sales scope to step up", parity: true do
       analytics({}, "view_public")
     end
   end
@@ -448,7 +448,7 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       subscriptions
     end
 
-    it "hands back a token without a sales scope", parity: true do
+    it "asks a token without a sales scope to step up", parity: true do
       subscriptions({}, "view_public")
     end
   end
@@ -537,8 +537,48 @@ describe "API v2 MCP product tools", type: :request, elasticsearch_wait_for_refr
       churn({ product_id: "nope" })
     end
 
-    it "hands back a token without a sales scope", parity: true do
+    it "asks a token without a sales scope to step up", parity: true do
       churn({}, "view_public")
+    end
+  end
+
+  describe "scope step-up" do
+    it "adds the first accepted scope to the scopes the token holds", parity: true do
+      call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales view_payouts")
+    end
+
+    describe "with an application that registered scopes" do
+      let(:application) { create(:oauth_application, owner: create(:user), scopes: "edit_products view_sales") }
+
+      it "steps up to the first accepted scope the application registered", parity: true do
+        call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+      end
+    end
+
+    describe "with an application that registered none of the accepted scopes" do
+      let(:application) { create(:oauth_application, owner: create(:user), scopes: "view_sales") }
+
+      it "answers a plain error with no challenge", parity: true do
+        call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+      end
+    end
+
+    describe "with a dynamic client" do
+      let(:application) { create(:oauth_application, owner: create(:user), scopes: "view_sales", mcp_dynamic_client: true) }
+
+      it "steps up to a scope the client registered or the connector grants", parity: true do
+        call_tool("get_product", { id: "sketchpk" }, scopes: "view_sales")
+      end
+    end
+
+    it "answers a plain error with no challenge for a batch", parity: true do
+      body = [{ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_product", arguments: { id: "sketchpk" } } }]
+      post "/muse/v1/mcp", params: body.to_json, headers: rpc.merge(auth("view_sales"))
+    end
+
+    it "answers a notification with no body", parity: true do
+      body = { jsonrpc: "2.0", method: "tools/call", params: { name: "get_product", arguments: { id: "sketchpk" } } }
+      post "/muse/v1/mcp", params: body.to_json, headers: rpc.merge(auth("view_sales"))
     end
   end
 end

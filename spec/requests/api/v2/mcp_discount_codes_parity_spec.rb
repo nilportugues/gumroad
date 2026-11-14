@@ -150,7 +150,7 @@ describe "API v2 MCP discount codes", type: :request, parity_timeline: true do
       create_code({ code: "CLUB", percent_off: 10, product_id: membership.external_id })
     end
 
-    it "hands a call without the edit scope back to Rails", parity: true do
+    it "asks a call without the edit scope to step up", parity: true do
       create_code({ code: "TENOFF", percent_off: 10 }, scopes: "view_sales")
     end
   end
@@ -240,7 +240,7 @@ describe "API v2 MCP discount codes", type: :request, parity_timeline: true do
       update_code({ code: "TENOFF", max_purchase_count: 3 })
     end
 
-    it "hands a call without the edit scope back to Rails", parity: true do
+    it "asks a call without the edit scope to step up", parity: true do
       update_code({ code: "TENOFF", percent_off: 20 }, scopes: "view_sales")
     end
   end
@@ -330,7 +330,7 @@ describe "API v2 MCP discount codes", type: :request, parity_timeline: true do
       expire_code({ code: "TENOFF" })
     end
 
-    it "hands a call without the edit scope back to Rails", parity: true do
+    it "asks a call without the edit scope to step up", parity: true do
       expire_code({ code: "TENOFF" }, scopes: "view_sales")
     end
   end

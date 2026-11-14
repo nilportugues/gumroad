@@ -9,6 +9,7 @@ import {
   METHOD_HEADER,
   MODERN_PROTOCOL_VERSION,
   NAME_HEADER,
+  SERVER_ERROR,
   SERVER_INFO_META_KEY,
   SUPPORTED_VERSIONS,
   UNSUPPORTED_PROTOCOL_VERSION,
@@ -16,7 +17,7 @@ import {
   VERSION_META_KEY,
 } from "./constants.ts";
 import { protocolBucket } from "./protocol-telemetry.ts";
-import { toolBody, ToolError, toolText, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
+import { ScopeError, toolBody, ToolError, toolText, ToolRpcError, type ToolContext } from "./tool-bodies.ts";
 import { findTool, TOOLS, toolArgumentError } from "./tools.ts";
 
 const TRANSPORT_ERROR_CODES = [HEADER_MISMATCH, UNSUPPORTED_PROTOCOL_VERSION];
@@ -80,6 +81,8 @@ function isClientResponse(body: Hash): boolean {
   return isHash(error) && Number.isInteger(error.code) && typeof error.message === "string";
 }
 
+export type InsufficientScope = { scope: string; message: string };
+
 export type RpcHeaders = { protocolVersion: string | null; method: string | null; name: string | null };
 
 // One HTTP request. `modernServed` is Feature.active?(:mcp_protocol_2026_07_28), asked only when a request declares a version.
@@ -87,6 +90,7 @@ export class RpcSession {
   readonly counts = new Map<string, number>();
   private era: "legacy" | "modern" = "legacy";
   private batch = false;
+  private stepUp: InsufficientScope | null = null;
   private modern: boolean | undefined;
 
   constructor(
@@ -94,6 +98,11 @@ export class RpcSession {
     private readonly modernServed: () => Promise<boolean>,
     private readonly tools?: ToolContext,
   ) {}
+
+  // The scope failure of this request, for the controller's RFC 6750 challenge (Mcp::Server#insufficient_scope).
+  get insufficientScope(): InsufficientScope | null {
+    return this.stepUp;
+  }
 
   get protocolEra(): "legacy" | "modern" {
     return this.era;
@@ -280,6 +289,11 @@ export class RpcSession {
       payload = await toolBody(name, args, this.tools);
     } catch (error) {
       if (error instanceof ToolRpcError) throw new McpError(error.message, error.code);
+      if (error instanceof ScopeError) {
+        // A batch gets a plain error: a step-up would fail the other calls in it.
+        if (!this.batch && error.scope !== null) this.stepUp = { scope: error.scope, message: error.message };
+        throw new McpError(error.message, SERVER_ERROR);
+      }
       if (error instanceof ToolError) return { content: [{ type: "text", text: error.message }], isError: true };
       throw error;
     }

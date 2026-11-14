@@ -21,10 +21,10 @@ vi.mock("../../presenters/product.ts", async (original) => ({
 vi.mock("./library.ts", async (original) => ({ ...(await original<typeof import("./library.ts")>()), libraryProps }));
 
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
-import { NotPortedError } from "../not-ported.ts";
 import { HandBackToRails, type Chain } from "../../controllers/application-controller.ts";
 import { setSqlClient } from "../../models/sql.ts";
 import type { ActionContext } from "../load-page.ts";
+import { NotPortedError } from "../not-ported.ts";
 
 import { BUYER_PAGES } from "./pages.ts";
 
@@ -34,7 +34,12 @@ const page = BUYER_PAGES["/library"]!;
 
 const chain = (queryString: string) =>
   ({
-    request: { headers: new Headers(), queryString, path: "/library", url: `https://example.com/library?${queryString}` },
+    request: {
+      headers: new Headers(),
+      queryString,
+      path: "/library",
+      url: `https://example.com/library?${queryString}`,
+    },
     auth: { context: { loggedInUser: user, impersonatedUser: null, currentSeller: user } },
     session: { data: {} },
   }) as unknown as Chain;
@@ -53,10 +58,37 @@ function answering(rows: { users?: unknown[]; purchases?: unknown[]; links?: unk
   }));
 }
 
-const seller = (overrides: Record<string, unknown> = {}) => ({ id: 3n, external_id: "seller-ext", flags: 0n, google_analytics_id: null, facebook_pixel_id: null, json_data: null, ...overrides });
+const seller = (overrides: Record<string, unknown> = {}) => ({
+  id: 3n,
+  external_id: "seller-ext",
+  flags: 0n,
+  google_analytics_id: null,
+  facebook_pixel_id: null,
+  json_data: null,
+  ...overrides,
+});
 
-const purchase = (overrides: Record<string, unknown> = {}) => ({ id: 5n, email: "buyer@example.com", link_id: 9n, subscription_id: null, flags: 0n, displayed_price_currency_type: "usd", displayed_price_cents: 1500, quantity: 2, tax_cents: 150, ...overrides });
-const product = (overrides: Record<string, unknown> = {}) => ({ id: 9n, user_id: 3n, name: "Course", unique_permalink: "abc", price_currency_type: "usd", flags: 0n, ...overrides });
+const purchase = (overrides: Record<string, unknown> = {}) => ({
+  id: 5n,
+  email: "buyer@example.com",
+  link_id: 9n,
+  subscription_id: null,
+  flags: 0n,
+  displayed_price_currency_type: "usd",
+  displayed_price_cents: 1500,
+  quantity: 2,
+  tax_cents: 150,
+  ...overrides,
+});
+const product = (overrides: Record<string, unknown> = {}) => ({
+  id: 9n,
+  user_id: 3n,
+  name: "Course",
+  unique_permalink: "abc",
+  price_currency_type: "usd",
+  flags: 0n,
+  ...overrides,
+});
 const render = (query: string) =>
   page.props({}, {
     context: { loggedInUser: user, impersonatedUser: null },
@@ -88,12 +120,21 @@ describe("GET /library?purchase_id=", () => {
   });
 
   it("hands the request back for a purchase priced in another currency", async () => {
-    answering({ users: [seller({ facebook_pixel_id: "123" })], purchases: [purchase({ displayed_price_currency_type: "eur" })], links: [product()] });
+    answering({
+      users: [seller({ facebook_pixel_id: "123" })],
+      purchases: [purchase({ displayed_price_currency_type: "eur" })],
+      links: [product()],
+    });
     await expect(page.options!.filters!(chain(`purchase_id=${EXTERNAL_ID}`))).rejects.toBeInstanceOf(HandBackToRails);
   });
 
   it("hands the request back for a purchase charged in the buyer's currency", async () => {
-    answering({ users: [seller({ facebook_pixel_id: "123" })], purchases: [purchase()], links: [product()], presentments: [{ 1: 1 }] });
+    answering({
+      users: [seller({ facebook_pixel_id: "123" })],
+      purchases: [purchase()],
+      links: [product()],
+      presentments: [{ 1: 1 }],
+    });
     await expect(page.options!.filters!(chain(`purchase_id=${EXTERNAL_ID}`))).rejects.toBeInstanceOf(HandBackToRails);
   });
 
@@ -104,7 +145,11 @@ describe("GET /library?purchase_id=", () => {
   });
 
   it("renders the seller's analytics event for the tracked purchase", async () => {
-    answering({ users: [seller({ google_analytics_id: "UA-1", json_data: JSON.stringify({ tiktok_pixel_id: "TT1" }) })], purchases: [purchase()], links: [product()] });
+    answering({
+      users: [seller({ google_analytics_id: "UA-1", json_data: JSON.stringify({ tiktok_pixel_id: "TT1" }) })],
+      purchases: [purchase()],
+      links: [product()],
+    });
     expect((await render(`purchase_id=${EXTERNAL_ID}`)).purchase_analytics).toEqual({
       [EXTERNAL_ID]: {
         seller_id: "seller-ext",
@@ -149,15 +194,38 @@ describe("GET /library?purchase_id=", () => {
   });
 
   it("renders whole-dollar tax without cents and no analytics for a seller without pixel ids", async () => {
-    answering({ users: [seller({ facebook_pixel_id: "9" })], purchases: [purchase({ tax_cents: 200 })], links: [product()] });
-    const event = ((await render(`purchase_id=${EXTERNAL_ID}`)).purchase_analytics as Record<string, { purchase_event: { tax: string } }>)[EXTERNAL_ID]!.purchase_event;
+    answering({
+      users: [seller({ facebook_pixel_id: "9" })],
+      purchases: [purchase({ tax_cents: 200 })],
+      links: [product()],
+    });
+    const event = (
+      (await render(`purchase_id=${EXTERNAL_ID}`)).purchase_analytics as Record<
+        string,
+        { purchase_event: { tax: string } }
+      >
+    )[EXTERNAL_ID]!.purchase_event;
     expect(event.tax).toBe("2");
     answering({ users: [seller()], purchases: [purchase()], links: [product()] });
     expect((await render(`purchase_id=${EXTERNAL_ID}`)).purchase_analytics).toEqual({});
   });
 
   it("renders the visible purchase as a receipt purchase and leaves purchase_analytics empty", async () => {
-    answering({ purchases: [{ id: 5n, email: "buyer@example.com", link_id: 9n, subscription_id: null, flags: 0n }] });
+    answering({
+      users: [seller({ name: "Ana" })],
+      purchases: [
+        {
+          id: 5n,
+          email: "buyer@example.com",
+          seller_id: 3n,
+          price_cents: 0,
+          shipping_cents: 0,
+          link_id: 9n,
+          subscription_id: null,
+          flags: 0n,
+        },
+      ],
+    });
     link.findUniqueOrThrow.mockResolvedValue({ id: 9n, user_id: 3n, unique_permalink: "abc", flags: 0n });
     const props = await page.props({}, {
       context: { loggedInUser: user, impersonatedUser: null },
@@ -166,7 +234,16 @@ describe("GET /library?purchase_id=", () => {
     } as unknown as ActionContext);
     expect(props).toMatchObject({
       purchase_analytics: {},
-      receipt_purchases: [{ id: EXTERNAL_ID, email: "buyer@example.com", permalink: "abc", has_third_party_analytics: false }],
+      receipt_purchases: [
+        {
+          id: EXTERNAL_ID,
+          email: "buyer@example.com",
+          free: true,
+          seller_name: "Ana",
+          permalink: "abc",
+          has_third_party_analytics: false,
+        },
+      ],
     });
   });
 

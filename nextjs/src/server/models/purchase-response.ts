@@ -146,6 +146,9 @@ export function purchaseResponse(facts: PurchaseResponseFacts): Record<string, u
     is_following: facts.isFollowing,
     currency_type: link.price_currency_type,
     has_third_party_analytics: facts.hasThirdPartyAnalytics,
+    // assertPlainFreePurchase leaves only a $0 purchase with no shipping, which is `free_purchase?`.
+    is_free_purchase: true,
+    seller_name: [seller.name, seller.username, seller.external_id].find((value) => present(value)),
     non_formatted_price: 0,
     subscription_has_lapsed: false,
     domain,

@@ -63,8 +63,14 @@ describe "API v2 product resource writes", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
 
-    it "hands a list-valued name back to Rails", parity: true do
+    it "stores a list-valued name as its inspected text", parity: true do
       api_call(:post, custom_fields_path, token:, params: { name: ["Nickname"] }, as: :json)
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "stores a list of two names as its inspected text", parity: true do
+      api_call(:post, custom_fields_path, token:, params: { name: ["Nickname", "Pen name"] }, as: :json)
 
       expect(response).to have_http_status(:ok)
     end

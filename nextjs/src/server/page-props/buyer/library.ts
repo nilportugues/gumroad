@@ -14,7 +14,7 @@ import { moneyFormatterFormat } from "../../models/concerns/money-formatter.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { castRow, column, selectRows, table } from "../../models/sql.ts";
 import { SubscriptionFlags } from "../../models/subscription.ts";
-import { isFlagSet, tiktokPixelId, Users } from "../../models/user.ts";
+import { isFlagSet, nameOrUsername, tiktokPixelId, Users } from "../../models/user.ts";
 import { findLink, findUserById } from "../../presenters/product-reads.ts";
 import { buyerCurrencyDisplayProps, linkFields } from "../../presenters/product.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
@@ -172,6 +172,15 @@ async function purchaseEventProps(purchase: Purchase): Promise<Record<string, un
   };
 }
 
+// `display_asset_previews.filter_map { _1.as_json if _1.image_url? }`: only a product with no cover is served; the as_json of one is not recorded.
+async function previewImages(productId: bigint): Promise<never[]> {
+  const previews = await selectRows(
+    Prisma.sql`SELECT 1 FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} = ${productId} AND ${column("asset_previews", "deleted_at")} IS NULL LIMIT 1`,
+  );
+  if (previews.length > 0) throw new NotPortedError("AssetPreview#as_json");
+  return [];
+}
+
 // `LibraryPresenter#receipt_purchases` for the tracked purchase: it must be in the library, and a membership that no longer grants access is dropped.
 export async function receiptPurchases(userId: bigint, externalIds: string[]) {
   const ids = trackedPurchaseIds(externalIds);
@@ -190,9 +199,14 @@ export async function receiptPurchases(userId: bigint, externalIds: string[]) {
     const analytics = await selectRows(
       Prisma.sql`SELECT 1 FROM ${table("third_party_analytics")} WHERE ${column("third_party_analytics", "deleted_at")} IS NULL AND ${column("third_party_analytics", "location")} IN ('receipt', 'all') AND (${column("third_party_analytics", "link_id")} = ${product.id} OR (${column("third_party_analytics", "user_id")} = ${product.user_id} AND ${column("third_party_analytics", "link_id")} IS NULL)) LIMIT 1`,
     );
+    const seller = purchase.seller_id === null ? null : await findUserById(purchase.seller_id);
+    if (!seller) throw new HandBackToRails("a receipt purchase without a seller");
     receipts.push({
       id: encrypt(purchase.id),
       email: purchase.email,
+      free: purchase.price_cents === 0 && purchase.shipping_cents === 0,
+      seller_id: seller.external_id,
+      seller_name: nameOrUsername(Users.load(castRow<User>("User", seller as never))),
       permalink: product.unique_permalink,
       has_third_party_analytics: analytics.length > 0,
     });
@@ -457,6 +471,7 @@ async function buildCards(userId: bigint, purchases: Purchase[]) {
         name: product.name,
         creator: sellerData.get(seller.id),
         thumbnail_url: await thumbnailOrCoverUrl(product.id),
+        preview_images: await previewImages(product.id),
         native_type: product.native_type,
       },
       purchase: {

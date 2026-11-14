@@ -454,8 +454,20 @@ describe "Buyer pages", type: :request do
 
         expect(response).to be_successful
         props = inertia_props_of(response)
+        seller = purchase.seller
         expect(props["purchase_analytics"]).to eq({})
-        expect(props["receipt_purchases"]).to eq([{ "id" => purchase.external_id, "email" => buyer.email, "permalink" => "justbought", "has_third_party_analytics" => false }])
+        expect(props["receipt_purchases"]).to eq([{ "id" => purchase.external_id, "email" => buyer.email, "free" => true, "seller_id" => seller.external_id, "seller_name" => seller.name_or_username, "permalink" => "justbought", "has_third_party_analytics" => false }])
+      end
+
+      it "marks a paid receipt purchase as not free and names a seller without a display name by username", parity: true do
+        seller = create(:user, name: nil, username: "plainseller")
+        purchase = build(:purchase, purchaser: buyer, email: buyer.email, link: create(:product, user: seller, unique_permalink: "paidone"), purchase_state: "successful").tap { _1.save!(validate: false) }.tap { _1.create_url_redirect! }
+        log_in(buyer)
+
+        get library_path(purchase_id: purchase.external_id)
+
+        expect(response).to be_successful
+        expect(inertia_props_of(response)["receipt_purchases"]).to eq([{ "id" => purchase.external_id, "email" => buyer.email, "free" => false, "seller_id" => seller.external_id, "seller_name" => "plainseller", "permalink" => "paidone", "has_third_party_analytics" => false }])
       end
 
       it "flags a tracked purchase whose seller has a receipt analytics snippet", parity: true do
