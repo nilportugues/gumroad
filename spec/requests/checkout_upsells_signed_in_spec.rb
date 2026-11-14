@@ -131,12 +131,46 @@ describe "Checkout upsells when signed in", type: :request do
         expect(response.parsed_body["upsells"].find { _1["name"] == "Bundle offer" }["discount"]).to include("type" => "fixed")
       end
 
-      it "hands a sort by revenue to Rails", parity: true do
+      describe "sorted by purchases" do
+        before do
+          @low = make_upsell("Low", updated_at: Time.utc(2025, 2, 1))
+          @high = make_upsell("High", updated_at: Time.utc(2025, 2, 2))
+          @none = make_upsell("None", updated_at: Time.utc(2025, 2, 3))
+          @refunded = make_upsell("Refunded", updated_at: Time.utc(2025, 2, 4))
+          sell(@low, count: 1, price_cents: 500)
+          sell(@high, count: 2, price_cents: 800)
+          sell(@refunded, count: 3, price_cents: 9000, stripe_refunded: true)
+        end
+
+        it "sorts by revenue descending, counting only purchases that count towards volume", parity: true do
+          get paged_checkout_upsells_path(sort: { key: "revenue", direction: "desc" }), headers: accept_json
+
+          expect(response.parsed_body["upsells"].map { _1["name"] }).to eq(["High", "Low", "Refunded", "None"])
+        end
+
+        it "sorts by revenue ascending with upsells nobody bought first", parity: true do
+          get paged_checkout_upsells_path(sort: { key: "revenue", direction: "asc" }), headers: accept_json
+
+          expect(response.parsed_body["upsells"].map { _1["name"] }).to eq(["Refunded", "None", "Low", "High"])
+        end
+
+        it "sorts by uses descending", parity: true do
+          get paged_checkout_upsells_path(sort: { key: "uses", direction: "desc" }), headers: accept_json
+
+          expect(response.parsed_body["upsells"].map { _1["name"] }).to eq(["High", "Low", "Refunded", "None"])
+        end
+      end
+
+      it "answers 500 for a page past the last one", parity: true do
         make_upsell("One")
+        previous = Rails.application.env_config["action_dispatch.show_exceptions"]
+        Rails.application.env_config["action_dispatch.show_exceptions"] = :all
 
-        get paged_checkout_upsells_path(sort: { key: "revenue", direction: "desc" }), headers: accept_json
+        get paged_checkout_upsells_path(page: 2), headers: accept_json
 
-        expect(response).to have_http_status(:ok)
+        expect(response).to have_http_status(:internal_server_error)
+      ensure
+        Rails.application.env_config["action_dispatch.show_exceptions"] = previous
       end
     end
 

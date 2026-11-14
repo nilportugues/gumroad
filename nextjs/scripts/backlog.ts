@@ -10,6 +10,29 @@ import { CRON_SCHEDULE, JOB_REGISTRY } from "../src/server/jobs/registry.generat
 
 import { pageStatus, parseRoutes, rows } from "./remaining-work.ts";
 
+const PARTNER_MIGRATION_ERB =
+  "Renders an ERB view (`partner_migrations/*.html.erb`) that Node cannot produce, and depends on the Rails session, mail and Rack::Attack limits no recording covers.";
+
+// Why each route that Node does not serve stays in Rails. src/lib/backlog-routes.test.ts fails when a route is served or gone but still listed here, or when a remaining route has no reason.
+export const RAILS_KEEPS: Record<string, string> = {
+  "GET /braintree/client_token": "Generates a token with a live Braintree call; no recording of the sequence.",
+  "GET /paypal/connect": "Partner-onboarding call to PayPal and a redirect to it; no recording.",
+  "POST /paypal/disconnect": "Calls PayPal to revoke the seller's partner link; no recording.",
+  "POST /stripe/setup_intents":
+    "Creates a Stripe SetupIntent on every path; its Rack::Attack rule is not counted in Node.",
+  "POST /partner_migration/setup": PARTNER_MIGRATION_ERB,
+  "POST /partner_migration": PARTNER_MIGRATION_ERB,
+  "POST /partner_migration/create_account": PARTNER_MIGRATION_ERB,
+  "POST /partner_migration/resend_setup": PARTNER_MIGRATION_ERB,
+  "POST /partner_migration/switch_account": PARTNER_MIGRATION_ERB,
+  "POST /products/:product_id/builds":
+    "Downloads and deploys the uploaded zip (`ProductBuilds::DeployService`), a storage and build side effect no recording proves.",
+  "GET /(*path)": "Catch-all `e404_page`; registering it would send every unregistered path to Node.",
+  "GET /partner_migration/setup": PARTNER_MIGRATION_ERB,
+  "GET /partner_migration": PARTNER_MIGRATION_ERB,
+  "GET /_/test/outgoing_traffic": "Health check that reads a real S3 object by design.",
+};
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const OUTPUT = join(repoRoot, "docs/nextjs-rewrite/backlog.md");
 const SRC_DIRS = ["nextjs/src/server", "nextjs/src/worker"];
@@ -385,16 +408,16 @@ function build(): string {
   );
   out.push("");
   out.push(
-    "Known scanner false positives (the static check cannot see these): `GET /products/:product_id/{other_refund_policies,available_offer_codes,builds}` are App Router routes already, and the Google, YouTube, Instagram and TikTok OmniAuth callbacks run in Node through the shared phases handler (`nextjs_omniauth_phases`) although their routes are built from the strategy name. So at least 7 of the rows below are served; the true remainder is correspondingly smaller. The reverse error also exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.",
+    "Each row is a route Node does not serve, and the last column says why Rails keeps it. The scanner already counts the App Router routes under `/products/:product_id` and the Google, YouTube, Instagram and TikTok OmniAuth callbacks as native (`src/lib/backlog-routes.test.ts` pins that), so no row here is a scanner false positive. The reverse error exists: a route counted native can still refuse most of its shapes, which is why section 5 matters more than this table.",
   );
   out.push("");
-  out.push("| Route | Controller#action | Status | Workstream |");
-  out.push("| --- | --- | --- | --- |");
+  out.push("| Route | Controller#action | Status | Workstream | Why Rails keeps it |");
+  out.push("| --- | --- | --- | --- | --- |");
   for (const row of remainingRoutes.sort(
     (a, b) => b.weight - a.weight || `${a.controller}#${a.action}`.localeCompare(`${b.controller}#${b.action}`),
   )) {
     out.push(
-      `| \`${row.method} ${row.path}\` | \`${row.controller}#${row.action}\` | ${row.status} | ${row.workstream} |`,
+      `| \`${row.method} ${row.path}\` | \`${row.controller}#${row.action}\` | ${row.status} | ${row.workstream} | ${RAILS_KEEPS[`${row.method} ${row.path}`] ?? "no reason recorded"} |`,
     );
   }
   out.push("");

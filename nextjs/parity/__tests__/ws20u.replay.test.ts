@@ -193,8 +193,9 @@ describe.skipIf(!url)("WS-20u parity", () => {
 
   const replayOptions = (file: string) => {
     const ignore = [...COMPARE.ignore];
-    // Rails' debug exception page for a 404 sets the profiler cookie.
-    if (file.includes("not-found")) ignore.push("response.cookies", "response.body", "response.json");
+    // Rails' debug exception page (a 404, or a 500 the test environment is told to render) is not recorded and sets the profiler cookie.
+    if (file.includes("not-found") || readFileSync(file, "utf8").includes("rails exception debug page"))
+      ignore.push("response.cookies", "response.body", "response.json");
     return {
       sql,
       redis: redisSeeder(redis),
@@ -226,7 +227,10 @@ describe.skipIf(!url)("WS-20u parity", () => {
           const handed = await replayFixtureExchange(fixture, index, replayOptions(file));
           const request = expected.request;
           expect(handedBack).toHaveLength(1);
-          expect(handedBack[0]).toMatchObject({ method: request.method, url: request.query ? `${request.path}?${request.query}` : request.path });
+          expect(handedBack[0]).toMatchObject({
+            method: request.method,
+            url: request.query ? `${request.path}?${request.query}` : request.path,
+          });
           expect(Object.keys(handed.exchanges[0]!.actual.db ?? {})).toEqual([]);
           return;
         }
