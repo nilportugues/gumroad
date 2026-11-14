@@ -1,7 +1,7 @@
-// Port of Pages::ProfileData.build (app/services/pages/profile_data.rb) for a seller whose posts and reputation summary are not listed:
-// the profile's tab names, the live products and the totals. A product is listed when it needs nothing the port cannot reproduce: no
-// thumbnail and no cover (their URLs are signed CDN ones), a USD buy-only price and a description without control characters. A published
-// post (its URL on the store host) or the reputation summary (its cache signature) is Rails'.
+// Port of Pages::ProfileData.build (app/services/pages/profile_data.rb): the profile's tab names, the live products, the posts shown on
+// the profile and the seller rating. A product is listed when it needs nothing the port cannot reproduce: no thumbnail and no cover
+// (their URLs are signed CDN ones), a USD buy-only price and a description without control characters. Posts that share a publish time
+// are Rails': the query has no tiebreaker, so their order is the database's.
 //
 // Rails.cache is not read or written: the payload is rebuilt each time. Ruby's cache key moves with the products, the visible posts,
 // the profile and the reputation version, so a hit and a rebuild agree for as long as the entry lives.
@@ -12,7 +12,8 @@ import { HandBackToRails } from "../controllers/application-controller.ts";
 import { stripTags } from "../html/sanitizer.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
 import { LinkFlags } from "../models/link.ts";
-import { selectRows } from "../models/sql.ts";
+import { column, selectRows, table } from "../models/sql.ts";
+import { sellerReputationSummary, type ReputationSummary } from "../models/user-reputation-summary.ts";
 import { NotPortedError } from "../page-props/not-ported.ts";
 import {
   assertPriceSupported,
@@ -33,6 +34,13 @@ const TRUNCATION_OMISSION = "...";
 // is the work the replica should not do on a public page.
 const MAX_PRODUCTS_READ = 1000;
 
+// Installment#shown_on_profile, flag 8 of `installments.flags`
+const SHOWN_ON_PROFILE_BIT = 1 << 7;
+// A slug the post URL carries as it is; anything else would be percent-encoded.
+const PLAIN_SLUG = /^[A-Za-z0-9_-]+$/u;
+
+export type ProfilePost = { name: string | null; slug: string | null; publishedAt: Date };
+
 export type ProfileProduct = {
   name: string;
   url: string;
@@ -49,9 +57,11 @@ export type ProfileDataFacts = {
   // `products.alive.not_archived.not_draft` by `created_at DESC, id DESC`, the first MAX_ITEMS of them, and how many there are.
   products: ProfileProduct[];
   productsTotal: number;
-  // Installments of the seller that are not deleted and have a publish time: a superset of `visible_on_profile`.
-  publishedPosts: number;
-  reputationSummaryEnabled: boolean;
+  // `installments.visible_on_profile` by `published_at DESC`, the first MAX_ITEMS of them, and how many there are.
+  posts: ProfilePost[];
+  postsTotal: number;
+  // `seller.seller_reputation_summary`; undefined while the flag is off, which leaves the key out of the payload.
+  sellerRating: ReputationSummary | null | undefined;
   // SellerProfile#json_data, null when the seller has no profile row.
   sellerProfileJsonData: unknown;
 };
@@ -116,19 +126,42 @@ export const profileProductEntries = (products: ProfileProduct[]) =>
     description: listedDescription(product.description),
   }));
 
+// One entry of `Pages::ProfileData.posts`: Installment#full_url on the store host, null for a post with no slug.
+function postEntries(facts: ProfileDataFacts) {
+  return facts.posts.map((post) => {
+    let url: string | null = null;
+    if (post.slug !== null && post.slug !== "") {
+      if (facts.storeHost === null)
+        throw new NotPortedError("Pages::ProfileData listing posts of a seller without a store host");
+      if (!PLAIN_SLUG.test(post.slug))
+        throw new NotPortedError("Pages::ProfileData linking a post whose slug needs escaping");
+      url = `${facts.storeHost}/p/${post.slug}`;
+    }
+    return { name: post.name, url, published_at: `${post.publishedAt.toISOString().slice(0, 19)}Z` };
+  });
+}
+
+// Float#to_json keeps the fraction of a whole number ("5.0"), which JSON.stringify drops.
+function sellerRatingJson(rating: ReputationSummary | null): string {
+  if (rating === null) return "null";
+  const average = Number.isInteger(rating.average) ? rating.average.toFixed(1) : String(rating.average);
+  return `{"average":${average},"count":${rating.count},"products_count":${rating.products_count}}`;
+}
+
 // ERB::Util.json_escape(Pages::ProfileData.build(seller).to_json)
 export function profileDataJson(facts: ProfileDataFacts): string {
-  if (facts.publishedPosts > 0) throw new NotPortedError("Pages::ProfileData listing posts");
-  if (facts.reputationSummaryEnabled)
-    throw new NotPortedError("Pages::ProfileData reading the seller's reputation summary");
-  const payload = {
+  const payload = JSON.stringify({
     products: profileProductEntries(facts.products),
-    posts: [],
+    posts: postEntries(facts),
     pages: tabNames(facts.sellerProfileJsonData).map((name) => ({ name })),
     products_total: facts.productsTotal,
-    posts_total: 0,
-  };
-  return jsonEscape(JSON.stringify(payload));
+    posts_total: facts.postsTotal,
+  });
+  const json =
+    facts.sellerRating === undefined
+      ? payload
+      : `${payload.slice(0, -1)},"seller_rating":${sellerRatingJson(facts.sellerRating)}}`;
+  return jsonEscape(json);
 }
 
 // `seller.products.alive.not_archived.not_draft` by `created_at DESC, id DESC`.
@@ -172,6 +205,24 @@ async function describeProducts(listed: LinkRow[], storeHost: string | null): Pr
   });
 }
 
+// `seller.installments.visible_on_profile`: alive, published, audience, shown on the profile and outside a workflow.
+async function loadPosts(seller: HostSeller): Promise<{ posts: ProfilePost[]; total: number }> {
+  const visible = Prisma.sql`FROM ${table("installments")} WHERE ${column("installments", "seller_id")} = ${seller.id} AND ${column("installments", "deleted_at")} IS NULL AND ${column("installments", "published_at")} IS NOT NULL AND ${column("installments", "installment_type")} = 'audience' AND ${column("installments", "workflow_id")} IS NULL AND (${column("installments", "flags")} & ${SHOWN_ON_PROFILE_BIT}) != 0`;
+  const [rows, [count]] = await Promise.all([
+    // One past MAX_ITEMS, so a tie across the cut shows up too.
+    selectRows<{ name: string | null; slug: string | null; published_at: Date }>(
+      Prisma.sql`SELECT name, slug, published_at ${visible} ORDER BY published_at DESC LIMIT ${MAX_ITEMS + 1}`,
+    ),
+    selectRows<{ total: bigint | number }>(Prisma.sql`SELECT COUNT(*) AS total ${visible}`),
+  ]);
+  if (new Set(rows.map((row) => row.published_at.getTime())).size !== rows.length)
+    throw new NotPortedError("Pages::ProfileData ordering posts that share a publish time");
+  return {
+    posts: rows.slice(0, MAX_ITEMS).map((row) => ({ name: row.name, slug: row.slug, publishedAt: row.published_at })),
+    total: Number(count?.total ?? 0),
+  };
+}
+
 async function loadProducts(
   seller: HostSeller,
   storeHost: string | null,
@@ -198,9 +249,9 @@ export async function loadProductsSlice(
 export async function loadProfileDataFacts(seller: HostSeller, now: Date): Promise<ProfileDataFacts> {
   const sellerId = seller.id;
   const { host: storeHost, refresh } = await storeHostWithProtocol(seller, now);
-  const [{ products, total }, publishedPosts, profile, reputationSummaryEnabled] = await Promise.all([
+  const [{ products, total }, { posts, total: postsTotal }, profile, reputationSummaryEnabled] = await Promise.all([
     loadProducts(seller, storeHost),
-    db.installment.count({ where: { seller_id: Number(sellerId), deleted_at: null, published_at: { not: null } } }),
+    loadPosts(seller),
     db.sellerProfile.findFirst({ where: { seller_id: sellerId }, orderBy: { id: "asc" } }),
     isFeatureEnabled(REPUTATION_SUMMARY_FEATURE, userActor(String(sellerId))),
   ]);
@@ -209,8 +260,9 @@ export async function loadProfileDataFacts(seller: HostSeller, now: Date): Promi
     routabilityRefresh: refresh,
     products,
     productsTotal: total,
-    publishedPosts,
-    reputationSummaryEnabled,
+    posts,
+    postsTotal,
+    sellerRating: reputationSummaryEnabled ? await sellerReputationSummary(sellerId) : undefined,
     sellerProfileJsonData: profile?.json_data ?? null,
   };
 }

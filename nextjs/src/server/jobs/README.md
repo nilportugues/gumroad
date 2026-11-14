@@ -321,3 +321,11 @@ job's unique-jobs lock.
 
 Left in Ruby: `HandlePaypalEventWorker`, `PerformDailyInstantPayoutsWorker`, `ProcessPurchaseEarlyFraudWarningJob` (money), `GenerateAvatarVariantJob`
 (its first read leads straight to an Active Storage resize), `AnnualTaxSummaryExportWorker` (see above).
+
+## ExportPayoutData (ws-jobs-small-10)
+
+`export-payout-data.ts` runs `Payment.where(id: ...).find_each` in Node and finishes a job that finds no payment (an empty list or nil sends
+no statement, as in Rails). A payment that is found goes back whole: the CSV (`Exports::Payouts::Csv`) is built before the same-seller
+check, and the zip and the mail with the file attached are `deliver_now`. An id Rails casts (a word reads as NULL) goes back before any
+read. Golden: `scripts/golden/export-payout-data.rb`. `SendYearInReviewEmailJob`, `AnnualTaxSummaryExportWorker` and
+`PostToPingEndpointsWorker` stay in Ruby.

@@ -35,19 +35,26 @@ const factsOf = (c: Case): ProfileDataFacts => ({
   products:
     c.listed ?? c.descriptions.map((description, i) => ({ ...HANDED_BACK_PRODUCT, name: `Product ${i}`, description })),
   productsTotal: c.products_total ?? c.descriptions.length,
-  publishedPosts: c.posts,
-  reputationSummaryEnabled: c.reputation_summary_enabled,
+  posts: [],
+  postsTotal: 0,
+  sellerRating: undefined,
   sellerProfileJsonData: c.tabs === null ? null : { tabs: c.tabs.map((name) => ({ name, sections: [] })) },
 });
+
+// Posts and the seller rating are proven by profile-landing-embed.replay.test.ts; the generator's cases for them record no payload.
+const listedElsewhere = (c: Case) => c.posts > 0 || c.reputation_summary_enabled;
 
 describe("Pages::ProfileData against Ruby (nextjs/scripts/golden/pages-profile-data.rb)", () => {
   it.each(golden.cases.filter((c) => !c.hands_back).map((c) => [c.name, c] as const))("%s", (_name, c) => {
     expect(profileDataJson(factsOf(c))).toBe(c.json);
   });
 
-  it.each(golden.cases.filter((c) => c.hands_back).map((c) => [c.name, c] as const))("hands back %s", (_name, c) => {
-    expect(() => profileDataJson(factsOf(c))).toThrow(NotPortedError);
-  });
+  it.each(golden.cases.filter((c) => c.hands_back && !listedElsewhere(c)).map((c) => [c.name, c] as const))(
+    "hands back %s",
+    (_name, c) => {
+      expect(() => profileDataJson(factsOf(c))).toThrow(NotPortedError);
+    },
+  );
 
   it("covers every case the generator records", () => {
     expect(golden.cases.length).toBe(37);
@@ -60,8 +67,9 @@ describe("what profileDataJson reads from the profile", () => {
     routabilityRefresh: null,
     products: [],
     productsTotal: 0,
-    publishedPosts: 0,
-    reputationSummaryEnabled: false,
+    posts: [],
+    postsTotal: 0,
+    sellerRating: undefined,
     sellerProfileJsonData,
   });
 
@@ -84,14 +92,55 @@ describe("what profileDataJson reads from the profile", () => {
   });
 });
 
+describe("the posts and seller rating the payload lists", () => {
+  const facts = (over: Partial<ProfileDataFacts>): ProfileDataFacts => ({
+    storeHost: "http://s.example.com",
+    routabilityRefresh: null,
+    products: [],
+    productsTotal: 0,
+    posts: [],
+    postsTotal: 0,
+    sellerRating: undefined,
+    sellerProfileJsonData: null,
+    ...over,
+  });
+  const post = { name: "News", slug: "news", publishedAt: new Date("2026-01-02T03:04:05.000Z") };
+
+  it("links a post on the store host and formats its publish time", () => {
+    expect(JSON.parse(profileDataJson(facts({ posts: [post], postsTotal: 1 }))).posts).toEqual([
+      { name: "News", url: "http://s.example.com/p/news", published_at: "2026-01-02T03:04:05Z" },
+    ]);
+  });
+
+  it("leaves the URL of a post with no slug null", () => {
+    expect(profileDataJson(facts({ posts: [{ ...post, slug: null }], postsTotal: 1 }))).toContain('"url":null');
+  });
+
+  it("hands back a post whose slug needs escaping", () => {
+    expect(() => profileDataJson(facts({ posts: [{ ...post, slug: "a b" }], postsTotal: 1 }))).toThrow(NotPortedError);
+  });
+
+  it("keeps the fraction of a whole-number average", () => {
+    expect(profileDataJson(facts({ sellerRating: { average: 5, count: 12, products_count: 2 } }))).toContain(
+      '"seller_rating":{"average":5.0,"count":12,"products_count":2}',
+    );
+  });
+
+  it("writes a null rating and leaves the key out while the flag is off", () => {
+    expect(profileDataJson(facts({ sellerRating: null }))).toContain('"seller_rating":null');
+    expect(profileDataJson(facts({}))).not.toContain("seller_rating");
+  });
+});
+
 describe("the products the payload lists", () => {
   const facts = (description: string | null): ProfileDataFacts => ({
     storeHost: null,
     routabilityRefresh: null,
     products: [{ name: "P", url: "http://s.example.com/l/p", price: "$5", native_type: "digital", description }],
     productsTotal: 1,
-    publishedPosts: 0,
-    reputationSummaryEnabled: false,
+    posts: [],
+    postsTotal: 0,
+    sellerRating: undefined,
     sellerProfileJsonData: null,
   });
 
