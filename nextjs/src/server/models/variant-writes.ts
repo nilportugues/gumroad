@@ -22,7 +22,7 @@ import { MAX_PURCHASE_COUNT_RANGE } from "./offer-code-writes.ts";
 import { defineModel } from "./runtime/define-model.ts";
 import type { ModelRecord } from "./runtime/record.ts";
 import { validatesPresenceOf } from "./runtime/validators.ts";
-import { column, selectRows, table } from "./sql.ts";
+import { column, execute, selectRows, table } from "./sql.ts";
 
 const VARIANT = "Variant";
 const NATIVE_TYPES_WITH_OWN_RULES = ["coffee", "call"];
@@ -42,12 +42,21 @@ export async function assertPlainVariantProduct(product: Link): Promise<void> {
   if ((await defaultPriceCents(Links.load(product))) === 0) notPorted("a version of a free product");
 }
 
+// What #destroy follows: a plain product's version as above, or a tier, whose only extra write is `set_customizable_price` (below).
+// A tier's prices are not read for the response (a deletion answers with no version) and are not validated (`update_attribute`).
+export async function assertDeletableVariantProduct(product: Link): Promise<void> {
+  if (!LinkFlags.isSet(product.flags, "is_tiered_membership")) return assertPlainVariantProduct(product);
+  if (product.native_type !== null && NATIVE_TYPES_WITH_OWN_RULES.includes(product.native_type))
+    notPorted(`a tier of a ${product.native_type} product`);
+}
+
 // A saved version outside the plain shape: one that applies price changes to memberships, or has prices of its own (they are validated
 // against the currency's range and printed by as_json).
-export async function assertPlainVariant(row: BaseVariant): Promise<void> {
+export async function assertPlainVariant(row: BaseVariant, options: { pricesAllowed?: boolean } = {}): Promise<void> {
   if (BaseVariantFlags.isSet(row.flags, "apply_price_changes_to_existing_memberships"))
     notPorted("a version that applies price changes to existing memberships");
   if (row.subscription_price_change_message !== null) notPorted("a version with a price change message");
+  if (options.pricesAllowed) return;
   const [prices] = await selectRows<{ found: number | bigint }>(
     Prisma.sql`SELECT EXISTS (SELECT 1 FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${row.id}) AS found`,
   );
@@ -110,6 +119,21 @@ async function productIdOf(record: VariantWrite): Promise<bigint | null> {
   return row?.link_id == null ? null : BigInt(row.link_id);
 }
 
+// Variant::Prices#set_customizable_price (after_save, update_column so updated_at stays): a tier whose live prices are all free is
+// pay what you want. A tier with no live price, or any paid one, keeps its flag.
+async function setCustomizablePrice(record: VariantWrite): Promise<void> {
+  const productId = await productIdOf(record);
+  if (productId === null || !LinkFlags.isSet((await findLinkBang(productId)).get("flags"), "is_tiered_membership"))
+    return;
+  const [prices] = await selectRows<{ total: number | bigint; paid: number | bigint | null }>(
+    Prisma.sql`SELECT COUNT(*) AS total, SUM(${column("prices", "price_cents")} > 0) AS paid FROM ${table("prices")} WHERE ${column("prices", "variant_id")} = ${record.get("id")} AND ${column("prices", "deleted_at")} IS NULL`,
+  );
+  if (Number(prices?.total ?? 0) === 0 || Number(prices?.paid ?? 0) > 0) return;
+  await execute(
+    Prisma.sql`UPDATE ${table("base_variants")} SET ${column("base_variants", "customizable_price")} = TRUE WHERE ${column("base_variants", "id")} = ${record.get("id")}`,
+  );
+}
+
 export const Variants = defineModel<BaseVariant>({
   rubyClass: VARIANT,
   prismaModel: "BaseVariant",
@@ -143,7 +167,8 @@ export const Variants = defineModel<BaseVariant>({
     // price_must_be_within_range validates the version's own prices, and duration_in_minutes belongs to call products.
   ],
   beforeCreate: [{ name: "set_position", run: setPosition }],
-  // set_customizable_price (tiers only) and sync_product_customizable_price (a free product only) cannot write for a plain product.
+  // sync_product_customizable_price writes only for a free product that is not a tier, which assertPlainVariantProduct refuses.
+  afterSave: [{ name: "set_customizable_price", run: setCustomizablePrice }],
   afterCommit: [
     // Declared in this order; Rails runs them in reverse (run_after_transaction_callbacks_in_order_defined = false).
     {

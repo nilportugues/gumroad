@@ -281,6 +281,7 @@ import { sendMarketingXReconnectEmailJob } from "./send-marketing-x-reconnect-em
 import { sendMembershipsPriceUpdateEmailsJob } from "./send-memberships-price-update-emails-job.ts";
 import { sendPaymentReminderWorker } from "./send-payment-reminder-worker.ts";
 import { sendPaypalTopupNotificationJob } from "./send-paypal-topup-notification-job.ts";
+import { sendPostBlastEmailsJob } from "./send-post-blast-emails-job.ts";
 import { sendPostBlastEmailsSliceJob } from "./send-post-blast-emails-slice-job.ts";
 import { sendPreorderSellerSummaryWorker } from "./send-preorder-seller-summary-worker.ts";
 import { sendProductPublishScheduleNoticeJob } from "./send-product-publish-schedule-notice-job.ts";
@@ -307,6 +308,7 @@ import {
 } from "./stripe-jobs.ts";
 import { stripePayoutsPausedEmailJob } from "./stripe-payouts-paused-email-job.ts";
 import { stripeRestraintNoticeEmailJob } from "./stripe-restraint-notice-email-job.ts";
+import { submitPaypalDisputeEvidenceJob } from "./submit-paypal-dispute-evidence-job.ts";
 import { submitToIndexnowJob } from "./submit-to-indexnow-job.ts";
 import {
   chargeDeclinedReminderWorker,
@@ -606,6 +608,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   CollectUnclaimedBalancesOfInactiveStripeAccountsJob: collectUnclaimedBalancesOfInactiveStripeAccountsJob,
   PostToPingEndpointsWorker: postToPingEndpointsWorker,
   ReconcileClientConfirmedChargeJob: reconcileClientConfirmedChargeJob,
+  SendPostBlastEmailsJob: sendPostBlastEmailsJob,
+  SubmitPaypalDisputeEvidenceJob: submitPaypalDisputeEvidenceJob,
   RefundPurchaseForFraudWorker: refundPurchaseForFraudWorker,
   ExportPayoutData: exportPayoutData,
   ReissueSslCertificateForUpdatedCustomDomains: reissueSslCertificateForUpdatedCustomDomains,

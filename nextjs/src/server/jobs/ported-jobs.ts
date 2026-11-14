@@ -285,6 +285,8 @@ export const PORTED_JOBS: readonly string[] = [
   "PartnerMigrationImportJob",
   "RetryStripeRejectedPayoutSetupForSellerJob",
   "ReconcileClientConfirmedChargeJob",
+  "SendPostBlastEmailsJob",
+  "SubmitPaypalDisputeEvidenceJob",
   "RefundPurchaseForFraudWorker",
   "PostToPingEndpointsWorker",
   "CollectUnclaimedBalancesOfInactiveStripeAccountsJob",

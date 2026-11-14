@@ -320,13 +320,64 @@ describe "API v2 version writes", type: :request, parity_timeline: true do
       expect(category.variants.alive.map(&:name)).to eq(["Large"])
     end
 
-    it "hands a tier delete back to Rails", parity: true do
-      membership = create(:membership_product, user: seller)
-      tier = membership.tier_category.variants.first
+    context "with a tier of a membership" do
+      let(:membership) { create(:membership_product, user: seller) }
+      # The tier the product starts with carries a price of the product's own amount.
+      let(:tier) { membership.tier_category.variants.first }
 
-      api_call(:delete, variants_path("/#{tier.external_id}", product_id: membership.external_id, category_id: membership.tier_category.external_id), token:)
+      def delete_tier(tier, headers: {})
+        api_call(:delete, variants_path("/#{tier.external_id}", product_id: membership.external_id, category_id: membership.tier_category.external_id), token:, headers:)
+      end
 
-      expect(response.parsed_body["success"]).to be(true)
+      def add_price(tier, price_cents, deleted_at: nil)
+        VariantPrice.create!(variant: tier, price_cents:, currency: "usd", recurrence: "monthly", deleted_at:)
+      end
+
+      it "deletes a tier that has no price", parity: true do
+        tier.prices.delete_all
+
+        delete_tier(tier, headers: { "X-Request-Id" => "parity-variant-destroy" })
+
+        expect(response.parsed_body["success"]).to be(true)
+        expect(tier.reload.deleted_at).to be_present
+        expect(ProductVariantDeletionAudit.count).to eq(1)
+      end
+
+      it "deletes a tier that has a paid price", parity: true do
+        delete_tier(tier, headers: { "X-Request-Id" => "parity-variant-destroy" })
+
+        expect(tier.reload.deleted_at).to be_present
+        expect(tier.customizable_price).to be_falsey
+      end
+
+      it "marks a tier whose prices are all free as pay what you want while deleting it", parity: true do
+        tier.prices.delete_all
+        add_price(tier, 0)
+
+        delete_tier(tier, headers: { "X-Request-Id" => "parity-variant-destroy" })
+
+        expect(tier.reload.deleted_at).to be_present
+        expect(tier.customizable_price).to be(true)
+      end
+
+      it "reads a deleted paid price as no price when it decides", parity: true do
+        tier.prices.delete_all
+        add_price(tier, 0)
+        add_price(tier, 800, deleted_at: Time.utc(2025, 1, 1))
+
+        delete_tier(tier, headers: { "X-Request-Id" => "parity-variant-destroy" })
+
+        expect(tier.reload.customizable_price).to be(true)
+      end
+
+      it "reports success for a tier that is already deleted and records no second deletion", parity: true do
+        tier.update_columns(deleted_at: Time.utc(2025, 1, 1))
+
+        delete_tier(tier)
+
+        expect(response.parsed_body["success"]).to be(true)
+        expect(ProductVariantDeletionAudit.count).to eq(0)
+      end
     end
   end
 end

@@ -377,10 +377,28 @@ describe "API v2 product create", type: :request, parity_timeline: true do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a creation from the command line tool back to Rails", parity: true do
+  it "creates a product from the command line tool and marks it", parity: true do
     create_product({ name: "Notebook", price: 500 }, headers: { "User-Agent" => "gumroad-cli/1.2.3" })
 
     expect(created.created_via_cli).to be true
+  end
+
+  it "reads the user agent of the command line tool without regard to case", parity: true do
+    create_product({ name: "Notebook", price: 500 }, headers: { "User-Agent" => "Gumroad-CLI/2.0" })
+
+    expect(created.created_via_cli).to be true
+  end
+
+  it "creates a draft from the command line tool", parity: true do
+    create_product({ name: "Notebook", price: 500, draft: true }, headers: { "User-Agent" => "gumroad-cli/1.2.3" })
+
+    expect(created.created_via_cli).to be true
+  end
+
+  it "does not mark a product made by a client that only mentions the command line tool", parity: true do
+    create_product({ name: "Notebook", price: 500 }, headers: { "User-Agent" => "wrapper of gumroad-cli/1.2.3" })
+
+    expect(created.created_via_cli).to be false
   end
 
   def upload(name = "guide.pdf", body: "pdf bytes")

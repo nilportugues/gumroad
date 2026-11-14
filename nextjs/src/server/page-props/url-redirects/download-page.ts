@@ -104,11 +104,12 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
   return { loaded, product, seller };
 }
 
-// UrlRedirectPresenter#license for a product without versions, where Purchase#uses_license_key? is is_licensed alone; a
-// version's key also depends on whether its pages print one.
-async function licenseProps(purchase: Purchase | null, product: Link, provider: ContentProvider) {
+// UrlRedirectPresenter#license, where Purchase#uses_license_key? is is_licensed alone; a version's key also depends on whether its
+// pages print one, which is only proven for a version with no pages.
+async function licenseProps(purchase: Purchase | null, product: Link, provider: ContentProvider, pageCount: number) {
   if (!purchase || !LinkFlags.isSet(product.flags, "is_licensed")) return null;
-  if (provider.kind === "variant") throw new HandBackToRails("the license key of a version");
+  if (provider.kind === "variant" && pageCount > 0)
+    throw new HandBackToRails("the license key of a version with pages");
   const licenses = await db.license.findMany({ where: { purchase_id: Number(purchase.id) }, orderBy: { id: "asc" } });
   // has_one :license takes an unspecified row when there are several.
   if (licenses.length > 1) throw new HandBackToRails("a purchase with several licenses");
@@ -194,7 +195,7 @@ export async function downloadPageProps(
 
   return {
     content: {
-      license: await licenseProps(purchase, product, provider),
+      license: await licenseProps(purchase, product, provider, pages.length),
       content_items: await contentItems(loaded, loggedInUser, embeddedFileIds(pages)),
       bundle_products: [],
       rich_content_pages:
