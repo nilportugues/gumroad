@@ -13,7 +13,7 @@ import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import { wishlistPolicy } from "../policies/buyer.ts";
 import { loadSellerContext, type SellerContext } from "../policies/seller-context.ts";
 
-import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult } from "./application-controller.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { cgiEscape, requestFormat } from "./rails-params.ts";
@@ -54,13 +54,17 @@ const isHash = (value: unknown): value is Record<string, unknown> =>
 function permitted(input: MutationInput, keys: string[]): Record<string, unknown> {
   const { params } = input;
   let wishlist = params.wishlist;
+  let wrapped = false;
   // ParamsWrapper: a JSON body without the key is wrapped under it, limited to the model's columns.
   if (
     !("wishlist" in params) &&
     (input.request.headers.get("content-type") ?? "").split(";")[0]!.trim().toLowerCase() === "application/json"
   ) {
     wishlist = Object.fromEntries(Object.entries(params).filter(([key]) => WRAPPED_COLUMNS.includes(key)));
+    wrapped = true;
   }
+  // A JSON body with none of the model's columns wraps to an empty hash, which `require` rejects (recorded: a 400).
+  if (wrapped && isHash(wishlist) && Object.keys(wishlist).length === 0) throw new ParameterMissing();
   // `require` raises for a missing or blank value.
   if (!isHash(wishlist) || Object.keys(wishlist).length === 0)
     throw new HandBackToRails("a wishlist parameter that is not a populated hash");
