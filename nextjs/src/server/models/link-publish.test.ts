@@ -56,7 +56,11 @@ const railsOrder = (name: string): string[] => {
 };
 
 const OPS: Record<string, string> = { create: "insert", update: "update", delete: "delete" };
-const TABLES: Record<string, string> = { link: "links", version: "versions" };
+const TABLES: Record<string, string> = {
+  link: "links",
+  version: "versions",
+  product_publish_schedule: "product_publish_schedules",
+};
 const link = (overrides: Partial<Link> = {}) =>
   ({
     id: 5n,
@@ -116,13 +120,23 @@ describe("publishBang", () => {
     answers = (sql) => baseAnswers(sql, null);
     database = fakeDatabase();
     current.writes = database.writes;
+    // Link#cancel_pending_publish_schedule: a delete_all, recorded where Rails' timeline has it
+    const executeRaw = async (query: { sql: string }) => {
+      if (query.sql.includes("DELETE FROM `product_publish_schedules`"))
+        database.writes.push({ model: "product_publish_schedule", op: "delete", id: null });
+      return 0;
+    };
     const tx = new Proxy(database.tx, {
       get: (target, prop: string) =>
-        prop === "$queryRaw" ? async (query: { sql: string }) => answers(query.sql) : target[prop as never],
+        prop === "$queryRaw"
+          ? async (query: { sql: string }) => answers(query.sql)
+          : prop === "$executeRaw"
+            ? executeRaw
+            : target[prop as never],
     });
     setTransactionRunner(async (fn) => fn(tx as never));
     setSqlClient(
-      () => ({ $queryRaw: async (query: { sql: string }) => answers(query.sql), $executeRaw: async () => 0 }) as never,
+      () => ({ $queryRaw: async (query: { sql: string }) => answers(query.sql), $executeRaw: executeRaw }) as never,
     );
     setLinkCollaborators({ cacheDelete: async () => undefined, isFeatureEnabled: async () => false });
   });

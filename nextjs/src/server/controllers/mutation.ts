@@ -71,6 +71,8 @@ export type MutationSpec = {
   skipForgeryProtection?: boolean;
   // The action reads request.raw_post itself (a webhook): `params` is left empty and no body is parsed or refused here.
   rawBody?: boolean;
+  // A JSON body is read the way Rails does after deep_munge (nulls dropped from lists) instead of handing a null in a list back.
+  dropNils?: boolean;
   // Formats the action answers like Rails does. Pundit's 401 JSON is what the default (html only) leaves to Rails.
   formats?: ("html" | "json" | "any")[];
   // "any": the action answers every format itself (a public JSON endpoint with no Pundit in the way).
@@ -186,7 +188,9 @@ export async function mutationResponse(incoming: Request): Promise<Response> {
 
   let params: Params;
   try {
-    params = candidate.rawBody ? {} : requestParams(url, request.headers.get("content-type"), bytes);
+    params = candidate.rawBody
+      ? {}
+      : requestParams(url, request.headers.get("content-type"), bytes, false, candidate.dropNils);
     // Pundit answers 401 JSON to a request that is not HTML.
     if (!candidate.skipForgeryProtection) {
       const formats = candidate.formats ?? [candidate.json ? "json" : "html"];

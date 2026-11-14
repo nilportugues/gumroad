@@ -39,6 +39,17 @@ describe "Products mutations when signed in", type: :request do
     expect(product.purchase_disabled_at).to be_present
   end
 
+  it "archives a draft and cancels its pending publish schedule", parity: true do
+    draft = create(:product, user: seller, name: "Scheduled draft", unique_permalink: "scheddraft", draft: true, created_at: Time.utc(2025, 1, 1))
+    create(:product_publish_schedule, product: draft, scheduled_by: seller, status: "scheduled")
+    log_in(seller)
+
+    send_json(:post, products_archived_index_path, { id: draft.unique_permalink })
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(ProductPublishSchedule.where(product_id: draft.id)).to be_empty
+  end
+
   it "archives an unpublished product without moving its purchase_disabled_at", parity: true do
     product.update!(purchase_disabled_at: Time.utc(2025, 2, 1))
     log_in(seller)
@@ -119,6 +130,18 @@ describe "Products mutations when signed in", type: :request do
     expect(product.reload.purchase_disabled_at).to be_present
   end
 
+  it "unpublishes a draft and cancels its pending publish schedule", parity: true do
+    draft = create(:product, user: seller, name: "Scheduled draft", unique_permalink: "scheddraft", draft: true, created_at: Time.utc(2025, 1, 1))
+    draft.update_columns(purchase_disabled_at: nil)
+    create(:product_publish_schedule, product: draft, scheduled_by: seller, status: "scheduled")
+    log_in(seller)
+
+    send_json(:post, unpublish_link_path(draft.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(ProductPublishSchedule.where(product_id: draft.id)).to be_empty
+  end
+
   it "keeps the time an unpublished product was taken off sale", parity: true do
     product.update!(purchase_disabled_at: Time.utc(2025, 2, 1))
     log_in(seller)
@@ -156,6 +179,28 @@ describe "Products mutations when signed in", type: :request do
 
     expect(response.parsed_body).to eq("success" => true)
     expect(product.reload).to be_deleted
+  end
+
+  it "deletes a draft and cancels its pending publish schedule", parity: true do
+    draft = create(:product, user: seller, name: "Scheduled draft", unique_permalink: "scheddraft", draft: true, created_at: Time.utc(2025, 1, 1))
+    create(:product_publish_schedule, product: draft, scheduled_by: seller, status: "scheduled")
+    log_in(seller)
+
+    send_json(:delete, link_path(draft.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(ProductPublishSchedule.where(product_id: draft.id)).to be_empty
+  end
+
+  it "keeps a claimed publish schedule when the draft is deleted", parity: true do
+    draft = create(:product, user: seller, name: "Scheduled draft", unique_permalink: "scheddraft", draft: true, created_at: Time.utc(2025, 1, 1))
+    create(:product_publish_schedule, product: draft, scheduled_by: seller, status: "publishing", claimed_at: Time.utc(2025, 1, 2))
+    log_in(seller)
+
+    send_json(:delete, link_path(draft.unique_permalink))
+
+    expect(response.parsed_body).to eq("success" => true)
+    expect(draft.reload.publish_schedule.status).to eq("publishing")
   end
 
   it "cancels the subscriptions of a deleted membership later", parity: true do
