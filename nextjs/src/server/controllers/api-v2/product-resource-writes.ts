@@ -4,13 +4,14 @@ import type { BaseVariant, CustomField, Link } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { HTTP_URI_REGEXP as URI_REGEXP } from "../../../lib/ruby-uri-regexp.ts";
-import { invalidateProductCache } from "../../models/link.ts";
+import { invalidateProductCache, LinkFlags } from "../../models/link.ts";
 import {
   recordVariantCategoryDeletion,
   recordVariantDeletion,
   requestIdOf,
 } from "../../models/product-variant-deletion-audit.ts";
 import {
+  assertDeletableVariantProduct,
   assertPlainVariant,
   assertPlainVariantProduct,
   buildVariant,
@@ -305,7 +306,7 @@ async function updateVariantCategory(input: ApiV2Input) {
 // Api::V2::VariantsController#create, #update and #destroy
 //
 // Served: the before_actions (token scope, product, category and version lookups) and the saves of a version of a plain product
-// (models/variant-writes.ts). Handed to Rails whole, before any write: a tier, a call or coffee product, a free product, a version with
+// (models/variant-writes.ts). Handed to Rails whole, before any write: a tier's create or update (a tier's delete is served), a call or coffee product, a free product, a version with
 // prices of its own, a parameter the port does not cast like Ruby, and an update that carries `rich_content` (it rewrites pages and files).
 const VARIANTS = "/v2/products/:link_id/variant_categories/:variant_category_id/variants";
 const INTEGER_COLUMN_LIMIT = 2 ** 31 - 1;
@@ -372,8 +373,8 @@ async function destroyVariant(input: ApiV2Input) {
   const product = productOf(input);
   const row: BaseVariant = input.state.variant;
   if (row.deleted_at !== null) return successWithObject("variant", null);
-  await assertPlainVariantProduct(product);
-  await assertPlainVariant(row);
+  await assertDeletableVariantProduct(product);
+  await assertPlainVariant(row, { pricesAllowed: LinkFlags.isSet(product.flags, "is_tiered_membership") });
   const record = loadVariantRecord(row);
   let deleted = false;
   await Variants.withLock(record, async () => {
