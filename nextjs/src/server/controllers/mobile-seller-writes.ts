@@ -17,7 +17,10 @@ import {
   NOT_FOUND,
   registerMobile,
   renderJson,
-  UNPROCESSABLE_ENTITY, type MobileAuth, type MobileInput } from "./mobile-api.ts";
+  UNPROCESSABLE_ENTITY,
+  type MobileAuth,
+  type MobileInput,
+} from "./mobile-api.ts";
 
 const MOBILE_API_SCOPES = ["mobile_api"];
 

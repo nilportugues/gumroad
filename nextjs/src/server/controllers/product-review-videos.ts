@@ -94,11 +94,17 @@ async function streamingUrls(input: MutationInput): Promise<ActionResult> {
     const access = await streamAccess(input, found);
     if (!access.allowed) {
       const format = requestFormat(input.request);
-      if (format === "other") throw new HandBackToRails("a refused streaming_urls request in a format that is not modelled");
+      if (format === "other")
+        throw new HandBackToRails("a refused streaming_urls request in a format that is not modelled");
       if (format === "html") {
         // PunditAuthorization#default_user_not_authorized
         const switching = input.request.queryString.includes("account_switched");
-        return { status: 302, location: "/dashboard", ...(switching ? {} : { flash: { alert: access.message } }), rescued: true };
+        return {
+          status: 302,
+          location: "/dashboard",
+          ...(switching ? {} : { flash: { alert: access.message } }),
+          rescued: true,
+        };
       }
       return { ...jsonResponse({ success: false, error: access.message }, 401), rescued: true };
     }

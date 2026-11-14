@@ -53,4 +53,3 @@ export async function completionOutcome(
   if (!(await filesAttached(commission))) return NO_FILE;
   return null;
 }
-
