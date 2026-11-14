@@ -209,7 +209,7 @@ export async function assertEditSupported(product: LinkRow, seller: UserRow, cur
   if (product.user_id === null || product.user_id !== seller.id) throw new HandBackToRails();
   if ((await editBlockers(product, seller, currentSellerId !== seller.id)).length > 0) throw new HandBackToRails();
   await assertNoPublishSchedule(product);
-  if ((await isFeatureEnabled("product_build_player", userActor(seller.id))) && (await productHasBuilds(product.id)))
+  if ((await productHasBuilds(product.id)) && (await isFeatureEnabled("product_build_player", userActor(seller.id))))
     throw new HandBackToRails("a product with web builds");
 }
 
