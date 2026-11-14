@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { RubyFloat } from "../models/concerns/ruby-values.ts";
 
-import { HandBackToRails } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing } from "./application-controller.ts";
 import { parseBody } from "./rails-body.ts";
 import {
   blockedEmailLines,
@@ -156,8 +156,8 @@ describe("permittedRole", () => {
     expect(permittedRole({ team_membership: { role: { a: "admin" } } })).toEqual({});
   });
 
-  it("hands back a missing hash", () => {
-    expect(() => permittedRole({})).toThrow(HandBackToRails);
+  it("answers a missing team_membership key with ParameterMissing and hands back an empty hash", () => {
+    expect(() => permittedRole({})).toThrow(ParameterMissing);
     expect(() => permittedRole({ team_membership: {} })).toThrow(HandBackToRails);
   });
 
