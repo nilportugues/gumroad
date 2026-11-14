@@ -306,12 +306,32 @@ describe "Piracy report mutations when signed in", type: :request do
       expect(report.reload.state).to eq("signed")
     end
 
-    it "hands a report with a name that is not text to Rails", parity: true do
+    it "signs under the printed list when the name is a list of strings", parity: true do
       log_in(seller)
 
-      send_json(sign_piracy_report_path(report.external_id), sign_body(signed_by_name: ["Jane Doe"]))
+      send_json(sign_piracy_report_path(report.external_id), sign_body(signed_by_name: ["Jane Doe", "J. D."]))
 
       expect(response).to redirect_to(piracy_report_path(report.external_id))
+      expect(report.reload).to have_attributes(state: "signed", signed_by_name: '["Jane Doe", "J. D."]')
+      expect(report.notice_text).to include('Signed: /s/ ["Jane Doe", "J. D."], ')
+    end
+
+    it "refuses a list of names too long once printed", parity: true do
+      log_in(seller)
+
+      send_json(sign_piracy_report_path(report.external_id), sign_body(signed_by_name: ["a" * PiracyReport::MAX_SIGNED_BY_NAME_LENGTH]))
+
+      expect(flash[:alert]).to eq("Signed by name is too long")
+      expect(report.reload.state).to eq("awaiting_signature")
+    end
+
+    it "hands a list of names holding a quote to Rails", parity: true do
+      log_in(seller)
+
+      send_json(sign_piracy_report_path(report.external_id), sign_body(signed_by_name: ['Jane "JD" Doe']))
+
+      expect(response).to redirect_to(piracy_report_path(report.external_id))
+      expect(report.reload.signed_by_name).to eq('["Jane \\"JD\\" Doe"]')
     end
 
     it "hands a request without a client address to Rails", parity: true do
