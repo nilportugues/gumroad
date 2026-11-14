@@ -297,6 +297,27 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       end
     end
 
+    it "prints the rating and review of a sale", parity: true do
+      purchase = sold(priced)
+      ProductReview.new(purchase:, link: priced, rating: 4, message: "Great").save!(validate: false)
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]).to include("product_rating" => 4, "review" => "Great")
+    end
+
+    it "leaves out the review a refund removed", parity: true do
+      purchase = sold(priced)
+      review = ProductReview.new(purchase:, link: priced, rating: 4, message: "Great")
+      review.save!(validate: false)
+      review.update_columns(deleted_at: Time.utc(2026, 11, 1))
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]).not_to include("review")
+      expect(response.parsed_body["sale"]["product_rating"]).to be_nil
+    end
+
     it "prints a sale of a SKU", parity: true do
       sku = create(:sku, link: physical, name: "Large", price_difference_cents: 250)
       purchase = sold(physical)

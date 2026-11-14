@@ -490,7 +490,13 @@ async function load(purchases: Row[]): Promise<Loaded> {
     shipments: first(await rowsBy("shipments", "purchase_id", ids), "purchase_id"),
     licenses: first(await rowsBy("licenses", "purchase_id", ids), "purchase_id"),
     reviews: first(
-      await rowsBy("product_reviews", "purchase_id", [...ids, ...trueOriginal.values(), ...gifteePurchases.keys()]),
+      // Purchase#alive_original_product_review: a review a refund, chargeback or access revoke removed is not printed.
+      await rowsBy(
+        "product_reviews",
+        "purchase_id",
+        [...ids, ...trueOriginal.values(), ...gifteePurchases.keys()],
+        Prisma.sql` AND ${column("product_reviews", "deleted_at")} IS NULL`,
+      ),
       "purchase_id",
     ),
     merchantAccountOf,
