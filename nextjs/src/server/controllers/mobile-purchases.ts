@@ -540,7 +540,7 @@ function failNotPorted(what: string): never {
   throw new NotPortedError(what);
 }
 
-// Purchase#variant_details_hash for a purchase with one variant of a category or one SKU; several variants and a missing category are Rails'.
+// Purchase#variant_details_hash for one SKU or variants of distinct categories (the key order of that hash is not stable in Rails). Two variants of one category, a SKU among several and a missing category are Rails'.
 async function saleVariants(purchase: Purchase) {
   const variants = await selectRows<{
     id: bigint;
@@ -551,25 +551,30 @@ async function saleVariants(purchase: Purchase) {
     flags: number;
     link_id: number | null;
   }>(
-    Prisma.sql`SELECT ${column("base_variants", "id")}, ${column("base_variants", "type")}, ${column("base_variants", "name")}, ${column("base_variants", "variant_category_id")}, ${column("base_variants", "custom_sku")}, ${column("base_variants", "flags")}, ${column("base_variants", "link_id")} FROM ${table("base_variants")} INNER JOIN ${table("base_variants_purchases")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id}`,
+    Prisma.sql`SELECT ${column("base_variants", "id")}, ${column("base_variants", "type")}, ${column("base_variants", "name")}, ${column("base_variants", "variant_category_id")}, ${column("base_variants", "custom_sku")}, ${column("base_variants", "flags")}, ${column("base_variants", "link_id")} FROM ${table("base_variants")} INNER JOIN ${table("base_variants_purchases")} ON ${column("base_variants", "id")} = ${column("base_variants_purchases", "base_variant_id")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id} ORDER BY ${column("base_variants", "id")} ASC`,
   );
   if (variants.length === 0) return { variants: null, sku: null };
-  const [variant] = variants;
-  if (variants.length > 1) failNotPorted("a sale with several variants");
-  if (variant!.type === "Sku") return skuDetails({ ...variant!, id: Number(variant!.id) });
-  if (variant!.type !== "Variant" || variant!.variant_category_id === null)
-    failNotPorted("a variant without a category");
-  const [category] = await selectRows<{ title: string | null }>(
-    Prisma.sql`SELECT ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} = ${variant!.variant_category_id} LIMIT 1`,
+  const [first] = variants;
+  if (variants.length === 1 && first!.type === "Sku") return skuDetails({ ...first!, id: Number(first!.id) });
+  if (variants.some((variant) => variant.type !== "Variant" || variant.variant_category_id === null))
+    failNotPorted(variants.length > 1 ? "a sale with a SKU among several variants" : "a variant without a category");
+  const categoryIds = [...new Set(variants.map((variant) => variant.variant_category_id!))];
+  if (categoryIds.length !== variants.length) failNotPorted("a sale with several variants of one category");
+  const categories = await selectRows<{ id: bigint; title: string | null }>(
+    Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} IN (${Prisma.join(categoryIds)})`,
   );
-  if (category === undefined) failNotPorted("a variant whose category row is missing");
+  const titles = new Map(categories.map((category) => [BigInt(category.id), category.title]));
+  if (categoryIds.some((id) => !titles.has(BigInt(id)))) failNotPorted("a variant whose category row is missing");
   return {
-    variants: {
-      [encrypt(BigInt(variant!.variant_category_id))]: {
-        title: category.title,
-        selected_variant: { id: encrypt(BigInt(variant!.id)), name: variant!.name },
-      },
-    },
+    variants: Object.fromEntries(
+      variants.map((variant) => [
+        encrypt(BigInt(variant.variant_category_id!)),
+        {
+          title: titles.get(BigInt(variant.variant_category_id!)),
+          selected_variant: { id: encrypt(BigInt(variant.id)), name: variant.name },
+        },
+      ]),
+    ),
     sku: null,
   };
 }
@@ -604,7 +609,7 @@ async function saleJson(sale: Purchase, input: MobileInput, auth: MobileAuth) {
   return {
     success: true,
     purchase,
-    customer: (await customersOfPurchases(context, [String(sale.id)]))[0],
+    customer: (await customersOfPurchases(context, [String(sale.id)], "id"))[0],
     charges: await buildCharges(row),
     emails: await buildCustomerEmails(seller, row, receiptUrlOptions(input.request)),
     product_purchases: [],
