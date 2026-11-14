@@ -185,7 +185,9 @@ const HOUR_TOKEN = /<now\+(\d+)h>/gu;
 
 const rebaseString = (text: string, recordedAt: Date, now: Date) =>
   text.replace(HOUR_TOKEN, (token, hours: string) =>
-    Number(hours) < FAR_INSTANT_HOURS ? token : timeToken(new Date(recordedAt.getTime() + Number(hours) * 3_600_000), now),
+    Number(hours) < FAR_INSTANT_HOURS
+      ? token
+      : timeToken(new Date(recordedAt.getTime() + Number(hours) * 3_600_000), now),
   );
 
 const rebaseJson = (value: Json, recordedAt: Date, now: Date): Json => {
@@ -202,7 +204,9 @@ export function rebaseFarInstants(exchange: Exchange, recordedAt: Date, now: Dat
   const { response } = exchange;
   return {
     ...exchange,
-    ...(exchange.db === undefined ? {} : { db: rebaseJson(exchange.db as unknown as Json, recordedAt, now) as unknown as typeof exchange.db }),
+    ...(exchange.db === undefined
+      ? {}
+      : { db: rebaseJson(exchange.db as unknown as Json, recordedAt, now) as unknown as typeof exchange.db }),
     response: {
       ...response,
       ...(response.json === undefined ? {} : { json: rebaseJson(response.json, recordedAt, now) }),
