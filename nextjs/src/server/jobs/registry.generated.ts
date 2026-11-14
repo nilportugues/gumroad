@@ -1845,7 +1845,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: true,
-    runtime: "ruby",
+    runtime: "node",
   },
   PartnerMigrationNotificationJob: {
     file: "app/sidekiq/partner_migration_notification_job.rb",
@@ -2850,7 +2850,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   RetryStripeRejectedPayoutSetupsJob: {
     file: "app/sidekiq/retry_stripe_rejected_payout_setups_job.rb",

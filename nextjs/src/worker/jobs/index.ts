@@ -135,6 +135,10 @@ import { alertOnStripeDobDriftJob, sweepClosedSellerConnectAccountsJob } from ".
 import { millionDollarMilestoneCheckWorker } from "./million-dollar-milestone-check-worker.ts";
 import { moderateProductsJob } from "./moderate-products-job.ts";
 import { orderReviewReminderJob } from "./order-review-reminder-job.ts";
+import {
+  partnerMigrationImportJob,
+  partnerMigrationImportJobRetriesExhausted,
+} from "./partner-migration-import-job.ts";
 import { partnerMigrationNotificationJob } from "./partner-migration-notification-job.ts";
 import {
   executeScheduledPayoutsJob,
@@ -243,6 +247,7 @@ import { retryFailedPaypalPayoutsWorker } from "./retry-failed-paypal-payouts-wo
 import { retryPendingMandateChargeJob } from "./retry-pending-mandate-charge-job.ts";
 import { retryStripeJpAddressResyncForSellerJob } from "./retry-stripe-jp-address-resync-for-seller-job.ts";
 import { retryStripeJpAddressResyncsJob } from "./retry-stripe-jp-address-resyncs-job.ts";
+import { retryStripeRejectedPayoutSetupForSellerJob } from "./retry-stripe-rejected-payout-setup-for-seller-job.ts";
 import { retryStripeRejectedPayoutSetupsJob } from "./retry-stripe-rejected-payout-setups-job.ts";
 import {
   reverseDeferredInternalTransferJob,
@@ -612,6 +617,8 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   PublishScheduledProductJob: publishScheduledProductJob,
   PartnerMigrationNotificationJob: partnerMigrationNotificationJob,
   ResumeStalledPartnerMigrationsJob: resumeStalledPartnerMigrationsJob,
+  PartnerMigrationImportJob: partnerMigrationImportJob,
+  RetryStripeRejectedPayoutSetupForSellerJob: retryStripeRejectedPayoutSetupForSellerJob,
   SendWorkflowEmailToOpenedNonClickerJob: sendWorkflowEmailToOpenedNonClickerJob,
   ScheduleOpenedNoClickWorkflowEmailsJob: scheduleOpenedNoClickWorkflowEmailsJob,
   SendProductPublishScheduleNoticeJob: sendProductPublishScheduleNoticeJob,
@@ -661,4 +668,5 @@ export const JOB_RETRIES_EXHAUSTED: Record<string, RetriesExhausted> = {
   GenerateFinancialReportsForPreviousQuarterJob: generateFinancialReportsForPreviousQuarterJobRetriesExhausted,
   GenerateFinancialReportsForPreviousMonthJob: generateFinancialReportsForPreviousMonthJobRetriesExhausted,
   GenerateSslCertificate: generateSslCertificateRetriesExhausted,
+  PartnerMigrationImportJob: partnerMigrationImportJobRetriesExhausted,
 };
