@@ -292,8 +292,9 @@ describe.skipIf(!url)("mutations of the emails and workflows pages", () => {
         : name.includes("signed-in-visitor-with-a-verified-email")
           ? // The audience member keeps the follow's created_at as an absolute time, and the event job carries a SecureRandom.uuid.
             { ignore: [...COMPARE.ignore, "db.audience_members.inserted.*.details", "jobs.*.args.*.id"] }
-          : name.includes("404")
-            ? { ignore: [...COMPARE.ignore, "response.body"] }
+          : /404|with-a-400/u.test(name)
+            ? // The test environment answers an error with its debug page, which the recorder does not keep.
+              { ignore: [...COMPARE.ignore, "response.body"] }
             : name.includes("publishes-a-workflow")
               ? // SecureRandom.uuid tokens of the schedule intents and the jobs that carry them
                 {
