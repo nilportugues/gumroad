@@ -31,9 +31,19 @@ const ownerExternalId = (loaded: Loaded) => (loaded.product?.user_id == null ? n
 export const fieldsOf = (file: ProductFile, loaded: Loaded) => s3Fields(file.url, ownerExternalId(loaded));
 
 // UrlRedirect#with_product_files and #rich_content_provider for a redirect without an installment: the one alive version
-// (Variant) a purchase bought, or the product. A purchase of a SKU, of several versions or of a deleted one picks its
-// provider by other rules; so does a product whose versions share one set of pages.
-export type ContentProvider = { kind: "product" } | { kind: "variant"; variant: BaseVariant };
+// (Variant) a purchase bought, or the product. A purchase of several versions or of a deleted one picks its provider by other
+// rules. `version` is the version bought when the product's pages are shared: it names the page, the product serves the content.
+export type ContentProvider = { kind: "product"; version?: BaseVariant } | { kind: "variant"; variant: BaseVariant };
+
+// Link#has_product_level_content: an alive product page with a title is editor content, which makes the product the provider
+// even when it has versions (product_or_cheapest_variant_as_rich_content_provider).
+export async function hasTitledProductPage(productId: bigint): Promise<boolean> {
+  const pages = await db.richContent.findMany({
+    where: { entity_type: "Link", entity_id: productId, deleted_at: null },
+    select: { title: true },
+  });
+  return pages.some((page) => (page.title ?? "").trim() !== "");
+}
 
 export async function contentProvider({
   purchase,
@@ -45,15 +55,21 @@ export async function contentProvider({
   const variants = await db.baseVariant.findMany({
     where: { id: { in: links.flatMap((link) => link.base_variant_id ?? []) } },
   });
-  if (variants.length !== links.length || variants.some((variant) => variant.type !== "Variant"))
-    throw new HandBackToRails("a purchase of a SKU");
+  if (variants.length !== links.length) throw new HandBackToRails("a link to a version that is gone");
+  // A SKU is no Variant: the purchase falls through to the product (with_product_files is `referenced_link`).
+  if (variants.every((variant) => variant.type !== "Variant")) return { kind: "product" };
+  if (variants.some((variant) => variant.type !== "Variant")) throw new HandBackToRails("a version next to a SKU");
   const [variant] = variants;
   if (variants.length > 1 || variant === undefined) throw new HandBackToRails("a purchase of several versions");
   if (variant.deleted_at !== null) throw new HandBackToRails("a purchase of a deleted version");
   const category = await db.variantCategory.findUnique({ where: { id: variant.variant_category_id ?? 0 } });
   if (category === null || category.link_id !== Number(product.id)) throw new HandBackToRails("an orphaned version");
-  if (LinkFlags.isSet(product.flags, "has_same_rich_content_for_all_variants"))
-    throw new HandBackToRails("versions that share one set of pages");
+  if (LinkFlags.isSet(product.flags, "has_same_rich_content_for_all_variants")) {
+    // The product is the provider unless it is physical or its pages are blank while a version's are not (recoverable hidden
+    // content); a titled product page rules both out.
+    if (!(await hasTitledProductPage(product.id))) throw new HandBackToRails("versions that share one set of pages");
+    return { kind: "product", version: variant };
+  }
   return { kind: "variant", variant };
 }
 
@@ -69,8 +85,13 @@ export async function aliveProductFiles(
   if (redirect.preorder_id !== null) throw new HandBackToRails("a url redirect of a preorder");
   if (product === null) return [];
   const provider = await contentProvider(loaded);
-  if (provider.kind === "variant" && !versions) throw new HandBackToRails("a purchase of a version");
-  if (provider.kind === "product" && (await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0)
+  if ((provider.kind === "variant" || provider.version) && !versions) throw new HandBackToRails("a purchase of a version");
+  if (
+    provider.kind === "product" &&
+    !provider.version &&
+    (await db.variantCategory.count({ where: { link_id: Number(product.id) } })) > 0 &&
+    !(await hasTitledProductPage(product.id))
+  )
     throw new HandBackToRails("a product with variants");
   if (embedded === undefined && (await hasRichPages(provider, product.id)))
     throw new HandBackToRails("a provider with rich content");

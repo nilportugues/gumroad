@@ -124,25 +124,40 @@ describe "Url redirect download page content", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands a product with versions and pages to Rails", parity: true do
+    it "lists the files of a product with versions from its titled pages", parity: true do
       category = create(:variant_category, link: product, title: "Tier")
       create(:variant, variant_category: category, name: "Basic")
+      document("Product guide", position: 1)
       add_page("Welcome", [page("Hello")], position: 1)
       log_in(buyer)
 
       get url_redirect_download_page_path(token)
 
       expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "content_items").map { |item| item["file_name"] }).to eq(["Product guide"])
     end
 
-    it "hands a commission's pages to Rails", parity: true do
+    it "lists the files of the product for a purchase of a SKU", parity: true do
+      document("Product guide", position: 1)
+      purchase.variant_attributes << create(:sku, link: product)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "content_items").map { |item| item["file_name"] }).to eq(["Product guide"])
+    end
+
+    it "lists the pages of a commission that is still in progress", parity: true do
       add_page("Welcome", [page("Hello")], position: 1)
+      purchase.update_columns(flags: purchase.flags | Purchase.flag_mapping["flags"][:is_commission_deposit_purchase])
       create(:commission, deposit_purchase: purchase)
       log_in(buyer)
 
       get url_redirect_download_page_path(token)
 
       expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "rich_content_pages").map { |entry| entry["title"] }).to eq(["Welcome"])
     end
   end
 
@@ -320,13 +335,16 @@ describe "Url redirect download page content", type: :request do
       expect(response.parsed_body.dig("props", "audio_durations")).to eq(theme.external_id => 31)
     end
 
-    it "hands a purchase of a SKU to Rails", parity: true do
+    it "lists the files of the product for a purchase of a SKU of a product with versions", parity: true do
+      document("Product guide", position: 1)
+      add_page("Welcome", [page("Hello")], position: 1)
       purchase.variant_attributes << create(:sku, link: product)
       log_in(buyer)
 
       get url_redirect_download_page_path(token)
 
       expect(response).to be_successful
+      expect(file_names(response)).to eq(["Product guide"])
     end
 
     it "hands a purchase of several versions to Rails", parity: true do
@@ -351,15 +369,20 @@ describe "Url redirect download page content", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands versions that share one set of pages to Rails", parity: true do
+    it "serves the shared pages of the product to a purchase of a version", parity: true do
       product.update_columns(flags: product.flags | Link.flag_mapping["flags"][:has_same_rich_content_for_all_variants])
-      add_page("Shared", [page("For everyone")], position: 1)
+      shared = document("Shared guide", position: 1)
+      document("Not embedded", position: 2)
+      version_file(premium, "Premium guide", position: 1)
+      add_page("Shared", [page("For everyone"), embed(shared)], position: 1)
       buy(premium)
       log_in(buyer)
 
       get url_redirect_download_page_path(token)
 
       expect(response).to be_successful
+      expect(inertia_props_of(response).dig("content", "rich_content_pages").map { |entry| entry["variant_id"] }).to eq([nil])
+      expect(file_names(response)).to eq(["Shared guide"])
     end
 
     it "shows the license key of a version with no pages", parity: true do

@@ -108,7 +108,7 @@ async function assertRenderable(loaded: Loaded): Promise<Download> {
 // pages print one, which is only proven for a version with no pages.
 async function licenseProps(purchase: Purchase | null, product: Link, provider: ContentProvider, pageCount: number) {
   if (!purchase || !LinkFlags.isSet(product.flags, "is_licensed")) return null;
-  if (provider.kind === "variant" && pageCount > 0)
+  if ((provider.kind === "variant" || provider.version) && pageCount > 0)
     throw new HandBackToRails("the license key of a version with pages");
   const licenses = await db.license.findMany({ where: { purchase_id: Number(purchase.id) }, orderBy: { id: "asc" } });
   // has_one :license takes an unspecified row when there are several.
@@ -188,7 +188,8 @@ export async function downloadPageProps(
   const pages = await richPagesOf(provider, product);
   // The seller's own view of a page with video asks whether it was transcoded.
   if (pages.length > 0 && loggedInUser?.id === product.user_id) {
-    if (provider.kind === "variant") throw new HandBackToRails("the seller's view of the pages of a version");
+    if (provider.kind === "variant" || provider.version)
+      throw new HandBackToRails("the seller's view of the pages of a version");
     if ((await db.productFile.count({ where: { link_id: product.id, deleted_at: null, filegroup: "video" } })) > 0)
       throw new HandBackToRails("the transcoding notice of a page with video");
   }
@@ -258,9 +259,9 @@ export async function setDownloadPageMeta(meta: MetaTagBuilder, token: string, c
   await setFaviconMetaTags(meta, seller!);
   // with_product_files.name: the purchased version's, which falls back to the product's while it is still "Untitled".
   const provider = await contentProvider(loaded);
-  if (provider.kind === "variant" && provider.variant.name === null)
-    throw new HandBackToRails("a version without a name");
-  const versionName = provider.kind === "variant" ? provider.variant.name : null;
+  const named = provider.kind === "variant" ? provider.variant : (provider.version ?? null);
+  if (named !== null && named.name === null) throw new HandBackToRails("a version without a name");
+  const versionName = named === null ? null : named.name;
   meta.set({ title: versionName === null || versionName === "Untitled" ? product!.name : versionName });
   meta.set({
     name: "apple-itunes-app",

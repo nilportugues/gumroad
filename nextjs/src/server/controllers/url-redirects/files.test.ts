@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => {
       baseVariant: { findMany: vi.fn() },
       variantCategory: { findUnique: vi.fn(), count: vi.fn() },
       baseVariantsProductFile: { findMany: vi.fn() },
-      richContent: { count: vi.fn() },
+      richContent: { count: vi.fn(), findMany: vi.fn() },
       productFile: { findMany: vi.fn() },
     },
   };
@@ -44,6 +44,7 @@ beforeEach(() => {
   mocks.db.variantCategory.findUnique.mockResolvedValue({ id: 4, link_id: 3 });
   mocks.db.variantCategory.count.mockResolvedValue(1);
   mocks.db.richContent.count.mockResolvedValue(0);
+  mocks.db.richContent.findMany.mockResolvedValue([]);
   mocks.db.baseVariantsProductFile.findMany.mockResolvedValue([]);
   mocks.db.productFile.findMany.mockResolvedValue([]);
 });
@@ -59,8 +60,12 @@ describe("contentProvider", () => {
     await expect(contentProvider(loaded())).resolves.toEqual({ kind: "variant", variant: variant() });
   });
 
+  it("is the product for a purchase of SKUs only", async () => {
+    mocks.db.baseVariant.findMany.mockResolvedValue([variant({ type: "Sku" })]);
+    await expect(contentProvider(loaded())).resolves.toEqual({ kind: "product" });
+  });
+
   it.each([
-    ["a SKU", () => mocks.db.baseVariant.findMany.mockResolvedValue([variant({ type: "Sku" })])],
     [
       "a version next to a SKU",
       () => {
@@ -87,8 +92,18 @@ describe("contentProvider", () => {
     await expect(contentProvider(loaded())).rejects.toBeInstanceOf(HandBackToRails);
   });
 
-  it("hands back versions that share one set of pages, whose provider is the product", async () => {
+  it("hands back versions that share one set of pages while the product has no titled page", async () => {
     await expect(contentProvider(loaded({ flags: SHARED_PAGES }))).rejects.toBeInstanceOf(HandBackToRails);
+    mocks.db.richContent.findMany.mockResolvedValue([{ title: "  " }, { title: null }]);
+    await expect(contentProvider(loaded({ flags: SHARED_PAGES }))).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("serves versions that share one set of pages from the product once it has a titled page", async () => {
+    mocks.db.richContent.findMany.mockResolvedValue([{ title: "Shared" }]);
+    await expect(contentProvider(loaded({ flags: SHARED_PAGES }))).resolves.toEqual({
+      kind: "product",
+      version: variant(),
+    });
   });
 });
 
@@ -141,5 +156,27 @@ describe("aliveProductFiles for a product with versions", () => {
     mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([]);
 
     await expect(aliveProductFiles(loaded(), [], { versions: true })).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("lists the product's files once a titled product page makes the product the provider", async () => {
+    mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([]);
+    mocks.db.richContent.findMany.mockResolvedValue([{ title: "Welcome" }]);
+    mocks.db.productFile.findMany.mockResolvedValue([file(20n, 1)]);
+
+    const files = await aliveProductFiles(loaded(), [], { versions: true });
+
+    expect(files.map(({ file: row }) => row.id)).toEqual([20n]);
+  });
+
+  it("lists the product's files for a purchase of a version whose pages are shared", async () => {
+    mocks.db.richContent.findMany.mockResolvedValue([{ title: "Shared" }]);
+    mocks.db.productFile.findMany.mockResolvedValue([file(20n, 1)]);
+
+    const files = await aliveProductFiles(loaded({ flags: SHARED_PAGES }), [], { versions: true });
+
+    expect(files.map(({ file: row }) => row.id)).toEqual([20n]);
+    expect(mocks.db.productFile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { AND: [{ link_id: 3n }, { deleted_at: null }] } }),
+    );
   });
 });
