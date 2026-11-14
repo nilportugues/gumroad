@@ -241,6 +241,22 @@ describe "UsersController", type: :request do
 
       expect(response).to have_http_status(:found)
       expect(response.location).to end_with("/coffee")
+      expect(flash[:notice]).to eq("Your purchase was successful! We sent a receipt to buyer@example.com.")
+    end
+
+    it "hands a free signup notice to Rails because its flash names the seller", parity: true do
+      get "/coffee", params: { purchase_email: "buyer@example.com", purchase_free: "true" }
+
+      expect(response).to have_http_status(:found)
+      expect(response.location).to end_with("/coffee")
+      expect(flash[:notice]).to eq("You signed up with #{seller.name_or_username} for free. We emailed the details to buyer@example.com.")
+    end
+
+    it "keeps the paid notice when purchase_free is anything but true", parity: true do
+      get "/coffee", params: { purchase_email: "buyer@example.com", purchase_free: "false" }
+
+      expect(response).to have_http_status(:found)
+      expect(flash[:notice]).to eq("Your purchase was successful! We sent a receipt to buyer@example.com.")
     end
 
     it "answers not found without a coffee product", parity: true do
