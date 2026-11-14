@@ -46,6 +46,8 @@ export const maskVolatile = (text: string) =>
 
 // The recorder drops the CSP header as volatile, so masking the nonce would hide a header that names another nonce than the body's.
 // The live response is the only place both exist: every nonce in the body must be allowed by the header.
+const DEBUG_PAGE_PLACEHOLDER = "<rails exception debug page, not recorded: the replay ignores a 404 body>";
+
 export function assertNonceMatchesCsp(body: string, csp: string | null) {
   const nonces = [...body.matchAll(/<script nonce="([^"]*)"/gu)].map((match) => match[1]!);
   if (nonces.length === 0) return;
@@ -157,6 +159,8 @@ export function describeErbLayoutReplay(
           const body = exchange.response.body;
           if (typeof body === "string") exchange.response.body = maskVolatile(body);
         }
+        // The recorder replaces an exception debug page, which names local paths, with a placeholder.
+        const debugPage = fixture.exchanges[index]!.response.body === DEBUG_PAGE_PLACEHOLDER;
         try {
           const result = await replayFixtureExchange(fixture, index, {
             sql,
@@ -164,7 +168,9 @@ export function describeErbLayoutReplay(
             transport: maskingTransport(httpTransport(server.baseUrl)),
             rewriteRequest: (request, source, now) => reencryptCookies(request, source, SECRET_KEY_BASE, now),
             interceptHttp: false,
-            compare: options.github === undefined ? COMPARE : { ignore: [...COMPARE.ignore, "http"] },
+            compare: {
+              ignore: [...COMPARE.ignore, ...(options.github === undefined ? [] : ["http"]), ...(debugPage ? ["response.body"] : [])],
+            },
           });
           if (name.includes("hands-a-")) {
             const request = fixture.exchanges[index]!.request;
