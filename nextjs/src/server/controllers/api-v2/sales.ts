@@ -72,8 +72,8 @@ function strptimeDate(value: unknown): { date: string } | { invalid: true } {
   return { date: `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
 }
 
-// export_filters: a date goes on to Date.parse, which agrees with the strptime check for these spellings only
-const EXPORT_DATE = /^\d{4}-\d{1,2}-\d{1,2}(?: (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)?$/u;
+// export_filters: a date goes on to Date.parse, which agrees with the strptime check for these spellings only and "abc" right after a two-digit day (recorded; other trailing text is not)
+const EXPORT_DATE = /^(?:\d{4}-\d{1,2}-\d{1,2}(?: (?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d)?|\d{4}-\d\d-\d\dabc)$/u;
 
 async function exportSales({ owner, params }: ApiV2Input) {
   const filters: SalesExportFilters = {};
