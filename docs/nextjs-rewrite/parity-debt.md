@@ -81,8 +81,6 @@ against the JSON. Findings:
 
 | Golden | Lacks | Why it matters |
 | --- | --- | --- |
-| `nextjs/src/server/mail/__fixtures__/receipt-mailer.golden.json` | `receipt_rental_no_video`, `receipt_rental_watch` | Defined in `generate-receipt-mailer-golden.rb` (:418, :422), absent from the file. Gate for `RENTAL_REDIRECT_PROVEN` (section 4.5) |
-| same file | `receipt_gift_sender` | Defined in the generator, absent from the file. Gate for `unproven.giftSender` in `receipt-presenter.ts`: set it to `false` after regenerating and replaying, and check the `gifts` read lands where Rails sends it (`loadReceiptData`, `receipt-mailer.ts`) |
 
 Goldens built on `scripts/golden/support/rails_cases.rb` (e.g. `payment-processor-jobs.rb`) accept a scratch database named `_ws<N>` or `_<N>`
 (a lane's `gumroad_test_<N>`); `payment-processor-jobs.golden.json` was regenerated that way on lane 16 with three new threshold cases.
@@ -1281,3 +1279,29 @@ Waitlist follow, the states ws-shapes-54 handed back (ws-shapes-61: `gumroad_tes
 Waitlist follow from a deleted product (ws-diag-3: `gumroad_test_ws3d`, `gumroad_replay_ws3d`, Redis 35/36/38/39 recording and 44/45 replay, container `gr-ruby-ws3d`; no external call). ws-shapes-61 handed this back because its replay enqueued a `ReindexSellerOfferCodesJob`. Rails has no path for it: the only enqueuers are `OfferCode#reindex_associated_products` (after save and destroy of a code) and `reindex_removed_product` (HABTM add and remove), and `Link#delete!` (mark_deleted!, profile sections, custom domain, public files, the five delayed workers) touches none of them; `POST /follow` only reads the product through `accepts_waitlist_signups?` (`deleted_at.nil?`), so a deleted product follows plainly. Recorded as `follows plainly when the product was deleted` (the product deleted with `delete!` before the request): one `followers` insert, no job. `waitlistProductFromParams` now answers null for a deleted product and the replay passes with no extra job, so the one seen earlier did not come from Node's handler; the likeliest source is another lane's job in a shared Redis database. With the `deleted_at` check removed the replay fails (the follow becomes a waitlist signup: message and `waitlist_entries` insert differ). The first replay after a cold start can fail on `<now+15s>` (compile latency); rerun it warm. The replay needs `OBFUSCATE_IDS_NUMERIC_CIPHER_KEY=0` in the test process env.
 
 Piracy report signature sent as a list (lane ws-debt-1: `gumroad_test_ws1d`, Redis 23 recording and 29 replay, container `gr-ruby-ws1d`, `PARITY_ES_INDEX_SUFFIX=-ws1d`; no external call). `POST /dashboard/piracy_reports/:id/sign` with `signed_by_name` as a non-empty list of plain printable ASCII strings (no quote, backslash, `#`, `<`, `>` or `&`) signs in Node under the list's `Array#inspect` (`["Jane Doe", "J. D."]`, as `name.to_s` prints it), and refuses one that is over 255 characters once printed with `Signed by name is too long` (`signatureName` in `piracy-reports-mutations.ts`; `textParam` still hands back every other non-text value). Three examples in `piracy_reports_mutations_signed_in_spec.rb` replay in `piracy-reports-mutations.replay` (43 tests); with `signatureName` replaced by `textParam`, the signing and the too-long example fail. A list holding a quote stays handed back (`hands a list of names holding a quote to Rails`). Not touched: the two create examples `lists what keeps the seller from filing` and `lists every reason at once` fail in the Rails recording environment on this branch with no change of mine (the seller has no legal name on file in the test database); their fixtures were not re-recorded. The wrong-password answer of `add_purchase_to_library` was recorded here as well but ws-shapes-67 landed it first; this lane's version was dropped in the merge, so a missing, empty or non-bcrypt password for an account that owns the email has no recorded example of its own.
+
+## Mail goldens are behind Rails (`nextjs/ws-shapes-82`, lane 82, 2026-11-15)
+
+Re-recording `receipt-mailer.golden.json` whole from the current tree (`generate-receipt-mailer-golden.rb`, production mode, lane DB
+`gumroad_test_ws82`, Redis 31, no memcached: `GOLDEN_MEMORY_CACHE=1` swaps in a `MemoryStore`, and `GOLDEN_REDIS_HOST=redis:6379`
+points the four Redis URLs at the shared container; both are new, off by default) fails 150 of 182 replays, none of them in a shape the
+port refuses. The committed golden predates these Rails changes, so every mail Node renders differs from Rails today, and the old
+replays only pass because they replay the old recording:
+
+- `279cdc9c7` (#9108): an interceptor re-encodes every outbound HTML part as quoted-printable (`Content-Transfer-Encoding: quoted-printable`,
+  soft line breaks at 76). `mime.ts` still sends the part as 7bit. Affects every mailer.
+- `57e48e747`: `EmailCustomPropertyResolver` rewrites each inlined style with `var(--x)` resolved from the stylesheet's `:root` and the
+  element's ancestors (and `rgb(r g b)` to `rgb(r, g, b)`). The premailer port inlines `var()` as written. Affects every mailer that uses the email layout.
+- `fb0d46749` (#8845): a free membership (`Purchase#free_membership_purchase?`) says "Your free membership renews once ...", drops the Payment info block
+  and "Generate invoice"; `original_purchase` is now read before `recurrence` for every membership. `receipt_membership_free_price` renders the old text in Node.
+- `a43632d3c` / `71c6ac3ff` (gp#4366): `CustomerMailer#receipt` of a free purchase reads `suppress_receipt_from_unproven_seller?` (the seller's paid sales,
+  then the name and product-name impersonation checks) and sends nothing when it holds. Node has no such guard, so it would send mail Rails suppresses.
+  It also moves the `successful_purchases` read to the front of every free-purchase receipt (about 50 cases differ only in statement order).
+- `9b3246694` (`screen_seller_text`) and `8f4812e93` (the `graphics_light_receipt` template for flagged sellers) are not in the port either.
+
+Until these are ported and every mail golden is re-recorded, `NODE_MAIL_DELIVERY` should stay off for the receipt and for any mailer that renders
+the email layout. The fixed-length membership receipt (`charge_occurrence_count` of two or more: ": 1 of 12" labels, `last_purchase` and the remaining
+count read before the next price) was recorded on the same tree and renders as the first-charge receipt plus those labels, but it cannot be proven
+against a golden that the rest of the file no longer matches, so it stays handed back. Order to port: quoted-printable encoding and the custom-property
+resolver (one proof covers every mailer), then the guard and the free membership, then re-record the receipt golden whole.
+
