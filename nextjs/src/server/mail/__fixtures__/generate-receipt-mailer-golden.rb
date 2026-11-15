@@ -815,7 +815,6 @@ membership("free_trial_yearly", recurrence: "yearly", link: TRIAL_MEMBERSHIP, pu
 membership("free_trial_signed_in_buyer", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS, purchaser_id: 202), subscription: { free_trial_ends_at: FIXED_NOW + 7.days, user_id: 202 }, extra: -> { sign_in_buyer })
 membership("free_trial_card", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS, card_type: "visa", card_visual: "**** 4242"), subscription: { free_trial_ends_at: FIXED_NOW + 7.days })
 # Shapes the port hands back.
-membership("fixed_length", subscription: { charge_occurrence_count: 12 }, into: refused)
 membership("without_subscription_row", into: refused, extra: -> { Purchase.where(id: 401).update_all(subscription_id: nil) })
 membership("another_currency", link: MEMBERSHIP.merge(price_currency_type: "eur"), purchase: { displayed_price_currency_type: "eur", displayed_price_cents: 450, rate_converted_to_usd: "0.9" }, into: refused)
 membership("gift_sender", purchase: { flags: ORIGINAL_SUBSCRIPTION | 64 }, into: refused, extra: -> {
@@ -942,6 +941,16 @@ light($messages, "membership", link: MEMBERSHIP, purchase: PRICE.merge(flags: OR
   Subscription.insert!({ id: 501, link_id: 301, user_id: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
   PaymentOption.insert!({ subscription_id: 501, price_id: 701, created_at: FIXED_NOW, updated_at: FIXED_NOW })
 }
+
+# Fixed-length memberships: "1 of 12" on the labels, the last charge's note and no upcoming payment on the last one.
+membership("fixed_length", subscription: { charge_occurrence_count: 12 })
+membership("fixed_length_succeeded", subscription: { charge_occurrence_count: 12 }, purchase: { succeeded_at: FIXED_NOW })
+membership("fixed_length_two", subscription: { charge_occurrence_count: 2 }, purchase: { succeeded_at: FIXED_NOW })
+membership("fixed_length_yearly", recurrence: "yearly", subscription: { charge_occurrence_count: 3 }, purchase: { succeeded_at: FIXED_NOW })
+membership("fixed_length_single_charge", subscription: { charge_occurrence_count: 1 }, purchase: { succeeded_at: FIXED_NOW }, into: refused)
+membership("fixed_length_quantity", subscription: { charge_occurrence_count: 4 }, purchase: { succeeded_at: FIXED_NOW, quantity: 2, price_cents: 1000, total_transaction_cents: 1000, displayed_price_cents: 1000 })
+membership("fixed_length_free", subscription: { charge_occurrence_count: 4 }, purchase: FREE.merge(succeeded_at: FIXED_NOW), into: refused)
+membership("fixed_length_free_trial", link: TRIAL_MEMBERSHIP, purchase: TRIAL.merge(flags: TRIAL_FLAGS), subscription: { charge_occurrence_count: 4, free_trial_ends_at: FIXED_NOW + 7.days }, into: refused)
 
 # Errors.
 reset!

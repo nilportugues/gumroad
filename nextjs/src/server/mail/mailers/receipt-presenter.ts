@@ -28,6 +28,7 @@ export type ReceiptPurchaseRow = {
   id: Id;
   link_id: Id;
   seller_id: Id;
+  succeeded_at?: Date | null;
   purchaser_id: Id | null;
   email: string | null;
   flags: Id | null;
@@ -143,6 +144,8 @@ export type ReceiptSubscription = {
   gift: boolean;
   // Purchase#free_membership_purchase?: a $0 membership that stays free
   freeMembership: boolean;
+  // A fixed-length membership: the number of this charge and whether it is the last one
+  fixedLength: { total: number; chargeNumber: number; final: boolean } | null;
 };
 
 export type ReceiptGift = {
@@ -199,7 +202,12 @@ function assertSupportedMembership(data: ReceiptData): void {
   if (purchaseFlag(purchase, "is_gift_sender_purchase") || purchaseFlag(purchase, "is_gift_receiver_purchase"))
     refuse("a gifted membership");
   const { row } = subscription;
-  if (row.charge_occurrence_count !== null) refuse("a fixed-length membership");
+  // One charge only: the manage note promises the end date of the subscription, which is not recorded.
+  if (row.charge_occurrence_count === 1) refuse("a single-charge membership");
+  if (row.charge_occurrence_count !== null && purchaseFlag(purchase, "is_free_trial_purchase"))
+    refuse("a fixed-length free trial");
+  if (row.charge_occurrence_count !== null && purchase.price_cents === 0 && purchase.shipping_cents === 0)
+    refuse("a free fixed-length membership");
   const subscriptionFlags = row.flags ?? 0;
   if (
     SubscriptionFlags.isSet(subscriptionFlags, "is_installment_plan") ||
@@ -421,13 +429,14 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   // Purchase#free_purchase?
   const free = purchase.price_cents === 0 && purchase.shipping_cents === 0;
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
+  const fixed = subscription?.fixedLength ?? null;
 
   const upcoming: Attribute[] = [];
   if (subscription?.nextPayment)
     upcoming.push(
       { label: "Upcoming payment", text: "" },
       {
-        label: productLabel,
+        label: fixed === null ? productLabel : `${productLabel}: ${fixed.chargeNumber + 1} of ${fixed.total}`,
         text: `${formattedPrice("usd", subscription.nextPayment.cents)} on ${formattedDateAbbrevMonth(subscription.nextPayment.date)}`,
       },
     );
@@ -435,8 +444,10 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   if (upcoming.length > 0) today.push({ label: "Today's payment", text: "" });
   if (!free || trial)
     today.push({
-      label: productLabel,
-      text: todayAmount(data, trial ? 0 : data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents),
+      label: fixed === null ? productLabel : `${productLabel}: ${fixed.chargeNumber} of ${fixed.total}`,
+      text:
+        todayAmount(data, trial ? 0 : data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents) +
+        (fixed?.final ? " - This is the final payment. You will not be charged for this product again." : ""),
     });
   const moved = (purchase.total_transaction_cents ?? 0) !== 0;
   if (purchase.shipping_cents > 0)

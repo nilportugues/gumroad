@@ -134,7 +134,7 @@ async function loadReceiptData(
       if (!/^[A-Za-z0-9_=-]+$/u.test(externalId))
         throw new MailViewNotPortedError("subscription external id that needs URL escaping");
       subscription = new SubscriptionRecord(row, { ...defaultSubscriptionDeps, now: deps.now ?? (() => new Date()) });
-      data.subscription = { row, externalId, recurrence: null, nextPayment: null, gift: false, freeMembership: false };
+      data.subscription = { row, externalId, recurrence: null, nextPayment: null, gift: false, freeMembership: false, fixedLength: null };
     }
   }
   // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent, and `gifter_email` reads
@@ -275,6 +275,22 @@ async function renewsFreeMembership(data: ReceiptData, record: SubscriptionRecor
 async function loadNextPayment(data: ReceiptData, record: SubscriptionRecord): Promise<void> {
   const { purchase } = data;
   const subscription = data.subscription!;
+  const total = subscription.row.charge_occurrence_count;
+  if (total !== null) {
+    // `has_fixed_length? && purchase == subscription.last_purchase && remaining_charges_count&.zero?`: no upcoming charge.
+    const successful = Prisma.sql`${column("purchases", "subscription_id")} = ${record.id} AND ${column("purchases", "purchase_state")} = 'successful'`;
+    const [last] = await rows(
+      Prisma.sql`SELECT ${star("purchases")} FROM ${table("purchases")} WHERE ${successful} ORDER BY ${column("purchases", "id")} DESC LIMIT 1`,
+    );
+    const [counted] = await rows(Prisma.sql`SELECT COUNT(*) FROM ${table("purchases")} WHERE ${successful}`);
+    const successfulCount = Number(counted!["COUNT(*)"]);
+    const isLast = last !== undefined && BigInt(last.id as Id) === BigInt(purchase.id);
+    subscription.fixedLength = { total, chargeNumber: 0, final: isLast && successfulCount === total };
+    if (isLast && total - successfulCount === 0) {
+      await loadChargeNumber(data, record, successful);
+      return;
+    }
+  }
   const renewalCents = await record.currentSubscriptionPriceCents();
   if (renewalCents === null || renewalCents !== purchase.displayed_price_cents)
     throw new MailViewNotPortedError("membership whose next charge differs from this one");
@@ -285,6 +301,20 @@ async function loadNextPayment(data: ReceiptData, record: SubscriptionRecord): P
     cents: renewalCents + purchase.shipping_cents + tax,
     date: trial ? subscription.row.free_trial_ends_at! : advance(purchase.created_at, await record.period()),
   };
+}
+
+// PaymentInfo#subscription_charge_number: the successful charges that finished before this one, plus one.
+async function loadChargeNumber(data: ReceiptData, record: SubscriptionRecord, successful: Prisma.Sql): Promise<void> {
+  const { purchase } = data;
+  const before =
+    purchase.succeeded_at === null || purchase.succeeded_at === undefined
+      ? Prisma.raw("NULL")
+      : Prisma.sql`${purchase.succeeded_at}`;
+  const [counted] = await rows(
+    Prisma.sql`SELECT COUNT(*) FROM ${table("purchases")} WHERE ${successful} AND (succeeded_at < ${before})`,
+  );
+  data.subscription!.fixedLength!.chargeNumber = Number(counted!["COUNT(*)"]) + 1;
+  void record;
 }
 
 // ---- views --------------------------------------------------------------------------------------------
@@ -685,7 +715,16 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
     mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }),
   );
   // PaymentInfo reads the next charge before it reads the tax of this one.
-  if (subscription !== null && !data.subscription!.freeMembership) await loadNextPayment(data, subscription);
+  if (subscription !== null && !data.subscription!.freeMembership) {
+    await loadNextPayment(data, subscription);
+    const fixed = data.subscription!.fixedLength;
+    if (fixed !== null && fixed.chargeNumber === 0)
+      await loadChargeNumber(
+        data,
+        subscription,
+        Prisma.sql`${column("purchases", "subscription_id")} = ${subscription.id} AND ${column("purchases", "purchase_state")} = 'successful'`,
+      );
+  }
   data.taxLines = await taxLines(purchase, data.presentment);
   const payment = paymentInfo(data, invoiceLink);
 
