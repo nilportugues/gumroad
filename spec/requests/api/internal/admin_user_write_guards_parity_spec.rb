@@ -5,7 +5,7 @@ require "spec_helper"
 # The writes of Api::Internal::Admin::UsersController that send mail, move a user through the risk state machine, queue a refund job
 # or create a credit, through the whole stack on the API host with a per-actor token. Recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws17e-admin-api.replay.test.ts. Node answers the parameter and lookup
-# refusals, the branches that change nothing, the two-factor toggle and the risk transitions without a note; the "hands a ..."
+# refusals, the branches that change nothing, the two-factor toggle and the risk transitions with or without a note; the "hands a ..."
 # examples are requests that clear those, which the replay asserts reach the stand-in Rails untouched and write nothing. The
 # services behind them are stubbed so recording needs no processor.
 describe "Internal admin API user write guards", type: :request do
@@ -170,10 +170,27 @@ describe "Internal admin API user write guards", type: :request do
       expect(user.reload.compliant?).to be(true)
     end
 
-    it "hands a compliance note to Rails", parity: true do
+    it "saves the admin note after marking compliant", parity: true do
       post_json("mark_compliant", user_id: user.external_id, note: "Reviewed")
 
+      expect(response.parsed_body).to include("status" => "marked_compliant")
+      expect(user.reload.compliant?).to be(true)
+      expect(user.comments.where(comment_type: Comment::COMMENT_TYPE_NOTE).pluck(:content, :author_id)).to eq([["Reviewed", admin.id]])
+    end
+
+    it "trims the admin note and collapses runs of blank lines", parity: true do
+      post_json("mark_compliant", user_id: user.external_id, note: "  Reviewed\n\n\n\nTwice \n")
+
       expect(response).to have_http_status(:ok)
+      expect(user.comments.where(comment_type: Comment::COMMENT_TYPE_NOTE).pluck(:content)).to eq(["Reviewed\n\nTwice"])
+    end
+
+    it "refuses a note that is too long before marking compliant", parity: true do
+      post_json("mark_compliant", user_id: user.external_id, note: "a" * 10_001)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["message"]).to eq("Content is too long (maximum is 10000 characters)")
+      expect(user.reload.compliant?).to be(false)
     end
 
     it "lifts a suspension when asked to", parity: true do
@@ -208,12 +225,38 @@ describe "Internal admin API user write guards", type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
-    it "hands a suspension of a verified account to Rails", parity: true do
+    it "refuses to suspend a verified account for fraud", parity: true do
       user.update_columns(verified: true)
 
       post_json("suspend_for_fraud", user_id: user.external_id)
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(user.reload.suspended?).to be(false)
+    end
+
+    it "refuses to suspend a verified account even with a note", parity: true do
+      user.update_columns(verified: true)
+
+      post_json("suspend_for_fraud", user_id: user.external_id, suspension_note: "Chargebacks")
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(user.comments.where(comment_type: Comment::COMMENT_TYPE_SUSPENSION_NOTE).count).to eq(0)
+    end
+
+    it "saves the suspension note after suspending for fraud", parity: true do
+      post_json("suspend_for_fraud", user_id: user.external_id, suspension_note: "Chargebacks")
+
+      expect(response.parsed_body).to include("status" => "suspended_for_fraud")
+      expect(user.reload.suspended_for_fraud?).to be(true)
+      expect(user.comments.where(comment_type: Comment::COMMENT_TYPE_SUSPENSION_NOTE).pluck(:content, :author_id)).to eq([["Chargebacks", admin.id]])
+    end
+
+    it "refuses a suspension note that is too long before suspending", parity: true do
+      post_json("suspend_for_fraud", user_id: user.external_id, suspension_note: "a" * 10_001)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["message"]).to eq("Content is too long (maximum is 10000 characters)")
+      expect(user.reload.suspended?).to be(false)
     end
 
     it "suspends an account for fraud", parity: true do
@@ -236,6 +279,22 @@ describe "Internal admin API user write guards", type: :request do
       post_json("suspend_for_tos_violation", user_id: user.external_id)
 
       expect(response).to have_http_status(:ok)
+    end
+
+    it "refuses to suspend a verified account for a policy violation", parity: true do
+      user.update_columns(verified: true)
+
+      post_json("suspend_for_tos_violation", user_id: user.external_id)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(user.reload.suspended?).to be(false)
+    end
+
+    it "saves the suspension note after suspending for a policy violation", parity: true do
+      post_json("suspend_for_tos_violation", user_id: user.external_id, suspension_note: "Prohibited content")
+
+      expect(response.parsed_body).to include("status" => "suspended_for_tos_violation")
+      expect(user.comments.where(comment_type: Comment::COMMENT_TYPE_SUSPENSION_NOTE).pluck(:content)).to eq(["Prohibited content"])
     end
   end
 
@@ -422,10 +481,108 @@ describe "Internal admin API user write guards", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a restore to Rails", parity: true do
+    def removed_rail(country: "IN", merchant_country: country, removed_at: 2.days.ago)
+      merchant_account = create(:merchant_account, user:, country: merchant_country)
+      bank_account = create(:indian_bank_account, user:, stripe_connect_account_id: merchant_account.charge_processor_merchant_id)
+      merchant_account.update_columns(deleted_at: removed_at, charge_processor_deleted_at: removed_at)
+      bank_account.update_columns(deleted_at: removed_at)
+      [bank_account, merchant_account]
+    end
+
+    it "refuses when no bank account was removed", parity: true do
       post_json("restore_bank_payout_rail", user_id: user.external_id)
 
       expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["message"]).to eq("No removed bank account to restore")
+    end
+
+    it "refuses a seller who can add a bank account themselves", parity: true do
+      create(:user_compliance_info, user:, country: "United States")
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("This seller can add a bank account themselves; no restore needed")
+    end
+
+    it "refuses a seller who already has an active bank account", parity: true do
+      create(:user_compliance_info, user:, country: "India")
+      create(:indian_bank_account, user:)
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("User already has an active bank account")
+    end
+
+    it "does not restore a removed card, which is not a bank rail", parity: true do
+      create(:user_compliance_info, user:, country: "India")
+      create(:indian_bank_account, user:, deleted_at: 2.days.ago).update_columns(type: "CardBankAccount")
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("No removed bank account to restore")
+    end
+
+    it "refuses a removed bank account whose Stripe account is not among the removed ones", parity: true do
+      create(:user_compliance_info, user:, country: "India")
+      create(:indian_bank_account, user:, stripe_connect_account_id: "acct_removed", deleted_at: 2.days.ago)
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("No removed Stripe account matches the bank account")
+    end
+
+    it "refuses a rail that a Google or Apple takeover retired", parity: true do
+      create(:user_compliance_info, user:, country: "India")
+      _bank_account, merchant_account = removed_rail
+      merchant_account.mark_retired_by_adoption!
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("The bank rail was removed when a Google or Apple sign-in took over the account, so it cannot be restored")
+    end
+
+    it "refuses a rail whose Stripe account is in another country than the seller", parity: true do
+      create(:user_compliance_info, user:, country: "India")
+      removed_rail(merchant_country: "US")
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("The removed bank rail does not match the seller's current country")
+    end
+
+    it "refuses a removed rail when the seller has no compliance country", parity: true do
+      removed_rail
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("The removed bank rail does not match the seller's current country")
+    end
+
+    it "refuses a removed rail when neither the seller nor the Stripe account has a country", parity: true do
+      _bank_account, merchant_account = removed_rail
+      merchant_account.update_columns(country: nil)
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response.parsed_body["message"]).to eq("The removed bank rail does not match the seller's current country")
+    end
+
+    it "refuses a note that is too long before looking at the rails", parity: true do
+      post_json("restore_bank_payout_rail", user_id: user.external_id, note: "a" * 10_001)
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["message"]).to eq("Content is too long (maximum is 10000 characters)")
+    end
+
+    it "hands a restore of a rail in the seller's country to Rails", parity: true do
+      create(:user_compliance_info, user:, country: "India")
+      _bank_account, merchant_account = removed_rail
+      allow(Stripe::Account).to receive(:retrieve).with(merchant_account.charge_processor_merchant_id)
+        .and_return(Stripe::Account.construct_from({ id: merchant_account.charge_processor_merchant_id, country: "IN", payouts_enabled: true }))
+
+      post_json("restore_bank_payout_rail", user_id: user.external_id)
+
+      expect(response).to have_http_status(:ok)
     end
   end
 end
