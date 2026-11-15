@@ -159,11 +159,23 @@ describe "Affiliate statistics", type: :request do
     expect(response).to have_http_status(:not_found)
   end
 
-  it "hands a request for another format to Rails", parity: true do
+  it "answers a request for another format with the same JSON", parity: true do
+    create(:product_affiliate, affiliate:, product: alpha, affiliate_basis_points: 1000)
+    credit(alpha)
     log_in(seller)
 
     get "/affiliates/#{affiliate.external_id}/statistics", headers: { "Accept" => "application/xml" }
 
     expect(response).to have_http_status(:ok)
+    expect(response.content_type).to start_with("application/json")
+    expect(response.parsed_body["total_volume_cents"]).to eq(500)
+  end
+
+  it "hands a request for an unknown affiliate in another format to Rails", parity: true do
+    log_in(seller)
+
+    get "/affiliates/notanaffiliate/statistics", headers: { "Accept" => "application/xml" }
+
+    expect(response).to have_http_status(:not_found)
   end
 end
