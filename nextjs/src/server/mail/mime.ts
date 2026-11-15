@@ -192,9 +192,8 @@ function encodeBody(rawBody: string, forceQuotedPrintable = false): { encoding: 
 // decodes and encodes it again. Mail only converts line endings of a string that is ASCII (the
 // decoder returns binary), so a body with non-ASCII keeps the CRLFs the first pass added and the
 // second pass writes each of them as "=0D".
-function interceptedHtml(payload: string): string {
-  // The inliner's html never carries a bare CR; Mail would normalise it before the first pass.
-  if (payload.includes("\r")) throw new MimeNotPortedError("html part with a carriage return");
+function interceptedHtml(body: string): string {
+  const payload = toLf(body);
   const bytes = Buffer.from(payload, "utf8");
   const decoded = bytes.length === payload.length ? payload : payload.replace(/\n/gu, "\r\n");
   return toCrlf(packM(Buffer.from(decoded, "utf8")));

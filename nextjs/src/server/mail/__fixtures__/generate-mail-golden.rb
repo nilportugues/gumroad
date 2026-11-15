@@ -104,6 +104,20 @@ Premailer::Rails.config[:remove_ids] = false
 Premailer::Rails.config[:preserve_style_attribute] = true
 Premailer::Rails.config[:strategies] = [EmailStylesheetLoader]
 
+# The two initializers that change what premailer-rails hands to delivery. Their registration is wrapped
+# in Rails' boot hooks, so the modules are evaluated from source and registered in the same order.
+require File.join(ROOT, "lib/utilities/email_custom_property_resolver")
+module Kernel
+  def initializer_module(file, name)
+    source = File.read(File.join(ROOT, "config/initializers", file))
+    eval(source[/^module #{name}\n.*?^end\n/m] || abort("#{name} not found in #{file}"), TOPLEVEL_BINDING)
+  end
+end
+initializer_module("premailer_rails.rb", "EmailCustomPropertyInlining")
+Premailer::Rails::CustomizedPremailer.prepend(EmailCustomPropertyInlining)
+initializer_module("quoted_printable_html_mail.rb", "QuotedPrintableHtmlMail")
+ActionMailer::Base.register_interceptor(QuotedPrintableHtmlMail)
+
 module ApplicationHelper
   def vite_entrypoint_stylesheet_tag(_name, **options)
     stylesheet_link_tag(CSS_HREF, **options, extname: false)
