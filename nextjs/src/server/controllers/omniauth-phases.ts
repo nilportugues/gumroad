@@ -522,8 +522,9 @@ export const authFailure = (strategy: string, input: MutationInput, type: string
 
 function callbackPhase(strategy: Strategy) {
   return async (input: MutationInput): Promise<ActionResult> => {
-    // A social connect redirects whatever the format; an XHR callback has a js format the HTML check refuses.
-    const xhr = strategy.social !== undefined && isXhr(input);
+    // A social connect redirects whatever the format, and so does Google's sign-in callback (recorded for an XHR, a success and a failed
+    // exchange); any other XHR callback has a js format the HTML check refuses.
+    const xhr = isXhr(input) && (strategy.social !== undefined || strategy.name === "google_oauth2");
     if (!xhr) assertHtml(input);
     // Work on a copy: a request that is handed back must leave the session as Rails will find it.
     const chain = input.chain;

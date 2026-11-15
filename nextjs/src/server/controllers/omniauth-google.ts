@@ -24,6 +24,7 @@ const STRATEGY = "google_oauth2";
 const FOUND = 302;
 const LOGIN_PATH = "/login";
 const SIGNUP_PATH = "/signup";
+const POSTMESSAGE = "postmessage";
 const ASYNC_LINK_TWITTER_STATE = "async_link_twitter_account";
 const INTERNAL_ERROR = "internal_error";
 const DELETED_ACCOUNT_LOGIN_ERROR =
@@ -41,10 +42,6 @@ function assertFinishable(input: MutationInput): string {
     throw new HandBackToRails("a visitor who is signed in");
   const code = stringParam(input, "code");
   if (code === undefined || !isPresent(code)) throw new HandBackToRails("a callback without a code");
-  // omniauth-google-oauth2's get_access_token: an XHR sends the code to Google as is, and a redirect_uri of its own replaces the callback's.
-  if (input.request.headers.get("x-requested-with") === "XMLHttpRequest") throw new HandBackToRails("an XHR callback");
-  if (stringParam(input, "redirect_uri") !== undefined)
-    throw new HandBackToRails("a callback that names a redirect URI");
   // The failure action reads these two, and the exchange may fail.
   if (stringParam(input, "state") === ASYNC_LINK_TWITTER_STATE)
     throw new HandBackToRails("the async Twitter link page, an ERB view");
@@ -52,6 +49,14 @@ function assertFinishable(input: MutationInput): string {
   if (description !== undefined && isPresent(description))
     throw new HandBackToRails("a callback with an error description");
   return code;
+}
+
+// omniauth-google-oauth2's get_access_token: the callback's own `redirect_uri` wins, else `postmessage` for an XHR (`request.xhr?`), else
+// the callback URL. A blank one is Ruby-truthy and is sent as is.
+function exchangeRedirectUri(input: MutationInput, callbackUrl: string): string {
+  const named = stringParam(input, "redirect_uri");
+  if (named !== undefined) return named;
+  return /XMLHttpRequest/iu.test(input.request.headers.get("x-requested-with") ?? "") ? POSTMESSAGE : callbackUrl;
 }
 
 // User::OmniauthCallbacksController#post_auth_redirect
@@ -75,7 +80,7 @@ async function callback(input: MutationInput, context: CodeCallbackContext): Pro
 
   // From here the code is spent.
   try {
-    const login = await exchangeGoogleLogin(code, context.callbackUrl, chain.now);
+    const login = await exchangeGoogleLogin(code, exchangeRedirectUri(input, context.callbackUrl), chain.now);
     if (!login.ok) return authFailure(STRATEGY, input, login.type, login.type);
 
     let data;
