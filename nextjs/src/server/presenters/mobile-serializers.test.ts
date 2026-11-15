@@ -273,12 +273,15 @@ describe("Link#as_json(mobile: true)", () => {
     });
   });
 
-  it("falls back to the username, then an empty string, for the creator name", () => {
+  it("falls back to the username, then the external id, for the creator name", () => {
     expect(linkAsJsonMobile(mobileLinkInput({ creator: { ...seller, name: " " } })).creator_name).toBe("seller");
     expect(linkAsJsonMobile(mobileLinkInput({ creator: { ...seller, name: null, username: null } }))).toMatchObject({
-      creator_name: "",
-      creator_username: "",
+      creator_name: "sel7",
+      creator_username: "sel7",
     });
+    expect(
+      linkAsJsonMobile(mobileLinkInput({ creator: { ...seller, name: null, username: " " } })).creator_username,
+    ).toBe("sel7");
   });
 
   it("prints the preview fields of the main cover", () => {

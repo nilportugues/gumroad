@@ -1,10 +1,13 @@
 // Api::Internal::Admin::ScheduledPayoutsController#index, StrandedBuyersController#scan and PayoutsController#pause/#resume.
 // A pause that needs the payout schedule (#index) and a scan that finds candidates (the declining-block lookups) go to Rails whole.
+import { Prisma } from "@prisma/client";
+
 import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { rubyStrip } from "../../content-moderation/ruby.ts";
 import { Comments, COMMENT_TYPES } from "../../models/comment.ts";
 import { moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
+import { gumroadAdminId } from "../../models/gumroad-admin-id.ts";
 import { recordSocialConnectHoldReleased } from "../../models/user-risk.ts";
 import {
   findUserBang,
@@ -16,7 +19,8 @@ import {
   setJsonDataForAttr,
   Users,
 } from "../../models/user.ts";
-import { rubyToI } from "../../page-props/payouts/payouts.ts";
+import { isoDate } from "../../page-props/payouts/payout-schedule.ts";
+import { nextPayoutForAdmin, rubyToI } from "../../page-props/payouts/payouts.ts";
 
 import {
   failure,
@@ -28,6 +32,7 @@ import {
   timeJson,
   type AdminRequest,
 } from "./base.ts";
+import { paginateWithCursor } from "./cursor.ts";
 import { handBack } from "./hand-back.ts";
 import { defineAdminRoute } from "./registry.ts";
 import { findUserForWrite } from "./user-writes.ts";
@@ -293,8 +298,65 @@ defineAdminRoute(
       const found = await findUserForRead(admin, false);
       // fetch_user_for_read is a before_action: a refusal halts the chain.
       if ("refusal" in found) return halted(found.refusal);
-      // next_payout_date and the balance for it come from the payout schedule and the seller's rail.
-      return handBack("a payout list", PAYOUTS_SOURCE);
+      const { user } = found;
+      type PaymentListRow = {
+        id: bigint;
+        amount_cents: bigint | null;
+        currency: string | null;
+        state: string | null;
+        created_at: Date;
+        processor: string | null;
+        payment_address: string | null;
+        stripe_transfer_id: string | null;
+        bank_account_id: bigint | null;
+        created_at_iso: string;
+      };
+      const page = await paginateWithCursor<PaymentListRow>(
+        "payments",
+        Prisma.sql`\`payments\`.\`user_id\` = ${user.id}`,
+        admin.params,
+        Prisma.raw(
+          "`payments`.`id`, `payments`.`amount_cents`, `payments`.`currency`, `payments`.`state`, `payments`.`created_at`, `payments`.`processor`, `payments`.`payment_address`, `payments`.`stripe_transfer_id`, `payments`.`bank_account_id`",
+        ),
+      );
+      if ("invalid" in page) return page.invalid;
+      // serialize_payout reads the bank account's visual number and routing number, which every country's subclass computes its own way.
+      if (page.rows.some((row) => row.bank_account_id !== null))
+        return handBack("a payout list with a bank account", PAYOUTS_SOURCE);
+      const seller = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+      const next = await nextPayoutForAdmin(seller);
+      const note = await db.comment.findFirst({
+        where: {
+          commentable_id: user.id,
+          commentable_type: "User",
+          comment_type: COMMENT_TYPES.PAYOUT_NOTE,
+          deleted_at: null,
+          author_id: BigInt(Number(gumroadAdminId())),
+        },
+        orderBy: { id: "desc" },
+        select: { content: true },
+      });
+      return jsonRendered({
+        success: true,
+        user_id: user.external_id,
+        recent_payouts: page.rows.map((row) => ({
+          external_id: encrypt(row.id),
+          amount_cents: row.amount_cents === null ? null : Number(row.amount_cents),
+          currency: row.currency,
+          state: row.state,
+          created_at: timeJson(row.created_at),
+          processor: row.processor,
+          bank_account_visual: null,
+          paypal_email: row.payment_address,
+          trace_id: null,
+          stripe_transfer_id: row.stripe_transfer_id,
+          bank_account: null,
+        })),
+        pagination: page.pagination,
+        next_payout_date: next.nextPayoutDate === null ? null : isoDate(next.nextPayoutDate),
+        balance_for_next_payout: next.formattedBalance,
+        payout_note: note?.content ?? null,
+      });
     },
   },
   {
