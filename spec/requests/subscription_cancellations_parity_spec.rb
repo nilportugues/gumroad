@@ -142,10 +142,17 @@ describe "Subscription cancellations", type: :request, defer_audience_refresh: t
       expect(response).to have_http_status(:no_content)
     end
 
-    it "hands a signed-out request to Rails", parity: true do
+    it "answers a signed-out JSON request with a 404", parity: true do
       unsubscribe_by_seller
 
       expect(response).to have_http_status(:not_found)
+      expect(response.parsed_body).to eq("success" => false, "error" => "Not found")
+    end
+
+    it "sends a signed-out form post to the login page", parity: true do
+      post unsubscribe_by_seller_subscription_path(subscription.external_id), params: { authenticity_token: csrf_token }
+
+      expect(response).to redirect_to(login_path(next: unsubscribe_by_seller_subscription_path(subscription.external_id)))
     end
   end
 

@@ -11,9 +11,10 @@ import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rai
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { assertNonceMatchesCsp, maskVolatile } from "../src/erb-layout";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
-import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
+import { assertParity, httpTransport, replayFixtureExchange, type Transport } from "../src/replay";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // With WRITE_NODE_DEVICE=<file> it also writes the codes and tokens Node issued, for spec/requests/oauth_node_device_flow_spec.rb.
@@ -146,17 +147,33 @@ describe.skipIf(!url)("OAuth device flow", () => {
       DYNAMODB_ENDPOINT: process.env.DYNAMODB_ENDPOINT ?? "http://localhost:8012",
       ...(testEnv("DYNAMODB_TABLE_PREFIX") ? { DYNAMODB_TABLE_PREFIX: testEnv("DYNAMODB_TABLE_PREFIX")! } : {}),
       AWS_S3_ENDPOINT: process.env.AWS_S3_ENDPOINT ?? "http://localhost:9010",
+      ...(testEnv("STRIPE_PUBLIC_KEY_TEST") ? { STRIPE_PUBLIC_KEY_TEST: testEnv("STRIPE_PUBLIC_KEY_TEST")! } : {}),
       ...(testEnv("AWS_ACCESS_KEY_ID") ? { AWS_ACCESS_KEY_ID: testEnv("AWS_ACCESS_KEY_ID")! } : {}),
       ...(testEnv("AWS_SECRET_ACCESS_KEY") ? { AWS_SECRET_ACCESS_KEY: testEnv("AWS_SECRET_ACCESS_KEY")! } : {}),
     });
   }, FIRST_COMPILE_TIMEOUT_MS);
+
+  // The code form page carries the masked CSRF token of its meta tag and a CSP nonce, random per request: blanked on both sides.
+  const maskedTransport: Transport = async (request) => {
+    const response = await httpTransport(server.baseUrl)(request);
+    if (!(response.headers.get("content-type") ?? "").includes("html")) return response;
+    const raw = await response.text();
+    assertNonceMatchesCsp(raw, response.headers.get("content-security-policy"));
+    // The spec stubs the Vite manifest to /vite-test.css; Node reads the built one.
+    const text = maskVolatile(raw).replace(
+      /(<link rel="stylesheet" crossorigin="anonymous" href=")[^"]*(")/u,
+      "$1/vite-test.css$2",
+    );
+    if (process.env.PARITY_DUMP_BODY) writeFileSync(process.env.PARITY_DUMP_BODY, text);
+    return new Response(text, { status: response.status, headers: response.headers });
+  };
 
   const replayOptions = () => ({
     sql,
     redis: {
       reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
     },
-    transport: httpTransport(server.baseUrl),
+    transport: maskedTransport,
     interceptHttp: false,
     rewriteRequest: (
       request: Parameters<typeof reencryptCookies>[0],
@@ -201,6 +218,8 @@ describe.skipIf(!url)("OAuth device flow", () => {
     async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
+        const recorded = fixture.exchanges[index]!.response;
+        if (typeof recorded.body === "string") recorded.body = maskVolatile(recorded.body);
         // Whatever Node cannot prove goes to Rails whole, before its first write.
         if (/-hands-/u.test(name)) {
           handedBack.length = 0;

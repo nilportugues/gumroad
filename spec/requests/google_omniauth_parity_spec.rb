@@ -626,7 +626,7 @@ describe "Google OAuth2 login and signup", type: :request do
     end
   end
 
-  describe "a callback Node leaves to Rails" do
+  describe "callback shapes that change the exchange, and those Node leaves to Rails" do
     it "hands a callback of a visitor who is already signed in to Rails", parity: true do
       log_in(user)
       state = begin_flow
@@ -637,22 +637,44 @@ describe "Google OAuth2 login and signup", type: :request do
       expect(response).to have_http_status(:found)
     end
 
-    it "hands an XHR callback to Rails", parity: true do
+    it "exchanges the code with postmessage as the redirect URI for an XHR callback", parity: true do
       state = begin_flow
       stub_google
 
       get "/users/auth/google_oauth2/callback", params: { code: "google-code-1", state: }, headers: { "X-Requested-With" => "XMLHttpRequest" }
 
       expect(response).to have_http_status(:found)
+      expect(a_request(:post, "https://oauth2.googleapis.com/token").with(body: hash_including("redirect_uri" => "postmessage"))).to have_been_made
     end
 
-    it "hands a callback that names a redirect URI to Rails", parity: true do
+    it "ends an XHR callback in the failure action when Google refuses the code", parity: true do
+      state = begin_flow
+      stub_google(token_status: 400, token_body: { error: "invalid_grant", error_description: "Bad Request" })
+
+      get "/users/auth/google_oauth2/callback", params: { code: "google-code-1", state: }, headers: { "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to redirect_to("http://#{DOMAIN}/users/sign_in")
+      expect(flash[:alert]).to eq("Could not authenticate you from GoogleOauth2 because \"Invalid credentials\".")
+    end
+
+    it "exchanges the code with the redirect URI the callback names", parity: true do
       state = begin_flow
       stub_google
 
-      callback(state, redirect_uri: "postmessage")
+      callback(state, redirect_uri: "https://example.org/oauth/return")
 
       expect(response).to have_http_status(:found)
+      expect(a_request(:post, "https://oauth2.googleapis.com/token").with(body: hash_including("redirect_uri" => "https://example.org/oauth/return"))).to have_been_made
+    end
+
+    it "prefers the redirect URI an XHR callback names over postmessage", parity: true do
+      state = begin_flow
+      stub_google
+
+      get "/users/auth/google_oauth2/callback", params: { code: "google-code-1", state:, redirect_uri: "https://example.org/oauth/return" }, headers: { "X-Requested-With" => "XMLHttpRequest" }
+
+      expect(response).to have_http_status(:found)
+      expect(a_request(:post, "https://oauth2.googleapis.com/token").with(body: hash_including("redirect_uri" => "https://example.org/oauth/return"))).to have_been_made
     end
 
     it "hands a callback that carries an error description beside its code to Rails", parity: true do

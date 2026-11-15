@@ -14,7 +14,9 @@ import { NotPortedError } from "../page-props/not-ported.ts";
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { idFromExternalId } from "./buyer-pages.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { authorizeJson, json, noContent } from "./seller-json.ts";
+import { cgiEscape, requestFormat } from "./rails-params.ts";
+import { fullpath } from "./rails-request.ts";
+import { authorizeJson, json, noContent, notFoundJson } from "./seller-json.ts";
 import { escapeSegment, manageDecision } from "./subscription-pages.ts";
 
 const FOUND = 302;
@@ -35,7 +37,15 @@ function cancel(input: MutationInput, row: Subscription, bySeller: boolean): Pro
 }
 
 async function unsubscribeBySeller(input: MutationInput): Promise<ActionResult> {
-  if (railsLoggedInUser(input.context) === null) throw new HandBackToRails("a signed-out request");
+  if (railsLoggedInUser(input.context) === null) {
+    // authenticate_user! answers e404_json to a JSON request and redirects an HTML one to the login page.
+    const format = requestFormat(input.request);
+    if (format === "json") return { ...notFoundJson(), rescued: true };
+    if (format !== "html") throw new HandBackToRails("a signed-out request in another format");
+    return { status: FOUND, location: `/login?next=${cgiEscape(fullpath(input.request))}`, rescued: true };
+  }
+  // Only a JSON request is recorded past authenticate_user!; the route takes HTML for the login redirect above.
+  if (requestFormat(input.request) !== "json") throw new HandBackToRails("a signed-in request that does not ask for JSON");
   const row = await findSubscription(input.routeParams.id);
   if (row === null) return unknownSubscription();
 
@@ -75,6 +85,6 @@ async function unsubscribeByUser(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_seller", json: true, run: unsubscribeBySeller },
+  { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_seller", formats: ["json", "html"], run: unsubscribeBySeller },
   { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_user", run: unsubscribeByUser },
 );

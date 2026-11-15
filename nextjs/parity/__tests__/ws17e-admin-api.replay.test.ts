@@ -9,10 +9,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { jobKey, redisJobsChannel } from "../src/active-job";
 import type { JobsChannel } from "../src/channels";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexPurchases, replayIndexName } from "../src/elasticsearch";
-import { jobKey, redisJobsChannel } from "../src/active-job";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -45,6 +45,19 @@ const MID_REQUEST_RACE_CASE =
 const RUBY_STUB_CASE =
   /user-info-stripe-|get-info-computes-sales-count-and-total-earnings-formatted|get-info-surfaces-the-stripe-connect-account-id|get-info-makes-at-most-one-stripe-call|get-info-adds-the-view-stripe-account-link/u;
 const USER_WRITE_GUARDS_CASE = /user-write-guards-post-/u;
+// A risk comment spells the day it was written ("Marked compliant by Admin User on November 14, 2026"), and the server writes it with
+// its own clock: the recorded day becomes the replay's day, as the other recorded times do.
+function dateRiskComments(exchange: { db: Record<string, { inserted?: Record<string, unknown>[] }> }) {
+  const today = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  for (const row of exchange.db.comments?.inserted ?? [])
+    if (typeof row.content === "string")
+      row.content = row.content.replace(/ on [A-Z][a-z]+ \d{1,2}, \d{4}$/u, ` on ${today}`);
+}
 const USER_INFO_CASE = /get-info|user-info/u;
 const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const ROUTE_FLAGS = [
@@ -416,6 +429,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       // The drain sorts what Node queued (the stores keep no common order); the recorded jobs are in Rails' push order.
       const fixture = loadFixture(fixturePath);
       fixture.exchanges[index]!.jobs.sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
+      if (USER_WRITE_GUARDS_CASE.test(name)) dateRiskComments(fixture.exchanges[index]!);
       const result = await replayFixtureExchange(fixture, index, {
         ...(pinned ? { driftDates: false } : {}),
         sql,
