@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/route_redirects_parity_spec.rb",
-  "example": "Route redirects on the Gumroad domain hands an array query on a subscription link to Rails, which rebuilds it with to_query",
+  "example": "Route redirects on the Gumroad domain hands a plain key and a list under one name on a subscription link to Rails",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -49,8 +49,8 @@
       "request": {
         "source": "request",
         "method": "GET",
-        "path": "/subscriptions/abc/cancel_subscription",
-        "query": "a[]=1&a[]=2",
+        "path": "/subscriptions/abc/edit_card",
+        "query": "a=1&a[]=2",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
           "host": "app.test.gumroad.com:31337"
@@ -58,11 +58,10 @@
         "remoteIp": "127.0.0.1"
       },
       "response": {
-        "status": 301,
-        "location": "http://app.test.gumroad.com:31337/subscriptions/abc/manage?a%5B%5D=1&a%5B%5D=2",
+        "status": 400,
         "headers": {
           "cache-control": "no-cache",
-          "content-type": "text/html; charset=utf-8",
+          "content-type": "text/html",
           "vary": "Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",

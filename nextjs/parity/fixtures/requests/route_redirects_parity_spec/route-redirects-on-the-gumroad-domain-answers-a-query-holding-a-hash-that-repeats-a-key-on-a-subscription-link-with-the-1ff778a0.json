@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/route_redirects_parity_spec.rb",
-  "example": "Route redirects on the Gumroad domain hands a nested query on a subscription link to Rails, which rebuilds it with to_query",
+  "example": "Route redirects on the Gumroad domain answers a query holding a hash that repeats a key on a subscription link with the query rebuilt by to_query",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -50,7 +50,7 @@
         "source": "request",
         "method": "GET",
         "path": "/subscriptions/abc/edit_card",
-        "query": "a[b]=1",
+        "query": "a[b]=1&a[b]=2",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
           "host": "app.test.gumroad.com:31337"
@@ -59,7 +59,7 @@
       },
       "response": {
         "status": 301,
-        "location": "http://app.test.gumroad.com:31337/subscriptions/abc/manage?a%5Bb%5D=1",
+        "location": "http://app.test.gumroad.com:31337/subscriptions/abc/manage?a%5Bb%5D=2",
         "headers": {
           "cache-control": "no-cache",
           "content-type": "text/html; charset=utf-8",
