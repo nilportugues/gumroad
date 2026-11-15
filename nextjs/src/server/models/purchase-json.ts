@@ -951,7 +951,9 @@ function variantsHash(variants: Row[], link: Row, loaded: Loaded): Record<string
     // join rows are in variant id order (where both plans agree) is served.
     if (
       Object.hasOwn(hash, String(category.title)) &&
-      variants.some((later, index) => index > 0 && BigInt(later.id as bigint) < BigInt(variants[index - 1]!.id as bigint))
+      variants.some(
+        (later, index) => index > 0 && BigInt(later.id as bigint) < BigInt(variants[index - 1]!.id as bigint),
+      )
     )
       throw notPorted("several variants of one category attached out of variant id order");
     hash[String(category.title)] = picked.name;
