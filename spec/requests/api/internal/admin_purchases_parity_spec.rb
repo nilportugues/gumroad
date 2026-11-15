@@ -202,16 +202,66 @@ describe "Internal admin API purchases", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a card search by purchase date to Rails", parity: true do
-      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-01-15" }, headers: headers
+    # The window is whole days and a fixture rounds a row's age to whole hours, so these rows sit on whole hours and the replay pins
+    # its clock to this instant (PINNED_CLOCKS in ws17e-admin-api.replay.test.ts).
+    it "searches by purchase date, from the start of the day before to the end of the day after, skipping purchases with no fingerprint", parity: true do
+      travel_to(Time.utc(2026, 11, 15, 12, 0, 0)) do
+        starts = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: Time.utc(2026, 1, 14, 0, 0, 0))
+        before = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-2", created_at: Time.utc(2026, 1, 13, 23, 0, 0))
+        same_day = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-3", created_at: Time.utc(2026, 1, 15, 12, 0, 0))
+        ends = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-4", created_at: Time.utc(2026, 1, 16, 23, 0, 0))
+        after = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-5", created_at: Time.utc(2026, 1, 17, 0, 0, 0))
+        create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: nil, created_at: Time.utc(2026, 1, 15, 13, 0, 0))
 
-      expect(response).to have_http_status(:ok)
+        get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-01-15" }, headers: headers
+
+        ids = response.parsed_body["purchases"].map { _1["id"] }
+        expect(ids).to eq([ends, same_day, starts].map { _1.external_id_numeric.to_s })
+        expect(ids).not_to include(before.external_id_numeric.to_s, after.external_id_numeric.to_s)
+      end
     end
 
-    it "hands a card search by expiry date to Rails", parity: true do
-      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/27" }, headers: headers
+    it "searches by purchase date alone", parity: true do
+      travel_to(Time.utc(2026, 11, 15, 12, 0, 0)) do
+        match = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: Time.utc(2026, 1, 15, 12, 0, 0))
 
-      expect(response).to have_http_status(:ok)
+        get "/internal/admin/purchases/search", params: { purchase_date: " 2026-01-15 " }, headers: headers
+
+        expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([match.external_id_numeric.to_s])
+      end
+    end
+
+    it "refuses a purchase date that is not a calendar day", parity: true do
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-02-30" }, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body).to eq("success" => false, "message" => "purchase_date must use YYYY-MM-DD format.")
+    end
+
+    it "refuses a purchase date that is not written as YYYY-MM-DD", parity: true do
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "15/01/2026" }, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body["message"]).to eq("purchase_date must use YYYY-MM-DD format.")
+    end
+
+    it "searches by card expiry written as month and year, with or without a slash", parity: true do
+      slash = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: 5.days.ago)
+      slash.update_columns(card_expiry_month: 4, card_expiry_year: 2027)
+      other_year = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 2222", stripe_fingerprint: "fp-2", created_at: 4.days.ago)
+      other_year.update_columns(card_expiry_month: 4, card_expiry_year: 2028)
+      other_month = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 3333", stripe_fingerprint: "fp-3", created_at: 3.days.ago)
+      other_month.update_columns(card_expiry_month: 5, card_expiry_year: 2027)
+
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/27" }, headers: headers
+      with_slash = response.parsed_body["purchases"].map { _1["id"] }
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "0427" }, headers: headers
+      without_slash = response.parsed_body["purchases"].map { _1["id"] }
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/28" }, headers: headers
+
+      expect(with_slash).to eq([slash.external_id_numeric.to_s])
+      expect(without_slash).to eq(with_slash)
+      expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([other_year.external_id_numeric.to_s])
     end
 
     it "hands a search that reaches a Stripe charge to Rails", parity: true do

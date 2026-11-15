@@ -227,6 +227,12 @@ function cursorInstant(fixturePath: string, index: number, ageMinutes: number): 
   };
   return Date.parse(payload.created_at) + ageMinutes * 60_000;
 }
+// A purchase-date search is a window of whole days around a date the fixture holds as `<today-Nd>` while a row's age is whole hours,
+// so the clock stands at the instant the spec travelled to.
+const PINNED_CLOCKS: [RegExp, number][] = [
+  [/searches-by-purchase-date/u, Date.UTC(2026, 10, 15, 12, 0, 0)],
+];
+const pinnedClock = (name: string) => PINNED_CLOCKS.find(([pattern]) => pattern.test(name))?.[1];
 // emails_sent_at is JSON text inside json_data, which the replay's date drift does not rewrite: users-reads.test.ts covers the field.
 // The counter-notice example sends an absolute received_on that the notice window (sent_at - 1 day to tomorrow) outgrows within days.
 const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp|post-counter-notice-records-the-counter-notice/u;
@@ -390,12 +396,13 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
     "%s",
     async (name, fixturePath, index, fromRequestSpec) => {
       const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(name))?.[1];
-      const pinned = pageAge !== undefined;
+      const pinnedAt = pinnedClock(name);
+      const pinned = pageAge !== undefined || pinnedAt !== undefined;
       if (handsBack(name)) {
         handedBack.length = 0;
-        if (pageAge !== undefined)
+        if (pageAge !== undefined || pinnedAt !== undefined)
           vi.useFakeTimers({
-            now: cursorInstant(fixturePath, index, pageAge),
+            now: pinnedAt ?? cursorInstant(fixturePath, index, pageAge ?? 0),
             toFake: ["Date"],
             shouldAdvanceTime: true,
           });
@@ -420,9 +427,9 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         expect(Object.keys(handed.exchanges[0]!.actual.db).filter((table) => table !== "admin_api_tokens")).toEqual([]);
         return;
       }
-      if (pageAge !== undefined)
+      if (pageAge !== undefined || pinnedAt !== undefined)
         vi.useFakeTimers({
-          now: cursorInstant(fixturePath, index, pageAge),
+          now: pinnedAt ?? cursorInstant(fixturePath, index, pageAge ?? 0),
           toFake: ["Date"],
           shouldAdvanceTime: true,
         });
