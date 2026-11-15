@@ -5,7 +5,7 @@ require "spec_helper"
 # Api::Internal::Admin::UsersController#purchases, #related, #social_connections and #radar_stats through the whole stack, on the API
 # host with a per-actor token. Recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/ws17e-admin-api.replay.test.ts. The "hands a ..." examples are requests the port leaves to Rails (a Stripe
-# risk level, a funnel event, an identity table, several fraud-warning groups): the replay asserts they reach the stand-in Rails
+# risk level, a funnel event, an identity table): the replay asserts they reach the stand-in Rails
 # untouched and write nothing.
 describe "Internal admin API user reads", type: :request do
   let(:admin) { create(:admin_user, name: "Admin User", email: "admin@example.com") }
@@ -470,13 +470,16 @@ describe "Internal admin API user reads", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands warnings of several fraud types to Rails", parity: true do
-      create(:early_fraud_warning, purchase: create_purchase, fraud_type: "made_with_stolen_card", created_at: 2.days.ago, processor_id: "issfr_a")
-      create(:early_fraud_warning, purchase: create_stripe_purchase(email: "second@example.com"), fraud_type: "misc", created_at: 2.days.ago, processor_id: "issfr_b")
+    it "counts warnings of several fraud types and risk levels", parity: true do
+      create(:early_fraud_warning, purchase: create_purchase, fraud_type: "made_with_stolen_card", charge_risk_level: "elevated", created_at: 2.days.ago, processor_id: "issfr_a")
+      create(:early_fraud_warning, purchase: create_stripe_purchase(email: "second@example.com"), fraud_type: "misc", charge_risk_level: "highest", created_at: 2.days.ago, processor_id: "issfr_b")
+      create(:early_fraud_warning, purchase: create_stripe_purchase(email: "third@example.com"), fraud_type: "misc", charge_risk_level: "normal", created_at: 2.days.ago, processor_id: "issfr_c")
 
       get "/internal/admin/users/radar_stats", params: { user_id: seller.external_id }, headers: headers
 
       expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["radar_stats"]).to include("efw_count" => 3, "efw_by_fraud_type" => { "made_with_stolen_card" => 1, "misc" => 2 }, "efw_with_elevated_risk" => 1, "efw_with_highest_risk" => 1)
+      expect(response.parsed_body["recent_efws"].size).to eq(3)
     end
   end
 end
