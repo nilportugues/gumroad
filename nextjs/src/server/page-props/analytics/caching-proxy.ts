@@ -2,17 +2,27 @@
 // CreatorAnalyticsWeb#by_(date|state|referral) for large sellers, merged with whatever is missing.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the days are JSON documents read back from the cache */
 import { getRedis } from "../../infra/redis.ts";
+import { readDataFromKeys, upsertDataFromKey } from "../../models/computed-sales-analytics-day.ts";
 import { isLargeSeller } from "../../models/large-seller.ts";
-import { readDataFromKeys } from "../../models/computed-sales-analytics-day.ts";
 import { addDays, civilDateInZone, timezoneId } from "../../search/civil-time.ts";
 import { formattedDateWithTimezone } from "../../search/d3.ts";
 import { RubyError } from "../../search/ruby-params.ts";
+
 import { mergeDataByDate, mergeDataByReferral, mergeDataByState } from "./caching-proxy-formatters.ts";
 import { CreatorAnalyticsWeb, type AnalyticsSeller } from "./creator-analytics-web.ts";
-import { firstSaleCreatedAtForAnalytics, productsForCreatorAnalytics, type AnalyticsProduct } from "./seller-analytics.ts";
+import {
+  firstSaleCreatedAtForAnalytics,
+  productsForCreatorAnalytics,
+  productsForCreatorAnalyticsRecords,
+  type AnalyticsProduct,
+} from "./seller-analytics.ts";
 
 export const REFERRAL_CACHE_VERSION = 1;
 export const REVENUE_CACHE_VERSION = 1;
+// PRODUCT_EVENT_TRACKING_STARTED_DATE (config/initializers/004_constants.rb)
+export const PRODUCT_EVENT_TRACKING_STARTED_DATE = "2012-10-13";
+// `today_date - 2.days`: today and yesterday are never cached.
+const UNCACHED_RECENT_DAYS = 2;
 // RedisKey.seller_analytics_cache_version
 export const SELLER_ANALYTICS_CACHE_VERSION_KEY = "seller_analytics:cache_version";
 
@@ -57,7 +67,23 @@ export class CreatorAnalyticsCachingProxy {
     if (by === "state") return mergeDataByState(compiled);
     const firstSale = await firstSaleCreatedAtForAnalytics(BigInt(this.user.id));
     const iana = timezoneId(this.user.timezone);
-    return mergeDataByReferral(compiled, dates, this.todayDate(), firstSale ? formattedDateWithTimezone(firstSale, iana, this.now()) : null);
+    return mergeDataByReferral(
+      compiled,
+      dates,
+      this.todayDate(),
+      firstSale ? formattedDateWithTimezone(firstSale, iana, this.now()) : null,
+    );
+  }
+
+  // `overwrite_cache(date, by:)`: regenerates one cached day, for a seller whose analytics are cached. `date` is a civil date.
+  async overwriteCache(date: string, by: AnalyticsKind = "date"): Promise<void> {
+    if (date < PRODUCT_EVENT_TRACKING_STARTED_DATE) return;
+    if (date > addDays(this.todayDate(), -UNCACHED_RECENT_DAYS)) return;
+    if (!(await isLargeSeller(this.user.id))) return;
+    // The key is built (and the version read) before the analytics queries run, as in the argument list in Rails.
+    const key = await this.cacheKeyForData(date, by);
+    const products = await productsForCreatorAnalyticsRecords(BigInt(this.user.id));
+    await upsertDataFromKey(key, await this.analyticsData(date, date, by, products), this.now);
   }
 
   // Today, from the user's time zone point of view.
@@ -86,7 +112,12 @@ export class CreatorAnalyticsCachingProxy {
     return range(start, end);
   }
 
-  private async analyticsData(startDate: string, endDate: string, by: AnalyticsKind, products: AnalyticsProduct[] | null = null): Promise<Day> {
+  private async analyticsData(
+    startDate: string,
+    endDate: string,
+    by: AnalyticsKind,
+    products: AnalyticsProduct[] | null = null,
+  ): Promise<Day> {
     const web = new CreatorAnalyticsWeb(this.user, range(startDate, endDate), products);
     return (by === "date" ? await web.byDate() : by === "state" ? await web.byState() : await web.byReferral()) as Day;
   }
