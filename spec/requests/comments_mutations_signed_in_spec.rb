@@ -250,15 +250,16 @@ describe "Post comments mutations when signed in", type: :request do
         expect(response).to have_http_status(:unauthorized)
       end
 
-      it "hands a follower who has not confirmed their address to Rails", parity: true do
+      it "refuses a follower who has not confirmed their address", parity: true do
         create(:follower, user: seller, email: reader.email)
 
         comment_as_reader_on(hidden_post)
 
         expect(response).to have_http_status(:unauthorized)
+        expect(hidden_post.comments.count).to eq(0)
       end
 
-      it "hands a follower of a post with an audience filter to Rails", parity: true do
+      it "lets a follower comment on a post whose filter keeps them", parity: true, parity_mail_jobs: true do
         create(:active_follower, user: seller, email: reader.email)
         followers_post = create(:follower_post, :published, seller:, name: "For recent followers").tap { _1.update!(allow_comments: true) }
         followers_post.update!(created_before: Time.utc(2030, 1, 1))
@@ -266,14 +267,49 @@ describe "Post comments mutations when signed in", type: :request do
         comment_as_reader_on(followers_post)
 
         expect(response).to be_successful
+        expect(followers_post.comments.count).to eq(1)
       end
 
-      it "hands a collaborator of the seller to Rails", parity: true do
+      it "refuses a follower a post whose filter ends before they followed", parity: true do
+        create(:active_follower, user: seller, email: reader.email)
+        followers_post = create(:follower_post, :published, seller:, name: "For early followers").tap { _1.update!(allow_comments: true) }
+        followers_post.update!(created_before: Time.utc(2020, 1, 1))
+
+        comment_as_reader_on(followers_post)
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(followers_post.comments.count).to eq(0)
+      end
+
+      it "lets an affiliate comment on a post whose filter keeps them", parity: true, parity_mail_jobs: true do
+        create(:direct_affiliate, seller:, affiliate_user: reader)
+        affiliates_post = create(:affiliate_post, :published, seller:, name: "For recent affiliates").tap { _1.update!(allow_comments: true) }
+        affiliates_post.update!(created_after: Time.utc(2020, 1, 1))
+
+        comment_as_reader_on(affiliates_post)
+
+        expect(response).to be_successful
+        expect(affiliates_post.comments.count).to eq(1)
+      end
+
+      it "refuses an affiliate a post whose filter starts after they joined", parity: true do
+        create(:direct_affiliate, seller:, affiliate_user: reader)
+        affiliates_post = create(:affiliate_post, :published, seller:, name: "For late affiliates").tap { _1.update!(allow_comments: true) }
+        affiliates_post.update!(created_after: Time.utc(2030, 1, 1))
+
+        comment_as_reader_on(affiliates_post)
+
+        expect(response).to have_http_status(:unauthorized)
+        expect(affiliates_post.comments.count).to eq(0)
+      end
+
+      it "refuses a collaborator of the seller", parity: true do
         create(:collaborator, seller:, affiliate_user: reader)
 
         comment_as_reader_on(hidden_post)
 
         expect(response).to have_http_status(:unauthorized)
+        expect(hidden_post.comments.count).to eq(0)
       end
     end
 

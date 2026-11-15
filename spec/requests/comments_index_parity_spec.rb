@@ -163,6 +163,48 @@ describe "Post comments index", type: :request do
       expect(response).to be_successful
     end
 
+    it "refuses a follower who has not confirmed their address", parity: true do
+      follower_post = create(:follower_post, :published, seller:, shown_on_profile: false).tap { _1.update!(allow_comments: true) }
+      create(:follower, user: seller, email: reader.email)
+      sign_in_on_main_domain(reader)
+
+      read_comments(follower_post)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "refuses a collaborator of the seller", parity: true do
+      follower_post = create(:follower_post, :published, seller:, shown_on_profile: false).tap { _1.update!(allow_comments: true) }
+      create(:collaborator, seller:, affiliate_user: reader)
+      sign_in_on_main_domain(reader)
+
+      read_comments(follower_post)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "reads the comments of a post whose filter keeps the follower", parity: true do
+      follower_post = create(:follower_post, :published, seller:, shown_on_profile: false).tap { _1.update!(allow_comments: true) }
+      follower_post.update!(created_before: Time.utc(2030, 1, 1))
+      create(:active_follower, user: seller, email: reader.email)
+      sign_in_on_main_domain(reader)
+
+      read_comments(follower_post)
+
+      expect(response).to be_successful
+    end
+
+    it "refuses a follower a post whose filter ends before they followed", parity: true do
+      follower_post = create(:follower_post, :published, seller:, shown_on_profile: false).tap { _1.update!(allow_comments: true) }
+      follower_post.update!(created_before: Time.utc(2020, 1, 1))
+      create(:active_follower, user: seller, email: reader.email)
+      sign_in_on_main_domain(reader)
+
+      read_comments(follower_post)
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
     it "hands a reader who bought the post's product to Rails", parity: true do
       product = create(:product, user: seller)
       product_post = create(:product_post, :published, seller:, link: product, shown_on_profile: true).tap { _1.update!(allow_comments: true) }

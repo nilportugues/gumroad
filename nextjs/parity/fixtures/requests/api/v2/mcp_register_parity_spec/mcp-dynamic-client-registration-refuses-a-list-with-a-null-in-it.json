@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/api/v2/mcp_parity_spec.rb",
-  "example": "API v2 MCP and Notion the MCP endpoint hands back a body that is not JSON",
+  "spec": "spec/requests/api/v2/mcp_register_parity_spec.rb",
+  "example": "MCP dynamic client registration refuses a list with a null in it",
   "sessionCookie": "_gumroad_app_session_test",
-  "secretKeyBase": "f4c0b0e6dab03e87be5926f63de4838bfa03e183a4be6bac2f97edfe099f98b6895281dbeb522d130ec389143b5591543cb5ccf64781c528e961e403f196542c",
-  "recordedOn": "2026-11-02",
+  "secretKeyBase": "parity-replay-secret-key-base",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -49,14 +49,14 @@
       "request": {
         "source": "request",
         "method": "POST",
-        "path": "/muse/v1/mcp",
+        "path": "/claude/v1/oauth2/register",
         "headers": {
           "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
           "content-type": "application/json",
           "host": "app.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "not json"
+        "body": "{\"redirect_uris\":[\"  \",null,\"\"]}"
       },
       "response": {
         "status": 400,
@@ -66,13 +66,29 @@
           "vary": "Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
+          "x-gr": "DEV",
           "x-original-headers-class": "Rack::Headers",
           "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
           "x-xss-protection": "1; mode=block"
         },
         "cookies": {
+          "XSRF-TOKEN": {
+            "value": "dyf1SYPDJX5x5E7WXX0IJzu8GM1otrWP0u1lITqkZyv7F-O7sQarsbwO7z-paUFVxVfErgN1nc-lIOj0qddhPA",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
           "_gumroad_app_session_test": {
-            "value": "1MUs47PJaKOKhMTTtVm+1rFhCUlMq7Y1N+D3XvdEFVjl+OJqXMDh9P+qgBR+xqxODXjBPXHNScvl/hoWPTteqNgVhu/OE0aGfBn9XYTQNGXCcJanWORFKVWV/+6U4Bl79KeZUQpi1fvQtAYA6j4ZJbwf+esrM66u8V4nGhH4SdulYRKQvQVq7ib+xGpWDfqQ9XS1onsI7CfE3uqVwXYsl1G9cTC3p7U=--WCgV8kdfdb6r6/QL--ldiNvS+Rfe/4fTbG3x0J2Q==",
+            "value": "Ybq4dQlyXg7VqC+CUMt65LM45jhn6omZK1gMPl3t4tkW0bG7skyGPsS4CiMZ4DWExYZ4r7sgNiz4txbvlfPJkP0Sect9v8+J1ElPbbN0AX7HEeLAEGbonh0Y2vwwiNKlFeW3EkQa6Hu/TiBGKap7sM6rn30fEBxGZe5C5YBdRfPeP2RNELKpRDBpsMOk8aSPpaf8z/IP/5xvF4Z1S4tYEZ8N8ihgsk1fPMkeRpw1vksqd35xBtpdMbQDqkuhJ8QNR2dcPAr2fAAJFsaZyoxddC+oQkVlmf+fgEMS1tvwOr6b+u4e/zUzLq8uMlRX2kXC/4tLpMjyKvERBmqFSEz05GH9OBGZUC5WrA/Lg1ey3fyDE8G3PTDU8tFtNGdZcPBoawNO--Ej9kMkt8+exNP6LF--3eQA95oqGfNR79uxyv4Cqw==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -81,12 +97,8 @@
           }
         },
         "json": {
-          "jsonrpc": "2.0",
-          "id": null,
-          "error": {
-            "code": -32700,
-            "message": "Parse error"
-          }
+          "error": "invalid_client_metadata",
+          "error_description": "redirect_uris is required"
         }
       },
       "db": {},

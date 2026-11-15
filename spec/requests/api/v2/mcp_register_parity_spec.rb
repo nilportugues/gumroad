@@ -28,7 +28,7 @@ describe "MCP dynamic client registration", type: :request do
   end
 
   # A JSON content type fails in Rails' parameter parser before the action runs; the action's own rescue is for other content types.
-  it "hands a text body that is not JSON to Rails", parity: true do
+  it "refuses a text body that is not JSON", parity: true do
     register("{not json", extra_headers: { "Content-Type" => "text/plain" })
 
     expect_refusal("JSON parse error")
@@ -60,7 +60,7 @@ describe "MCP dynamic client registration", type: :request do
     expect_refusal("redirect_uris is required")
   end
 
-  it "hands a list with a null in it to Rails", parity: true do
+  it "refuses a list with a null in it", parity: true do
     register({ redirect_uris: ["  ", nil, ""] })
 
     expect_refusal("redirect_uris is required")

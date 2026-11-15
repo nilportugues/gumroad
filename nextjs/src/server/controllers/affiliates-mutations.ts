@@ -43,7 +43,13 @@ import { domainConfig } from "../page-props/domain.ts";
 import { authorize } from "../policies/authorize.ts";
 import { directAffiliatePolicy } from "../policies/direct-affiliate.ts";
 
-import { HandBackToRails, RoutingError, type ActionResult, type Redirected } from "./application-controller.ts";
+import {
+  HandBackToRails,
+  ParameterMissing,
+  RoutingError,
+  type ActionResult,
+  type Redirected,
+} from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { requireHtml } from "./users-controller.ts";
 
@@ -101,9 +107,11 @@ const truthy = (value: unknown): boolean =>
 const blank = (value: string | number | null) => value === null || (typeof value === "string" && isBlank(value));
 
 function submitted(input: MutationInput): Submitted {
+  // `params.require(:affiliate)` on an absent key raises ParameterMissing, a 400; a blank or non-hash value stays in Rails.
+  if (!("affiliate" in input.params)) throw new ParameterMissing();
   const affiliate = input.params.affiliate;
   if (!isHash(affiliate) || Object.keys(affiliate).length === 0)
-    throw new HandBackToRails("affiliate is missing or not a hash, which params.require turns into a 400");
+    throw new HandBackToRails("affiliate is blank or not a hash");
   const email = scalar(affiliate.email);
   if (typeof email === "number") throw new HandBackToRails("an email that is a number");
   const rawProducts = affiliate.products;
