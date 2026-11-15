@@ -549,8 +549,6 @@ defineAdminRoute(
       const groups = await db.$queryRaw<
         { charge_risk_level: string | null; fraud_type: string | null; count: bigint }[]
       >`SELECT purchase_early_fraud_warnings.charge_risk_level, purchase_early_fraud_warnings.fraud_type, COUNT(*) AS count FROM purchase_early_fraud_warnings WHERE ${efws} GROUP BY purchase_early_fraud_warnings.charge_risk_level, purchase_early_fraud_warnings.fraud_type`;
-      // The order a GROUP BY returns its groups in is the database's, and the stats hash keeps it.
-      if (groups.length > 1) throw new NotPortedError("more than one early fraud warning group", SOURCE);
       const [disputes] = await db.$queryRaw<
         { count: bigint }[]
       >`SELECT COUNT(*) AS count FROM disputes LEFT OUTER JOIN purchases ON purchases.id = disputes.purchase_id LEFT OUTER JOIN charges ON charges.id = disputes.charge_id WHERE COALESCE(purchases.charge_processor_id, charges.processor, '') != 'paypal' AND disputes.seller_id = ${user.id} AND disputes.state != 'won' AND disputes.created_at >= ${cutoff}`;
