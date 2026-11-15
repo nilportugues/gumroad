@@ -4,7 +4,8 @@
 import { Prisma } from "@prisma/client";
 
 import { column, selectRows, table } from "../models/sql.ts";
-import type { RenderedMail } from "./compose.ts";
+
+import type { ComposeInitializers, RenderedMail } from "./compose.ts";
 import {
   buildHeaders,
   defaultEmailDomain,
@@ -29,7 +30,15 @@ export const noreplyEmail = () => `noreply@${defaultEmailDomain()}`;
 export const noreplyEmailWithName = () => `Gumroad <${noreplyEmail()}>`;
 
 // `now` is Time.now; `redisSetEx` stands in for `$redis.set(key, value, ex:)`.
-export type MailerDeps = { s3?: S3Reader; mailerLevel?: (userId: number | bigint) => Promise<MailerLevel | null>; router?: RouterDeps; randomIv?: RandomIv; now?: () => Date; redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown> };
+export type MailerDeps = {
+  initializers?: ComposeInitializers;
+  s3?: S3Reader;
+  mailerLevel?: (userId: number | bigint) => Promise<MailerLevel | null>;
+  router?: RouterDeps;
+  randomIv?: RandomIv;
+  now?: () => Date;
+  redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown>;
+};
 
 // What a mailer method hands to `mail`, plus the name and arguments ActionMailer passed to
 // #process (MailerInfo puts them in the headers).
@@ -70,7 +79,14 @@ export async function applicationMail(mail: ApplicationMail, deps: MailerDeps = 
   if (forceSendgridForRecipients([mail.to, mail.cc ?? null])) smtp = sendgridEquivalentOptions(smtp) ?? smtp;
 
   const emailProvider = isResend(smtp) ? EMAIL_PROVIDER_RESEND : EMAIL_PROVIDER_SENDGRID;
-  const headers = buildHeaders({ mailerClass: mail.mailerClass, mailerMethod: mail.mailerMethod, mailerArgs: mail.args, emailProvider, ...(mail.recordIds ? { recordIds: mail.recordIds } : {}), ...(deps.randomIv ? { randomIv: deps.randomIv } : {}) });
+  const headers = buildHeaders({
+    mailerClass: mail.mailerClass,
+    mailerMethod: mail.mailerMethod,
+    mailerArgs: mail.args,
+    emailProvider,
+    ...(mail.recordIds ? { recordIds: mail.recordIds } : {}),
+    ...(deps.randomIv ? { randomIv: deps.randomIv } : {}),
+  });
   return {
     from,
     to: mail.to,
@@ -89,9 +105,15 @@ export async function applicationMail(mail: ApplicationMail, deps: MailerDeps = 
 export class RecordNotFoundError extends Error {}
 
 // `Model.find(id)` / `find_by(id:)`: `SELECT table.* FROM table WHERE table.id = ? LIMIT 1`.
-export async function findRow<T>(tableName: string, id: number | bigint, where: Prisma.Sql | null = null): Promise<T | null> {
+export async function findRow<T>(
+  tableName: string,
+  id: number | bigint,
+  where: Prisma.Sql | null = null,
+): Promise<T | null> {
   const conditions = [...(where ? [where] : []), Prisma.sql`${column(tableName, "id")} = ${id}`];
-  const [row] = await selectRows<T>(Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${Prisma.join(conditions, " AND ")} LIMIT 1`);
+  const [row] = await selectRows<T>(
+    Prisma.sql`SELECT ${Prisma.raw(`\`${tableName}\`.*`)} FROM ${table(tableName)} WHERE ${Prisma.join(conditions, " AND ")} LIMIT 1`,
+  );
   return row ?? null;
 }
 

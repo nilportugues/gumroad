@@ -8,14 +8,34 @@ import { hostname } from "node:os";
 export class MimeNotPortedError extends Error {}
 
 const FIELD_ORDER = [
-  "return-path", "received",
-  "resent-date", "resent-from", "resent-sender", "resent-to",
-  "resent-cc", "resent-bcc", "resent-message-id",
-  "date", "from", "sender", "reply-to", "to", "cc", "bcc",
-  "message-id", "in-reply-to", "references",
-  "subject", "comments", "keywords",
-  "mime-version", "content-type", "content-transfer-encoding",
-  "content-location", "content-disposition", "content-description",
+  "return-path",
+  "received",
+  "resent-date",
+  "resent-from",
+  "resent-sender",
+  "resent-to",
+  "resent-cc",
+  "resent-bcc",
+  "resent-message-id",
+  "date",
+  "from",
+  "sender",
+  "reply-to",
+  "to",
+  "cc",
+  "bcc",
+  "message-id",
+  "in-reply-to",
+  "references",
+  "subject",
+  "comments",
+  "keywords",
+  "mime-version",
+  "content-type",
+  "content-transfer-encoding",
+  "content-location",
+  "content-disposition",
+  "content-description",
 ];
 const fieldOrder = (name: string) => {
   const i = FIELD_ORDER.indexOf(name.toLowerCase());
@@ -31,7 +51,12 @@ export type MimeAttachment = { filename: string; contentType: string; content: U
 
 const ATTACHMENT_FILENAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/u;
 // Types MiniMime gives a base64 transfer encoding, which Mail keeps for any body.
-const ATTACHMENT_CONTENT_TYPES = ["text/csv", "application/json", "application/octet-stream", "application/vnd.ms-excel"];
+const ATTACHMENT_CONTENT_TYPES = [
+  "text/csv",
+  "application/json",
+  "application/octet-stream",
+  "application/vnd.ms-excel",
+];
 
 export type MimeMessage = {
   from: string;
@@ -60,7 +85,12 @@ function randomTag(now: Date): string {
 }
 
 export function newIdentity(now = new Date()): MimeIdentity {
-  return { date: now, messageId: `<${randomTag(now)}@${hostname()}.mail>`, boundary: `--==_mimepart_${randomTag(now)}`, innerBoundary: `--==_mimepart_${randomTag(now)}` };
+  return {
+    date: now,
+    messageId: `<${randomTag(now)}@${hostname()}.mail>`,
+    boundary: `--==_mimepart_${randomTag(now)}`,
+    innerBoundary: `--==_mimepart_${randomTag(now)}`,
+  };
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -79,7 +109,8 @@ const SIMPLE_ADDRESS = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+$/u;
 const NAMED_ADDRESS = /^[A-Za-z0-9 ]+ <[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9.-]+>$/u;
 
 function checkAddress(address: string): string {
-  if (!SIMPLE_ADDRESS.test(address) && !NAMED_ADDRESS.test(address)) throw new MimeNotPortedError(`address not ported: ${JSON.stringify(address)}`);
+  if (!SIMPLE_ADDRESS.test(address) && !NAMED_ADDRESS.test(address))
+    throw new MimeNotPortedError(`address not ported: ${JSON.stringify(address)}`);
   return address;
 }
 
@@ -165,15 +196,17 @@ function negotiate(raw: string): TransferEncoding {
   const asciiOnly = bytes.length === raw.length;
   if (asciiOnly && !raw.split(/(?<=\n)/u).some((line) => line.length > 998)) return "7bit";
   let printable = 0;
-  for (const b of bytes) if (b === 9 || b === 10 || b === 13 || (b >= 0x20 && b <= 0x3c) || (b >= 0x3e && b <= 0x7e)) printable += 1;
+  for (const b of bytes)
+    if (b === 9 || b === 10 || b === 13 || (b >= 0x20 && b <= 0x3c) || (b >= 0x3e && b <= 0x7e)) printable += 1;
   const qpCost = ((bytes.length - printable) * 3 + printable) / bytes.length;
   return qpCost <= 4 / 3 ? "quoted-printable" : "base64";
 }
 
 // Body#encoded(transfer_encoding) for a text body: the source encoding's decode (7bit normalises
 // line endings), then the negotiated encoding's encode.
-function encodeBody(rawBody: string): { encoding: TransferEncoding; encoded: string } {
+function encodeBody(rawBody: string, forceQuotedPrintable = false): { encoding: TransferEncoding; encoded: string } {
   const raw = blank(rawBody) ? "" : rawBody;
+  if (forceQuotedPrintable) return { encoding: "quoted-printable", encoded: interceptedHtml(raw) };
   const encoding = negotiate(raw);
   const asciiOnly = Buffer.byteLength(raw, "utf8") === raw.length;
   const decoded = asciiOnly ? toLf(raw) : raw;
@@ -187,6 +220,17 @@ function encodeBody(rawBody: string): { encoding: TransferEncoding; encoded: str
   }
 }
 
+// QuotedPrintableHtmlMail: the interceptor encodes the part's decoded body once, and Body#encoded
+// decodes and encodes it again. Mail only converts line endings of a string that is ASCII (the
+// decoder returns binary), so a body with non-ASCII keeps the CRLFs the first pass added and the
+// second pass writes each of them as "=0D".
+function interceptedHtml(body: string): string {
+  const payload = toLf(body);
+  const bytes = Buffer.from(payload, "utf8");
+  const decoded = bytes.length === payload.length ? payload : payload.replace(/\n/gu, "\r\n");
+  return toCrlf(packM(Buffer.from(decoded, "utf8")));
+}
+
 function encodeHeaders(fields: [string, string][]): string {
   return fields
     .map((field, index) => ({ field, index }))
@@ -196,8 +240,15 @@ function encodeHeaders(fields: [string, string][]): string {
 }
 
 // Mail::Part#encoded: Content-Type with its charset parameter, then the negotiated encoding.
-export function encodePart(part: MimePart): string {
-  const { encoding, encoded } = encodeBody(part.body);
+// `quotedPrintableHtml` is config/initializers/quoted_printable_html_mail.rb: the interceptor that
+// re-encodes every text/html part as quoted-printable, whatever the body negotiates to.
+export type EncodeOptions = { quotedPrintableHtml?: boolean };
+
+export function encodePart(part: MimePart, options: EncodeOptions = {}): string {
+  const { encoding, encoded } = encodeBody(
+    part.body,
+    part.contentType === "text/html" && options.quotedPrintableHtml === true,
+  );
   return `${encodeHeaders([
     ["content-type", `Content-Type: ${part.contentType};\r\n charset=UTF-8`],
     ["content-transfer-encoding", `Content-Transfer-Encoding: ${encoding}`],
@@ -209,13 +260,18 @@ const PART_SORT_ORDER = ["text/plain", "text/enriched", "text/html", "multipart/
 // Content-Type, Content-Transfer-Encoding and Content-Disposition of an attachment part, then its
 // base64 body. Mail adds the charset parameter to a text type only when the body is not empty.
 export function assertAttachmentSupported(filename: string, contentType: string): void {
-  if (!ATTACHMENT_FILENAME.test(filename)) throw new MimeNotPortedError(`attachment file name not ported: ${JSON.stringify(filename)}`);
-  if (!ATTACHMENT_CONTENT_TYPES.includes(contentType)) throw new MimeNotPortedError(`attachment type not ported: ${contentType}`);
+  if (!ATTACHMENT_FILENAME.test(filename))
+    throw new MimeNotPortedError(`attachment file name not ported: ${JSON.stringify(filename)}`);
+  if (!ATTACHMENT_CONTENT_TYPES.includes(contentType))
+    throw new MimeNotPortedError(`attachment type not ported: ${contentType}`);
 }
 
 function encodeAttachment(attachment: MimeAttachment): string {
   assertAttachmentSupported(attachment.filename, attachment.contentType);
-  const contentType = attachment.contentType.startsWith("text/") && attachment.content.length > 0 ? `${attachment.contentType};\r\n charset=UTF-8` : attachment.contentType;
+  const contentType =
+    attachment.contentType.startsWith("text/") && attachment.content.length > 0
+      ? `${attachment.contentType};\r\n charset=UTF-8`
+      : attachment.contentType;
   return `${encodeHeaders([
     ["content-type", `Content-Type: ${contentType}`],
     ["content-transfer-encoding", "Content-Transfer-Encoding: base64"],
@@ -224,14 +280,21 @@ function encodeAttachment(attachment: MimeAttachment): string {
 }
 
 // Body#encoded of a multipart body: each part after "\r\n--boundary\r\n", then the closing line.
-const multipartBody = (parts: string[], boundary: string) => ["", ...parts].join(`\r\n--${boundary}\r\n`) + `\r\n--${boundary}--\r\n`;
+const multipartBody = (parts: string[], boundary: string) =>
+  `${["", ...parts].join(`\r\n--${boundary}\r\n`)}\r\n--${boundary}--\r\n`;
 
-export function encodeMessage(message: MimeMessage, identity: MimeIdentity = newIdentity()): string {
+export function encodeMessage(
+  message: MimeMessage,
+  identity: MimeIdentity = newIdentity(),
+  options: EncodeOptions = { quotedPrintableHtml: true },
+): string {
   if (message.parts.length < 2) throw new MimeNotPortedError("only multipart/alternative messages are ported");
   if (message.to.length !== 1) throw new MimeNotPortedError("only single-recipient messages are ported");
   const fields: [string, string][] = [
     ["from", `From: ${checkAddress(message.from)}`],
-    ...(message.replyTo !== undefined ? ([["reply-to", `Reply-To: ${checkAddress(message.replyTo)}`]] as [string, string][]) : []),
+    ...(message.replyTo !== undefined
+      ? ([["reply-to", `Reply-To: ${checkAddress(message.replyTo)}`]] as [string, string][])
+      : []),
     ["to", `To: ${checkAddress(message.to[0]!)}`],
     ...(message.cc !== undefined ? ([["cc", `Cc: ${checkAddress(message.cc)}`]] as [string, string][]) : []),
     ["subject", unstructured("Subject", message.subject)],
@@ -243,8 +306,11 @@ export function encodeMessage(message: MimeMessage, identity: MimeIdentity = new
 
   const parts = message.parts
     .map((part, index) => ({ part, index }))
-    .sort((a, b) => PART_SORT_ORDER.indexOf(a.part.contentType) - PART_SORT_ORDER.indexOf(b.part.contentType) || a.index - b.index)
-    .map(({ part }) => encodePart(part));
+    .sort(
+      (a, b) =>
+        PART_SORT_ORDER.indexOf(a.part.contentType) - PART_SORT_ORDER.indexOf(b.part.contentType) || a.index - b.index,
+    )
+    .map(({ part }) => encodePart(part, options));
 
   const attachments = message.attachments ?? [];
   if (attachments.length === 0) {
@@ -255,7 +321,8 @@ export function encodeMessage(message: MimeMessage, identity: MimeIdentity = new
     return `${encodeHeaders(fields)}\r\n${multipartBody(parts, identity.boundary)}`;
   }
 
-  if (identity.innerBoundary === undefined) throw new MimeNotPortedError("a message with attachments needs a second boundary");
+  if (identity.innerBoundary === undefined)
+    throw new MimeNotPortedError("a message with attachments needs a second boundary");
   fields.push(
     ["content-type", `Content-Type: multipart/mixed;\r\n boundary="${identity.boundary}";\r\n charset=UTF-8`],
     ["content-transfer-encoding", "Content-Transfer-Encoding: 7bit"],

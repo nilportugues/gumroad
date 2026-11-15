@@ -36,18 +36,23 @@ const orderHasPurchaseIn = async (orderId: bigint | number, states: string[]) =>
     )
   ).length > 0;
 
+// Order#record_charge_outcome!, on an order the caller has just read.
+export async function recordChargeOutcome(order: Order, now: Date): Promise<void> {
+  if ((Number(order.flags) & PARTIALLY_SUCCESSFUL) !== 0) return;
+  if (!(await orderHasPurchaseIn(order.id, CHECKOUT_SUCCESS_STATES))) return;
+  if (!(await orderHasPurchaseIn(order.id, CHECKOUT_FAILURE_STATES))) return;
+
+  await execute(
+    Prisma.sql`UPDATE ${table(ORDERS)} SET flags = flags | ${Prisma.raw(String(PARTIALLY_SUCCESSFUL))}, updated_at = ${now} WHERE ${column(ORDERS, "id")} = ${order.id}`,
+  );
+}
+
 export const recordOrderChargeOutcomeJobWith = modelJob({ min: 1 }, async ([orderId], deps) => {
   const key = orderId === null ? null : await beforeSideEffects(() => recordIdFrom(orderId, "Order.find_by"));
   await connectedTo("writing", async () => {
     const order = await findOneBy<Order>("Order", "id", key, true);
     if (order === null) return;
-    if ((Number(order.flags) & PARTIALLY_SUCCESSFUL) !== 0) return;
-    if (!(await orderHasPurchaseIn(order.id, CHECKOUT_SUCCESS_STATES))) return;
-    if (!(await orderHasPurchaseIn(order.id, CHECKOUT_FAILURE_STATES))) return;
-
-    await execute(
-      Prisma.sql`UPDATE ${table(ORDERS)} SET flags = flags | ${Prisma.raw(String(PARTIALLY_SUCCESSFUL))}, updated_at = ${deps.now()} WHERE ${column(ORDERS, "id")} = ${order.id}`,
-    );
+    await recordChargeOutcome(order, deps.now());
   });
 });
 

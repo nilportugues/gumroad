@@ -23,17 +23,17 @@ abort "Refusing to flush Redis db 0" if REDIS_DB == "0"
 ENV["RAILS_ENV"] = "production"
 ENV["TZ"] = "UTC"
 {
-  "DATABASE_HOST" => "127.0.0.1", "DATABASE_PORT" => "3306", "DATABASE_NAME" => "gumroad_ws59",
+  "DATABASE_HOST" => ENV.fetch("DATABASE_HOST", "127.0.0.1"), "DATABASE_PORT" => "3306", "DATABASE_NAME" => ENV.fetch("DATABASE_NAME", "gumroad_ws59"),
   "DATABASE_USERNAME" => "root", "DATABASE_PASSWORD" => "password",
   "SECRET_KEY_BASE" => "x" * 64, "DEVISE_SECRET_KEY" => "d" * 64, "REVISION" => "ws59golden",
-  "MEMCACHE_SERVERS" => "localhost:11211", "ELASTICSEARCH_HOST" => "http://localhost:9200",
+  "MEMCACHE_SERVERS" => "localhost:11211", "ELASTICSEARCH_HOST" => ENV.fetch("ELASTICSEARCH_HOST", "http://localhost:9200"),
   "SENDGRID_GR_CREATORS_API_KEY" => "sg-creators-key", "RESEND_CREATORS_API_KEY" => "re-creators-key",
   "MAILER_HEADERS_ENCRYPTION_KEY_V1" => "ws59-golden-header-key",
   "OBFUSCATE_IDS_CIPHER_KEY" => "ws59-golden-obfuscate-key", "OBFUSCATE_IDS_NUMERIC_CIPHER_KEY" => "123456789",
   "SECURE_EXTERNAL_ID__PRIMARY_KEY_VERSION" => "1", "SECURE_EXTERNAL_ID__KEYS__1" => "ws59-secure-external-id-key-0001",
   "USE_DB_WORKER_REPLICAS" => "true",
 }.each { |k, v| ENV[k] = v }
-%w[REDIS_HOST SIDEKIQ_REDIS_HOST RPUSH_REDIS_HOST RACK_ATTACK_REDIS_HOST].each { |k| ENV[k] = "localhost:6379/#{REDIS_DB}" }
+%w[REDIS_HOST SIDEKIQ_REDIS_HOST RPUSH_REDIS_HOST RACK_ATTACK_REDIS_HOST].each { |k| ENV[k] = "#{ENV.fetch("GOLDEN_REDIS_HOST", "localhost:6379")}/#{REDIS_DB}" }
 abort "Use a scratch database" unless ENV["DATABASE_NAME"].match?(/_ws\d+\z/)
 
 require "dotenv"
@@ -49,6 +49,7 @@ FileUtils.cp(File.join(ROOT, "nextjs/src/server/mail/__fixtures__/email.css"), F
 at_exit { FileUtils.rm_rf(VITE_DIR) }
 
 require File.join(ROOT, "config/environment")
+Rails.cache = ActiveSupport::Cache::MemoryStore.new if ENV["GOLDEN_MEMORY_CACHE"] == "1"
 Rails.logger = ActiveSupport::Logger.new(nil)
 ActiveRecord::Base.logger = nil
 ActiveJob::Base.logger = Logger.new(nil)

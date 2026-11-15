@@ -313,7 +313,9 @@ export async function composeNodeMail(
   deps: MailerDeps = {},
 ): Promise<ComposedMail | null | undefined> {
   const rendered = await renderNodeMailer(mailer, method, args, deps);
-  return rendered === null ? undefined : composeMail(rendered);
+  return rendered === null
+    ? undefined
+    : composeMail(rendered, { ...(deps.initializers ? { initializers: deps.initializers } : {}) });
 }
 
 // EmailDeliveryObserver::HandleCustomerEmailInfo, which runs after the SMTP hand-off. `receipt` is the only ported mail
