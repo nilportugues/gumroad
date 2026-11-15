@@ -1321,3 +1321,20 @@ Runs fully in Node: `CachingProxy#overwrite_cache` for date, state and referral 
 - Not covered: an Elasticsearch 404 for the page views index (Rails rescues it into no buckets; the canned socket cannot answer a status), more than 65,535 buckets (pagination), and the reading-role cap Rails sets (Node has one pool).
 
 Not ported, by design: every other job that wraps `timeout_queries` either moves money (`PerformDailyInstantPayoutsWorker`, `PerformPayoutsForUserSliceWorker`, `PerformPayoutsUpToDelayDaysAgoWorker`), sends mail (`SendPostBlastEmailsJob`, `SendPostBlastEmailsSliceJob`, `SendWorkflowPostEmailsJob`, `AnnualTaxSummaryExportWorker`, `ScheduleAbandonedCartEmailsJob` enqueues mailer jobs) or writes to S3 (`AnnualPayoutExportWorker`, the sales, VAT, India, Canada, fees-by-location and global tax summary report jobs). `UpdateUserBalanceStatsCacheWorker` has no effect of those kinds but needs `PayoutsHelper#payout_period_data` for the cached blob (processor lookups, ~30 aggregates, a daily-schedule path that asks Stripe), whose statements the payouts page port does not reproduce; it stays handed back.
+
+### Step 1 ported: quoted-printable html and the custom property resolver (`nextjs/ws-shapes-91`, lane 91, 2026-11-15)
+
+Lane 91 (`gumroad_test_ws91`, Redis 53 and 54, container `gr-ruby-ws91` with memcached installed for the cache reads) ports the first two items of the list above.
+`mime.ts` encodes every `text/html` part as `QuotedPrintableHtmlMail` does (`interceptedHtml`: the interceptor's pass, then the second pass of `Body#encoded`, where a
+non-ASCII body keeps its CRLFs and each becomes `=0D`), and `premailer/custom-properties.ts` is `EmailCustomPropertyResolver` behind `Premailer#toInlineCss`. Both are on
+by default in `composeMail`. `__fixtures__/generate-qp-resolver-golden.rb` records 28 deliveries (real premailer-rails hook, `EmailCustomPropertyInlining`, the interceptor, `Mail#deliver`
+with the test delivery method) and 6 direct resolver calls; `qp-resolver.test.ts` replays them byte for byte. Seventeen mutants of `mime.ts`, `compose.ts`, `premailer.ts` and
+`custom-properties.ts` each fail it (run individually, reverted).
+
+Re-recorded from the current tree, all replaying green: `mail.golden.json` (its generator now loads both initializers), `application-mailer`, `customer-mailer`, `team-mailer`, `internal-notification` and
+`post-email-sends` and `internal-notification-config` (`scripts/golden/post-email-sends.rb`; only the html values changed, plus the "resubscribed membership, not due yet" case, whose Rails answer differs from the old recording and replays green with `JOBS_REDIS_URL`).
+The four generators that booted without a memcached gained `GOLDEN_REDIS_HOST` (the receipt generator's switch) for a shared Redis container.
+
+Still stale: `receipt-mailer.golden.json` replays its old recording with `composeMail(..., { initializers: { quotedPrintableHtml: false, customProperties: false } })`. Re-record it whole after the free
+membership and impersonation guard ports (steps 2 and 3); until then `NODE_MAIL_DELIVERY` stays off. Not recorded, so not proven: html with a CR together with non-ASCII text goes through
+`parseHtml` as in the recorded `qp_non_ascii_crlf` case only; an html part that is blank; a single-part (non-multipart) html message; attachments with an html part under the interceptor.

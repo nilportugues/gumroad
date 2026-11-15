@@ -73,7 +73,7 @@ beforeAll(() => {
 afterAll(() => {
   restore();
   for (const [key, value] of Object.entries(savedEnv)) {
-    if (value === undefined) delete process.env[key];
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
     else process.env[key] = value;
   }
 });
@@ -108,7 +108,12 @@ describe("CustomerMailer#receipt", () => {
       expect(sentToEs.map((request) => request.body)).toEqual(c.es.map((exchange) => exchange.body));
       const delivered = c.delivered[0]!;
       expect(rendered!.html).toBe(c.rendered_html);
-      const composed = composeMail(rendered!, { identity: identityOf(delivered.encoded) })!;
+      // The committed golden predates the quoted-printable interceptor and the custom property resolver
+      // (qp-resolver.test.ts proves both); re-record it whole before turning them on here.
+      const composed = composeMail(rendered!, {
+        identity: identityOf(delivered.encoded),
+        initializers: { quotedPrintableHtml: false, customProperties: false },
+      })!;
       expect(composed.encoded).toBe(delivered.encoded);
       expect([composed.envelopeFrom, composed.envelopeTo]).toEqual([delivered.envelope_from, delivered.envelope_to]);
       const { address, domain, user_name, password } = delivered.settings;

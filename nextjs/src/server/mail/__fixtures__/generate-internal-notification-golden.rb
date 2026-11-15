@@ -51,7 +51,7 @@ ENV["TZ"] = "UTC"
   "SECRET_KEY_BASE" => "x" * 64, "DEVISE_SECRET_KEY" => "d" * 64, "REVISION" => "ws42golden",
   "MEMCACHE_SERVERS" => "localhost:11211", "ELASTICSEARCH_HOST" => "http://localhost:9200",
 }.each { |k, v| ENV[k] ||= v }
-%w[REDIS_HOST SIDEKIQ_REDIS_HOST RPUSH_REDIS_HOST RACK_ATTACK_REDIS_HOST].each { |k| ENV[k] = "localhost:6379/#{REDIS_DB}" }
+%w[REDIS_HOST SIDEKIQ_REDIS_HOST RPUSH_REDIS_HOST RACK_ATTACK_REDIS_HOST].each { |k| ENV[k] = "#{ENV.fetch("GOLDEN_REDIS_HOST", "localhost:6379")}/#{REDIS_DB}" }
 SMTP_SECRETS.each { |k, v| ENV[k] = v }
 abort "Use a scratch database, not #{ENV["DATABASE_NAME"]}" if %w[gumroad_test gumroad_development gumroad_production].include?(ENV["DATABASE_NAME"])
 
@@ -59,6 +59,8 @@ require "dotenv"
 Dotenv.parse(File.join(ROOT, ".env.test")).each { |k, v| ENV[k] ||= v unless k.start_with?("AWS_") }
 
 require File.join(ROOT, "config/environment")
+# No memcached in the scratch container: an in-process store answers the cache reads.
+Rails.cache = ActiveSupport::Cache::MemoryStore.new if ENV["GOLDEN_MEMORY_CACHE"] == "1"
 Rails.logger = ActiveSupport::Logger.new(nil)
 ActiveRecord::Base.logger = nil
 ActionMailer::Base.logger = nil
