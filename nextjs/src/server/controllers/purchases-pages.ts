@@ -87,6 +87,7 @@ export async function confirmReceiptEmailPage(input: MutationInput): Promise<Act
       title: CONFIRM_EMAIL_TITLE,
       analyticsEnabled: false,
       analyticsFirst: false,
+      handBackFlash: true,
       // set_noindex_header
       headers: { "x-robots-tag": "noindex" },
     },
