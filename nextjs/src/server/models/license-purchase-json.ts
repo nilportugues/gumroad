@@ -63,15 +63,21 @@ async function subscriptionRecurrence(subscription: Row): Promise<string> {
 
 const BASE_VARIANT_IS_DEFAULT_SKU = 1;
 
-// `purchase.variant_attributes` as one tier of a Variant row. Several variants (the join has no order) stay with Rails. A SKU is
-// named by its row, and the default SKU is not displayed; the ping payload's `variants` hash is replaced by the string either way.
-type SingleVariant = { title: string; name: string; sku?: { id: string; custom: string | null }; hidden?: boolean };
+// `purchase.variant_attributes` as one tier of a Variant row, or as several non-SKU variants in join order (`more` holds the rest).
+// A SKU is named by its row, and the default SKU is not displayed; the ping payload's `variants` hash is replaced by the string either way.
+type SingleVariant = {
+  title: string;
+  name: string;
+  sku?: { id: string; custom: string | null };
+  hidden?: boolean;
+  more?: { title: string; name: string }[];
+};
 async function singleVariant(purchase: Row): Promise<SingleVariant | null> {
   const joins = await selectRows<Row>(
     Prisma.sql`SELECT ${Prisma.raw("`base_variants_purchases`.*")} FROM ${table("base_variants_purchases")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id}`,
   );
   if (joins.length === 0) return null;
-  if (joins.length > 1) throw notPorted("several variants");
+  if (joins.length > 1) return severalVariants(joins);
   const [variant] = await selectRows<Row>(
     Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${joins[0]!.base_variant_id} LIMIT 1`,
   );
@@ -94,8 +100,29 @@ async function singleVariant(purchase: Row): Promise<SingleVariant | null> {
   return { title: category.title, name: variant.name };
 }
 
+async function severalVariants(joins: Row[]): Promise<SingleVariant> {
+  const picked: { title: string; name: string }[] = [];
+  for (const join of joins) {
+    const [variant] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`base_variants`.*")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${join.base_variant_id} LIMIT 1`,
+    );
+    if (variant === undefined) throw notPorted("a variant row that is gone");
+    if (variant.type === "Sku" || (Number(variant.flags ?? 0) & BASE_VARIANT_IS_DEFAULT_SKU) !== 0)
+      throw notPorted("a SKU next to other variants");
+    const [category] = await selectRows<Row>(
+      Prisma.sql`SELECT ${Prisma.raw("`variant_categories`.*")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} = ${variant.variant_category_id} LIMIT 1`,
+    );
+    if (category === undefined) throw notPorted("a variant with no category");
+    picked.push({ title: category.title, name: variant.name });
+  }
+  return { ...picked[0]!, more: picked.slice(1) };
+}
+
 // ProductsHelper#variants_displayable
-const variantsDisplayable = (name: string): string => (name === "Untitled" ? "" : `(${name})`);
+const variantsDisplayable = (variant: SingleVariant): string => {
+  if (variant.more !== undefined) return `(${[variant.name, ...variant.more.map((other) => other.name)].join(", ")})`;
+  return variant.name === "Untitled" ? "" : `(${variant.name})`;
+};
 
 // `Purchase#custom_fields`, each value cast as PurchaseCustomField#value does.
 async function customFieldsOf(purchase: Row): Promise<{ name: string; value: string | boolean | null }[]> {
@@ -270,7 +297,10 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   if (purchaser !== null) payload.purchaser_id = purchaser.external_id;
   if (subscription !== null) payload.subscription_id = encrypt(subscription.id);
   if (affiliate.creditCents !== null) payload.affiliate_credit_amount_cents = affiliate.creditCents;
-  if (variant !== null) payload.variants = { [variant.title]: variant.name };
+  if (variant !== null) {
+    payload.variants = { [variant.title]: variant.name };
+    for (const other of variant.more ?? []) (payload.variants as Record<string, string>)[other.title] = other.name;
+  }
   // The "accutrak" and "printful" keys of the ping: a SKU-enabled product names the SKU, else the product (`pid_` + its external id).
   if (LinkFlags.isSet(link.flags, "skus_enabled")) {
     payload.sku_id = variant?.sku ? (variant.sku.custom ?? variant.sku.id) : `pid_${encrypt(link.id)}`;
@@ -305,7 +335,7 @@ export async function licensePurchaseJson(purchase: Row, license: Row): Promise<
   const asJson: Record<string, unknown> = {
     id: encrypt(purchase.id),
     created_at: timeJson(purchase.created_at),
-    variants: variant === null || variant.hidden === true ? "" : variantsDisplayable(variant.name),
+    variants: variant === null || variant.hidden === true ? "" : variantsDisplayable(variant),
     custom_fields: customFields.map((field) => `${field.name}: ${field.value ?? ""}`),
   };
   if (offerCode !== null) asJson.offer_code = offerCode;

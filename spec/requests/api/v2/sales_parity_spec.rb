@@ -361,13 +361,28 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       expect(response.parsed_body["sale"]).to include("variants" => { "Color" => "Red", "Size" => "Large" }, "variants_and_quantity" => "(Red, Large, Qty: 2)", "variants_price_cents" => 150)
     end
 
-    it "hands back a sale with two variants of one category", parity: true do
+    it "prints the later of two variants of one category under its title", parity: true do
       category = create(:variant_category, link: product, title: "Size")
       purchase = sold(product)
       purchase.variant_attributes << create(:variant, variant_category: category, name: "Small")
       purchase.variant_attributes << create(:variant, variant_category: category, name: "Large")
 
       show(purchase)
+
+      expect(response.parsed_body["sale"]).to include("variants" => { "Size" => "Large" }, "variants_and_quantity" => "(Small, Large)")
+    end
+
+    it "prints two variants of one category in the order they were attached", parity: true do
+      category = create(:variant_category, link: product, title: "Size")
+      small = create(:variant, variant_category: category, name: "Small")
+      large = create(:variant, variant_category: category, name: "Large")
+      purchase = sold(product)
+      purchase.variant_attributes << large
+      purchase.variant_attributes << small
+
+      show(purchase)
+
+      expect(response.parsed_body["sale"]).to include("variants" => { "Size" => "Small" }, "variants_and_quantity" => "(Large, Small)")
     end
 
     it "prints the URL parameters of a sale", parity: true do

@@ -474,7 +474,7 @@ describe "API v2 licenses", type: :request do
       expect(response.parsed_body["purchase"]).to include("variants" => "(Retired)")
     end
 
-    it "hands a license of a purchase with several variants to Rails", parity: true do
+    it "serializes a license of a purchase with several variants", parity: true do
       category = create(:variant_category, link: product, title: "Edition")
       other = create(:variant_category, link: product, title: "Format")
       sale.variant_attributes << create(:variant, variant_category: category, name: "Gold")
@@ -484,6 +484,19 @@ describe "API v2 licenses", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(response.parsed_body["purchase"]["variants"]).to eq("(Gold, PDF)")
+    end
+
+    it "serializes the variants of a purchase in the order they were attached", parity: true do
+      category = create(:variant_category, link: product, title: "Edition")
+      other = create(:variant_category, link: product, title: "Format")
+      gold = create(:variant, variant_category: category, name: "Gold")
+      pdf = create(:variant, variant_category: other, name: "PDF")
+      sale.variant_attributes << pdf
+      sale.variant_attributes << gold
+
+      verify(product_id: product.external_id, license_key: key)
+
+      expect(response.parsed_body["purchase"]["variants"]).to eq("(PDF, Gold)")
     end
 
     it "serializes a license of a purchase with a SKU of a SKU-enabled product", parity: true do
