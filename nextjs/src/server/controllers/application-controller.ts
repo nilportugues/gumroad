@@ -861,7 +861,8 @@ export function rackRedirect(incoming: Request, location: string, status = 301):
 // A router-level redirect is answered after Rack::Attack, which counts it like any other request.
 export async function routerRedirect(incoming: Request, location: string): Promise<Response> {
   try {
-    const throttled = await countRackAttack(incoming);
+    // A redirect has no params of its own: a query shape Node cannot parse hands back only if a throttle reads it.
+    const throttled = await countRackAttack(incoming, true);
     if (throttled !== null) return throttled;
   } catch (error) {
     if (error instanceof HandBackToRails) return forwardToRails(incoming);
