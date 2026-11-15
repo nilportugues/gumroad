@@ -107,11 +107,11 @@ function bundleEditor(
       });
       return redirected ?? denied;
     },
-    props: async (params, { meta }) => {
+    props: async (params, { meta, flashNow }) => {
       const bundle = await findBundle(params.bundle_id!);
       // Bundles::BaseController redeclares set_default_page_title, which Rails moves after the other before_actions.
       meta.moveToEnd(["title"]).set({ title: bundle.name ?? "" });
-      return props({ bundle, seller: (await findUserById(bundle.user_id!))! });
+      return props({ bundle, seller: (await findUserById(bundle.user_id!))!, flashNow });
     },
   };
 }
