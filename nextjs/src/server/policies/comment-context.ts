@@ -51,7 +51,11 @@ function authoredBy(context: SellerContext, authorId: bigint | null): boolean {
 
 // "Allow the purchaser of the post's belonging product": the purchase is the one the comment was written with.
 function purchased(record: CommentContextRecord): boolean {
-  return record.purchase !== null && record.comment!.purchase_id !== null && record.purchase.id === record.comment!.purchase_id;
+  return (
+    record.purchase !== null &&
+    record.comment!.purchase_id !== null &&
+    record.purchase.id === record.comment!.purchase_id
+  );
 }
 
 function update(context: SellerContext, record: CommentContextRecord): boolean {

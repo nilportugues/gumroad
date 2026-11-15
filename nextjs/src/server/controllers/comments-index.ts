@@ -14,8 +14,9 @@ import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { NotPortedError } from "../models/user.ts";
+import { AFFILIATE_TYPE, FOLLOWER_TYPE } from "../models/with-filtering.ts";
 import { notAllowedMessage } from "../page-props/settings/guard.ts";
-import { paginatedComments } from "../page-props/storefront/post.ts";
+import { AUDIENCE_TYPE, paginatedComments } from "../page-props/storefront/post.ts";
 import { commentContextPolicy, type CommentContextRecord } from "../policies/comment-context.ts";
 import { loadSellerContext, MembershipNotFoundError } from "../policies/seller-context.ts";
 
@@ -45,33 +46,49 @@ async function findPost(externalId: string): Promise<Installment | null> {
   return row ?? null;
 }
 
-// set_purchase: the post author needs none. Any purchase, or what could lead to one, goes to Rails: it picks the purchase that
-// counts (success states, not refunded, subscriptions' original purchase) and the policy then asks the post whether it is eligible.
-async function assertNoPurchase(input: MutationInput, user: User | null, post: Installment): Promise<void> {
+type CommentPurchase = NonNullable<CommentContextRecord["purchase"]>;
+
+// A purchase is eligible for a post that needs none (Installment#needs_purchase_to_access_content?).
+const NEEDS_NO_PURCHASE = new Set([AUDIENCE_TYPE, FOLLOWER_TYPE, AFFILIATE_TYPE]);
+// Link flag 2 (:is_recurring_billing)
+const IS_RECURRING_BILLING = 2n;
+
+// set_purchase: the post author needs none. A `purchase_id` that names a purchase is served for a post that needs no purchase and a
+// product that is not a membership; the rest (the original purchase of a subscription, what makes a purchase eligible for a post
+// that needs one, the purchase that counts among a visitor's success states) goes to Rails.
+async function assertPurchase(
+  input: MutationInput,
+  user: User | null,
+  post: Installment,
+): Promise<CommentPurchase | null> {
   const seller = input.context.currentSeller;
-  if (seller !== null && seller.id === BigInt(post.seller_id ?? -1)) return;
+  if (seller !== null && seller.id === BigInt(post.seller_id ?? -1)) return null;
   const purchaseId = input.params.purchase_id;
   // `if params[:purchase_id]`: an empty string is truthy, a missing value is not.
   if (purchaseId !== undefined && purchaseId !== null) {
     if (typeof purchaseId !== "string") throw new HandBackToRails("a purchase_id that is not text");
     // Purchase.find_by_external_id
     const id = decrypt(purchaseId);
-    if (
-      id !== null &&
-      (await one(
-        Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`,
-      ))
-    )
-      throw new HandBackToRails("a purchase_id that names a purchase");
-    return;
+    if (id === null) return null;
+    const [row] = await selectRows<{ id: bigint; link_flags: bigint | null }>(
+      Prisma.sql`SELECT ${column("purchases", "id")} AS id, ${column("links", "flags")} AS link_flags FROM ${table("purchases")} LEFT JOIN ${table("links")} ON ${column("links", "id")} = ${column("purchases", "link_id")} WHERE ${column("purchases", "id")} = ${id} LIMIT 1`,
+    );
+    if (row === undefined) return null;
+    if (row.link_flags === null) throw new HandBackToRails("a purchase without a product");
+    if ((BigInt(row.link_flags) & IS_RECURRING_BILLING) !== 0n)
+      throw new HandBackToRails("a purchase_id that names a membership purchase");
+    if (!NEEDS_NO_PURCHASE.has(post.installment_type ?? ""))
+      throw new HandBackToRails("a purchase_id for a post that needs a purchase");
+    return { id: BigInt(row.id), eligible: true };
   }
-  if (user === null || post.link_id === null) return;
+  if (user === null || post.link_id === null) return null;
   if (
     await one(
       Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "purchaser_id")} = ${user.id} AND ${column("purchases", "link_id")} = ${post.link_id} LIMIT 1`,
     )
   )
     throw new HandBackToRails("a visitor who bought the post's product");
+  return null;
 }
 
 async function index(input: MutationInput): Promise<ActionResult> {
@@ -81,7 +98,7 @@ async function index(input: MutationInput): Promise<ActionResult> {
   const post = await findPost(routeParams.post_id!);
   if (post === null) return { ...jsonResponse({ success: false, error: "Not found" }, NOT_FOUND, true), rescued: true };
   if (!post.seller_id) throw new HandBackToRails("a post without a seller");
-  await assertNoPurchase(input, user, post);
+  const purchase = await assertPurchase(input, user, post);
 
   const page = params.page;
   if (page !== undefined && page !== null && typeof page !== "string")
@@ -92,7 +109,7 @@ async function index(input: MutationInput): Promise<ActionResult> {
   const record: CommentContextRecord = {
     comment: null,
     commentable: { seller_id: sellerId },
-    purchase: null,
+    purchase,
   };
   let allowed: boolean;
   try {
@@ -117,12 +134,13 @@ async function index(input: MutationInput): Promise<ActionResult> {
     return { ...jsonResponse({ success: false, error }, UNAUTHORIZED, true), rescued: true };
   }
 
-  const commentRecord = (comment: { author_id: bigint | null }): CommentContextRecord => ({
-    comment: { author_id: comment.author_id, purchase_id: null, commentable_seller_id: sellerId },
+  type CommentFields = { author_id: bigint | null; purchase_id: bigint | null };
+  const commentRecord = (comment: CommentFields): CommentContextRecord => ({
+    comment: { author_id: comment.author_id, purchase_id: comment.purchase_id, commentable_seller_id: sellerId },
     commentable: null,
-    purchase: null,
+    purchase,
   });
-  const permits = (check: (record: CommentContextRecord) => boolean) => (comment: { author_id: bigint | null }) => {
+  const permits = (check: (record: CommentContextRecord) => boolean) => (comment: CommentFields) => {
     try {
       return check(commentRecord(comment));
     } catch (error) {

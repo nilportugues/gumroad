@@ -6,6 +6,7 @@ import { notAllowedMessage } from "../page-props/settings/guard.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 import { loadSellerContext, NotAuthorizedError } from "../policies/seller-context.ts";
 import { esJson, type JsonValue } from "../search/es-json.ts";
+
 import { HandBackToRails, type ActionContext, type ActionResult, type Rendered } from "./application-controller.ts";
 import { requestFormat } from "./rails-params.ts";
 
@@ -13,7 +14,12 @@ const ADD_EMAIL_MESSAGE = "Please add an email address to your account before co
 const JSON_TYPE = "application/json; charset=utf-8";
 
 // `render json:` answers Vary: Accept unless the action read params.
-export const jsonResponse = (value: unknown, status = 200, paramsRead = false): Rendered => ({ status, body: esJson(value as JsonValue), contentType: JSON_TYPE, paramsRead });
+export const jsonResponse = (value: unknown, status = 200, paramsRead = false): Rendered => ({
+  status,
+  body: esJson(value as JsonValue),
+  contentType: JSON_TYPE,
+  paramsRead,
+});
 
 export type JsonSellerPolicy = (context: SellerContext) => boolean;
 
@@ -45,7 +51,10 @@ export async function sellerJsonAction(
   } catch (error) {
     if (!(error instanceof NotAuthorizedError)) throw error;
     assertJsonRefusal();
-    return { ...jsonResponse({ success: false, error: notAllowedMessage(sellerContext) }, 401, paramsRead), rescued: true };
+    return {
+      ...jsonResponse({ success: false, error: notAllowedMessage(sellerContext) }, 401, paramsRead),
+      rescued: true,
+    };
   }
   return run(sellerContext);
 }

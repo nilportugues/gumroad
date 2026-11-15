@@ -8,7 +8,13 @@ import { authorize } from "../policies/authorize.ts";
 import { directAffiliatePolicy } from "../policies/direct-affiliate.ts";
 import { esJson } from "../search/es-json.ts";
 
-import { type ActionContext, type ActionResult, HandBackToRails, processAction, RoutingError } from "./application-controller.ts";
+import {
+  type ActionContext,
+  type ActionResult,
+  HandBackToRails,
+  processAction,
+  RoutingError,
+} from "./application-controller.ts";
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
 import { requestFormat } from "./rails-params.ts";
 import { authorizeJson } from "./seller-json.ts";
