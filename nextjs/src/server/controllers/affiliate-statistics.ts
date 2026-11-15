@@ -8,8 +8,15 @@ import { authorize } from "../policies/authorize.ts";
 import { directAffiliatePolicy } from "../policies/direct-affiliate.ts";
 import { esJson } from "../search/es-json.ts";
 
-import { type ActionContext, type ActionResult, processAction, RoutingError } from "./application-controller.ts";
+import {
+  type ActionContext,
+  type ActionResult,
+  HandBackToRails,
+  processAction,
+  RoutingError,
+} from "./application-controller.ts";
 import { jsonResponse, sellerJsonAction } from "./json-seller.ts";
+import { requestFormat } from "./rails-params.ts";
 import { authorizeJson } from "./seller-json.ts";
 
 export type ProductSales = { linkId: number; volumeCents: number; salesCount: number };
@@ -45,17 +52,27 @@ async function productSalesInfo(affiliateId: number): Promise<ProductSales[]> {
 }
 
 async function statistics(action: ActionContext, routeParams: Record<string, string>): Promise<ActionResult> {
+  // The action renders JSON whatever the Accept header says, so a request in another format is served too; its refusals are not
+  // (a missing affiliate or a denied policy answer a page, not JSON), and those go to Rails.
+  const otherFormat = requestFormat(action.request) === "other";
   return sellerJsonAction(
     action,
     () => true,
     async (sellerContext) => {
       const id = decrypt(routeParams.id ?? "");
       const affiliate = id === null ? null : await findDirectAffiliate(sellerContext.seller!.id, id);
-      if (affiliate === null) throw new RoutingError("Not Found");
+      if (affiliate === null) {
+        if (otherFormat) throw new HandBackToRails("a missing affiliate requested in another format");
+        throw new RoutingError("Not Found");
+      }
       const denied = await authorizeJson(action, (context) => authorize(directAffiliatePolicy.statistics, context));
-      if (denied) return denied;
+      if (denied) {
+        if (otherFormat) throw new HandBackToRails("a refused affiliate statistics request in another format");
+        return denied;
+      }
       return { ...jsonResponse(null, 200, true), body: statisticsBody(await productSalesInfo(affiliate.id)) };
     },
+    { otherFormats: true },
   );
 }
 

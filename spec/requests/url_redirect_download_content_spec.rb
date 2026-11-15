@@ -347,10 +347,23 @@ describe "Url redirect download page content", type: :request do
       expect(file_names(response)).to eq(["Product guide"])
     end
 
-    it "hands a purchase of several versions to Rails", parity: true do
+    it "lists the files of the first version of a purchase of several versions", parity: true do
       version_file(basic, "Basic guide", position: 1)
       buy(basic)
       buy(premium)
+      log_in(buyer)
+
+      get url_redirect_download_page_path(token)
+
+      expect(response).to be_successful
+    end
+
+    it "lists the files of the alive version of a purchase of several versions with a deleted one", parity: true do
+      version_file(basic, "Basic guide", position: 1)
+      version_file(premium, "Premium guide", position: 1)
+      buy(basic)
+      buy(premium)
+      basic.update_columns(deleted_at: Time.current)
       log_in(buyer)
 
       get url_redirect_download_page_path(token)

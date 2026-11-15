@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/url_redirect_player_pages_spec.rb",
-  "example": "Url redirect players captions of a purchased version hands a purchase of several versions to Rails",
+  "spec": "spec/requests/comments_index_parity_spec.rb",
+  "example": "Post comments index signed in lists the comments of a post that needs no purchase for a request whose purchase_id names one, marking the purchase's own comment editable",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-13",
+  "recordedOn": "2026-11-15",
   "exchanges": [
     {
       "seed": {
@@ -81,14 +81,14 @@
                 "id": 1,
                 "seller_id": 1,
                 "email": "buyer@example.com",
-                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-13T07:57:10Z\", \"product_id\": 1, \"price_cents\": 0}]}",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-15T09:25:17Z\", \"product_id\": 1, \"price_cents\": 100}]}",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "customer": 1,
                 "follower": 0,
                 "affiliate": 0,
-                "min_paid_cents": 0,
-                "max_paid_cents": 0,
+                "min_paid_cents": 100,
+                "max_paid_cents": 100,
                 "min_created_at": "<now>",
                 "max_created_at": "<now>",
                 "min_purchase_created_at": "<now>",
@@ -99,81 +99,87 @@
               }
             ]
           },
-          "base_variants": {
+          "comments": {
             "columns": {
-              "id": "int",
-              "variant_category_id": "int",
-              "price_difference_cents": "int",
-              "name": "varchar",
-              "max_purchase_count": "int",
-              "deleted_at": "datetime",
+              "id": "bigint",
+              "commentable_id": "bigint",
+              "commentable_type": "varchar",
+              "author_id": "bigint",
+              "author_name": "varchar",
+              "content": "mediumtext",
+              "comment_type": "varchar",
+              "json_data": "mediumtext",
               "created_at": "datetime",
               "updated_at": "datetime",
-              "type": "varchar",
+              "deleted_at": "datetime",
+              "purchase_id": "bigint",
+              "ancestry": "varchar",
+              "ancestry_depth": "int",
+              "idempotency_key": "varchar"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "commentable_id": 1,
+                "commentable_type": "Installment",
+                "author_id": 2,
+                "author_name": "Reader",
+                "content": "Someone else's",
+                "comment_type": "user_submitted",
+                "json_data": null,
+                "created_at": "<now-16365h>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "purchase_id": null,
+                "ancestry": null,
+                "ancestry_depth": 0,
+                "idempotency_key": null
+              },
+              {
+                "id": 2,
+                "commentable_id": 1,
+                "commentable_type": "Installment",
+                "author_id": null,
+                "author_name": "Buyer",
+                "content": "From the purchase",
+                "comment_type": "user_submitted",
+                "json_data": null,
+                "created_at": "<now-16365h>",
+                "updated_at": "<now>",
+                "deleted_at": null,
+                "purchase_id": 1,
+                "ancestry": null,
+                "ancestry_depth": 0,
+                "idempotency_key": null
+              }
+            ]
+          },
+          "installments": {
+            "columns": {
+              "id": "int",
               "link_id": "int",
-              "custom_sku": "varchar",
+              "message": "longtext",
+              "url": "longtext",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "name": "varchar",
+              "published_at": "datetime",
+              "deleted_at": "datetime",
               "flags": "int",
-              "description": "varchar",
-              "position_in_category": "int",
-              "customizable_price": "tinyint",
-              "subscription_price_change_effective_date": "date",
-              "subscription_price_change_message": "longtext",
-              "duration_in_minutes": "int",
-              "sales_count_for_inventory_cache": "int"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "variant_category_id": 1,
-                "price_difference_cents": 0,
-                "name": "Basic",
-                "max_purchase_count": null,
-                "deleted_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>",
-                "type": "Variant",
-                "link_id": null,
-                "custom_sku": null,
-                "flags": 0,
-                "description": null,
-                "position_in_category": 0,
-                "customizable_price": null,
-                "subscription_price_change_effective_date": null,
-                "subscription_price_change_message": null,
-                "duration_in_minutes": null,
-                "sales_count_for_inventory_cache": 0
-              },
-              {
-                "id": 2,
-                "variant_category_id": 1,
-                "price_difference_cents": 500,
-                "name": "Premium",
-                "max_purchase_count": null,
-                "deleted_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>",
-                "type": "Variant",
-                "link_id": null,
-                "custom_sku": null,
-                "flags": 0,
-                "description": null,
-                "position_in_category": 1,
-                "customizable_price": null,
-                "subscription_price_change_effective_date": null,
-                "subscription_price_change_message": null,
-                "duration_in_minutes": null,
-                "sales_count_for_inventory_cache": 0
-              }
-            ]
-          },
-          "base_variants_product_files": {
-            "columns": {
-              "id": "int",
+              "seller_id": "int",
+              "installment_type": "varchar",
+              "json_data": "mediumtext",
+              "customer_count": "int",
+              "workflow_id": "int",
+              "call_to_action_text": "varchar",
+              "call_to_action_url": "varchar",
+              "cover_image_url": "varchar",
               "base_variant_id": "int",
-              "product_file_id": "int"
+              "slug": "varchar",
+              "installment_events_count": "int"
             },
             "primaryKey": [
               "id"
@@ -181,30 +187,26 @@
             "rows": [
               {
                 "id": 1,
-                "base_variant_id": 2,
-                "product_file_id": 1
-              }
-            ]
-          },
-          "base_variants_purchases": {
-            "columns": {
-              "id": "int",
-              "purchase_id": "int",
-              "base_variant_id": "int"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "purchase_id": 1,
-                "base_variant_id": 1
-              },
-              {
-                "id": 2,
-                "purchase_id": 1,
-                "base_variant_id": 2
+                "link_id": null,
+                "message": "<p>Talk</p>",
+                "url": null,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "name": "Discussed",
+                "published_at": "<now>",
+                "deleted_at": null,
+                "flags": 1408,
+                "seller_id": 1,
+                "installment_type": "audience",
+                "json_data": "{}",
+                "customer_count": null,
+                "workflow_id": null,
+                "call_to_action_text": null,
+                "call_to_action_url": null,
+                "cover_image_url": null,
+                "base_variant_id": null,
+                "slug": "discussed",
+                "installment_events_count": 0
               }
             ]
           },
@@ -274,8 +276,8 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Player product",
-                "unique_permalink": "player",
+                "name": "The Works of Edgar Gumstein",
+                "unique_permalink": "a",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
@@ -361,67 +363,6 @@
                 "flags": 0,
                 "variant_id": null,
                 "suggested_price_cents": null
-              }
-            ]
-          },
-          "product_files": {
-            "columns": {
-              "id": "bigint",
-              "link_id": "bigint",
-              "url": "varchar",
-              "filetype": "varchar",
-              "filegroup": "varchar",
-              "size": "bigint",
-              "bitrate": "int",
-              "framerate": "int",
-              "pagelength": "int",
-              "duration": "int",
-              "width": "int",
-              "height": "int",
-              "flags": "bigint",
-              "json_data": "longtext",
-              "deleted_at": "datetime",
-              "created_at": "datetime",
-              "updated_at": "datetime",
-              "position": "int",
-              "installment_id": "bigint",
-              "display_name": "varchar",
-              "deleted_from_cdn_at": "datetime",
-              "description": "text",
-              "folder_id": "bigint",
-              "stampable_pdf": "tinyint",
-              "isbn": "varchar"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "link_id": 1,
-                "url": "http://localhost:9010/gumroad-specs/attachments/0123456789abcdef0123456789abcdef/original/movie.mov",
-                "filetype": "mov",
-                "filegroup": "video",
-                "size": null,
-                "bitrate": null,
-                "framerate": null,
-                "pagelength": null,
-                "duration": null,
-                "width": null,
-                "height": null,
-                "flags": 0,
-                "json_data": null,
-                "deleted_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>",
-                "position": null,
-                "installment_id": null,
-                "display_name": "Lesson",
-                "deleted_from_cdn_at": null,
-                "description": null,
-                "folder_id": null,
-                "stampable_pdf": null,
-                "isbn": null
               }
             ]
           },
@@ -515,11 +456,11 @@
                 "seller_id": 1,
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "fee_cents": 0,
+                "fee_cents": 93,
                 "link_id": 1,
                 "email": "buyer@example.com",
-                "price_cents": 0,
-                "displayed_price_cents": 0,
+                "price_cents": 100,
+                "displayed_price_cents": 100,
                 "displayed_price_currency_type": "usd",
                 "rate_converted_to_usd": null,
                 "street_address": null,
@@ -529,14 +470,14 @@
                 "country": null,
                 "full_name": null,
                 "credit_card_id": null,
-                "purchaser_id": 2,
+                "purchaser_id": null,
                 "purchaser_type": "User",
                 "session_id": null,
-                "ip_address": "203.0.113.9",
+                "ip_address": "47.202.161.33",
                 "is_mobile": null,
                 "stripe_refunded": null,
-                "stripe_transaction_id": null,
-                "stripe_fingerprint": null,
+                "stripe_transaction_id": "2763276372637263",
+                "stripe_fingerprint": "shfbeg5142fff",
                 "stripe_card_id": null,
                 "can_contact": 1,
                 "referrer": null,
@@ -545,15 +486,15 @@
                 "chargeback_date": null,
                 "webhook_failed": 0,
                 "failed": 0,
-                "card_type": null,
-                "card_visual": null,
+                "card_type": "visa",
+                "card_visual": "**** **** **** 4062",
                 "purchase_state": "successful",
                 "processor_fee_cents": null,
                 "succeeded_at": "<now>",
                 "card_country": "US",
                 "stripe_error_code": null,
-                "browser_guid": "SDJKF-11-30775-DSFKLLFK",
-                "error_code": "price_cents_too_low",
+                "browser_guid": "JKDDSFJKSFD-1-4827-SDFJ",
+                "error_code": null,
                 "card_bin": null,
                 "custom_fields": null,
                 "ip_country": null,
@@ -572,8 +513,8 @@
                 "credit_card_zipcode": null,
                 "json_data": "{}",
                 "card_data_handling_mode": null,
-                "charge_processor_id": null,
-                "total_transaction_cents": 0,
+                "charge_processor_id": "stripe",
+                "total_transaction_cents": 100,
                 "gumroad_tax_cents": 0,
                 "zip_tax_rate_id": null,
                 "quantity": 1,
@@ -626,74 +567,6 @@
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "max_refund_period_in_days": 30
-              }
-            ]
-          },
-          "subtitle_files": {
-            "columns": {
-              "id": "bigint",
-              "url": "varchar",
-              "language": "varchar",
-              "created_at": "datetime",
-              "updated_at": "datetime",
-              "product_file_id": "bigint",
-              "deleted_at": "datetime",
-              "size": "int",
-              "deleted_from_cdn_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "url": "http://localhost:9010/gumroad-specs/specs/player-captions.srt",
-                "language": "English",
-                "created_at": "<now>",
-                "updated_at": "<now>",
-                "product_file_id": 1,
-                "deleted_at": null,
-                "size": null,
-                "deleted_from_cdn_at": null
-              }
-            ]
-          },
-          "url_redirects": {
-            "columns": {
-              "id": "bigint",
-              "uses": "int",
-              "expires_at": "datetime",
-              "created_at": "datetime",
-              "updated_at": "datetime",
-              "purchase_id": "bigint",
-              "token": "varchar",
-              "link_id": "bigint",
-              "flags": "int",
-              "installment_id": "bigint",
-              "subscription_id": "bigint",
-              "preorder_id": "bigint",
-              "imported_customer_id": "bigint",
-              "rental_first_viewed_at": "datetime"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "uses": 0,
-                "expires_at": null,
-                "created_at": "<now>",
-                "updated_at": "<now>",
-                "purchase_id": 1,
-                "token": "195a4dccdca3d4b6a9b8ed84bbebfc02",
-                "link_id": 1,
-                "flags": 0,
-                "installment_id": null,
-                "subscription_id": null,
-                "preorder_id": null,
-                "imported_customer_id": null,
-                "rental_first_viewed_at": null
               }
             ]
           },
@@ -772,20 +645,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar8db86e81_41@gumroad.com",
-                "encrypted_password": "$2a$04$BzTFriqYjA47ZqBEbR2qn.RZ5XcVaOqCdHIF9SsJkY5q69zTgtna.",
+                "email": "seller@example.com",
+                "encrypted_password": "$2a$04$j9Xsv4MHCjdfDl8xKVw5D.qCnAzj1ecsMCaAMr0IOUeSlUnFMZoZS",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "162.41.6.94",
-                "last_sign_in_ip": "76.63.123.97",
+                "current_sign_in_ip": "79.74.73.192",
+                "last_sign_in_ip": "238.137.222.35",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Player Seller",
-                "payment_address": "edgar6096fea3_42@gumroad.com",
+                "name": "Parity Seller",
+                "payment_address": "edgar_1@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -797,7 +670,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar8140710221",
+                "username": "seller",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -810,8 +683,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "1666891741850",
-                "account_created_ip": "131.240.173.123",
+                "external_id": "42774654813",
+                "account_created_ip": "30.222.195.43",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -829,7 +702,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "6LOZM634ETMBPDQKNCBADC56RWZXCQGW",
+                "otp_secret_key": "HQXDOHC5HYT3YSSUAHMQQUHR7MJWB6ZH",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -840,20 +713,20 @@
               },
               {
                 "id": 2,
-                "email": "edgarc68d2c16_43@gumroad.com",
-                "encrypted_password": "$2a$04$Z4NoI2IaIGoUGhCA2BU0de/wdireoDYwF5nirW0pGcXidagdID0uW",
+                "email": "edgar558cb813_1@gumroad.com",
+                "encrypted_password": "$2a$04$IVSqAA1q38yRspH1XMkSte/8Qd9XB16EiGN61WKIaMekOwLUDI.9i",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "254.190.154.13",
-                "last_sign_in_ip": "221.76.111.69",
+                "current_sign_in_ip": "82.36.188.98",
+                "last_sign_in_ip": "155.195.166.64",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Player Buyer",
-                "payment_address": "edgarf9ae9ec6_44@gumroad.com",
+                "name": "Reader",
+                "payment_address": "edgare35f7395_2@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -865,7 +738,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgarba4b895822",
+                "username": "edgar5b5c82661",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -878,8 +751,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "1895439475479",
-                "account_created_ip": "44.135.10.204",
+                "external_id": "3381358292629",
+                "account_created_ip": "226.253.63.1",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -897,7 +770,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "3UAI2NFTSWXOBAVHZ7TSYZV2DHK3JNID",
+                "otp_secret_key": "6MTK5UGBMG3VRCMIM7IZ2JGW5ZZEWL3Y",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -907,44 +780,18 @@
                 "twitter_handle": null
               }
             ]
-          },
-          "variant_categories": {
-            "columns": {
-              "id": "int",
-              "link_id": "int",
-              "deleted_at": "datetime",
-              "title": "varchar",
-              "flags": "int"
-            },
-            "primaryKey": [
-              "id"
-            ],
-            "rows": [
-              {
-                "id": 1,
-                "link_id": 1,
-                "deleted_at": null,
-                "title": "Tier",
-                "flags": 0
-              }
-            ]
           }
         },
         "autoIncrement": {
           "affiliates": 3,
           "audience_members": 2,
-          "base_variants": 3,
-          "base_variants_product_files": 2,
-          "base_variants_purchases": 3,
+          "comments": 3,
+          "installments": 2,
           "links": 2,
           "prices": 2,
-          "product_files": 2,
           "purchases": 2,
           "refund_policies": 3,
-          "subtitle_files": 2,
-          "url_redirects": 2,
-          "users": 3,
-          "variant_categories": 2
+          "users": 3
         }
       },
       "redis": {
@@ -985,26 +832,100 @@
       "request": {
         "source": "request",
         "method": "GET",
-        "path": "/r/195a4dccdca3d4b6a9b8ed84bbebfc02/1UokxkyxJ__gd-gssE0g7w==/1UokxkyxJ__gd-gssE0g7w==/captions.vtt",
+        "path": "/posts/1UokxkyxJ__gd-gssE0g7w==/comments",
+        "query": "purchase_id=1UokxkyxJ__gd-gssE0g7w==",
         "headers": {
-          "accept": "text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5",
-          "host": "app.test.gumroad.com:31337",
-          "x-forwarded-for": "203.0.113.9"
+          "accept": "application/json",
+          "host": "seller.test.gumroad.com:31337"
         },
-        "remoteIp": "203.0.113.9"
+        "remoteIp": "127.0.0.1"
       },
       "response": {
-        "status": 404,
+        "status": 200,
         "headers": {
-          "content-type": "text/html; charset=utf-8",
-          "vary": "Origin",
+          "cache-control": "max-age=0, private, must-revalidate",
+          "content-type": "application/json; charset=utf-8",
+          "vary": "Accept, Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
+          "x-gr": "DEV",
           "x-original-headers-class": "Rack::Headers",
           "x-permitted-cross-domain-policies": "none",
+          "x-revision": "no-revision",
           "x-xss-protection": "1; mode=block"
         },
-        "body": "<rails exception debug page, not recorded: the replay ignores a 404 body>"
+        "cookies": {
+          "XSRF-TOKEN": {
+            "value": "eGk9Uh_D8l3linikSzbdTQ-KBlBTNMSobYxkt-yClMXHX_J6YFn1duRA_DKqffDr4xJGsWA8EJ7LHHIDR1T9-Q",
+            "path": "/",
+            "samesite": "lax",
+            "httponly": true
+          },
+          "_gumroad_app_session_test": {
+            "value": "6s3jPz8QSexGFfjA7bgeliX6bYD68in2FCFAlVqZ6U7hsEeKnBra6rxgYtik8JmYufnF2f+KkWo52n5GJU1g7dTzSfZLl2HEbeErtB8LBAi9fNZiGs7J6O5I5xlttcelN8DCl0AgvpwoOxfZcRqL/TBJTdmtEG+gPZ8XPpPzjr3K0BhHGTlfohe3AslGYKR9uHZxBuETY1zNFkHFSbvMVxXn2hTP5gkm/fyjFM8DUNcQaB8T3XOdNgBc7JzYCXZBCs9kl/vule/aTeFfPO0mY8V7wNWi/b7QmsSuaYB70hCpcmLP29+OvX7PeFJKjijZcGs92EtI301cWzjbSROYYUGJ2Q4PLC1pp81Qx6bhat0i2Jh/IiBX8i6t8Pn3cPfOrKxr--VlXbfsT4aZHkIiuq--Mus9lDZecc3OkSs7Wg9RcA==",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          },
+          "_gumroad_guid": {
+            "value": "<volatile>",
+            "domain": "gumroad.com",
+            "path": "/",
+            "expires": "<now+87672h>",
+            "httponly": true,
+            "samesite": "lax"
+          }
+        },
+        "json": {
+          "comments": [
+            {
+              "id": "1UokxkyxJ__gd-gssE0g7w==",
+              "parent_id": null,
+              "author_id": "3381358292629",
+              "author_name": "Reader",
+              "author_avatar_url": "/images/gumroad-default-avatar-5.png",
+              "purchase_id": null,
+              "content": {
+                "original": "Someone else's",
+                "formatted": "Someone else&#39;s"
+              },
+              "depth": 0,
+              "created_at": "<now-16365h>",
+              "created_at_humanized": "almost 2 years ago",
+              "is_editable": false,
+              "is_deletable": false
+            },
+            {
+              "id": "7-RrdvIoUS_D2srgUHAytg==",
+              "parent_id": null,
+              "author_id": null,
+              "author_name": "Buyer",
+              "author_avatar_url": "/images/gumroad-default-avatar-5.png",
+              "purchase_id": null,
+              "content": {
+                "original": "From the purchase",
+                "formatted": "From the purchase"
+              },
+              "depth": 0,
+              "created_at": "<now-16365h>",
+              "created_at_humanized": "almost 2 years ago",
+              "is_editable": true,
+              "is_deletable": true
+            }
+          ],
+          "count": 2,
+          "pagination": {
+            "count": 2,
+            "items": 20,
+            "page": 1,
+            "pages": 1,
+            "prev": null,
+            "next": null,
+            "last": 1
+          }
+        }
       },
       "db": {},
       "jobs": [],

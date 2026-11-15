@@ -31,7 +31,7 @@ const ownerExternalId = (loaded: Loaded) => (loaded.product?.user_id == null ? n
 export const fieldsOf = (file: ProductFile, loaded: Loaded) => s3Fields(file.url, ownerExternalId(loaded));
 
 // UrlRedirect#with_product_files and #rich_content_provider for a redirect without an installment: the one alive version
-// (Variant) a purchase bought, or the product. A purchase of several versions or of a deleted one picks its provider by other
+// (Variant) a purchase bought, or the product. A purchase of a deleted version picks its provider by other
 // rules. `version` is the version bought when the product's pages are shared: it names the page, the product serves the content.
 export type ContentProvider = { kind: "product"; version?: BaseVariant } | { kind: "variant"; variant: BaseVariant };
 
@@ -59,8 +59,12 @@ export async function contentProvider({
   // A SKU is no Variant: the purchase falls through to the product (with_product_files is `referenced_link`).
   if (variants.every((variant) => variant.type !== "Variant")) return { kind: "product" };
   if (variants.some((variant) => variant.type !== "Variant")) throw new HandBackToRails("a version next to a SKU");
-  const [variant] = variants;
-  if (variants.length > 1 || variant === undefined) throw new HandBackToRails("a purchase of several versions");
+  // purchase.variant_attributes.order(deleted_at: :asc).first: alive versions first (NULL sorts first); the tie falls to the
+  // version with the lowest id, not to the order of the purchase (recorded). The others the purchase bought play no part.
+  const [variant] = [...variants].sort(
+    (a, b) => Number(a.deleted_at !== null) - Number(b.deleted_at !== null) || Number(a.id) - Number(b.id),
+  );
+  if (variant === undefined) throw new HandBackToRails("a purchase without a version");
   if (variant.deleted_at !== null) throw new HandBackToRails("a purchase of a deleted version");
   const category = await db.variantCategory.findUnique({ where: { id: variant.variant_category_id ?? 0 } });
   if (category === null || category.link_id !== Number(product.id)) throw new HandBackToRails("an orphaned version");

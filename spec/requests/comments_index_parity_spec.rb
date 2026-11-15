@@ -226,9 +226,35 @@ describe "Post comments index", type: :request do
       expect(response).to be_successful
     end
 
-    it "hands a request whose purchase_id names a purchase to Rails", parity: true do
+    it "lists the comments of a post that needs no purchase for a request whose purchase_id names one, marking the purchase's own comment editable", parity: true do
       product = create(:product, user: seller)
       purchase = build(:purchase, link: product, email: "buyer@example.com", purchase_state: "successful")
+      purchase.save!(validate: false)
+      comment_on(post_record, author: reader, content: "Someone else's")
+      comment_on(post_record, author: nil, author_name: "Buyer", content: "From the purchase", purchase_id: purchase.id)
+
+      read_comments(post_record, "?purchase_id=#{purchase.external_id}")
+
+      expect(response).to be_successful
+      expect(response.parsed_body["comments"].map { _1["is_editable"] }).to contain_exactly(false, true)
+    end
+
+    it "hands a request whose purchase_id names a purchase of a post that needs one to Rails", parity: true do
+      product = create(:product, user: seller)
+      product_post = create(:product_post, :published, seller:, link: product, shown_on_profile: true).tap { _1.update!(allow_comments: true) }
+      purchase = build(:purchase, link: product, email: "buyer@example.com", purchase_state: "successful")
+      purchase.save!(validate: false)
+      comment_on(product_post, author: reader)
+
+      read_comments(product_post, "?purchase_id=#{purchase.external_id}")
+
+      expect(response).to be_successful
+    end
+
+    it "hands a request whose purchase_id names a membership purchase to Rails", parity: true do
+      membership = create(:product, :is_subscription, user: seller)
+      subscription = create(:subscription, link: membership)
+      purchase = build(:purchase, link: membership, subscription:, email: "buyer@example.com", purchase_state: "successful", is_original_subscription_purchase: true)
       purchase.save!(validate: false)
       comment_on(post_record, author: reader)
 

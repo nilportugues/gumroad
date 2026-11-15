@@ -109,6 +109,7 @@ async function recentPosts(post: Installment, sellerId: number) {
 type CommentRow = {
   id: bigint;
   author_id: bigint | null;
+  purchase_id: bigint | null;
   author_name: string | null;
   content: string | null;
   created_at: Date;
@@ -119,12 +120,12 @@ type CommentRow = {
 // What CommentContextPolicy#update? and #destroy? answer for a visitor, per comment. The post page serves a signed-out visitor, for
 // whom neither holds.
 export type CommentPermissions = {
-  editable(comment: { author_id: bigint | null }): boolean;
-  deletable(comment: { author_id: bigint | null }): boolean;
+  editable(comment: { author_id: bigint | null; purchase_id: bigint | null }): boolean;
+  deletable(comment: { author_id: bigint | null; purchase_id: bigint | null }): boolean;
 };
 const NO_PERMISSIONS: CommentPermissions = { editable: () => false, deletable: () => false };
 
-// CommentPresenter#comment_component_props (no purchase is attached).
+// CommentPresenter#comment_component_props
 async function commentProps(comment: CommentRow, authors: Map<string, User>, permissions: CommentPermissions) {
   const author = comment.author_id === null ? undefined : authors.get(String(comment.author_id));
   const content = comment.content ?? "";
@@ -195,7 +196,7 @@ export async function paginatedComments(
         Prisma.sql`(${column("comments", "id")} = ${root.id} OR ${column("comments", "ancestry")} = ${String(root.id)} OR ${column("comments", "ancestry")} LIKE ${`${root.id}/%`})`,
     );
     comments = await selectRows<CommentRow>(
-      Prisma.sql`SELECT ${column("comments", "id")}, ${column("comments", "author_id")}, ${column("comments", "author_name")}, ${column("comments", "content")}, ${column("comments", "created_at")}, ${column("comments", "ancestry")}, ${column("comments", "ancestry_depth")} FROM ${table("comments")} WHERE ${commentable} AND (${Prisma.join(subtree, " OR ")}) AND ${column("comments", "ancestry_depth")} <= ${MAX_ALLOWED_DEPTH} ORDER BY ${column("comments", "created_at")}, ${column("comments", "id")}`,
+      Prisma.sql`SELECT ${column("comments", "id")}, ${column("comments", "author_id")}, ${column("comments", "purchase_id")}, ${column("comments", "author_name")}, ${column("comments", "content")}, ${column("comments", "created_at")}, ${column("comments", "ancestry")}, ${column("comments", "ancestry_depth")} FROM ${table("comments")} WHERE ${commentable} AND (${Prisma.join(subtree, " OR ")}) AND ${column("comments", "ancestry_depth")} <= ${MAX_ALLOWED_DEPTH} ORDER BY ${column("comments", "created_at")}, ${column("comments", "id")}`,
     );
   }
   const authorIds = [

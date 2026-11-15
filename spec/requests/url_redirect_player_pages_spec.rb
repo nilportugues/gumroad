@@ -156,7 +156,7 @@ describe "Url redirect players", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a purchase of several versions to Rails", parity: true do
+    it "answers 404 for a purchase of several versions whose first version has no files", parity: true do
       premium.product_files << video
       subtitle = subtitle_for(video, "specs/player-captions.srt")
       # Rails reads the first version it finds (here the one with no files), not the union.
@@ -166,6 +166,29 @@ describe "Url redirect players", type: :request do
       get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
 
       expect(response).to have_http_status(:not_found)
+    end
+
+    it "reads the version created first whatever the order of the purchase", parity: true do
+      premium.product_files << video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      buy(premium)
+      buy(basic)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "reads the alive version first for a purchase of several versions with a deleted one", parity: true do
+      premium.product_files << video
+      subtitle = subtitle_for(video, "specs/player-captions.srt")
+      buy(basic)
+      buy(premium)
+      basic.update_columns(deleted_at: Time.current)
+
+      get url_redirect_subtitle_file_vtt_path(token, video.external_id, subtitle.external_id), headers: forwarded
+
+      expect(response).to have_http_status(:ok)
     end
 
     it "hands a version with pages of its own to Rails", parity: true do
