@@ -11,10 +11,10 @@ import { deriveRailsCookieSecrets, readEncryptedCookie } from "@/server/auth/rai
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { assertNonceMatchesCsp, maskVolatile } from "../src/erb-layout";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange, type Transport } from "../src/replay";
-import { assertNonceMatchesCsp, maskVolatile } from "../src/erb-layout";
 import { reencryptCookies, redisSeeder } from "../src/session";
 
 // With WRITE_NODE_DEVICE=<file> it also writes the codes and tokens Node issued, for spec/requests/oauth_node_device_flow_spec.rb.
@@ -160,7 +160,10 @@ describe.skipIf(!url)("OAuth device flow", () => {
     const raw = await response.text();
     assertNonceMatchesCsp(raw, response.headers.get("content-security-policy"));
     // The spec stubs the Vite manifest to /vite-test.css; Node reads the built one.
-    const text = maskVolatile(raw).replace(/(<link rel="stylesheet" crossorigin="anonymous" href=")[^"]*(")/u, "$1/vite-test.css$2");
+    const text = maskVolatile(raw).replace(
+      /(<link rel="stylesheet" crossorigin="anonymous" href=")[^"]*(")/u,
+      "$1/vite-test.css$2",
+    );
     if (process.env.PARITY_DUMP_BODY) writeFileSync(process.env.PARITY_DUMP_BODY, text);
     return new Response(text, { status: response.status, headers: response.headers });
   };
