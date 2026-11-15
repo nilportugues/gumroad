@@ -1,6 +1,5 @@
 // Api::Internal::Admin::PurchasesController: #show, #search and #lookup, the reads, plus the helpers the writes in ./purchase-writes.ts
-// share. A purchase charged through Stripe hands back (Radar::ChargeRiskLevelService asks Stripe for its risk level), as does a card
-// search (an index-friendly AdminSearchService filter group Node does not carry).
+// share. A purchase charged through Stripe hands back (Radar::ChargeRiskLevelService asks Stripe for its risk level).
 import { Prisma } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -28,8 +27,42 @@ const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
 const TERMINAL_REFUND_STATUSES = ["failed", "canceled"];
 const PAYPAL_CARD_TYPE = "paypal";
 const CARD_SEARCH_PARAMS = ["purchase_date", "card_last4", "card_type", "charge_amount", "expiry_date"];
-// The card filters whose date parsing (purchase_date, in the app's zone) and expiry reading Node does not reproduce.
-const UNPORTED_CARD_SEARCH_PARAMS = ["purchase_date", "expiry_date"];
+const PURCHASE_DATE_FORMAT = /^(\d{4})-(\d{2})-(\d{2})$/u;
+// Date.strptime("%Y-%m-%d") fails on a year that runs into anything but "-"; anything else it may still accept.
+const PURCHASE_DATE_CERTAINLY_INVALID = /^\d+[^\d-]/u;
+// CreditCardUtility.extract_month_and_year reads exactly these two shapes the same way as Node.
+const EXPIRY_WITH_SLASH = /^(\d{2})\/(\d{2})$/u;
+const EXPIRY_WITHOUT_SLASH = /^(\d{2})(\d{2})$/u;
+const MIN_PURCHASE_DATE_YEAR = 1900;
+const MAX_PURCHASE_DATE_YEAR = 2999;
+const MS_PER_DAY = 86_400_000;
+const INVALID_PURCHASE_DATE_MESSAGE = "purchase_date must use YYYY-MM-DD format.";
+
+class InvalidPurchaseDate extends Error {}
+
+// AdminSearchService#parse_date! and the window around it: the day before to the end of the day after, in UTC.
+function purchaseDateWindow(raw: string): { start: Date; end: Date } {
+  const match = PURCHASE_DATE_FORMAT.exec(raw);
+  if (match === null) {
+    if (PURCHASE_DATE_CERTAINLY_INVALID.test(raw)) throw new InvalidPurchaseDate();
+    throw new NotPortedError("a purchase date that is not four digits, two digits and two digits", SOURCE);
+  }
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  if (year < MIN_PURCHASE_DATE_YEAR || year > MAX_PURCHASE_DATE_YEAR)
+    throw new NotPortedError("a purchase date outside the years Node reads", SOURCE);
+  const midnight = new Date(Date.UTC(year, month - 1, day));
+  if (midnight.getUTCMonth() !== month - 1 || midnight.getUTCDate() !== day) throw new InvalidPurchaseDate();
+  return {
+    start: new Date(midnight.getTime() - MS_PER_DAY),
+    end: new Date(midnight.getTime() + 2 * MS_PER_DAY - 1000),
+  };
+}
+
+function expiryMonthAndYear(raw: string): { month: number; year: number } {
+  const match = EXPIRY_WITH_SLASH.exec(raw) ?? EXPIRY_WITHOUT_SLASH.exec(raw);
+  if (match === null) throw new NotPortedError("a card expiry that is not MM/YY or MMYY", SOURCE);
+  return { month: Number(match[1]), year: Number(`20${match[2]}`) };
+}
 // ChargeableVisual::LENGTH_TO_FORMAT, in the order its three entries are matched.
 const CARD_VISUAL_FORMATS = ["**** **** **** ", "**** ****** *", "**** ****** "];
 // AdminSearchService matches a charge amount between 75% and 125% of it.
@@ -477,6 +510,10 @@ async function searchConditions(
   }
   if (CARD_SEARCH_PARAMS.some((key) => key in search)) {
     conditions.push(Prisma.sql`purchases.stripe_fingerprint IS NOT NULL`);
+    if (search.purchase_date !== undefined) {
+      const { start, end } = purchaseDateWindow(search.purchase_date);
+      conditions.push(Prisma.sql`purchases.created_at BETWEEN ${start} AND ${end}`);
+    }
     if (search.card_type !== undefined) conditions.push(Prisma.sql`purchases.card_type = ${search.card_type}`);
     if (search.card_last4 !== undefined) {
       const visuals = CARD_VISUAL_FORMATS.map(
@@ -491,6 +528,10 @@ async function searchConditions(
       conditions.push(
         Prisma.sql`purchases.price_cents BETWEEN ${(digits * CHARGE_AMOUNT_FLOOR) / scale} AND ${(digits * CHARGE_AMOUNT_CEILING) / scale}`,
       );
+    }
+    if (search.expiry_date !== undefined) {
+      const { month, year } = expiryMonthAndYear(search.expiry_date);
+      conditions.push(Prisma.sql`purchases.card_expiry_year = ${year}`, Prisma.sql`purchases.card_expiry_month = ${month}`);
     }
   }
   return { conditions, joinsLink };
@@ -514,8 +555,6 @@ defineAdminRoute(
           400,
         );
       }
-      if (UNPORTED_CARD_SEARCH_PARAMS.some((key) => key in search))
-        throw new NotPortedError("a card search by purchase or expiry date", SOURCE);
       // BigDecimal#to_d reads anything else (an exponent, a sign, trailing text) differently.
       if (search.charge_amount !== undefined && !/^\d+(?:\.\d+)?$/u.test(search.charge_amount))
         throw new NotPortedError("a charge amount that is not plain digits", SOURCE);
@@ -525,7 +564,8 @@ defineAdminRoute(
         search.email === undefined &&
         search.creator_email === undefined &&
         search.license_key === undefined &&
-        search.card_type === undefined
+        search.card_type === undefined &&
+        search.purchase_date === undefined
       )
         return failure(
           "card_last4 needs a narrower search: also provide card_type, purchase_date, query, email, creator_email, or license_key.",
@@ -533,7 +573,13 @@ defineAdminRoute(
         );
 
       const limit = searchLimit(admin.params.limit);
-      const found = await searchConditions(search);
+      let found;
+      try {
+        found = await searchConditions(search);
+      } catch (error) {
+        if (error instanceof InvalidPurchaseDate) return failure(INVALID_PURCHASE_DATE_MESSAGE, 400);
+        throw error;
+      }
       const where =
         found === null || found.conditions.length === 0 ? Prisma.sql`1 = 1` : Prisma.join(found.conditions, " AND ");
       const rows =
