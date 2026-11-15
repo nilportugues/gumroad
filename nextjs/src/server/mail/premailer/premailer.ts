@@ -17,6 +17,7 @@ import {
   serializeDocument,
   setAttribute,
 } from "./html.ts";
+import { type CustomProperties, resolveCustomProperties, rootProperties } from "./custom-properties.ts";
 import { convertToText } from "./html-to-text.ts";
 import { strip } from "./ruby.ts";
 import { search } from "./selector.ts";
@@ -92,8 +93,10 @@ const isStylesheetLink = (el: ElementNode) =>
 export class Premailer {
   private readonly doc: DocumentNode;
   private readonly cssParser = new CssParser();
+  private readonly rootVars: CustomProperties;
 
   constructor(html: string, cssString: string) {
+    this.rootVars = rootProperties(cssString);
     this.doc = parseHtml(html);
     this.cssParser.addBlock(cssString);
     // load_css_from_html!: <link> tags are gone already (CSSHelper took them); <style> tags remain.
@@ -116,8 +119,13 @@ export class Premailer {
     return convertToText(source, 65);
   }
 
-  // Premailer::Adapter::Nokogiri#to_inline_css
+  // EmailCustomPropertyInlining#to_inline_css: the adapter's output with var() resolved.
   toInlineCss(): string {
+    return resolveCustomProperties(this.inlineCss(), this.rootVars);
+  }
+
+  // Premailer::Adapter::Nokogiri#to_inline_css
+  private inlineCss(): string {
     const doc = this.doc;
     const unmergable = new CssParser();
 
