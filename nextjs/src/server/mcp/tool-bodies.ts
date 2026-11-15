@@ -12,7 +12,6 @@ import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { hasApplicableOfferCodes, validityPeriodOf } from "../controllers/api-v2/offer-codes.ts";
 import { isPublishedProduct, plannedDescription, supportedCurrency } from "../controllers/api-v2/product-writes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
-import LINK_DATA from "../models/link-data.generated.json" with { type: "json" };
 import { getRedis } from "../infra/redis.ts";
 import { findByName } from "../models/compliance-countries.ts";
 import { setJsonDataForAttr } from "../models/concerns/json-data.ts";
@@ -26,6 +25,7 @@ import {
 import { rubySortByInteger } from "../models/concerns/ruby-sort-by.ts";
 import { rubyFloatToS } from "../models/concerns/ruby-values.ts";
 import { createApiLink, type CreateSeller } from "../models/link-create.ts";
+import LINK_DATA from "../models/link-data.generated.json" with { type: "json" };
 import { successfulSalesCount, totalUsdCents } from "../models/link-metrics.ts";
 import { assertPlainPublish, publishBang } from "../models/link-publish.ts";
 import { Links } from "../models/link.ts";
@@ -1459,7 +1459,8 @@ const tiersPrice = (tiers: unknown): boolean =>
 // listed after strip and downcase is answered here, and anything Ruby's strip or downcase could read differently goes to Rails.
 const CURRENCY_LIST = Object.keys(LINK_DATA.currencies).join(", ");
 function checkCurrency(value: unknown): void {
-  if (typeof value !== "string" || !/^[\x01-\x7f]*$/u.test(value)) throw new HandBackToRails("a currency that is not ASCII text");
+  if (typeof value !== "string" || !/^[\t-\r -~]*$/u.test(value))
+    throw new HandBackToRails("a currency that is not ASCII text");
   if (supportedCurrency(rubyStrip(value).toLowerCase())) return;
   throw new ToolRpcError(`currency must be one of: ${CURRENCY_LIST}`, INVALID_PARAMS);
 }
