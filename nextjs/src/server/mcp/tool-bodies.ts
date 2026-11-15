@@ -10,8 +10,9 @@ import { db } from "../../lib/db.ts";
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { rubyRoundHalfUp } from "../../lib/ruby-round.ts";
 import { hasApplicableOfferCodes, validityPeriodOf } from "../controllers/api-v2/offer-codes.ts";
-import { isPublishedProduct, plannedDescription } from "../controllers/api-v2/product-writes.ts";
+import { isPublishedProduct, plannedDescription, supportedCurrency } from "../controllers/api-v2/product-writes.ts";
 import { HandBackToRails } from "../controllers/application-controller.ts";
+import LINK_DATA from "../models/link-data.generated.json" with { type: "json" };
 import { getRedis } from "../infra/redis.ts";
 import { findByName } from "../models/compliance-countries.ts";
 import { setJsonDataForAttr } from "../models/concerns/json-data.ts";
@@ -1454,12 +1455,22 @@ const tiersPrice = (tiers: unknown): boolean =>
       ("pay_what_you_want" in (tier as Hash) || "suggested_price_cents" in (tier as Hash)),
   );
 
+// Mcp::Server#validated_currency!: the first argument error Rails raises. A listed currency is written by Rails; a text that is not
+// listed after strip and downcase is answered here, and anything Ruby's strip or downcase could read differently goes to Rails.
+const CURRENCY_LIST = Object.keys(LINK_DATA.currencies).join(", ");
+function checkCurrency(value: unknown): void {
+  if (typeof value !== "string" || !/^[\x01-\x7f]*$/u.test(value)) throw new HandBackToRails("a currency that is not ASCII text");
+  if (supportedCurrency(rubyStrip(value).toLowerCase())) return;
+  throw new ToolRpcError(`currency must be one of: ${CURRENCY_LIST}`, INVALID_PARAMS);
+}
+
 // tool_create_draft_product for a digital product. Argument errors come before the scope check, so they are answered here and the scope
 // is checked after them. A membership, a seller pricing in another currency, and a description with markup other than
 // paragraphs go to Rails whole, before the first write.
 async function createDraftProduct(args: Hash, context: ToolContext): Promise<Hash> {
   // A currency, a tier price option and a membership's pay what you want are checked and written by Rails, which answers their argument
   // errors ahead of the scope check.
+  if (args.currency !== undefined && args.currency !== null) checkCurrency(args.currency);
   if ("currency" in args || tiersPrice(args.tiers))
     throw new HandBackToRails("a draft product with a currency or a pay-what-you-want price");
   if (args.product_type === "membership" && ["pay_what_you_want", "suggested_price_cents"].some((key) => key in args))
