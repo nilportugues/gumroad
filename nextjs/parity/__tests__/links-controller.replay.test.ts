@@ -9,9 +9,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { closeAllRedis } from "@/server/infra/redis";
 
+import { jobKey, redisJobsChannel } from "../src/active-job";
 import { prismaExecutor, type SqlExecutor } from "../src/db";
 import { ELASTICSEARCH_HOST, recreateIndex, reindexProducts, replayIndexName } from "../src/elasticsearch";
-import { jobKey, redisJobsChannel } from "../src/active-job";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { withoutRailsOnly } from "../src/rails-only";
@@ -153,12 +153,13 @@ describe.skipIf(!url)("LinksController guards", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    compare: name.includes("404") || name.includes("answers-400")
-      ? { ignore: [...COMPARE.ignore, "response.body"] }
-      : // The version is an epoch second, and the replay seeds every row relative to its own clock; checked against the seeded row below.
-        name.includes("landing-version-gives")
-        ? { ignore: [...COMPARE.ignore, "response.json.version"] }
-        : COMPARE,
+    compare:
+      name.includes("404") || name.includes("answers-400")
+        ? { ignore: [...COMPARE.ignore, "response.body"] }
+        : // The version is an epoch second, and the replay seeds every row relative to its own clock; checked against the seeded row below.
+          name.includes("landing-version-gives")
+          ? { ignore: [...COMPARE.ignore, "response.json.version"] }
+          : COMPARE,
     file,
   });
 
@@ -193,14 +194,14 @@ describe.skipIf(!url)("LinksController guards", () => {
 
   it.each(cases)(
     "%s",
-    async (_name, file, index) => {
+    async (name, file, index) => {
       try {
         const fixture = loadFixture(file);
         // Rails and Node push in different orders across stores: both sides are compared sorted.
         const expected = fixture.exchanges[index]!;
         expected.jobs = [...(expected.jobs ?? [])].sort((a, b) => jobKey(a).localeCompare(jobKey(b)));
-        const { file: _file, ...options } = replayOptions(file, _name);
-        if (/hands-(a|the)-/u.test(_name)) {
+        const { file: _file, ...options } = replayOptions(file, name);
+        if (/hands-(a|the)-/u.test(name)) {
           // Whatever Node cannot prove goes to Rails whole, before its first write.
           handedBack.length = 0;
           const handed = await replayFixtureExchange(fixture, index, options);
@@ -217,7 +218,7 @@ describe.skipIf(!url)("LinksController guards", () => {
         }
         const result = await replayFixtureExchange(fixture, index, options);
         assertParity(result);
-        if (_name.includes("landing-version-gives")) {
+        if (name.includes("landing-version-gives")) {
           const [page] = await client.$queryRawUnsafe<{ seconds: bigint }[]>(
             "SELECT CAST(TIMESTAMPDIFF(SECOND, '1970-01-01 00:00:00', updated_at) AS SIGNED) AS seconds FROM pages ORDER BY id DESC LIMIT 1",
           );

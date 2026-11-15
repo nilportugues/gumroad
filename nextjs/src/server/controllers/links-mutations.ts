@@ -23,7 +23,13 @@ import { cardForWeb } from "../presenters/product.ts";
 import { ProductSortKey, SellerProfileSectionParam } from "../search/product-search.ts";
 import { searchProductsWithFacets } from "../search/search-products.ts";
 
-import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
+import {
+  HandBackToRails,
+  ParameterMissing,
+  RoutingError,
+  type ActionResult,
+  type Rendered,
+} from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { fetchProductForShow } from "./product-page.ts";
 import { find } from "./products-mutations.ts";
