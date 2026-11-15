@@ -13,10 +13,9 @@ import {
   normalizeValue,
   PurchaseCustomFields,
 } from "../models/purchase-custom-field.ts";
+import { RecordInvalid } from "../models/runtime/errors.ts";
 import { isBlank } from "../models/runtime/validators.ts";
 import { column, selectRows, table } from "../models/sql.ts";
-
-import { RecordInvalid } from "../models/runtime/errors.ts";
 
 import {
   HandBackToRails,
@@ -41,7 +40,12 @@ const headNotFound = (): Rendered => ({ status: 404, body: "", contentType: "app
 // array or a hash is missing too (ParameterMissing, a 400). A number or a boolean is a scalar Rails would look up as such.
 function required(input: MutationInput, key: string): string {
   const value = input.params[key];
-  if (value === undefined || value === null || (typeof value === "string" && isBlank(value)) || typeof value === "object")
+  if (
+    value === undefined ||
+    value === null ||
+    (typeof value === "string" && isBlank(value)) ||
+    typeof value === "object"
+  )
     throw new ParameterMissing();
   if (typeof value !== "string") throw new HandBackToRails(`a ${key} that is not text`);
   return value;

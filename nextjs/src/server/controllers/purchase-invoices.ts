@@ -47,7 +47,8 @@ function requireEmailConfirmation(input: MutationInput, purchase: PurchaseRow): 
   if (isBlank(purchase.email)) throw new HandBackToRails("a purchase without an email");
   if (submitted !== undefined && submitted !== null && typeof submitted !== "string") {
     // `params[:email].to_s` of a non-empty list of text or an integer (`["a@b.c"]`, `42`) is no email: a mismatch, and not blank.
-    const listOfText = Array.isArray(submitted) && submitted.length > 0 && submitted.every((v) => typeof v === "string");
+    const listOfText =
+      Array.isArray(submitted) && submitted.length > 0 && submitted.every((v) => typeof v === "string");
     const integer = typeof submitted === "number" && Number.isSafeInteger(submitted);
     if (!(listOfText || integer) || /^[\d[{-]/u.test(purchase.email!))
       throw new HandBackToRails("an email that is not text");
