@@ -44,6 +44,8 @@ async function unsubscribeBySeller(input: MutationInput): Promise<ActionResult> 
     if (format !== "html") throw new HandBackToRails("a signed-out request in another format");
     return { status: FOUND, location: `/login?next=${cgiEscape(fullpath(input.request))}`, rescued: true };
   }
+  // Only a JSON request is recorded past authenticate_user!; the route takes HTML for the login redirect above.
+  if (requestFormat(input.request) !== "json") throw new HandBackToRails("a signed-in request that does not ask for JSON");
   const row = await findSubscription(input.routeParams.id);
   if (row === null) return unknownSubscription();
 
@@ -83,6 +85,6 @@ async function unsubscribeByUser(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_seller", json: true, run: unsubscribeBySeller },
+  { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_seller", formats: ["json", "html"], run: unsubscribeBySeller },
   { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_user", run: unsubscribeByUser },
 );
