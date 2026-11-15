@@ -50,7 +50,7 @@ function expiryMonthAndYear(raw: string): { month: number; year: number } {
   const compact = raw.replaceAll(" ", "");
   const match = /^(\d{1,2})\/(\d{2})$/u.exec(compact) ?? /^(\d{2})(\d{2})$/u.exec(compact);
   if (match === null) throw new NotPortedError("an expiry date that is not digits", SOURCE);
-  return { month: Number(match[1]), year: Number(match[2]) };
+  return { month: Number(match[1]), year: 2000 + Number(match[2]) };
 }
 // ChargeableVisual::LENGTH_TO_FORMAT, in the order its three entries are matched.
 const CARD_VISUAL_FORMATS = ["**** **** **** ", "**** ****** *", "**** ****** "];
