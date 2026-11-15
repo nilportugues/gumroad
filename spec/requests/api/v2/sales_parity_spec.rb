@@ -187,6 +187,56 @@ describe "API v2 sales", type: :request, elasticsearch_wait_for_refresh: true do
       expect(response.parsed_body["sale"]["offer_code"]).to eq("code" => "quarter", "displayed_amount_off" => "25%", "name" => "quarter")
     end
 
+    def ppp_sold(factor, discounted: true, **attributes)
+      sold(priced, ip_country: "Brazil", is_purchasing_power_parity_discounted: discounted, **attributes).tap do |sale|
+        PurchasingPowerParityInfo.create!(purchase: sale, factor:) unless factor.nil?
+      end
+    end
+
+    it "prints the country and the percentage a purchasing power parity discount took off", parity: true do
+      show(ppp_sold(0.6))
+
+      expect(response.parsed_body["sale"]["ppp"]).to eq("country" => "Brazil", "discount" => "40%")
+    end
+
+    it "rounds a purchasing power parity discount to a whole percentage", parity: true do
+      show(ppp_sold(0.37))
+
+      expect(response.parsed_body["sale"]["ppp"]).to eq("country" => "Brazil", "discount" => "63%")
+    end
+
+    it "rounds a purchasing power parity discount that is a fraction of a percent below the next whole one", parity: true do
+      show(ppp_sold(0.34))
+
+      expect(response.parsed_body["sale"]["ppp"]).to eq("country" => "Brazil", "discount" => "66%")
+    end
+
+    it "prints a purchasing power parity discount of nothing when the factor is one", parity: true do
+      show(ppp_sold(1))
+
+      expect(response.parsed_body["sale"]["ppp"]).to eq("country" => "Brazil", "discount" => "0%")
+    end
+
+    it "leaves ppp out of a discounted sale that has no parity row", parity: true do
+      show(ppp_sold(nil))
+
+      expect(response.parsed_body["sale"]).not_to have_key("ppp")
+    end
+
+    it "leaves ppp out of a sale whose parity row is not flagged as discounted", parity: true do
+      show(ppp_sold(0.6, discounted: false))
+
+      expect(response.parsed_body["sale"]).not_to have_key("ppp")
+    end
+
+    it "lists a purchasing power parity sale on the sales index", parity: true do
+      ppp_sold(0.6)
+
+      api_call(:get, "/sales", token: api_token(seller, scopes: "view_sales"))
+
+      expect(response.parsed_body["sales"].first["ppp"]).to eq("country" => "Brazil", "discount" => "40%")
+    end
+
     it "prints the offer code of a discount in dollars and cents", parity: true do
       code = create(:offer_code, user: seller, products: [priced], code: "fiver", amount_cents: 550)
 
