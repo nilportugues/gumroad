@@ -8,6 +8,7 @@ import { alertOnNegativeDestinationBalancesJob } from "./alert-on-negative-desti
 import { alertOnRetiredManagedAccountActivityJob } from "./alert-on-retired-managed-account-activity-job.ts";
 import { alertOnStaleBlocksHoldingEstablishedBuyersJob } from "./alert-on-stale-blocks-holding-established-buyers-job.ts";
 import { alertOnStalledPostEmailBlastsJobWith } from "./alert-on-stalled-post-email-blasts-job.ts";
+import { postToIndividualPingEndpointWorkerWith } from "./post-to-individual-ping-endpoint-worker.ts";
 import { alertOnStuckPiracyReportsJobWith } from "./alert-on-stuck-piracy-reports-job.ts";
 import { alertOnZeroBuyerCurrencyWalletPurchasesJob } from "./alert-on-zero-buyer-currency-wallet-purchases-job.ts";
 import { alertSellersOfUndeliveredReceiptsJob } from "./alert-sellers-of-undelivered-receipts-job.ts";
@@ -396,6 +397,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
   DeleteProductFilesWorker: deleteProductFilesWorker,
   RefreshAffiliateEarningsJob: refreshAffiliateEarningsJob,
   AlertOnStuckPiracyReportsJob: alertOnStuckPiracyReportsJobWith(),
+  PostToIndividualPingEndpointWorker: postToIndividualPingEndpointWorkerWith(),
   AlertOnStalledPostEmailBlastsJob: alertOnStalledPostEmailBlastsJobWith(),
   CreateLicensesForExistingCustomersWorker: createLicensesForExistingCustomersWorkerWith(),
   RecoverStrandedBuyersJob: recoverStrandedBuyersJobWith(),
