@@ -98,8 +98,6 @@ describe("SendPurchaseReceiptJob", () => {
           },
           log: () => {},
           mailer: {
-            // The golden predates the quoted-printable interceptor and the custom property resolver.
-            initializers: { quotedPrintableHtml: false, customProperties: false },
             router: goldenRouter({ features: c.features, redis: {}, rands: c.rands_used }),
             mailerLevel: async () => "level_1",
             randomIv: () => Buffer.from(c.ivs[draws++]!, "base64"),

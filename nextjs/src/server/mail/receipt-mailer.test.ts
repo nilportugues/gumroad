@@ -108,12 +108,7 @@ describe("CustomerMailer#receipt", () => {
       expect(sentToEs.map((request) => request.body)).toEqual(c.es.map((exchange) => exchange.body));
       const delivered = c.delivered[0]!;
       expect(rendered!.html).toBe(c.rendered_html);
-      // The committed golden predates the quoted-printable interceptor and the custom property resolver
-      // (qp-resolver.test.ts proves both); re-record it whole before turning them on here.
-      const composed = composeMail(rendered!, {
-        identity: identityOf(delivered.encoded),
-        initializers: { quotedPrintableHtml: false, customProperties: false },
-      })!;
+      const composed = composeMail(rendered!, { identity: identityOf(delivered.encoded) })!;
       expect(composed.encoded).toBe(delivered.encoded);
       expect([composed.envelopeFrom, composed.envelopeTo]).toEqual([delivered.envelope_from, delivered.envelope_to]);
       const { address, domain, user_name, password } = delivered.settings;
