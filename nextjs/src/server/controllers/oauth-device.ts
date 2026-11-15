@@ -256,11 +256,11 @@ function approvalView(
 ): string {
   const field = (name: string, value: string) =>
     `<input type="hidden" name="${name}" id="${name}" value="${escapeHtml(value)}" autocomplete="off" />`;
-  const form = (decision: string, label: string, className: string) =>
+  const form = (decision: string, label: string, className: string, consented: boolean) =>
     `<form style="display: contents" action="/oauth/device" accept-charset="UTF-8" method="post"><input type="hidden" name="authenticity_token" value="${perFormCsrfToken(csrfToken, "/oauth/device", "post")}" autocomplete="off" />
         ${field("user_code", userCode)}
-        ${handoff === null ? "" : `${field("handoff", handoff)}\n        `}${field("consented_account", "")}
-        ${buttonTag(label, { name: "decision", type: "submit", value: decision, class: className }).value}
+        ${handoff === null ? "" : field("handoff", handoff)}
+        ${consented ? `<input type="hidden" name="consented_account" id="consented_account" autocomplete="off" />\n        ` : ""}${buttonTag(label, { name: "decision", type: "submit", value: decision, class: className }).value}
 </form>`;
   void input;
   const descriptions = scopes
@@ -288,7 +288,7 @@ ${descriptions.map((description) => `            <li>${escapeHtml(description)}<
       <p>Code <strong>${escapeHtml(userCode)}</strong></p>
     </header>
 ${list}    <footer class="flex flex-col gap-4 p-4 text-center">
-      ${form("approve", "Authorize", AUTHORIZE_CLASS)}      ${form("deny", "Deny", DENY_CLASS)}    </footer>
+      ${form("approve", "Authorize", AUTHORIZE_CLASS, true)}      ${form("deny", "Deny", DENY_CLASS, false)}    </footer>
 </main>
 
 `;

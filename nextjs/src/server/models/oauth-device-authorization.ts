@@ -115,7 +115,7 @@ export async function findByUserCode(userCode: string): Promise<DeviceAuthorizat
 // OauthApplication#file.attached?, which makes #icon_url a CDN url.
 export async function applicationHasIcon(applicationId: number): Promise<boolean> {
   const [row] = await selectRows<{ id: bigint }>(
-    Prisma.sql`SELECT ${column("active_storage_attachments", "id")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = 'OauthApplication' AND ${column("active_storage_attachments", "record_id")} = ${applicationId} AND ${column("active_storage_attachments", "name")} = 'file' LIMIT 1`,
+    Prisma.sql`SELECT ${column("active_storage_attachments", "id")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = 'Doorkeeper::Application' AND ${column("active_storage_attachments", "record_id")} = ${applicationId} AND ${column("active_storage_attachments", "name")} = 'file' LIMIT 1`,
   );
   return row !== undefined;
 }
