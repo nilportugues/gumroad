@@ -43,10 +43,21 @@ const invoicePath = (input: MutationInput, action: "new" | "confirm", email?: st
 // `require_email_confirmation`: the email the buyer typed must be the purchase's, byte for byte.
 function requireEmailConfirmation(input: MutationInput, purchase: PurchaseRow): Redirected | null {
   const submitted = input.params.email;
-  if (submitted !== undefined && submitted !== null && typeof submitted !== "string")
-    throw new HandBackToRails("an email that is not text");
   // `secure_compare(nil, ...)` raises, and an empty email is what a request without one compares equal to.
   if (isBlank(purchase.email)) throw new HandBackToRails("a purchase without an email");
+  if (submitted !== undefined && submitted !== null && typeof submitted !== "string") {
+    // `params[:email].to_s` of a non-empty list of text or an integer (`["a@b.c"]`, `42`) is no email: a mismatch, and not blank.
+    const listOfText = Array.isArray(submitted) && submitted.length > 0 && submitted.every((v) => typeof v === "string");
+    const integer = typeof submitted === "number" && Number.isSafeInteger(submitted);
+    if (!(listOfText || integer) || /^[\d[{-]/u.test(purchase.email!))
+      throw new HandBackToRails("an email that is not text");
+    return {
+      status: 302,
+      location: invoicePath(input, "confirm"),
+      flash: { alert: INCORRECT_EMAIL },
+      rescued: true,
+    };
+  }
   if (Buffer.from(purchase.email!).equals(Buffer.from(submitted ?? ""))) return null;
   const location = invoicePath(input, "confirm");
   return {
