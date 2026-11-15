@@ -142,8 +142,30 @@ describe "API v2 MCP product writes", type: :request, parity_timeline: true do
       create_draft({ name: "Notebook", price_cents: 500, currency: "eur" })
     end
 
-    it "hands a currency Rails does not list back to Rails", parity: true do
+    it "reports a currency Rails does not list as invalid params", parity: true do
       create_draft({ name: "Notebook", price_cents: 500, currency: "xyz" })
+
+      expect(Link.count).to eq(0)
+    end
+
+    it "reports an unlisted currency before a missing price", parity: true do
+      create_draft({ name: "Notebook", currency: "  XYZ\n" })
+    end
+
+    it "reports an unlisted currency of a membership before its tiers", parity: true do
+      create_draft({ name: "Club", product_type: "membership", currency: "dollars" })
+    end
+
+    it "reports an unlisted currency before the scope check", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, currency: "xyz" }, scopes: "view_sales")
+    end
+
+    it "hands a listed currency spelled in capitals back to Rails", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, currency: " EUR " })
+    end
+
+    it "reports a currency that is not text as invalid params", parity: true do
+      create_draft({ name: "Notebook", price_cents: 500, currency: 5 })
     end
 
     it "saves a pay what you want draft with a suggested price", parity: true do
