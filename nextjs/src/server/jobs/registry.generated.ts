@@ -1946,7 +1946,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   PostToPingEndpointsWorker: {
     file: "app/sidekiq/post_to_ping_endpoints_worker.rb",
