@@ -81,7 +81,11 @@ describe("iftttSaleQuery", () => {
     expect(iftttSaleQuery({ limit: "0" }).limit).toBe(0);
   });
 
-  it.each([["010"], [""], ["abc"], ["-1"], ["1.5"], [2.5], [true], [["5"]], [{ a: 1 }], ["99999999"]])(
+  it("reads a limit with a leading zero as octal, as Integer() does", () => {
+    expect(iftttSaleQuery({ limit: "010" }).limit).toBe(8);
+  });
+
+  it.each([["08"], ["0x10"], [""], ["abc"], ["-1"], ["1.5"], [2.5], [true], [["5"]], [{ a: 1 }], ["99999999"]])(
     "hands back the limit %j",
     (limit) => {
       expect(() => iftttSaleQuery({ limit })).toThrow(NotPortedError);

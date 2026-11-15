@@ -198,7 +198,7 @@ describe "API v2 products", type: :request do
       get "/v2/products", headers: auth("account")
     end
 
-    it "hands back a page with a product that has a cover to Rails", parity: true do
+    it "lists a product with a YouTube cover", parity: true do
       create(:asset_preview_youtube, link: product)
       get "/v2/products", headers: auth
     end

@@ -126,14 +126,16 @@ async function cartItem(input: MutationInput): Promise<ActionResult> {
   );
 }
 
-// `@upsell.upsell_variants.each(&:mark_deleted)` then `@upsell.mark_deleted`. An upsell with a discount code goes to Rails whole, before any
-// write. One that no longer validates keeps its deleted versions and answers `errors.first.message`; the v2 API, whose error shape is not
+// `@upsell.offer_code&.mark_deleted`, `@upsell.upsell_variants.each(&:mark_deleted)` then `@upsell.mark_deleted`. An upsell with a discount
+// code goes to Rails whole, before any write, unless the caller deletes the code (`deleteOfferCode`, run after the upsell's own validity
+// check and before the first write). One that no longer validates keeps its deleted versions and answers `errors.first.message`; the v2 API, whose error shape is not
 // recorded, asks for a hand back instead (checked before the first write).
 export async function softDeleteUpsell(
   row: Upsell,
-  options: { handBackWhenInvalid: boolean } = { handBackWhenInvalid: true },
+  options: { handBackWhenInvalid: boolean; deleteOfferCode?: () => Promise<void> } = { handBackWhenInvalid: true },
 ): Promise<string | null> {
-  if (row.offer_code_id !== null) throw new HandBackToRails("an upsell with an offer code");
+  if (row.offer_code_id !== null && options.deleteOfferCode === undefined)
+    throw new HandBackToRails("an upsell with an offer code");
 
   const upsell = Upsells.load(row);
   if (options.handBackWhenInvalid) {
@@ -142,6 +144,7 @@ export async function softDeleteUpsell(
     upsell.set("deleted_at", row.deleted_at);
   }
 
+  if (row.offer_code_id !== null) await options.deleteOfferCode!();
   const variants = await selectRows(
     Prisma.sql`SELECT ${table("upsell_variants")}.* FROM ${table("upsell_variants")} WHERE ${column("upsell_variants", "upsell_id")} = ${row.id} ORDER BY ${column("upsell_variants", "id")}`,
   );

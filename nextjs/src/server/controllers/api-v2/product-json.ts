@@ -1,12 +1,13 @@
 // Product::AsJson#as_json_for_api, for the products Node can serialize exactly. Whatever it cannot (Elasticsearch counts, signed S3 file
-// URLs, Active Storage covers and thumbnails, taxonomy categories, purchasing power parity, preorders, bundles, tiered memberships and a
+// URLs, uploaded covers and Active Storage thumbnails, taxonomy categories, purchasing power parity, preorders, bundles, tiered memberships and a
 // product-level refund policy) goes to Rails whole, before the request writes anything.
-import type { Link, User } from "@prisma/client";
+import { Prisma, type Link, type User } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
 import { signedDownloadUrlForS3KeyAndFilename } from "../../infra/signed-urls.ts";
 import { defaultPriceCents, LinkFlags, Links } from "../../models/link.ts";
 import { filenameWithExtension, isStreamOnly, isStreamable, s3Fields } from "../../models/product-file.ts";
+import { column, selectRows, table } from "../../models/sql.ts";
 import { UserFlags } from "../../models/user.ts";
 import {
   assertPriceSupported,
@@ -15,7 +16,10 @@ import {
   priceFormattedVerbose,
   thumbnailJson,
 } from "../../page-props/seller-products/listing.ts";
+import { uploadedFiles } from "../../presenters/asset-preview-upload.ts";
+import { coverAsJson } from "../../presenters/asset-preview.ts";
 import { findLink, findUserById } from "../../presenters/product-reads.ts";
+import { coverProps } from "../../presenters/product-props-extras.ts";
 import { longUrl } from "../../presenters/product.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
@@ -72,6 +76,18 @@ async function refundPolicyJson(link: Link) {
   };
 }
 
+// Covers that are a row alone (an Unsplash photo or an oEmbed document) render without a statement; an upload reads its blob and may enqueue
+// a job, so it hands back here, before any write, along with whatever coverAsJson itself refuses.
+async function assertCoversSupported(ids: bigint[]): Promise<void> {
+  const previews = await selectRows<{ id: bigint; guid: string | null; oembed: string | null; unsplash_url: string | null }>(
+    Prisma.sql`SELECT ${column("asset_previews", "id")}, ${column("asset_previews", "guid")}, ${column("asset_previews", "oembed")}, ${column("asset_previews", "unsplash_url")} FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} IN (${Prisma.join(ids)}) AND ${column("asset_previews", "deleted_at")} IS NULL`,
+  );
+  if (previews.length === 0) return;
+  if ((await uploadedFiles(previews.map((preview) => preview.id))).size > 0)
+    throw new HandBackToRails("a product with an uploaded cover");
+  for (const preview of previews) coverAsJson(preview);
+}
+
 // The shapes of a product that need what Node does not have; thrown before any write of the request.
 export async function assertProductJsonSupported(links: Link[], { owner, scopes }: ProductJsonOptions): Promise<void> {
   if (scopes.some((scope) => SALES_SCOPES.includes(scope)))
@@ -90,8 +106,7 @@ export async function assertProductJsonSupported(links: Link[], { owner, scopes 
       throw new HandBackToRails("purchasing power parity prices");
   }
   if (ids.length === 0) return;
-  if ((await db.assetPreview.count({ where: { link_id: { in: ids }, deleted_at: null } })) > 0)
-    throw new HandBackToRails("a product with covers");
+  await assertCoversSupported(ids);
   if ((await db.preorderLink.count({ where: { link_id: { in: ids } } })) > 0) throw new HandBackToRails("a preorder");
 }
 
@@ -284,11 +299,13 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
     const row = await findLink(link.id);
     const record = Links.load(link);
     const jsonData = jsonObject(link.json_data);
+    const covers = await coverProps(link);
     const json: Record<string, unknown> = {
       name: link.name,
       description: link.description,
       require_shipping: link.require_shipping,
-      preview_url: link.preview_url,
+      // Product::Preview#preview_url is the main cover's URL, not the legacy column.
+      preview_url: (covers.covers[0]?.url as string | null | undefined) ?? null,
       custom_receipt: link.custom_receipt,
       customizable_price: link.customizable_price,
       custom_permalink: link.custom_permalink,
@@ -314,8 +331,7 @@ export async function productsApiJson(links: Link[], options: ProductJsonOptions
       custom_summary: jsonData.custom_summary ?? null,
       is_tiered_membership: false,
       recurrences: null,
-      covers: [],
-      main_cover_id: null,
+      ...covers,
       bundle_products: [],
       variants: await variantCategories(link, slim),
     };

@@ -101,15 +101,16 @@ export async function assertPlainProducts(products: Link[]): Promise<void> {
   }
 }
 
-// A saved code outside the plain shape.
-export async function assertPlainCode(row: OfferCode): Promise<void> {
+// A saved code outside the plain shape. `ownUpsellId`: the upsell being deleted with its code, which alone is not a reason to refuse
+// (Rails skips only the code format and presence checks for a code with an upsell, and the port keeps them, so a bad code hands back).
+export async function assertPlainCode(row: OfferCode, ownUpsellId?: bigint): Promise<void> {
   if (OfferCodeFlags.isSet(row.flags, "is_cancellation_discount")) notPorted("a cancellation discount");
   if (row.existing_customers_only || row.new_customers_only) notPorted("a code limited to existing or new customers");
   if (row.duration_in_months != null) notPorted("a code with a duration in billing cycles");
   const tiers = row.ownership_duration_tiers;
   if (tiers != null && !(Array.isArray(tiers) && tiers.length === 0)) notPorted("a code with duration tiers");
   const [related] = await selectRows<{ found: number | bigint }>(
-    Prisma.sql`SELECT (EXISTS (SELECT 1 FROM ${table("upsells")} WHERE ${column("upsells", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_excluded_products")} WHERE ${column("offer_codes_excluded_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_variants")} WHERE ${column("offer_codes_variants", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_products")} WHERE ${column("offer_codes_ownership_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_variants")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${row.id})) AS found`,
+    Prisma.sql`SELECT (EXISTS (SELECT 1 FROM ${table("upsells")} WHERE ${column("upsells", "offer_code_id")} = ${row.id}${ownUpsellId === undefined ? Prisma.empty : Prisma.sql` AND ${column("upsells", "id")} <> ${ownUpsellId}`}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_excluded_products")} WHERE ${column("offer_codes_excluded_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_variants")} WHERE ${column("offer_codes_variants", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_products")} WHERE ${column("offer_codes_ownership_products", "offer_code_id")} = ${row.id}) OR EXISTS (SELECT 1 FROM ${table("offer_codes_ownership_variants")} WHERE ${column("offer_codes_ownership_variants", "offer_code_id")} = ${row.id})) AS found`,
   );
   if (Number(related?.found ?? 0) > 0)
     notPorted("a code with an upsell, exclusions, options or ownership products or options");
