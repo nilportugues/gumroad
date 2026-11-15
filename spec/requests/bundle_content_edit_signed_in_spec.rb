@@ -102,6 +102,8 @@ describe "Bundle content tab when signed in", type: :request, elasticsearch_wait
       create(:product, user: seller, name: "Deleted extra", deleted_at: Time.utc(2025, 2, 1))
       create(:product, user: seller, name: "Unpublished extra", purchase_disabled_at: Time.utc(2025, 2, 1))
       create(:membership_product, user: seller, name: "Membership extra")
+      # Dated apart from each other: the replay's clock cannot keep creations of the same second in order.
+      create(:product, :bundle, user: seller, name: "Another bundle").bundle_products.each_with_index { |entry, index| entry.product.update_column(:created_at, Time.utc(2025, 3, 1 + index)) }
       create(:product, user: create(:user, name: "Other Seller"), name: "Someone else's")
 
       reload_search_data
@@ -109,7 +111,7 @@ describe "Bundle content tab when signed in", type: :request, elasticsearch_wait
       data = JSON.parse(response.body)["props"]["search_data"]
       expect(data).to include("has_more" => false, "page" => 1)
       expect(data["products"].map { _1["name"] }).to include("Plain extra")
-      expect(data["products"].map { _1["name"] }).not_to include("Deleted extra", "Unpublished extra", "Membership extra", "Someone else's", "Starter bundle")
+      expect(data["products"].map { _1["name"] }).not_to include("Deleted extra", "Unpublished extra", "Membership extra", "Another bundle", "Someone else's", "Starter bundle")
     end
 
     it "points to a next page when more than ten products can join", parity: true do
@@ -120,6 +122,30 @@ describe "Bundle content tab when signed in", type: :request, elasticsearch_wait
 
       data = JSON.parse(response.body)["props"]["search_data"]
       expect(data["has_more"]).to be(true)
+      expect(data["products"].size).to eq(10)
+    end
+
+    it "leaves the product that is being converted out of its own list", parity: true do
+      converting = create(:product, user: seller, name: "Soon a bundle")
+      create(:product, user: seller, name: "Plain extra")
+      index_model_records(Link)
+
+      get edit_bundle_content_path(converting.external_id), headers: {
+        "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest",
+        "X-Inertia-Partial-Component" => "Bundles/Content/Edit", "X-Inertia-Partial-Data" => "search_data"
+      }
+
+      expect(JSON.parse(response.body)["props"]["search_data"]["products"].map { _1["name"] }).not_to include("Soon a bundle")
+    end
+
+    it "lists exactly ten products without pointing to a next page", parity: true do
+      bundle
+      8.times { |index| create(:product, user: seller, name: "Extra #{index}", created_at: Time.utc(2025, 1, 1) + index.days) }
+
+      reload_search_data
+
+      data = JSON.parse(response.body)["props"]["search_data"]
+      expect(data).to include("has_more" => false, "total_count" => 10)
       expect(data["products"].size).to eq(10)
     end
 
