@@ -149,40 +149,17 @@ describe("licensePurchaseJson", () => {
     expect(await licensePurchaseJson(purchase, license)).toMatchObject({ variants: "(Gold)" });
   });
 
-  it("lists several variants in join order and hands back a SKU among them", async () => {
-    const joins = [
-      { purchase_id: 3n, base_variant_id: 8n },
-      { purchase_id: 3n, base_variant_id: 9n },
-    ];
-    const categories = [
-      { id: 2n, title: "Edition" },
-      { id: 3n, title: "Format" },
-    ];
+  it("hands back a purchase whose variants were attached out of variant id order", async () => {
     database({
       links: [link],
       users: [seller],
-      base_variants_purchases: joins,
-      base_variants: [
-        { id: 8n, type: "Variant", variant_category_id: 2n, name: "Gold", flags: 0 },
-        { id: 9n, type: "Variant", variant_category_id: 3n, name: "PDF", flags: 0 },
+      base_variants_purchases: [
+        { id: 1n, purchase_id: 3n, base_variant_id: 9n },
+        { id: 2n, purchase_id: 3n, base_variant_id: 8n },
       ],
-      variant_categories: categories,
     });
 
-    expect(await licensePurchaseJson(purchase, license)).toMatchObject({ variants: "(Gold, PDF)" });
-
-    database({
-      links: [link],
-      users: [seller],
-      base_variants_purchases: joins,
-      base_variants: [
-        { id: 8n, type: "Variant", variant_category_id: 2n, name: "Gold", flags: 0 },
-        { id: 9n, type: "Sku", variant_category_id: null, name: "Large", flags: 0 },
-      ],
-      variant_categories: categories,
-    });
-
-    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/SKU next to other variants/u);
+    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/out of variant id order/u);
   });
 
   it("names a SKU in the variants string and leaves sku_id to a SKU-enabled product", async () => {

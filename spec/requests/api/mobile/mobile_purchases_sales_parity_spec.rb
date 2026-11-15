@@ -828,10 +828,27 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response.parsed_body["customer"]["option"]["name"]).to eq("Two")
       end
 
-      it "hands a sale with two variants of one category to Rails", parity: true do
-        category = create(:variant_category, link: product)
-        sale.variant_attributes << create(:variant, variant_category: category, name: "One")
-        sale.variant_attributes << create(:variant, variant_category: category, name: "Two")
+      it "serves a sale with two variants of one category attached in variant id order, the later one naming the category", parity: true do
+        category = create(:variant_category, link: product, title: "Size")
+        low = create(:variant, variant_category: category, name: "One")
+        high = create(:variant, variant_category: category, name: "Two")
+        sale.variant_attributes << low
+        sale.variant_attributes << high
+
+        show
+
+        expect(response).to have_http_status(:ok)
+        expect(response.parsed_body["purchase"]["variants"]).to eq(category.external_id => { "title" => "Size", "selected_variant" => { "id" => high.external_id, "name" => "Two" } })
+        expect(response.parsed_body["customer"]["option"]["name"]).to eq("One")
+      end
+
+      # Which row `variant_attributes` lists last depends on the join MySQL plans, so a sale attached out of id order stays with Rails.
+      it "hands a sale with two variants of one category attached out of variant id order to Rails", parity: true do
+        category = create(:variant_category, link: product, title: "Size")
+        low = create(:variant, variant_category: category, name: "One")
+        high = create(:variant, variant_category: category, name: "Two")
+        sale.variant_attributes << high
+        sale.variant_attributes << low
 
         show
 
