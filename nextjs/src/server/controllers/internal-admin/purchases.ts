@@ -28,8 +28,34 @@ const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
 const TERMINAL_REFUND_STATUSES = ["failed", "canceled"];
 const PAYPAL_CARD_TYPE = "paypal";
 const CARD_SEARCH_PARAMS = ["purchase_date", "card_last4", "card_type", "charge_amount", "expiry_date"];
-// The card filters whose date parsing (purchase_date, in the app's zone) and expiry reading Node does not reproduce.
-const UNPORTED_CARD_SEARCH_PARAMS = ["purchase_date", "expiry_date"];
+const INVALID_PURCHASE_DATE = "purchase_date must use YYYY-MM-DD format.";
+const MS_PER_DAY = 86_400_000;
+
+class InvalidPurchaseDateError extends Error {}
+
+// Date.strptime("%Y-%m-%d").in_time_zone, as a UTC midnight (Time.zone is UTC). Only the zero-padded form is read;
+// strptime also takes unpadded fields, which hand back.
+function purchaseDateWindow(raw: string): [string, string] {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(raw);
+  if (match === null || Number(match[1]) < 1000)
+    throw new NotPortedError("a purchase date that is not YYYY-MM-DD", SOURCE);
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const midnight = new Date(Date.UTC(year, month - 1, day));
+  if (midnight.getUTCMonth() !== month - 1 || midnight.getUTCDate() !== day) throw new InvalidPurchaseDateError();
+  const stamp = (date: Date, time: string) => `${date.toISOString().slice(0, 10)} ${time}`;
+  return [
+    stamp(new Date(midnight.getTime() - MS_PER_DAY), "00:00:00"),
+    stamp(new Date(midnight.getTime() + MS_PER_DAY), "23:59:59"),
+  ];
+}
+
+// CreditCardUtility.extract_month_and_year, for the digit-only forms: "MM/YY", "M/YY", "MMYY" (spaces dropped first).
+function expiryMonthAndYear(raw: string): { month: number; year: number } {
+  const compact = raw.replaceAll(" ", "");
+  const match = /^(\d{1,2})\/(\d{2})$/u.exec(compact) ?? /^(\d{2})(\d{2})$/u.exec(compact);
+  if (match === null) throw new NotPortedError("an expiry date that is not digits", SOURCE);
+  return { month: Number(match[1]), year: 2000 + Number(match[2]) };
+}
 // ChargeableVisual::LENGTH_TO_FORMAT, in the order its three entries are matched.
 const CARD_VISUAL_FORMATS = ["**** **** **** ", "**** ****** *", "**** ****** "];
 // AdminSearchService matches a charge amount between 75% and 125% of it.
@@ -484,6 +510,17 @@ async function searchConditions(
       );
       conditions.push(Prisma.sql`(${Prisma.join(visuals, " OR ")})`);
     }
+    if (search.purchase_date !== undefined) {
+      const [start, end] = purchaseDateWindow(search.purchase_date);
+      conditions.push(Prisma.sql`purchases.created_at BETWEEN ${start} AND ${end}`);
+    }
+    if (search.expiry_date !== undefined) {
+      const { month, year } = expiryMonthAndYear(search.expiry_date);
+      conditions.push(
+        Prisma.sql`purchases.card_expiry_year = ${year}`,
+        Prisma.sql`purchases.card_expiry_month = ${month}`,
+      );
+    }
     if (search.charge_amount !== undefined) {
       const [whole = "", fraction = ""] = search.charge_amount.split(".");
       const digits = BigInt(whole + fraction);
@@ -514,8 +551,6 @@ defineAdminRoute(
           400,
         );
       }
-      if (UNPORTED_CARD_SEARCH_PARAMS.some((key) => key in search))
-        throw new NotPortedError("a card search by purchase or expiry date", SOURCE);
       // BigDecimal#to_d reads anything else (an exponent, a sign, trailing text) differently.
       if (search.charge_amount !== undefined && !/^\d+(?:\.\d+)?$/u.test(search.charge_amount))
         throw new NotPortedError("a charge amount that is not plain digits", SOURCE);
@@ -533,7 +568,13 @@ defineAdminRoute(
         );
 
       const limit = searchLimit(admin.params.limit);
-      const found = await searchConditions(search);
+      let found;
+      try {
+        found = await searchConditions(search);
+      } catch (error) {
+        if (error instanceof InvalidPurchaseDateError) return failure(INVALID_PURCHASE_DATE, 400);
+        throw error;
+      }
       const where =
         found === null || found.conditions.length === 0 ? Prisma.sql`1 = 1` : Prisma.join(found.conditions, " AND ");
       const rows =
