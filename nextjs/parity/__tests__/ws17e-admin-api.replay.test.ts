@@ -217,6 +217,10 @@ const CURSOR_PAGES: [RegExp, number][] = [
   [/pages-the-purchases-that-share-an-ip-address-with-a-signed-cursor #2/u, 60],
   [/get-purchases-paginates-purchases-with-a-cursor #2/u, 120],
 ];
+// The purchase date of a search is a literal in the request while the purchases are seeded relative to the clock, so the seed resolves
+// against the instant the examples were recorded at (the spec made them at absolute times in January 2026).
+const SEED_PINNED = /searches-by-purchase-date/u;
+const SEED_PINNED_AT = new Date("2026-11-15T15:28:30Z");
 // The cursor is `urlsafe(base64(json_string)--hmac)`.
 function cursorInstant(fixturePath: string, index: number, ageMinutes: number): number {
   const request = loadFixture(fixturePath).exchanges[index]!.request;
@@ -227,12 +231,6 @@ function cursorInstant(fixturePath: string, index: number, ageMinutes: number): 
   };
   return Date.parse(payload.created_at) + ageMinutes * 60_000;
 }
-// A purchase-date search is a window of whole days around a date the fixture holds as `<today-Nd>` while a row's age is whole hours,
-// so the clock stands at the instant the spec travelled to.
-const PINNED_CLOCKS: [RegExp, number][] = [
-  [/searches-by-purchase-date/u, Date.UTC(2026, 10, 15, 12, 0, 0)],
-];
-const pinnedClock = (name: string) => PINNED_CLOCKS.find(([pattern]) => pattern.test(name))?.[1];
 // emails_sent_at is JSON text inside json_data, which the replay's date drift does not rewrite: users-reads.test.ts covers the field.
 // The counter-notice example sends an absolute received_on that the notice window (sent_at - 1 day to tomorrow) outgrows within days.
 const EMAIL_REMINDER_CASE = /most-recent-email-reminder-timestamp|post-counter-notice-records-the-counter-notice/u;
@@ -396,13 +394,12 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
     "%s",
     async (name, fixturePath, index, fromRequestSpec) => {
       const pageAge = CURSOR_PAGES.find(([pattern]) => pattern.test(name))?.[1];
-      const pinnedAt = pinnedClock(name);
-      const pinned = pageAge !== undefined || pinnedAt !== undefined;
+      const pinned = pageAge !== undefined;
       if (handsBack(name)) {
         handedBack.length = 0;
-        if (pageAge !== undefined || pinnedAt !== undefined)
+        if (pageAge !== undefined)
           vi.useFakeTimers({
-            now: pinnedAt ?? cursorInstant(fixturePath, index, pageAge ?? 0),
+            now: cursorInstant(fixturePath, index, pageAge),
             toFake: ["Date"],
             shouldAdvanceTime: true,
           });
@@ -427,9 +424,9 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
         expect(Object.keys(handed.exchanges[0]!.actual.db).filter((table) => table !== "admin_api_tokens")).toEqual([]);
         return;
       }
-      if (pageAge !== undefined || pinnedAt !== undefined)
+      if (pageAge !== undefined)
         vi.useFakeTimers({
-          now: pinnedAt ?? cursorInstant(fixturePath, index, pageAge ?? 0),
+          now: cursorInstant(fixturePath, index, pageAge),
           toFake: ["Date"],
           shouldAdvanceTime: true,
         });
@@ -439,6 +436,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       if (USER_WRITE_GUARDS_CASE.test(name)) dateRiskComments(fixture.exchanges[index]!);
       const result = await replayFixtureExchange(fixture, index, {
         ...(pinned ? { driftDates: false } : {}),
+        ...(SEED_PINNED.test(name) ? { driftDates: false, seedClock: SEED_PINNED_AT } : {}),
         sql,
         redis: seeder(name),
         transport: httpTransport(server.baseUrl),
@@ -454,7 +452,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
             // The seeded user's updated_at moves within the second or across it depending on when the recording ran.
             ...(USER_WRITE_GUARDS_CASE.test(name) ? ["db.users.updated.*.changes.updated_at"] : []),
             // The server stamps the token with its own, unpinned clock.
-            ...(pinned
+            ...(pinned || SEED_PINNED.test(name)
               ? [
                   "db.admin_api_tokens.updated.*.changes.last_used_at",
                   // Twenty years from the pinned clock, measured against the replay's own now: the gap grows with the recording's age.

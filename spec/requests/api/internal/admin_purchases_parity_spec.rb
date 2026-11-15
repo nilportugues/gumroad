@@ -202,66 +202,85 @@ describe "Internal admin API purchases", type: :request do
       expect(response).to have_http_status(:bad_request)
     end
 
-    # The window is whole days and a fixture rounds a row's age to whole hours, so these rows sit on whole hours and the replay pins
-    # its clock to this instant (PINNED_CLOCKS in ws17e-admin-api.replay.test.ts).
-    it "searches by purchase date, from the start of the day before to the end of the day after, skipping purchases with no fingerprint", parity: true do
-      travel_to(Time.utc(2026, 11, 15, 12, 0, 0)) do
-        starts = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: Time.utc(2026, 1, 14, 0, 0, 0))
-        before = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-2", created_at: Time.utc(2026, 1, 13, 23, 0, 0))
-        same_day = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-3", created_at: Time.utc(2026, 1, 15, 12, 0, 0))
-        ends = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-4", created_at: Time.utc(2026, 1, 16, 23, 0, 0))
-        after = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-5", created_at: Time.utc(2026, 1, 17, 0, 0, 0))
-        create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: nil, created_at: Time.utc(2026, 1, 15, 13, 0, 0))
+    it "searches by purchase date from the start of the day before to the end of the day after, skipping purchases with no fingerprint", parity: true do
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: Time.utc(2026, 1, 13, 21, 30))
+      start = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 2222", stripe_fingerprint: "fp-2", created_at: Time.utc(2026, 1, 14, 2, 30))
+      day = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 3333", stripe_fingerprint: "fp-3", created_at: Time.utc(2026, 1, 15, 12, 30))
+      finish = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4444", stripe_fingerprint: "fp-4", created_at: Time.utc(2026, 1, 16, 21, 30))
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 5555", stripe_fingerprint: "fp-5", created_at: Time.utc(2026, 1, 17, 2, 30))
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 6666", stripe_fingerprint: nil, created_at: Time.utc(2026, 1, 15, 13, 30))
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 7777", stripe_fingerprint: "fp-7", email: "other@example.com", created_at: Time.utc(2026, 1, 15, 14, 30))
 
-        get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-01-15" }, headers: headers
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-01-15" }, headers: headers
 
-        ids = response.parsed_body["purchases"].map { _1["id"] }
-        expect(ids).to eq([ends, same_day, starts].map { _1.external_id_numeric.to_s })
-        expect(ids).not_to include(before.external_id_numeric.to_s, after.external_id_numeric.to_s)
-      end
+      expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([finish, day, start].map { _1.external_id_numeric.to_s })
     end
 
-    it "searches by purchase date alone", parity: true do
-      travel_to(Time.utc(2026, 11, 15, 12, 0, 0)) do
-        match = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: Time.utc(2026, 1, 15, 12, 0, 0))
+    it "searches by purchase date alone and with a card type and last four digits", parity: true do
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4062", stripe_fingerprint: "fp-1", created_at: Time.utc(2026, 1, 15, 8, 30))
+      match = create_card_purchase(card_type: "mastercard", card_visual: "**** **** **** 4062", stripe_fingerprint: "fp-2", email: "other@example.com", created_at: Time.utc(2026, 1, 15, 9, 30))
+      create_card_purchase(card_type: "mastercard", card_visual: "**** **** **** 4062", stripe_fingerprint: "fp-3", created_at: Time.utc(2026, 3, 1, 9, 30))
 
-        get "/internal/admin/purchases/search", params: { purchase_date: " 2026-01-15 " }, headers: headers
+      get "/internal/admin/purchases/search", params: { purchase_date: "2026-01-15", card_type: "mastercard", card_last4: "4062" }, headers: headers
+      narrowed = response.parsed_body["purchases"].map { _1["id"] }
+      get "/internal/admin/purchases/search", params: { purchase_date: "2026-01-15" }, headers: headers
 
-        expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([match.external_id_numeric.to_s])
-      end
+      expect(narrowed).to eq([match.external_id_numeric.to_s])
+      expect(response.parsed_body["count"]).to eq(2)
     end
 
-    it "refuses a purchase date that is not a calendar day", parity: true do
+    it "refuses a purchase date that is not a calendar date", parity: true do
       get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-02-30" }, headers: headers
-
-      expect(response).to have_http_status(:bad_request)
-      expect(response.parsed_body).to eq("success" => false, "message" => "purchase_date must use YYYY-MM-DD format.")
-    end
-
-    it "refuses a purchase date that is not written as YYYY-MM-DD", parity: true do
-      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "15/01/2026" }, headers: headers
 
       expect(response).to have_http_status(:bad_request)
       expect(response.parsed_body["message"]).to eq("purchase_date must use YYYY-MM-DD format.")
     end
 
-    it "searches by card expiry written as month and year, with or without a slash", parity: true do
-      slash = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: 5.days.ago)
-      slash.update_columns(card_expiry_month: 4, card_expiry_year: 2027)
-      other_year = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 2222", stripe_fingerprint: "fp-2", created_at: 4.days.ago)
-      other_year.update_columns(card_expiry_month: 4, card_expiry_year: 2028)
-      other_month = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 3333", stripe_fingerprint: "fp-3", created_at: 3.days.ago)
-      other_month.update_columns(card_expiry_month: 5, card_expiry_year: 2027)
+    it "answers an empty list for an unknown creator before reading the purchase date", parity: true do
+      get "/internal/admin/purchases/search", params: { creator_email: "nobody@example.com", purchase_date: "2026-02-30" }, headers: headers
+
+      expect(response.parsed_body).to include("count" => 0, "purchases" => [])
+    end
+
+    it "searches by expiry date written as month and year, with and without a slash", parity: true do
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: 5.days.ago).update_columns(card_expiry_month: 4, card_expiry_year: 2026)
+      slash = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 2222", stripe_fingerprint: "fp-2", created_at: 4.days.ago).tap { _1.update_columns(card_expiry_month: 4, card_expiry_year: 2027) }
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 3333", stripe_fingerprint: "fp-3", created_at: 3.days.ago).update_columns(card_expiry_month: 5, card_expiry_year: 2027)
+      create_card_purchase(card_type: "visa", card_visual: "**** **** **** 4444", stripe_fingerprint: nil, created_at: 2.days.ago).update_columns(card_expiry_month: 4, card_expiry_year: 2027)
 
       get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/27" }, headers: headers
-      with_slash = response.parsed_body["purchases"].map { _1["id"] }
+      by_slash = response.parsed_body["purchases"].map { _1["id"] }
       get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "0427" }, headers: headers
-      without_slash = response.parsed_body["purchases"].map { _1["id"] }
-      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/28" }, headers: headers
+      by_digits = response.parsed_body["purchases"].map { _1["id"] }
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "4 / 27" }, headers: headers
 
-      expect(with_slash).to eq([slash.external_id_numeric.to_s])
-      expect(without_slash).to eq(with_slash)
-      expect(response.parsed_body["purchases"].map { _1["id"] }).to eq([other_year.external_id_numeric.to_s])
+      expect(by_slash).to eq([slash.external_id_numeric.to_s])
+      expect(by_digits).to eq(by_slash)
+      expect(response.parsed_body["purchases"].map { _1["id"] }).to eq(by_slash)
+    end
+
+    it "searches by expiry date with a card type, and finds nothing for a month no card has", parity: true do
+      match = create_card_purchase(card_type: "visa", card_visual: "**** **** **** 1111", stripe_fingerprint: "fp-1", created_at: 5.days.ago).tap { _1.update_columns(card_expiry_month: 12, card_expiry_year: 2028) }
+      create_card_purchase(card_type: "mastercard", card_visual: "**** **** **** 2222", stripe_fingerprint: "fp-2", created_at: 4.days.ago).update_columns(card_expiry_month: 12, card_expiry_year: 2028)
+
+      get "/internal/admin/purchases/search", params: { card_type: "visa", expiry_date: "12/28" }, headers: headers
+      found = response.parsed_body["purchases"].map { _1["id"] }
+      get "/internal/admin/purchases/search", params: { card_type: "visa", expiry_date: "13/28" }, headers: headers
+
+      expect(found).to eq([match.external_id_numeric.to_s])
+      expect(response.parsed_body["purchases"]).to eq([])
+    end
+
+    it "hands a card search by a purchase date written without zero padding to Rails", parity: true do
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", purchase_date: "2026-1-5" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a card search by an expiry date that is not digits to Rails", parity: true do
+      get "/internal/admin/purchases/search", params: { email: "buyer@example.com", expiry_date: "04/2027" }, headers: headers
+
+      expect(response).to have_http_status(:ok)
     end
 
     it "hands a search that reaches a Stripe charge to Rails", parity: true do

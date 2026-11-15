@@ -1,5 +1,6 @@
 // Api::Internal::Admin::PurchasesController: #show, #search and #lookup, the reads, plus the helpers the writes in ./purchase-writes.ts
-// share. A purchase charged through Stripe hands back (Radar::ChargeRiskLevelService asks Stripe for its risk level).
+// share. A purchase charged through Stripe hands back (Radar::ChargeRiskLevelService asks Stripe for its risk level), as does a card
+// search (an index-friendly AdminSearchService filter group Node does not carry).
 import { Prisma } from "@prisma/client";
 
 import { db } from "../../../lib/db.ts";
@@ -27,41 +28,33 @@ const CHARGE_PROCESSOR_IDS = ["stripe", "braintree", "paypal"];
 const TERMINAL_REFUND_STATUSES = ["failed", "canceled"];
 const PAYPAL_CARD_TYPE = "paypal";
 const CARD_SEARCH_PARAMS = ["purchase_date", "card_last4", "card_type", "charge_amount", "expiry_date"];
-const PURCHASE_DATE_FORMAT = /^(\d{4})-(\d{2})-(\d{2})$/u;
-// Date.strptime("%Y-%m-%d") fails on a year that runs into anything but "-"; anything else it may still accept.
-const PURCHASE_DATE_CERTAINLY_INVALID = /^\d+[^\d-]/u;
-// CreditCardUtility.extract_month_and_year reads exactly these two shapes the same way as Node.
-const EXPIRY_WITH_SLASH = /^(\d{2})\/(\d{2})$/u;
-const EXPIRY_WITHOUT_SLASH = /^(\d{2})(\d{2})$/u;
-const MIN_PURCHASE_DATE_YEAR = 1900;
-const MAX_PURCHASE_DATE_YEAR = 2999;
+const INVALID_PURCHASE_DATE = "purchase_date must use YYYY-MM-DD format.";
 const MS_PER_DAY = 86_400_000;
-const INVALID_PURCHASE_DATE_MESSAGE = "purchase_date must use YYYY-MM-DD format.";
 
-class InvalidPurchaseDate extends Error {}
+class InvalidPurchaseDateError extends Error {}
 
-// AdminSearchService#parse_date! and the window around it: the day before to the end of the day after, in UTC.
-function purchaseDateWindow(raw: string): { start: Date; end: Date } {
-  const match = PURCHASE_DATE_FORMAT.exec(raw);
-  if (match === null) {
-    if (PURCHASE_DATE_CERTAINLY_INVALID.test(raw)) throw new InvalidPurchaseDate();
-    throw new NotPortedError("a purchase date that is not four digits, two digits and two digits", SOURCE);
-  }
+// Date.strptime("%Y-%m-%d").in_time_zone, as a UTC midnight (Time.zone is UTC). Only the zero-padded form is read;
+// strptime also takes unpadded fields, which hand back.
+function purchaseDateWindow(raw: string): [string, string] {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(raw);
+  if (match === null || Number(match[1]) < 1000)
+    throw new NotPortedError("a purchase date that is not YYYY-MM-DD", SOURCE);
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  if (year < MIN_PURCHASE_DATE_YEAR || year > MAX_PURCHASE_DATE_YEAR)
-    throw new NotPortedError("a purchase date outside the years Node reads", SOURCE);
   const midnight = new Date(Date.UTC(year, month - 1, day));
-  if (midnight.getUTCMonth() !== month - 1 || midnight.getUTCDate() !== day) throw new InvalidPurchaseDate();
-  return {
-    start: new Date(midnight.getTime() - MS_PER_DAY),
-    end: new Date(midnight.getTime() + 2 * MS_PER_DAY - 1000),
-  };
+  if (midnight.getUTCMonth() !== month - 1 || midnight.getUTCDate() !== day) throw new InvalidPurchaseDateError();
+  const stamp = (date: Date, time: string) => `${date.toISOString().slice(0, 10)} ${time}`;
+  return [
+    stamp(new Date(midnight.getTime() - MS_PER_DAY), "00:00:00"),
+    stamp(new Date(midnight.getTime() + MS_PER_DAY), "23:59:59"),
+  ];
 }
 
+// CreditCardUtility.extract_month_and_year, for the digit-only forms: "MM/YY", "M/YY", "MMYY" (spaces dropped first).
 function expiryMonthAndYear(raw: string): { month: number; year: number } {
-  const match = EXPIRY_WITH_SLASH.exec(raw) ?? EXPIRY_WITHOUT_SLASH.exec(raw);
-  if (match === null) throw new NotPortedError("a card expiry that is not MM/YY or MMYY", SOURCE);
-  return { month: Number(match[1]), year: Number(`20${match[2]}`) };
+  const compact = raw.replaceAll(" ", "");
+  const match = /^(\d{1,2})\/(\d{2})$/u.exec(compact) ?? /^(\d{2})(\d{2})$/u.exec(compact);
+  if (match === null) throw new NotPortedError("an expiry date that is not digits", SOURCE);
+  return { month: Number(match[1]), year: 2000 + Number(match[2]) };
 }
 // ChargeableVisual::LENGTH_TO_FORMAT, in the order its three entries are matched.
 const CARD_VISUAL_FORMATS = ["**** **** **** ", "**** ****** *", "**** ****** "];
@@ -510,16 +503,23 @@ async function searchConditions(
   }
   if (CARD_SEARCH_PARAMS.some((key) => key in search)) {
     conditions.push(Prisma.sql`purchases.stripe_fingerprint IS NOT NULL`);
-    if (search.purchase_date !== undefined) {
-      const { start, end } = purchaseDateWindow(search.purchase_date);
-      conditions.push(Prisma.sql`purchases.created_at BETWEEN ${start} AND ${end}`);
-    }
     if (search.card_type !== undefined) conditions.push(Prisma.sql`purchases.card_type = ${search.card_type}`);
     if (search.card_last4 !== undefined) {
       const visuals = CARD_VISUAL_FORMATS.map(
         (prefix) => Prisma.sql`purchases.card_visual = ${prefix + search.card_last4}`,
       );
       conditions.push(Prisma.sql`(${Prisma.join(visuals, " OR ")})`);
+    }
+    if (search.purchase_date !== undefined) {
+      const [start, end] = purchaseDateWindow(search.purchase_date);
+      conditions.push(Prisma.sql`purchases.created_at BETWEEN ${start} AND ${end}`);
+    }
+    if (search.expiry_date !== undefined) {
+      const { month, year } = expiryMonthAndYear(search.expiry_date);
+      conditions.push(
+        Prisma.sql`purchases.card_expiry_year = ${year}`,
+        Prisma.sql`purchases.card_expiry_month = ${month}`,
+      );
     }
     if (search.charge_amount !== undefined) {
       const [whole = "", fraction = ""] = search.charge_amount.split(".");
@@ -528,10 +528,6 @@ async function searchConditions(
       conditions.push(
         Prisma.sql`purchases.price_cents BETWEEN ${(digits * CHARGE_AMOUNT_FLOOR) / scale} AND ${(digits * CHARGE_AMOUNT_CEILING) / scale}`,
       );
-    }
-    if (search.expiry_date !== undefined) {
-      const { month, year } = expiryMonthAndYear(search.expiry_date);
-      conditions.push(Prisma.sql`purchases.card_expiry_year = ${year}`, Prisma.sql`purchases.card_expiry_month = ${month}`);
     }
   }
   return { conditions, joinsLink };
@@ -564,8 +560,7 @@ defineAdminRoute(
         search.email === undefined &&
         search.creator_email === undefined &&
         search.license_key === undefined &&
-        search.card_type === undefined &&
-        search.purchase_date === undefined
+        search.card_type === undefined
       )
         return failure(
           "card_last4 needs a narrower search: also provide card_type, purchase_date, query, email, creator_email, or license_key.",
@@ -577,7 +572,7 @@ defineAdminRoute(
       try {
         found = await searchConditions(search);
       } catch (error) {
-        if (error instanceof InvalidPurchaseDate) return failure(INVALID_PURCHASE_DATE_MESSAGE, 400);
+        if (error instanceof InvalidPurchaseDateError) return failure(INVALID_PURCHASE_DATE, 400);
         throw error;
       }
       const where =
