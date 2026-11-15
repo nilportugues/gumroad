@@ -1320,7 +1320,7 @@ with the test delivery method) and 6 direct resolver calls; `qp-resolver.test.ts
 `custom-properties.ts` each fail it (run individually, reverted).
 
 Re-recorded from the current tree, all replaying green: `mail.golden.json` (its generator now loads both initializers), `application-mailer`, `customer-mailer`, `team-mailer`, `internal-notification` and
-`post-email-sends` (`scripts/golden/post-email-sends.rb`; only the html values changed, plus the "resubscribed membership, not due yet" case, whose Rails answer differs from the old recording and replays green with `JOBS_REDIS_URL`).
+`post-email-sends` and `internal-notification-config` (`scripts/golden/post-email-sends.rb`; only the html values changed, plus the "resubscribed membership, not due yet" case, whose Rails answer differs from the old recording and replays green with `JOBS_REDIS_URL`).
 The four generators that booted without a memcached gained `GOLDEN_REDIS_HOST` (the receipt generator's switch) for a shared Redis container.
 
 Still stale: `receipt-mailer.golden.json` replays its old recording with `composeMail(..., { initializers: { quotedPrintableHtml: false, customProperties: false } })`. Re-record it whole after the free

@@ -56,7 +56,7 @@ beforeAll(() => {
 afterAll(() => {
   restore();
   for (const [key, value] of Object.entries(savedEnv)) {
-    if (value === undefined) delete process.env[key];
+    if (value === undefined) Reflect.deleteProperty(process.env, key);
     else process.env[key] = value;
   }
 });
@@ -98,6 +98,8 @@ describe("SendPurchaseReceiptJob", () => {
           },
           log: () => {},
           mailer: {
+            // The golden predates the quoted-printable interceptor and the custom property resolver.
+            initializers: { quotedPrintableHtml: false, customProperties: false },
             router: goldenRouter({ features: c.features, redis: {}, rands: c.rands_used }),
             mailerLevel: async () => "level_1",
             randomIv: () => Buffer.from(c.ivs[draws++]!, "base64"),
