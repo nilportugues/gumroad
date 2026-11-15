@@ -40,7 +40,10 @@ describe("routing outside and inside timeoutQueries", () => {
     const client = {
       $queryRaw: async (q: { sql: string }) => record(q),
       $executeRaw: async (q: { sql: string }) => record(q).length,
-      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => (calls.push("pinned:$transaction"), fn({ $queryRaw: async (q: { sql: string }) => record(q), $executeRaw: async () => 0 })),
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => (
+        calls.push("pinned:$transaction"),
+        fn({ $queryRaw: async (q: { sql: string }) => record(q), $executeRaw: async () => 0 })
+      ),
     };
     setPinnedSessionFactory(() => ({ client: client as never, close: async () => undefined }));
     pool.calls.length = 0;
@@ -50,7 +53,10 @@ describe("routing outside and inside timeoutQueries", () => {
       await transaction(async () => undefined);
     });
     await selectRows(Prisma.sql`SELECT 3`);
-    expect(calls.filter((c) => c.includes("SELECT 2") || c.includes("$transaction"))).toEqual(["pinned:SELECT 2", "pinned:$transaction"]);
+    expect(calls.filter((c) => c.includes("SELECT 2") || c.includes("$transaction"))).toEqual([
+      "pinned:SELECT 2",
+      "pinned:$transaction",
+    ]);
     expect(pool.calls).toEqual(["pool:SELECT 3"]);
   });
 });

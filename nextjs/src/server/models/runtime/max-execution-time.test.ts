@@ -9,7 +9,7 @@ import { QueryTimeoutError, timeoutQueries } from "./max-execution-time.ts";
 import { transaction } from "./transaction.ts";
 
 const URL_ENV = process.env.MAX_EXECUTION_TIME_TEST_DATABASE_URL;
-const SCRATCH = /_(ws)?\d+[a-z]?$/;
+const SCRATCH = /_(ws)?\d+[a-z]?$/u;
 const ROWS = 400;
 // ROWS^3 joined rows take about two seconds, far over CAP_SECONDS. A COUNT(*) is answered from an index in milliseconds
 // and SLEEP() is ignored by the cap, so the sum has to be computed row by row.
@@ -34,7 +34,8 @@ describe.skipIf(!URL_ENV)("timeoutQueries against MySQL", () => {
     Number(await one(Prisma.sql`SELECT COUNT(*) FROM information_schema.processlist WHERE id = ${id}`)) === 1;
 
   beforeAll(async () => {
-    if (!SCRATCH.test(new URL(URL_ENV!).pathname.slice(1))) throw new Error("Refusing to run against a non-scratch database");
+    if (!SCRATCH.test(new URL(URL_ENV!).pathname.slice(1)))
+      throw new Error("Refusing to run against a non-scratch database");
     process.env.DATABASE_URL = URL_ENV;
     pool = new PrismaClient({ datasourceUrl: URL_ENV });
     setSqlClient(() => pool);
@@ -85,7 +86,9 @@ describe.skipIf(!URL_ENV)("timeoutQueries against MySQL", () => {
     await timeoutQueries(5, async () => {
       const ids = new Set<number>();
       for (let i = 0; i < 8; i++) ids.add(Number(await inBlock(Prisma.sql`SELECT CONNECTION_ID()`)));
-      await Promise.all(Array.from({ length: 6 }, async () => ids.add(Number(await inBlock(Prisma.sql`SELECT CONNECTION_ID()`)))));
+      await Promise.all(
+        Array.from({ length: 6 }, async () => ids.add(Number(await inBlock(Prisma.sql`SELECT CONNECTION_ID()`)))),
+      );
       expect(ids.size).toBe(1);
       expect(Number(await one(Prisma.sql`SELECT CONNECTION_ID()`))).not.toBe([...ids][0]);
     });

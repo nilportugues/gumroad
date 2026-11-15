@@ -7,10 +7,24 @@ import { afterEach, describe, expect, it } from "vitest";
 import { execute, selectRows, setSqlClient } from "../sql.ts";
 
 import golden from "./__fixtures__/with-max-execution-time.golden.json" with { type: "json" };
-import { QueryTimeoutError, setPinnedSessionFactory, timeoutQueries, type PinnedSession } from "./max-execution-time.ts";
+import {
+  QueryTimeoutError,
+  setPinnedSessionFactory,
+  timeoutQueries,
+  type PinnedSession,
+} from "./max-execution-time.ts";
 
-type Entry = { sql: string; result: { rows?: unknown[][]; affected?: number; error?: { number: number; message: string } } };
-type Case = { name: string; seconds: number; statements: Entry[]; error: { class: string; superclass: string } | null; value: unknown };
+type Entry = {
+  sql: string;
+  result: { rows?: unknown[][]; affected?: number; error?: { number: number; message: string } };
+};
+type Case = {
+  name: string;
+  seconds: number;
+  statements: Entry[];
+  error: { class: string; superclass: string } | null;
+  value: unknown;
+};
 
 const SCRATCH_TABLE = "ws88_slow";
 const SLOW = `select sum(a.id * b.id + c.id) from ${SCRATCH_TABLE} a join ${SCRATCH_TABLE} b join ${SCRATCH_TABLE} c`;
@@ -41,7 +55,9 @@ function replaySession(statements: Entry[], sent: string[]): PinnedSession {
     if (!entry) throw new Error(`unexpected statement ${query.sql}`);
     expect(query.sql).toBe(entry.sql);
     if (entry.result.error) {
-      throw new Error(`Raw query failed. Code: \`${entry.result.error.number}\`. Message: \`${entry.result.error.message}\``);
+      throw new Error(
+        `Raw query failed. Code: \`${entry.result.error.number}\`. Message: \`${entry.result.error.message}\``,
+      );
     }
     return entry.result;
   };
@@ -74,7 +90,8 @@ describe("timeoutQueries replaying Rails", () => {
       if (c.error) {
         const error = await run.catch((e) => e);
         // Timeout::Error subclass in Rails; every other error passes through as it is.
-        if (c.error.class === "WithMaxExecutionTime::QueryTimeoutError") expect(error).toBeInstanceOf(QueryTimeoutError);
+        if (c.error.class === "WithMaxExecutionTime::QueryTimeoutError")
+          expect(error).toBeInstanceOf(QueryTimeoutError);
         else expect(error).toBeInstanceOf(ArgumentError);
       } else {
         await expect(run).resolves.toBe(c.value ?? undefined);
