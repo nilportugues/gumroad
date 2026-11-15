@@ -43,6 +43,7 @@ export type DeviceAuthorizationRow = {
   poll_count: number;
   poll_interval_seconds: number;
   approved_at: Date | null;
+  team_membership_id: number | bigint | null;
   created_at: Date;
 };
 
@@ -109,6 +110,14 @@ export async function findByUserCode(userCode: string): Promise<DeviceAuthorizat
     Prisma.sql`SELECT ${Prisma.raw("`oauth_device_authorizations`.*")} FROM ${table(DEVICE)} WHERE ${column(DEVICE, "user_code_digest")} = ${digest(normalized)} LIMIT 1`,
   );
   return row ?? null;
+}
+
+// OauthApplication#file.attached?, which makes #icon_url a CDN url.
+export async function applicationHasIcon(applicationId: number): Promise<boolean> {
+  const [row] = await selectRows<{ id: bigint }>(
+    Prisma.sql`SELECT ${column("active_storage_attachments", "id")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_type")} = 'Doorkeeper::Application' AND ${column("active_storage_attachments", "record_id")} = ${applicationId} AND ${column("active_storage_attachments", "name")} = 'file' LIMIT 1`,
+  );
+  return row !== undefined;
 }
 
 // .create_for!: a random device code and user code, retried when a digest collides.
