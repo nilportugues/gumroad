@@ -3,13 +3,22 @@
 // var() as written, so the inlined document is reparsed and every var() resolved against the
 // element's own inline custom properties, seeded by the stylesheet's :root.
 import { parseHtmlDocument } from "../../html/libxml2-parser.ts";
-import { type DocumentNode, type ElementNode, getAttribute, removeAttribute, serializeDocument, setAttribute } from "../../html/libxml2-tree.ts";
+import {
+  type DocumentNode,
+  type ElementNode,
+  getAttribute,
+  removeAttribute,
+  serializeDocument,
+  setAttribute,
+} from "../../html/libxml2-tree.ts";
+
 import { strip } from "./ruby.ts";
 
 const MAX_DEPTH = 8;
 // Ruby's \s is ASCII only; [^()] and \w match what Ruby's do.
 const VAR_PATTERN = /var\([ \t\n\v\f\r]*(--[\w-]+)[ \t\n\v\f\r]*(?:,((?:[^()]|\([^()]*\))*))?\)/gu;
-const MODERN_RGB = /\brgba?\([ \t\n\v\f\r]*(\d+(?:\.\d+)?)[ \t\n\v\f\r,]+(\d+(?:\.\d+)?)[ \t\n\v\f\r,]+(\d+(?:\.\d+)?)[ \t\n\v\f\r]*(?:[/,][ \t\n\v\f\r]*(\d*\.?\d+%?))?[ \t\n\v\f\r]*\)/gu;
+const MODERN_RGB =
+  /\brgba?\([ \t\n\v\f\r]*(\d+(?:\.\d+)?)[ \t\n\v\f\r,]+(\d+(?:\.\d+)?)[ \t\n\v\f\r,]+(\d+(?:\.\d+)?)[ \t\n\v\f\r]*(?:[/,][ \t\n\v\f\r]*(\d*\.?\d+%?))?[ \t\n\v\f\r]*\)/gu;
 
 export type CustomProperties = Map<string, string>;
 
@@ -33,7 +42,8 @@ export function resolveCustomProperties(html: string, rootVars: CustomProperties
 }
 
 // ActiveSupport's present?: not blank (whitespace only counts as blank).
-const present = (value: string | null | undefined): value is string => value !== null && value !== undefined && /[^ \t\n\v\f\r]/u.test(value);
+const present = (value: string | null | undefined): value is string =>
+  value !== null && value !== undefined && /[^ \t\n\v\f\r]/u.test(value);
 
 function resolveNode(node: ElementNode, inherited: CustomProperties): void {
   let vars = inherited;
@@ -42,8 +52,14 @@ function resolveNode(node: ElementNode, inherited: CustomProperties): void {
     const pairs = declarations(style);
     const own: CustomProperties = new Map(pairs.filter(([name]) => name.startsWith("--")));
     const scope = new Map([...inherited, ...own]);
-    vars = new Map([...inherited, ...[...own].map(([name, value]): [string, string] => [name, substitute(value, scope)])]);
-    const resolved = pairs.filter(([name]) => !name.startsWith("--")).map(([name, value]) => `${name}: ${modernize(substitute(value, vars))}`).join("; ");
+    vars = new Map([
+      ...inherited,
+      ...[...own].map(([name, value]): [string, string] => [name, substitute(value, scope)]),
+    ]);
+    const resolved = pairs
+      .filter(([name]) => !name.startsWith("--"))
+      .map(([name, value]) => `${name}: ${modernize(substitute(value, vars))}`)
+      .join("; ");
     setAttribute(node, "style", resolved);
     if (resolved === "") removeAttribute(node, "style");
   }

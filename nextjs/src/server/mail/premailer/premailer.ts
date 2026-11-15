@@ -2,6 +2,8 @@
 // Nokogiri adapter, with the options config/initializers/premailer_rails.rb sets
 // (remove_ids: false, preserve_style_attribute: true) and premailer's defaults for the rest.
 import { calculateSpecificity, CssArgumentError, CssParser, mergeRuleSets, RuleSet } from "./css-parser.ts";
+import { type CustomProperties, resolveCustomProperties, rootProperties } from "./custom-properties.ts";
+import { convertToText } from "./html-to-text.ts";
 import {
   allElements,
   appendChild,
@@ -17,14 +19,13 @@ import {
   serializeDocument,
   setAttribute,
 } from "./html.ts";
-import { type CustomProperties, resolveCustomProperties, rootProperties } from "./custom-properties.ts";
-import { convertToText } from "./html-to-text.ts";
 import { strip } from "./ruby.ts";
 import { search } from "./selector.ts";
 
 export type StylesheetLoader = (href: string) => string;
 
-const RE_UNMERGABLE_SELECTORS = /(:(visited|active|hover|focus|after|before|selection|target|first-(line|letter))|^@)/imu;
+const RE_UNMERGABLE_SELECTORS =
+  /(:(visited|active|hover|focus|after|before|selection|target|first-(line|letter))|^@)/imu;
 const RE_RESET_SELECTORS = /^(:#outlook|body[^\n]*|\.ReadMsgBody|\.ExternalClass|img|#backgroundTable)$/mu;
 
 const RELATED_ATTRIBUTES: Record<string, [string, string][]> = {
@@ -75,7 +76,9 @@ const RELATED_ATTRIBUTES: Record<string, [string, string][]> = {
 
 // AdapterHelper::RgbToHex#ensure_hex
 function ensureHex(color: string): string {
-  const m = /rgb\s*\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*(?:\/\s*\d*\.?\d*%?)?\s*\)/u.exec(color);
+  const m = /rgb\s*\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})\s*(?:\/\s*\d*\.?\d*%?)?\s*\)/u.exec(
+    color,
+  );
   if (!m) return color;
   return [m[1], m[2], m[3]].map((n) => Number.parseInt(n!, 10).toString(16).padStart(2, "0").toUpperCase()).join("");
 }
@@ -100,10 +103,13 @@ export class Premailer {
     this.doc = parseHtml(html);
     this.cssParser.addBlock(cssString);
     // load_css_from_html!: <link> tags are gone already (CSSHelper took them); <style> tags remain.
-    const tags = allElements(this.doc).filter((el) => isStylesheetLink(el) || (el.name === "style" && getAttribute(el, "data-premailer") !== "ignore"));
+    const tags = allElements(this.doc).filter(
+      (el) => isStylesheetLink(el) || (el.name === "style" && getAttribute(el, "data-premailer") !== "ignore"),
+    );
     for (const tag of tags) {
       if (tag.name === "link") {
-        if (getAttribute(tag, "href") && mediaTypeOk(getAttribute(tag, "media"))) throw new Error("premailer: a <link> stylesheet survived CSSHelper");
+        if (getAttribute(tag, "href") && mediaTypeOk(getAttribute(tag, "media")))
+          throw new Error("premailer: a <link> stylesheet survived CSSHelper");
       } else {
         this.cssParser.addBlock(serializeChildren(tag));
       }
@@ -137,14 +143,18 @@ export class Premailer {
 
     this.cssParser.eachSelector((rawSelector, declaration, specificity, mediaTypes) => {
       let selector = rawSelector.replace(/:link([ \t\n\v\f\r]*)+/giu, (_m, ws: string | undefined) => ws ?? "");
-      selector = selector.replace(/([ \t\n\v\f\r]|^)([\w]+)/gmu, (_m, pre: string, word: string) => pre + word.toLowerCase());
+      selector = selector.replace(
+        /([ \t\n\v\f\r]|^)([\w]+)/gmu,
+        (_m, pre: string, word: string) => pre + word.toLowerCase(),
+      );
 
       const mediaQuery = mediaTypes.some((mt) => (mt.match(/[()]/gu)?.length ?? 0) >= 2);
       if (mediaQuery || RE_UNMERGABLE_SELECTORS.test(selector)) {
         unmergable.addRuleSet(new RuleSet({ selectors: selector, block: declaration }), mediaTypes);
         return;
       }
-      if (RE_RESET_SELECTORS.test(selector)) unmergable.addRuleSet(new RuleSet({ selectors: selector, block: declaration }));
+      if (RE_RESET_SELECTORS.test(selector))
+        unmergable.addRuleSet(new RuleSet({ selectors: selector, block: declaration }));
       selector = selector.replace(/^#([\w_-]+)$/u, "*[@id=$1]");
 
       const matches = search(doc, selector);
@@ -218,7 +228,11 @@ export function customizedPremailer(html: string, loadStylesheet: StylesheetLoad
   return new Premailer(serializeDocument(first), css);
 }
 
-export function premailerRails(html: string, loadStylesheet: StylesheetLoader, options: { resolveCustomProperties?: boolean } = {}): PremailerResult {
+export function premailerRails(
+  html: string,
+  loadStylesheet: StylesheetLoader,
+  options: { resolveCustomProperties?: boolean } = {},
+): PremailerResult {
   const premailer = customizedPremailer(html, loadStylesheet);
   const text = premailer.toPlainText();
   return { text, html: premailer.toInlineCss(options) };

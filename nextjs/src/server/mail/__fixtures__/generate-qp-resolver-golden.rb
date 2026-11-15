@@ -85,6 +85,8 @@ CASES = [
   ["qp_trailing_whitespace", "p { color: #333 }", "<pre>trailing space \nand tab\t\nend </pre>"],
   ["qp_exact_line_lengths", "p { margin: 0 }", "<p>#{"x" * 40}</p>\n#{"y" * 72}\n#{"z" * 73}\n#{"w" * 71}é"],
   ["qp_carriage_returns", "p { margin: 0 }", "<p>one\r\ntwo\rthree</p>\r\n"],
+  ["qp_non_ascii_crlf", "p { margin: 0 }", "<p>Café</p>\r\n<p>two\rthree ✓</p>\r\n<p>last é</p>"],
+  ["qp_ascii_cr_before_link", "a { color: #00f }", "<p>one\r\n<a href=\"https://example.com/?a=1&amp;b=2\">link</a>\r</p>"],
   ["qp_entities_and_scripts", "p { margin: 0 }", "<p>a &amp; b &lt; c &nbsp; d</p><script>alert(1)</script>"],
 
   # --- custom properties --------------------------------------------------------------------------
@@ -93,6 +95,8 @@ CASES = [
   ["var_empty_fallback", "p { margin: var(--gone,) 1px; padding: var(--gone2,  ) }", "<p>empty fallback</p>"],
   ["var_nested_fallback", ":root { --a: 1px } p { margin: var(--nope, var(--a)); padding: var(--nope, calc(var(--a) + 2px)) }", "<p>nested</p>"],
   ["var_chain_and_depth", ":root { --a: var(--b); --b: var(--c); --c: 9px; --loop: var(--loop) } p { margin: var(--a); padding: var(--loop) }", "<p>chain</p>"],
+  ["var_long_chain_hits_depth_limit", ":root { #{(1..12).map { |i| "--c#{i}: var(--c#{i + 1});" }.join(" ")} --c13: 1px } p { margin: var(--c1); padding: var(--c4) }", "<p>long chain</p>"],
+  ["var_empty_value_and_empty_fallback", ":root { --empty:; --blank:   } p { margin: var(--empty) 2px; padding: var(--blank, 7px) 1px }", "<p>empty</p>"],
   ["var_inline_own_properties", ":root { --ink: #111 } p { color: var(--ink) }", '<div style="--ink: #abc; --gap: var(--ink)"><p style="margin: var(--gap)">own</p><p>inherited</p></div>'],
   ["var_own_property_only_style", ":root { --ink: #111 } p { color: var(--ink) }", '<p style="--only: 1px">only custom</p>'],
   ["var_modern_rgb", ":root { --c: rgb(1 2 3) } p { color: var(--c); background-color: rgb(4 5 6 / 50%); border-color: rgba(7 8 9 / .25); outline-color: rgb(10, 11, 12) }", "<p>rgb</p>"],
@@ -117,6 +121,9 @@ end
 DIRECT = [
   ["direct_no_var", "<p style=\"color: red\">x</p>", ":root{--a:1}"],
   ["direct_own_and_fallback", "<html><body><div style=\"--a: 2px; margin: var(--a)\"><p style=\"padding: var(--a); margin: var(--b, 5px)\">x</p></div></body></html>", ":root{--b: 9px}"],
+  ["direct_two_root_blocks", "<p style=\"margin: var(--a) var(--b)\">x</p>", ":root{--a: 1px; --b: 2px} .x{--a: 9px} :root{--a: 3px}"],
+  ["direct_empty_values", "<p style=\"margin: var(--e) 1px; padding: var(--f, 5px)\">x</p>", ":root{--e:;--f: }"],
+  ["direct_nested_fallback_parens", "<p style=\"margin: var(--no, calc(1px + (2px * 3))) var(--no2, rgb(1 2 3 / 50%))\">x</p>", ":root{--a: 1}"],
   ["direct_unclosed_and_bare_text", "<p style=\"margin: var(--a)\">one<p style=\"--a: 1px; margin: var(--a)\">two", ":root{--a: 3px}"],
 ].freeze
 direct = DIRECT.map do |name, html, css|
