@@ -2720,7 +2720,7 @@ export const JOB_REGISTRY = {
     customLockArgs: false,
     customRetryIn: false,
     retriesExhausted: false,
-    runtime: "ruby",
+    runtime: "node",
   },
   "Reports::GenerateYtdSalesReportJob": {
     file: "app/sidekiq/reports/generate_ytd_sales_report_job.rb",

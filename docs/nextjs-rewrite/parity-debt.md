@@ -1305,3 +1305,7 @@ count read before the next price) was recorded on the same tree and renders as t
 against a golden that the rest of the file no longer matches, so it stays handed back. Order to port: quoted-printable encoding and the custom-property
 resolver (one proof covers every mailer), then the guard and the free membership, then re-record the receipt golden whole.
 
+
+## `timeoutQueries` and `RepairOrderChargeOutcomesJob` (ws-shapes-88)
+
+`server/models/runtime/max-execution-time.ts` is `WithMaxExecutionTime.timeout_queries`: the block gets a single-connection Prisma client in autocommit, `sql.ts` and `transaction()` route through it while it runs, and it is closed afterwards. Proven against a real MySQL (cap, isolation from the pool, concurrent blocks, per-statement commits, release on error) and against a Rails golden of the statements. Limits: statements sent through the shared `db` directly are not covered (no job under `worker/` does that), and Rails also caps the replica role's connection, which Node, with one pool, does not have. `RepairOrderChargeOutcomesJob` runs whole in Node (21 golden cases). It hands back to Rails, before any Redis or database write, when a walk stops on its 40-page or 2,000-id budget and when a Redis read fails. The jobs that wrap `timeout_queries` and also touch money, mail or S3 are still handed back at that call.

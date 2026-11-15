@@ -247,6 +247,7 @@ import { removeDeletedFilesFromS3Job } from "./remove-deleted-files-from-s3-job.
 import { removeSuspendedAccountFollowsWorker } from "./remove-suspended-account-follows-worker.ts";
 import { renameProductFileWorker } from "./rename-product-file-worker.ts";
 import { renewCustomDomainSslCertificates } from "./renew-custom-domain-ssl-certificates.ts";
+import { repairOrderChargeOutcomesJob } from "./repair-order-charge-outcomes-job.ts";
 import {
   createCanadaMonthlySalesReportJob,
   createGlobalSalesTaxSummaryReportJob,
@@ -425,6 +426,7 @@ export const JOB_HANDLERS: Record<string, JobHandler> = {
     sendRemindersForOutstandingUserComplianceInfoRequestsWorker,
   SyncWatchedUsersJob: syncWatchedUsersJob,
   RecordOrderChargeOutcomeJob: recordOrderChargeOutcomeJob,
+  RepairOrderChargeOutcomesJob: repairOrderChargeOutcomesJob,
   OrderReviewReminderJob: orderReviewReminderJob,
   AlertOnRetiredManagedAccountActivityJob: alertOnRetiredManagedAccountActivityJob,
   AlertOnZeroBuyerCurrencyWalletPurchasesJob: alertOnZeroBuyerCurrencyWalletPurchasesJob,
