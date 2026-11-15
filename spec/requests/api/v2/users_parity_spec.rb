@@ -236,7 +236,9 @@ describe "API v2 user", type: :request do
       post "/ifttt/v1/triggers/sale", headers: auth(token_for(scopes: "ifttt"))
     end
 
-    it "hands back the sale trigger for a limit that is not a plain integer", parity: true do
+    it "reads a sale trigger limit with a leading zero as octal", parity: true do
+      product = create(:product, user: seller, name: "Sketch pack")
+      10.times { |day| purchase_row(link: product, seller:, email: "buyer#{day}@example.com", created_at: Time.utc(2024, 3, day + 1, 12)) }
       post "/ifttt/v1/triggers/sale", params: { limit: "010" }, headers: auth(token_for(scopes: "ifttt"))
     end
   end

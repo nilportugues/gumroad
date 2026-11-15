@@ -115,12 +115,33 @@ describe "Route redirects", type: :request do
       expect(response.location).to eq("https://raw.githubusercontent.com/antiwork/gumroad-cli/refs/heads/main/script/install.sh")
     end
 
-    it "hands an array query on a subscription link to Rails, which rebuilds it with to_query", parity: true do
-      expect_redirect("/subscriptions/abc/cancel_subscription?a[]=1&a[]=2", "/subscriptions/abc/manage?a%5B%5D=1&a%5B%5D=2")
+    {
+      "an array" => ["/subscriptions/abc/cancel_subscription?a[]=1&a[]=2", "/subscriptions/abc/manage?a%5B%5D=1&a%5B%5D=2"],
+      "a hash" => ["/subscriptions/abc/edit_card?a[b]=1", "/subscriptions/abc/manage?a%5Bb%5D=1"],
+      "a hash two levels deep" => ["/subscriptions/abc/edit_card?a[b][c]=1", "/subscriptions/abc/manage?a%5Bb%5D%5Bc%5D=1"],
+      "an array inside a hash" => ["/subscriptions/abc/edit_card?a[b][]=1&a[b][]=2", "/subscriptions/abc/manage?a%5Bb%5D%5B%5D=1&a%5Bb%5D%5B%5D=2"],
+      "a hash that repeats a key" => ["/subscriptions/abc/edit_card?a[b]=1&a[b]=2", "/subscriptions/abc/manage?a%5Bb%5D=2"],
+      "percent-encoded brackets" => ["/subscriptions/abc/edit_card?a%5Bb%5D=1", "/subscriptions/abc/manage?a%5Bb%5D=1"],
+      "a hash beside plain keys" => ["/subscriptions/abc/edit_card?z=1&a[c]=2&a[b]=3&a-b=4&a_b=5", "/subscriptions/abc/manage?a%5Bb%5D=3&a%5Bc%5D=2&a-b=4&a_b=5&z=1"],
+      "a hash with an empty value" => ["/subscriptions/abc/edit_card?a[b]=&c[]=", "/subscriptions/abc/manage?a%5Bb%5D=&c%5B%5D="],
+      "a hash with spaces and symbols" => ["/subscriptions/abc/edit_card?a[b c]=x+y&a[d]=%26", "/subscriptions/abc/manage?a%5Bb+c%5D=x+y&a%5Bd%5D=%26"],
+    }.each do |name, (from, to)|
+      it "answers a query holding #{name} on a subscription link with the query rebuilt by to_query", parity: true do
+        expect_redirect(from, to)
+      end
     end
 
-    it "hands a nested query on a subscription link to Rails, which rebuilds it with to_query", parity: true do
-      expect_redirect("/subscriptions/abc/edit_card?a[b]=1", "/subscriptions/abc/manage?a%5Bb%5D=1")
+    {
+      "a plain key and a list under one name" => ["/subscriptions/abc/edit_card?a=1&a[]=2", 400],
+      "a list and a hash under one name" => ["/subscriptions/abc/edit_card?a[]=1&a[b]=2", 400],
+      "a list of hashes" => ["/subscriptions/abc/edit_card?a[][b]=1", 301],
+      "an unclosed bracket" => ["/subscriptions/abc/edit_card?a[b=1", 301],
+    }.each do |name, (from, status)|
+      it "hands #{name} on a subscription link to Rails", parity: true do
+        get from
+
+        expect(response).to have_http_status(status)
+      end
     end
 
     it "answers /users/sign_in with the query string kept", parity: true do

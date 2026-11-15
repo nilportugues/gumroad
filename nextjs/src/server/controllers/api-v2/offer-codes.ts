@@ -258,7 +258,7 @@ export function validityPeriodOf(params: Params): ValidityPeriod {
 }
 
 // ApplicationController#set_paper_trail_whodunnit and #info_for_paper_trail: a token request holds no session, so nobody is the whodunnit.
-const withVersions = <T>({ request }: ApiV2Input, run: () => Promise<T>) =>
+export const withVersions = <T>({ request }: ApiV2Input, run: () => Promise<T>) =>
   withPaperTrailRequest(
     {
       whodunnit: null,
@@ -354,6 +354,24 @@ async function update(input: ApiV2Input) {
 }
 
 const DELETED_AT_PRECISION_MS = 1000;
+
+// `upsell.offer_code.mark_deleted` for the discount code of an upsell the API deletes: a plain code whose only upsell is this one. A save
+// the validations refuse leaves the upsell deletion going in Rails, and writes nothing, so it hands back.
+export async function deleteUpsellOfferCode(offerCodeId: bigint, upsellId: bigint): Promise<void> {
+  const [found] = await selectRows(
+    Prisma.sql`SELECT ${table(OFFER_CODES)}.* FROM ${table(OFFER_CODES)} WHERE ${column(OFFER_CODES, "id")} = ${offerCodeId} AND ${alive} LIMIT 1`,
+  );
+  if (found === undefined) throw new HandBackToRails("an upsell whose discount code is missing or deleted");
+  const row = castRow<OfferCode>("OfferCode", found);
+  await assertPlainCode(row, upsellId);
+  if (row.universal) throw new HandBackToRails("an upsell with a universal discount code");
+  await assertPlainProducts(await productsOfOfferCode(row.id));
+  const record = loadOfferCode(row);
+  const now = new Date();
+  const deletedAt = new Date(Math.floor(now.getTime() / DELETED_AT_PRECISION_MS) * DELETED_AT_PRECISION_MS);
+  if (!(await OfferCodes.update(record, { deleted_at: deletedAt }, { now: () => now })))
+    throw new HandBackToRails("an upsell whose discount code no longer validates");
+}
 
 async function destroy(input: ApiV2Input) {
   const { row } = await writableCode(input);

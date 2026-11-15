@@ -62,7 +62,14 @@ export type ApiV2Route = {
   rawJsonBody?: boolean;
   // Top-level keys the action reads from the raw body, whose nulls Rails' deep munge would drop from `params`: they are left out of the params.
   rawJsonKeys?: string[];
-  preAuth?(input: Pick<ApiV2Input, "request" | "url" | "params" | "rawBody">): void | Promise<void>;
+  // A body that is certainly not JSON stays out of the params, for a route whose preAuth answers it (Rails' prepended parse filter).
+  answersNonJson?: boolean;
+  // A returned result answers the request ahead of authentication.
+  /* eslint-disable @typescript-eslint/no-invalid-void-type -- the existing preAuth hooks return nothing */
+  preAuth?(
+    input: Pick<ApiV2Input, "request" | "url" | "params" | "rawBody">,
+  ): void | ActionResult | Promise<void | ActionResult>;
+  /* eslint-enable @typescript-eslint/no-invalid-void-type */
   run(input: ApiV2Input): ActionResult | Promise<ActionResult>;
 };
 
@@ -167,7 +174,13 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
 
   let params: Params;
   try {
-    params = { ...(route.rawJsonBody ? rawJsonParams(url, request.headers.get("content-type"), bytes, route.rawJsonKeys) : requestParams(url, request.headers.get("content-type"), bytes)), ...routeParams };
+    params = { ...(route.rawJsonBody ? rawJsonParams(
+            url,
+            request.headers.get("content-type"),
+            bytes,
+            route.rawJsonKeys,
+            route.answersNonJson,
+          ) : requestParams(url, request.headers.get("content-type"), bytes)), ...routeParams };
   } catch (error) {
     if (error instanceof HandBackToRails) return handBack(request, error);
     throw error;
@@ -180,7 +193,8 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
 
   return processAction(request, mutating && !route.keepSession ? { bare: true } : {}, async ({ request: railsReq }) => {
     try {
-      await route.preAuth?.({ request: railsReq, url, params, rawBody: bytes });
+      const early = await route.preAuth?.({ request: railsReq, url, params, rawBody: bytes });
+      if (early) return { ...early, rescued: true };
       let token: OauthAccessToken | null = null;
       let owner: User | null = null;
       if (!route.anonymous) {
@@ -218,7 +232,13 @@ export async function apiV2Response(incoming: Request): Promise<Response> {
 
 // For a `rawJsonBody` route: params are the query string, plus the body when it is an object. A JSON array or scalar is what the
 // action reads from the raw body, so it is not params. Any other body that fails to parse still hands back.
-function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array, rawKeys: string[] = []): Params {
+function rawJsonParams(
+  url: URL,
+  contentType: string | null,
+  bytes: Uint8Array,
+  rawKeys: string[] = [],
+  answersNonJson = false,
+): Params {
   try {
     return requestParams(url, contentType, bytes);
   } catch (error) {
@@ -227,6 +247,8 @@ function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array, 
     try {
       parsed = JSON.parse(Buffer.from(bytes).toString("utf8"));
     } catch {
+      if (answersNonJson && isCertainlyNotJson(Buffer.from(bytes).toString("utf8")))
+        return parseNestedQuery(url.search.replace(/^\?/u, ""));
       throw error;
     }
     if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
@@ -235,6 +257,18 @@ function rawJsonParams(url: URL, contentType: string | null, bytes: Uint8Array, 
       return requestParams(url, contentType, new TextEncoder().encode(JSON.stringify(rest)));
     }
     return parseNestedQuery(url.search.replace(/^\?/u, ""));
+  }
+}
+
+// JavaScript rejects it and so does Ruby's JSON.parse. Ruby also reads comments, unknown backslash escapes and (as replacement
+// characters) bytes JavaScript cannot decode, so a text holding any of those is not certain.
+export function isCertainlyNotJson(text: string): boolean {
+  if (/[/\\\0\uFFFD]/u.test(text)) return false;
+  try {
+    JSON.parse(text);
+    return false;
+  } catch {
+    return true;
   }
 }
 

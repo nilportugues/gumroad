@@ -84,14 +84,14 @@ describe "Purchase invoices", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands an email that is a list to Rails", parity: true do
+    it "asks for the email again when it is a list", parity: true do
       confirm(email: [email])
 
       expect(response).to have_http_status(:found)
       expect(flash[:alert]).to eq("Incorrect email address. Please try again.")
     end
 
-    it "hands an email that is a number to Rails", parity: true do
+    it "asks for the email again when it is a number", parity: true do
       confirm(email: 42)
 
       expect(response).to have_http_status(:found)

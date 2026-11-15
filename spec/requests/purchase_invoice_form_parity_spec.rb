@@ -120,13 +120,13 @@ describe "Purchase invoice form", type: :request do
     expect(response).to be_successful
   end
 
-  it "hands an email that is a list to Rails", parity: true do
+  it "redirects an email that is a list to the confirmation form", parity: true do
     get "/purchases/#{purchase.external_id}/invoice/new?email[]=#{email}"
 
     expect(response).to redirect_to(confirm_location)
   end
 
-  it "hands a purchase without an email to Rails", parity: true do
+  it "renders the form of a purchase whose email is empty", parity: true do
     purchase.update_column(:email, "")
 
     get "/purchases/#{purchase.external_id}/invoice/new", params: { email: "" }
@@ -134,7 +134,7 @@ describe "Purchase invoice form", type: :request do
     expect(response).to have_http_status(:ok)
   end
 
-  it "hands a request that does not ask for HTML to Rails", parity: true do
+  it "answers 404 to a request that does not ask for HTML", parity: true do
     get "/purchases/#{purchase.external_id}/invoice/new", params: { email: }, headers: { "Accept" => "application/json" }
 
     expect(response).to have_http_status(:not_found)

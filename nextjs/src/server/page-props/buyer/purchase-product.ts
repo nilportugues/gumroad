@@ -14,8 +14,7 @@ import {
   type Chain,
   type FilterOutcome,
 } from "../../controllers/application-controller.ts";
-import { requireHtml } from "../../controllers/buyer-pages.ts";
-import { assertFlatQuery } from "../../controllers/rails-params.ts";
+import { assertFlatQuery, requestFormat } from "../../controllers/rails-params.ts";
 import { parseQuery } from "../../controllers/rails-query.ts";
 import { LinkFlags } from "../../models/link.ts";
 import { loadSellerContext } from "../../policies/seller-context.ts";
@@ -38,7 +37,7 @@ const safeDecode = (value: string) => {
 };
 
 async function productFilters(chain: Chain): Promise<FilterOutcome> {
-  requireHtml(chain);
+  const html = chain.request.headers.has("x-inertia") || requestFormat(chain.request) === "html";
   assertFlatQuery(chain.request.queryString);
   // set_purchase: `Purchase.find_by_external_id(params[:purchase_id]) || e404`
   const externalId = PRODUCT_PATH.exec(chain.request.path)?.[1];
@@ -104,6 +103,11 @@ async function productFilters(chain: Chain): Promise<FilterOutcome> {
       purchase: null,
       custom_styles: await sellerCustomStyles(seller as unknown as Parameters<typeof sellerCustomStyles>[0]),
     };
+    // The props are built before the render, which a signed-out request that does not ask for HTML cannot complete: 404.
+    if (!html) {
+      if (user !== null) throw new HandBackToRails("a signed-in request that is not HTML");
+      throw new RoutingError("Not Found");
+    }
     return { state: { [STATE_KEY]: built } };
   } catch (error) {
     if (error instanceof NotPortedError) throw new HandBackToRails(error.message);
