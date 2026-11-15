@@ -321,7 +321,7 @@ describe("a membership's first receipt", () => {
 
   it("refuses what renders other sections", () => {
     const refusals = [
-      member({}, { charge_occurrence_count: 12 }),
+      member({}, { charge_occurrence_count: 1 }),
       member({}, { flags: 1 << 6 }),
       member({}, { flags: 1 << 0 }),
       member({ flags: 0 }),
