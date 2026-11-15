@@ -127,7 +127,8 @@ const MONTHS = [
   "December",
 ];
 
-type Options = { now?: () => Date };
+// afterSave: records Rails autosaves with the user (a comment built on `user.comments`), inside the transition's transaction.
+type Options = { now?: () => Date; afterSave?: () => Promise<unknown> };
 type Transition = {
   event: RiskEvent;
   from: string | null;
@@ -213,6 +214,7 @@ async function fire(
         user.set("user_risk_state", from);
         return false;
       }
+      await options.afterSave?.();
       await runAfterCallbacks(user, transition);
       return true;
     },

@@ -1,10 +1,10 @@
 {
   "version": 1,
   "spec": "spec/requests/api/internal/admin_user_write_guards_parity_spec.rb",
-  "example": "Internal admin API user write guards POST suspend_for_fraud hands a suspension of a verified account to Rails",
+  "example": "Internal admin API user write guards POST restore_bank_payout_rail refuses a removed rail when neither the seller nor the Stripe account has a country",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-14",
+  "recordedOn": "2026-11-15",
   "exchanges": [
     {
       "seed": {
@@ -27,8 +27,8 @@
             ],
             "rows": [
               {
-                "id": 2,
-                "external_id": "PW2VRwYmX2yRAtyA_WyUH",
+                "id": 1,
+                "external_id": "iGCRX20uxMmv5mTqZEasx",
                 "actor_user_id": 1,
                 "token_hash": "556df7802496ca6bad369f16626e35718ff614f73063b1ffa3728c9f8709b2f3",
                 "last_used_at": null,
@@ -80,6 +80,96 @@
                 "flags": 0,
                 "destination_url": null,
                 "type": "GlobalAffiliate"
+              }
+            ]
+          },
+          "bank_accounts": {
+            "columns": {
+              "id": "int",
+              "user_id": "int",
+              "bank_number": "varchar",
+              "account_number": "blob",
+              "state": "varchar",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "account_number_last_four": "varchar",
+              "account_holder_full_name": "varchar",
+              "deleted_at": "datetime",
+              "type": "varchar",
+              "branch_code": "varchar",
+              "account_type": "varchar",
+              "stripe_bank_account_id": "varchar",
+              "stripe_fingerprint": "varchar",
+              "stripe_connect_account_id": "varchar",
+              "country": "varchar",
+              "credit_card_id": "int"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 2,
+                "bank_number": "HDFC0004051",
+                "account_number": {
+                  "$base64": "iR4hM8dlMy2p39oiyt2IKg6KYB0Z3oRXl4FHUfPDjnnUQxj1UhfYpXkb53ifUcYU7332IiToZDtFACMaP0DxV7SRpki0Oxbub9ExgHJz5evyg/WhT48ke5EPVvseWInJ0Jsp+ye0kvwQIx3eZ31do2mmMDAvLFTLRBEBxFNtYWpp/f9aX3Uk5W0M6yo+XT3Uq34Paw+F2UHBQ6TAY3XjuPJy2KMv9fDU/VodBkcdSMxfTxqrJtVI7Okkrs0vMikNO9btJPovd0u49SVXPvh9uDLUnQq9sLayl6VbWOXJspf4QOQwagC+YIt6w5OGdvlZUZD7SdPuTb3mDaKQs4x0uA=="
+                },
+                "state": "unverified",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "account_number_last_four": "6789",
+                "account_holder_full_name": "Gumbot Gumstein I",
+                "deleted_at": "<now-48h>",
+                "type": "IndianBankAccount",
+                "branch_code": null,
+                "account_type": null,
+                "stripe_bank_account_id": null,
+                "stripe_fingerprint": null,
+                "stripe_connect_account_id": "000000004",
+                "country": null,
+                "credit_card_id": null
+              }
+            ]
+          },
+          "merchant_accounts": {
+            "columns": {
+              "id": "bigint",
+              "user_id": "bigint",
+              "acquirer_id": "varchar",
+              "acquirer_merchant_id": "varchar",
+              "charge_processor_id": "varchar",
+              "charge_processor_merchant_id": "varchar",
+              "json_data": "text",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "deleted_at": "datetime",
+              "charge_processor_verified_at": "datetime",
+              "country": "varchar",
+              "currency": "varchar",
+              "charge_processor_deleted_at": "datetime",
+              "charge_processor_alive_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "user_id": 2,
+                "acquirer_id": null,
+                "acquirer_merchant_id": null,
+                "charge_processor_id": "stripe",
+                "charge_processor_merchant_id": "000000004",
+                "json_data": "{}",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "deleted_at": "<now-48h>",
+                "charge_processor_verified_at": null,
+                "country": null,
+                "currency": "usd",
+                "charge_processor_deleted_at": "<now-48h>",
+                "charge_processor_alive_at": "<now>"
               }
             ]
           },
@@ -196,19 +286,19 @@
               {
                 "id": 1,
                 "email": "admin@example.com",
-                "encrypted_password": "$2a$04$GnzKrcLdlsOGlVHDliMDDOQtw6AN0gKR1VwzhvyDInsCgsJxYZeVa",
+                "encrypted_password": "$2a$04$VD94dvm2Rty2uBr4a/FmFOkJ5Yqpn1EFsJix3hJ.hjVTlQMXo19Me",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "168.154.45.8",
-                "last_sign_in_ip": "143.90.83.3",
+                "current_sign_in_ip": "188.27.27.91",
+                "last_sign_in_ip": "249.219.35.149",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Admin User",
-                "payment_address": "edgard77e4bef_1@gumroad.com",
+                "payment_address": "edgarcff7b5e9_132@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -220,7 +310,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgara7d706351",
+                "username": "edgara725f827131",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -233,8 +323,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "5821252126632",
-                "account_created_ip": "139.45.117.52",
+                "external_id": "615881372712",
+                "account_created_ip": "224.213.6.131",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -252,7 +342,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "UWRZ3PWTU3N6V4JBOGQAYL4I73QQDCYC",
+                "otp_secret_key": "P7OGEILWHE4AT4J3VXB4N5QCTADRXVU5",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -264,19 +354,19 @@
               {
                 "id": 2,
                 "email": "subject@example.com",
-                "encrypted_password": "$2a$04$snlCCDr.EdEJFqgMpT612eshUI57xzOt1elDEAnPSWGR.jRkUq9Gq",
+                "encrypted_password": "$2a$04$F6dxmd67EAPxYnXduHM11OKmJDY1HZQKswM0MUIjEJicA9xe8N2ji",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "95.91.3.98",
-                "last_sign_in_ip": "96.134.190.246",
+                "current_sign_in_ip": "141.68.173.221",
+                "last_sign_in_ip": "34.7.185.64",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "name": "Subject User",
-                "payment_address": "edgar6a182339_2@gumroad.com",
+                "payment_address": "edgarf6275fc6_133@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -288,7 +378,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgar4a0bbcc32",
+                "username": "edgar416e2cc9132",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -297,12 +387,12 @@
                 "zip_code": null,
                 "street_address": null,
                 "facebook_access_token": null,
-                "verified": 1,
+                "verified": null,
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "3438912216961",
-                "account_created_ip": "158.119.21.195",
+                "external_id": "7535138315738",
+                "account_created_ip": "246.93.148.28",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -320,7 +410,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "CAO4JNEIGTBKMHLW4HPASOUEUUI2ENAF",
+                "otp_secret_key": "R3X4DDC24BD47WLECQL5IMH2DKRQYFOV",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -333,12 +423,11 @@
           }
         },
         "autoIncrement": {
-          "admin_api_audit_logs": 2,
-          "admin_api_tokens": 3,
+          "admin_api_tokens": 2,
           "affiliates": 3,
-          "comments": 2,
+          "bank_accounts": 2,
+          "merchant_accounts": 2,
           "refund_policies": 3,
-          "seller_profiles": 2,
           "users": 3
         }
       },
@@ -380,7 +469,7 @@
       "request": {
         "source": "request",
         "method": "POST",
-        "path": "/internal/admin/users/suspend_for_fraud",
+        "path": "/internal/admin/users/restore_bank_payout_rail",
         "headers": {
           "accept": "application/json",
           "authorization": "Bearer per-actor-token",
@@ -388,7 +477,7 @@
           "host": "api.test.gumroad.com:31337"
         },
         "remoteIp": "127.0.0.1",
-        "body": "{\"user_id\":\"3438912216961\"}"
+        "body": "{\"user_id\":\"7535138315738\"}"
       },
       "response": {
         "status": 422,
@@ -406,13 +495,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "uTvpBIaIasY40eqLaBmvh1nBPALnFsm5bLxL-UvvGgEKA1-tmNWKVxpEexcSj38FaTB1_I3rfEznkkqDR0Y4mQ",
+            "value": "1qyL8PHjxaerTVwcaApyPmBNYyeBf9iZ0gC4IdxYmKKhvR0zSu-bNageA9Y0xb1Z1DZV4aXP4SM8ZpST99_jmg",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "IFcg2OmpkJ4xByHNJLqXrkwPpbG2MIEYIkI0XFxsvia/JCmbM7HwPHhMnCZ70t5uZ44+5C8r6Cku2Mh2j7gV3SA/9UzNChct16iu1+WTGWbnsBlpBOeZsv5XUJNgQPuyqZaXcXkAJ/xsOWGUr97VyUFUqogFgSprx67m5ENJxRDeSNXJLzXdTaWcBYp4AzTehATgvbhvjzYZN+nl6oYNvEBXuFnJr08NlMMyaNm5OioT3Cknrn7qPIb78kRcKeJcQYiUg5fbWo24AD0Qewv6b5tmgqGtA1O5f6KPL30IGmTPKviwgJx4LI+MFj39kNF12rcUck++YByQyP95m6QdO0dqn2afydQ7WAaaEQfLwF/BAMbiBxqAoNzdXeASqsqSLZww--vGHNAy7Aslt4US8b--GsR5M1W0yOmXwDg0tF8S4g==",
+            "value": "AlyQBsouKTr+VSCOyezdgzK8fYvS8HPCMHg5LWaw6hYTsUAuuFgp482Vu4VgcRRzasmPl4EmVXdazNqVJ8jXJtH5pDnbvWGxYQQyXVyoZqps5DXSu6WqFZRBlqUy4V3rITX/J+fO/gD1FHndLfEiCuF5Q9pAp8faNMSJVZn58VrDgKU09O3TtUPKQDwzxPFCJCeMx8+95fd04/mwGSvjHr5tc8LrH0LKlS9B7dTzd4hkZpV39lSDmDWKZW8GkXy6420x9TSpeMq4NXC463o3bnaqZ21RHxEW80/fmiLsLp2X/ewwlhXMwsglGDi2S2pXblezR1pAU4JWcHORzOqGMaiLbclAq7NtBhNonyoYNd2arZxKL6wFuf0PJCNsaLVPAakn--m9UjU8n715MesHif--Z467HReC7cmRw+nXJ2aPrA==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -430,24 +519,24 @@
         },
         "json": {
           "success": false,
-          "message": "Cannot transition user_risk_state via :suspend_for_fraud from :not_reviewed (Reason(s): Transition halted)"
+          "message": "The removed bank rail does not match the seller's current country"
         }
       },
       "db": {
         "admin_api_audit_logs": {
           "inserted": [
             {
-              "id": 2,
+              "id": 1,
               "actor_user_id": 1,
-              "admin_api_token_id": 2,
-              "action": "users.suspend_for_fraud",
+              "admin_api_token_id": 1,
+              "action": "users.restore_bank_payout_rail",
               "target_type": "User",
               "target_id": 2,
-              "target_external_id": "3438912216961",
-              "route": "/internal/admin/users/suspend_for_fraud",
+              "target_external_id": "7535138315738",
+              "route": "/internal/admin/users/restore_bank_payout_rail",
               "http_method": "POST",
-              "params_snapshot": "{\"user\": {}, \"user_id\": \"3438912216961\"}",
-              "request_id": "041568d0-dfe5-4383-a873-b62ad93a3701",
+              "params_snapshot": "{\"user\": {}, \"user_id\": \"7535138315738\"}",
+              "request_id": "b78b744b-97ba-4ae2-8d6b-eb7867540191",
               "response_status": 422,
               "error_class": null,
               "created_at": "<now>"
@@ -458,7 +547,7 @@
           "updated": [
             {
               "key": {
-                "id": 2
+                "id": 1
               },
               "changes": {
                 "last_used_at": [

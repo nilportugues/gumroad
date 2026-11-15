@@ -1,19 +1,24 @@
 // Api::Internal::Admin::UsersController: the writes that send mail, move a user through the risk state machine, queue a refund job or
 // create a credit. Each answers its parameter and lookup refusals and the branches that change nothing (an account already in the
 // state asked for, a refund whose expected figures are off), then hands the write back to Rails whole before the first change.
-// The two-factor toggle and the plain risk transitions (mark compliant, suspend) run here: a verified account and an admin note
-// still go to Rails.
+// The two-factor toggle and the risk transitions (mark compliant, suspend), with or without an admin note, run here.
+import type { Comment } from "@prisma/client";
+
 import { db } from "../../../lib/db.ts";
 import { rubyStrip } from "../../content-moderation/ruby.ts";
+import { COMMENT_TYPES, Comments } from "../../models/comment.ts";
+import { isStripeConnectAccount, STRIPE_CHARGE_PROCESSOR_ID } from "../../models/merchant-account.ts";
+import { fetchOrBuildComplianceInfo, legalEntityCountryCode } from "../../models/user-compliance-info.ts";
 import { fireRiskEventBang, InvalidTransition, SuspensionClearNotAuthorizedError } from "../../models/user-risk.ts";
 import { findUserBang, NotPortedError, setFlag, Users } from "../../models/user.ts";
+import { nativePayoutsSupported } from "../../page-props/signed-in/data.ts";
 
 import { failure, isBlank, jsonRendered, paramToS, recordAdminWrite, type AdminRequest } from "./base.ts";
 import { emailFormatValid } from "./email-format.ts";
 import { handBack } from "./hand-back.ts";
 import { idFromExternalId, textParam } from "./products.ts";
 import { defineAdminRoute } from "./registry.ts";
-import { findUserForWrite, USER_ID_REQUIRED_MESSAGE } from "./user-writes.ts";
+import { findUserForWrite, toSentence, USER_ID_REQUIRED_MESSAGE } from "./user-writes.ts";
 import { unpaidBalanceSummary } from "./users-reads.ts";
 
 const SOURCE = "app/controllers/api/internal/admin/users_controller.rb";
@@ -96,8 +101,9 @@ const alreadySuspended = (state: string, message: string) => (user: Looked) =>
     current === state ? jsonRendered(ok(user, { status: "already_suspended", message })) : null,
   );
 
-// A verified account halts a suspension with a different InvalidTransition, and a note is a second write ordered around the
-// transition: both stay with Rails, before anything is written.
+// The admin note rides beside the transition: Rails builds it on `user.comments` and answers 422 for an invalid one before anything is
+// written. The transition's save autosaves it, so it is inserted ahead of the comment the transition writes after it. A verified
+// account halts a suspension inside the transition, which answers 422 like any other InvalidTransition.
 async function riskTransition(
   user: Looked,
   admin: AdminRequest,
@@ -106,18 +112,89 @@ async function riskTransition(
   params: { clear_suspension?: boolean },
   answer: Record<string, unknown>,
 ) {
-  if (!isBlank(admin.params[noteParam])) await handBack("an admin note beside the transition", SOURCE);
+  const content = admin.params[noteParam];
+  if (!isBlank(content) && typeof content !== "string") await handBack("an admin note that is not text", SOURCE);
+  const note = isBlank(content)
+    ? null
+    : Comments.build({
+        commentable_id: user.id,
+        commentable_type: "User",
+        comment_type: noteParam === "note" ? COMMENT_TYPES.NOTE : COMMENT_TYPES.SUSPENSION_NOTE,
+        author_id: admin.admin.actor.id,
+        content: content as string,
+      } as Partial<Comment>);
+  if (note !== null && !(await Comments.valid(note))) return failure(toSentence(note.errors.fullMessages()), 422);
   const record = await findUserBang(user.id);
-  if (event !== "mark_compliant" && record.get("verified"))
-    await handBack("a suspension of a verified account", SOURCE);
   try {
-    await fireRiskEventBang(record, event, { author_id: admin.admin.actor.id, ...params });
+    await fireRiskEventBang(
+      record,
+      event,
+      { author_id: admin.admin.actor.id, ...params },
+      note === null ? {} : { afterSave: () => Comments.saveBang(note) },
+    );
   } catch (error) {
     if (error instanceof InvalidTransition) return failure(error.message, 422);
     if (error instanceof SuspensionClearNotAuthorizedError) return failure(error.message, 409);
     throw error;
   }
   return jsonRendered(ok(user, answer));
+}
+
+const RESTORE_REFUSALS = {
+  rail_recreatable: "This seller can add a bank account themselves; no restore needed",
+  bank_account_already_active: "User already has an active bank account",
+  no_deleted_bank_account: "No removed bank account to restore",
+  no_deleted_merchant_account: "No removed Stripe account matches the bank account",
+  retired_by_adoption:
+    "The bank rail was removed when a Google or Apple sign-in took over the account, so it cannot be restored",
+  incompatible_bank_rail: "The removed bank rail does not match the seller's current country",
+} as const;
+
+const CARD_BANK_ACCOUNT = "CardBankAccount";
+
+// The refusals RestoreBankPayoutRail#process reaches before it asks Stripe about the account, or null when the request would get that
+// far. The country check also compares the bank account's own country (a per-class constant), so it refuses only where the merchant
+// account already differs or the seller has none, and hands the rest back whole.
+async function restoreRefusal(userId: bigint): Promise<string | null> {
+  const info = await fetchOrBuildComplianceInfo(userId);
+  const country = info.persisted ? legalEntityCountryCode(info.row) : null;
+  // User#can_create_bank_payout_rail?
+  if ((nativePayoutsSupported(info.persisted ? info.row : null) && country !== "IN") || country === "AE")
+    return RESTORE_REFUSALS.rail_recreatable;
+  if ((await db.bankAccount.count({ where: { user_id: Number(userId), deleted_at: null } })) > 0)
+    return RESTORE_REFUSALS.bank_account_already_active;
+  const bank = await db.bankAccount.findFirst({
+    where: { user_id: Number(userId), deleted_at: { not: null }, NOT: { type: CARD_BANK_ACCOUNT } },
+    orderBy: { deleted_at: "desc" },
+    select: { stripe_connect_account_id: true },
+  });
+  if (bank === null) return RESTORE_REFUSALS.no_deleted_bank_account;
+  const merchantAccounts =
+    bank.stripe_connect_account_id === null
+      ? []
+      : await db.merchantAccount.findMany({
+          where: {
+            user_id: userId,
+            deleted_at: { not: null },
+            charge_processor_id: STRIPE_CHARGE_PROCESSOR_ID,
+            charge_processor_merchant_id: bank.stripe_connect_account_id,
+          },
+          orderBy: { id: "asc" },
+        });
+  const merchant = merchantAccounts.find((account) => !isStripeConnectAccount(account));
+  if (merchant === undefined || isBlank(merchant.charge_processor_merchant_id))
+    return RESTORE_REFUSALS.no_deleted_merchant_account;
+  if (retiredByAdoption(merchant.json_data)) return RESTORE_REFUSALS.retired_by_adoption;
+  if (isBlank(country) || merchant.country !== country) return RESTORE_REFUSALS.incompatible_bank_rail;
+  return null;
+}
+
+// MerchantAccount#retired_by_adoption?
+function retiredByAdoption(jsonData: string | null): boolean {
+  if (isBlank(jsonData)) return false;
+  const data: unknown = JSON.parse(jsonData!);
+  if (data === null || typeof data !== "object" || Array.isArray(data)) throw new Error("json_data must be a hash");
+  return !isBlank((data as Record<string, unknown>).retired_by_adoption_at);
 }
 
 const suspension = (
@@ -313,6 +390,21 @@ defineAdminRoute(
   {
     method: "POST",
     pattern: "/internal/admin/users/restore_bank_payout_rail",
-    run: forUser("users.restore_bank_payout_rail", "a bank payout restore"),
+    run: forUser("users.restore_bank_payout_rail", "a bank payout restore", async (user, admin) => {
+      const content = admin.params.note;
+      if (!isBlank(content) && typeof content !== "string") await handBack("an admin note that is not text", SOURCE);
+      if (!isBlank(content)) {
+        const note = Comments.build({
+          commentable_id: user.id,
+          commentable_type: "User",
+          comment_type: COMMENT_TYPES.NOTE,
+          author_id: admin.admin.actor.id,
+          content: content as string,
+        } as Partial<Comment>);
+        if (!(await Comments.valid(note))) return failure(toSentence(note.errors.fullMessages()), 422);
+      }
+      const refusal = await restoreRefusal(user.id);
+      return refusal === null ? null : failure(refusal, 422);
+    }),
   },
 );

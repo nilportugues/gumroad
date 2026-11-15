@@ -5,7 +5,7 @@ require "spec_helper"
 # The OAuth device flow, recorded for the Next.js port (PARITY_RECORD=1) and replayed by
 # nextjs/parity/__tests__/oauth-device-flow.replay.test.ts: POST /oauth/device/code, the device-code grant of POST /oauth/token, and the
 # signed-out sides of GET and POST /oauth/device. The codes are random, so the replay checks their digests against the row. An example
-# named "hands ..." is one Node leaves to Rails: the confirmation page is an ERB view in the application layout.
+# named "hands ..." is one Node leaves to Rails: the approval page for a signed-in visitor.
 describe "OAuth device flow", type: :request do
   include Parity::SignedInDashboard
 
@@ -390,34 +390,63 @@ describe "OAuth device flow", type: :request do
       expect(response).to have_http_status(:found)
     end
 
-    it "hands a visit with no code back to Rails", parity: true do
+    it "renders the code form for a visit with no code", parity: true do
       get "/oauth/device"
 
       expect(response).to have_http_status(:ok)
+      expect(response.headers["X-Robots-Tag"]).to eq("noindex")
+      expect(response.body).to include("Enter device code")
+      expect(response.body).not_to include("This code")
     end
 
-    it "hands an unknown code back to Rails", parity: true do
+    it "renders the invalid message for an unknown code", parity: true do
       get "/oauth/device", params: { user_code: "GRD-AAAA-BBBB" }
 
       expect(response).to have_http_status(:ok)
+      expect(response.body).to include("<p>This code is invalid.</p>")
     end
 
-    it "hands an expired code back to Rails", parity: true do
+    it "renders the expired message for an expired code", parity: true do
       authorization, _device_code, user_code = pending_authorization
       authorization.update_columns(expires_at: 1.minute.ago)
 
       get "/oauth/device", params: { user_code: }
 
       expect(response).to have_http_status(:ok)
+      expect(response.body).to include("<p>This code has expired.</p>")
     end
 
-    it "hands the code of an application that closed device authorization back to Rails", parity: true do
+    it "renders the invalid message for the code of an application that closed device authorization", parity: true do
       _authorization, _device_code, user_code = pending_authorization
       device_app.update_columns(device_authorization_enabled: false)
 
       get "/oauth/device", params: { user_code: }
 
       expect(response).to have_http_status(:ok)
+      expect(response.body).to include("<p>This code is invalid.</p>")
+    end
+
+    it "renders the invalid or expired message for a code that is no longer pending", parity: true do
+      _authorization, _device_code, user_code = approved_authorization
+
+      get "/oauth/device", params: { user_code: }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("<p>This code is invalid or expired.</p>")
+    end
+
+    it "renders the code form for a handoff the session does not know", parity: true do
+      get "/oauth/device", params: { handoff: "unknown-handoff" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Enter device code")
+    end
+
+    it "renders the escaped, normalized code the visitor typed", parity: true do
+      get "/oauth/device", params: { user_code: "grd aaaa-bbbb<b>" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include('value="GRD-AAAA-BBBB-B"')
     end
 
     it "hands a signed-in visitor back to Rails", parity: true do
