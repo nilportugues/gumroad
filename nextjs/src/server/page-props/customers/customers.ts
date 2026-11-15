@@ -695,6 +695,12 @@ async function load(ids: string[], seller: User, variantOrder: VariantOrder = "j
   };
 }
 
+// PurchasingPowerParityInfo#factor reads the stored whole percent divided by 100.0; a nil raises in Rails.
+function pppDiscount(storedPercent: unknown): string {
+  if (storedPercent == null) throw new HandBackToRails();
+  return `${Math.round((1 - num(storedPercent) / 100) * 100)}%`;
+}
+
 // Ruby's `Integer#to_i` on a json_data cell: nil is 0, and a value the port cannot read as a number is Rails' to answer.
 function jsonInteger(value: unknown): number {
   if (value == null) return 0;
@@ -1117,7 +1123,7 @@ async function customerJson(purchase: Row, { sellerUsername, sellerContext, load
     is_multiseat_license: flags("is_multiseat_license"),
     referrer: displayReferrer(purchase, sellerUsername),
     is_additional_contribution: flags("is_additional_contribution"),
-    ppp: ppp ? { country: purchase.ip_country, discount: `${Math.round((1 - num(ppp.factor)) * 100)}%` } : null,
+    ppp: ppp ? { country: purchase.ip_country, discount: pppDiscount(ppp.factor) } : null,
     is_preorder: isPreorder(purchase, loaded.preorderIds),
     affiliate:
       affiliate && affiliateUser
