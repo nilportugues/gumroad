@@ -5,14 +5,21 @@
 import { randomBytes } from "node:crypto";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { avatarUrl, displayName } from "../page-props/signed-in/presenters.ts";
+import { perFormCsrfToken } from "../page-props/csrf.ts";
 import { buttonTag, escapeHtml } from "../erb/html.ts";
 import { domainConfig } from "../infra/domain.ts";
 import {
+  applicationHasIcon,
   createFor,
+  type DeviceAuthorizationRow,
   EXPIRES_IN_SECONDS,
   findByUserCode,
   formatUserCode,
   POLL_INTERVAL_SECONDS,
+  STATUS_APPROVED,
+  STATUS_CONSUMED,
+  STATUS_DENIED,
   STATUS_PENDING,
   withApplicationRowLock,
 } from "../models/oauth-device-authorization.ts";
@@ -172,31 +179,203 @@ ${error}      <form class="flex flex-col gap-4" action="/oauth/device" accept-ch
 `;
 }
 
-function codeFormPage(input: MutationInput, userCode: string, errorMessage: string | null): Promise<ActionResult> {
+const OAUTH_SCOPE_DESCRIPTIONS: Record<string, string> = {
+  account: "Full access to your account.",
+  creator_api: "Creator API",
+  edit_emails: "Create and manage your audience emails.",
+  edit_products: "Create new products and edit your existing products.",
+  edit_profile: "Edit your profile name and bio.",
+  edit_sales: "Refund your sales, revoke or restore buyer access, and resend purchase receipts to customers.",
+  helper_api: "Helper API",
+  ifttt: "See your sales data.",
+  mark_sales_as_shipped: "Mark your sales as shipped.",
+  mobile_api: "Mobile API",
+  partner_api:
+    "Link your Gumroad account to your account on this application. It can then list your published products and send you products to import, which you confirm first.",
+  refund_sales: "Refund your sales.",
+  revenue_share: "Revenue Share",
+  unfurl: "Fetch public information of any product to preview it in Notion.",
+  view_payouts: "See your payouts data.",
+  view_library: "See the products you bought.",
+  view_profile: "See your profile data.",
+  view_public: "See your public information (name, bio).",
+  view_sales: "See your sales data.",
+  view_tax_data: "See your tax forms and annual earnings summary.",
+};
+const DEFAULT_APPLICATION_ICON = "/images/gumroad_app.png";
+const AUTHORIZE_CLASS = CONTINUE_CLASS;
+const DENY_CLASS =
+  "inline-flex items-center justify-center gap-2 cursor-pointer border border-border rounded font-[inherit] no-underline transition-transform hover:-translate-1 hover:shadow active:translate-0 active:shadow-none disabled:opacity-30 disabled:hover:translate-0 disabled:hover:shadow-none bg-white text-black hover:bg-pink hover:text-black px-4 py-3 text-base leading-snug";
+
+type Footer = string | undefined;
+
+function codeFormPage(
+  input: MutationInput,
+  userCode: string,
+  errorMessage: string | null,
+  footer?: Footer,
+): Promise<ActionResult> {
   return renderApplicationPage(input.request, input, null, () => codeFormView(userCode, errorMessage), {
     hideBase: true,
     analyticsFirst: false,
     handBackFlash: true,
     headers: NOINDEX,
+    ...(footer === undefined ? {} : { footer }),
   });
 }
 
+// doorkeeper/authorizations/_footer.html.erb
+async function accountFooter(user: NonNullable<ReturnType<typeof railsLoggedInUser>>): Promise<string> {
+  const name = displayName(user) ?? "";
+  const avatar = `<img class="aspect-square w-5 shrink-0 rounded-full border border-border" alt="${escapeHtml(name)}" src="${escapeHtml(await avatarUrl(user))}" width="20" height="20" />`;
+  return `    ${avatar}
+<span>${escapeHtml(user.email ?? "")}</span>
+<a href="/logout">Logout</a>
+
+`;
+}
+
+function decisionView(title: string, text: string): string {
+  return `<main class="grid divide-y divide-border bg-background border border-border rounded mx-auto my-8 h-min max-w-md w-[calc(100%-2rem)]">
+    <header class="flex flex-col gap-4 p-4 text-center">
+      <h2>${title}</h2>
+      <p>${text}</p>
+    </header>
+</main>
+
+`;
+}
+
+function approvalView(
+  input: MutationInput,
+  csrfToken: string,
+  applicationName: string,
+  userCode: string,
+  scopes: string[],
+  handoff: string | null,
+): string {
+  const field = (name: string, value: string) =>
+    `<input type="hidden" name="${name}" id="${name}" value="${escapeHtml(value)}" autocomplete="off" />`;
+  const form = (decision: string, label: string, className: string) =>
+    `<form style="display: contents" action="/oauth/device" accept-charset="UTF-8" method="post"><input type="hidden" name="authenticity_token" value="${perFormCsrfToken(csrfToken, "/oauth/device", "post")}" autocomplete="off" />
+        ${field("user_code", userCode)}
+        ${handoff === null ? "" : `${field("handoff", handoff)}\n        `}${field("consented_account", "")}
+        ${buttonTag(label, { name: "decision", type: "submit", value: decision, class: className }).value}
+</form>`;
+  void input;
+  const descriptions = scopes
+    .map((scope) => OAUTH_SCOPE_DESCRIPTIONS[scope])
+    .filter((description): description is string => description !== undefined);
+  const list =
+    scopes.length === 0
+      ? ""
+      : `      <div class="flex flex-col gap-4 p-4">
+        <h4 class="font-bold">This application will be able to:</h4>
+        <ul>
+${descriptions.map((description) => `            <li>${escapeHtml(description)}</li>\n`).join("")}        </ul>
+      </div>
+`;
+  return `<main class="grid divide-y divide-border bg-background border border-border rounded mx-auto my-8 h-min max-w-md w-[calc(100%-2rem)]">
+    <header class="flex flex-col gap-4 p-4 text-center">
+      <div>
+        <img src="${DEFAULT_APPLICATION_ICON}" width="72" height="72" />
+      </div>
+      <h2>
+        Authorize
+        <strong>${escapeHtml(applicationName)}</strong>
+        to use your account?
+      </h2>
+      <p>Code <strong>${escapeHtml(userCode)}</strong></p>
+    </header>
+${list}    <footer class="flex flex-col gap-4 p-4 text-center">
+      ${form("approve", "Authorize", AUTHORIZE_CLASS)}      ${form("deny", "Deny", DENY_CLASS)}    </footer>
+</main>
+
+`;
+}
+
+const sameId = (left: number | bigint | null, right: number | bigint) => left !== null && BigInt(left) === BigInt(right);
+
+// The decision the signed-in visitor already made (#device_authorization_owned_by_current_user?, without a team membership).
+function ownedBy(authorization: DeviceAuthorizationRow, userId: number | bigint): boolean {
+  if (authorization.team_membership_id !== null) throw new HandBackToRails("a code approved for a team membership");
+  return sameId(authorization.resource_owner_id, userId);
+}
+
+async function signedInDeviceAuthorization(
+  input: MutationInput,
+  user: NonNullable<ReturnType<typeof railsLoggedInUser>>,
+  rawUserCode: string | null,
+  handoff: string | null,
+  now: Date,
+): Promise<ActionResult> {
+  const footer = await accountFooter(user);
+  const userCode = formatUserCode(rawUserCode ?? "");
+  if (userCode === "") return codeFormPage(input, userCode, null, footer);
+  const authorization = await findByUserCode(userCode);
+  if (authorization === null) return codeFormPage(input, userCode, INVALID_CODE, footer);
+  const application = await findApplicationById(authorization.oauth_application_id);
+  if (application === null || application.deleted_at !== null || !truthy(application.device_authorization_enabled))
+    return codeFormPage(input, userCode, INVALID_CODE, footer);
+  const pending = authorization.status === STATUS_PENDING;
+  const expired = authorization.expires_at.getTime() <= now.getTime();
+  const owner = () => ownedBy(authorization, user.id);
+  const consumedByUser = authorization.status === STATUS_CONSUMED && owner();
+  const approvedByUser = authorization.status === STATUS_APPROVED && owner();
+  const deniedByUser = authorization.status === STATUS_DENIED && owner();
+  if (expired && !(consumedByUser || deniedByUser)) return codeFormPage(input, userCode, EXPIRED_CODE, footer);
+  if (!pending && !(approvedByUser || consumedByUser || deniedByUser))
+    return codeFormPage(input, userCode, INVALID_OR_EXPIRED_CODE, footer);
+  const view = (body: string) => async (): Promise<ActionResult> =>
+    renderApplicationPage(input.request, input, null, () => body, {
+      hideBase: true,
+      analyticsFirst: false,
+      handBackFlash: true,
+      headers: NOINDEX,
+      footer,
+    });
+  if (approvedByUser || consumedByUser)
+    return view(decisionView("Authorization complete", "Return to the application that requested access."))();
+  if (deniedByUser)
+    return view(decisionView("Authorization denied", "The application will not receive access to your account."))();
+  // pending and not expired: approvable.
+  if (await applicationHasIcon(application.id)) throw new HandBackToRails("an application with an icon");
+  return renderApplicationPage(
+    input.request,
+    input,
+    null,
+    (_ctx, csrfToken) =>
+      approvalView(input, csrfToken, application.name, userCode, authorization.scopes.split(/\s+/u).filter(Boolean), handoff),
+    { hideBase: true, analyticsFirst: false, handBackFlash: true, headers: NOINDEX, footer },
+  );
+}
+
 async function showDeviceAuthorization(input: MutationInput): Promise<ActionResult> {
-  if (railsLoggedInUser(input.context) !== null) throw new HandBackToRails("a signed-in device authorization page");
+  const signedIn = railsLoggedInUser(input.context);
   if (requestFormat(input.request) !== "html")
     throw new HandBackToRails("a device authorization page in another format");
+  if (signedIn !== null) {
+    if (input.context.impersonatedUser !== null) throw new HandBackToRails("an impersonated device authorization page");
+    if (input.context.currentSeller === null || input.context.currentSeller.id !== signedIn.id)
+      throw new HandBackToRails("a device authorization page for a brand account");
+    if (isPresent(stringParam(input.params, "switch_account")))
+      throw new HandBackToRails("a request to switch to the own account");
+  }
   const now = new Date();
 
   let rawUserCode = stringParam(input.params, "user_code");
+  let handoffParam: string | null = null;
   if (!isPresent(rawUserCode)) {
     const handoff = stringParam(input.params, "handoff");
     rawUserCode = null;
     if (isPresent(handoff)) {
+      handoffParam = handoff;
       const handoffs = prunedHandoffs(input, now);
       syncHandoffs(input, handoffs);
       rawUserCode = entryUserCode(handoffs.get(handoff));
     }
   }
+  if (signedIn !== null) return signedInDeviceAuthorization(input, signedIn, rawUserCode, handoffParam, now);
   const userCode = formatUserCode(rawUserCode ?? "");
   // Every other outcome renders the page, with the reason in it.
   if (userCode === "") return codeFormPage(input, userCode, null);

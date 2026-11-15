@@ -449,16 +449,185 @@ describe "OAuth device flow", type: :request do
       expect(response.body).to include('value="GRD-AAAA-BBBB-B"')
     end
 
-    it "hands a signed-in visitor back to Rails", parity: true do
+    it "reads the code from the handoff a signed-out visit left in the session once the visitor logs in", parity: true do
       _authorization, _device_code, user_code = pending_authorization
+      get "/oauth/device", params: { user_code: }
+      handoff = response.location[/handoff%3D([\w-]+)/, 1]
       log_in(resource_owner)
 
-      get "/oauth/device", params: { user_code: }
+      get "/oauth/device", params: { handoff: }
 
       expect(response).to have_http_status(:ok)
+      expect(response.body).to include("Authorize").and include(user_code)
+    end
+
+    describe "when signed in" do
+      let(:brand) { create(:user) }
+
+      before { log_in(resource_owner) }
+
+      it "renders the approval page for a pending code of the visitor's own account", parity: true do
+        _authorization, _device_code, user_code = pending_authorization(scopes: "view_profile edit_products view_sales")
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Authorize").and include("Gumroad CLI").and include("See your sales data.")
+        expect(response.headers["X-Robots-Tag"]).to eq("noindex")
+      end
+
+      it "escapes the name of the application on the approval page", parity: true do
+        application = create(:oauth_application, owner:, name: "CLI <b>&\"x\"", scopes: "view_profile", confidential: false, device_authorization_enabled: true)
+        _authorization, _device_code, user_code = pending_authorization(application)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("CLI &lt;b&gt;&amp;&quot;x&quot;")
+      end
+
+      it "lists no scope description for a scope without one", parity: true do
+        application = create(:oauth_application, owner:, scopes: "view_profile helper_api", confidential: false, device_authorization_enabled: true)
+        _authorization, _device_code, user_code = pending_authorization(application, scopes: "helper_api")
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("This application will be able to:")
+      end
+
+      it "renders the code form with the account footer for a visit with no code", parity: true do
+        get "/oauth/device"
+
+        expect(response).to have_http_status(:ok)
+        expect(response.body).to include("Enter device code").and include("Logout")
+      end
+
+      it "renders the invalid message for an unknown code", parity: true do
+        get "/oauth/device", params: { user_code: "GRD-AAAA-BBBB" }
+
+        expect(response.body).to include("This code is invalid.")
+      end
+
+      it "renders the expired message for an expired pending code", parity: true do
+        authorization, _device_code, user_code = pending_authorization
+        authorization.update_columns(expires_at: 1.minute.ago)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("This code has expired.")
+      end
+
+      it "renders the invalid or expired message for a code another account approved", parity: true do
+        authorization, _device_code, user_code = approved_authorization
+        authorization.update_columns(resource_owner_id: create(:user).id)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("This code is invalid or expired.")
+      end
+
+      it "renders the invalid message for the code of an application that closed device authorization", parity: true do
+        _authorization, _device_code, user_code = pending_authorization
+        device_app.update_columns(device_authorization_enabled: false)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("This code is invalid.")
+      end
+
+      it "renders the invalid message for the code of a deleted application", parity: true do
+        _authorization, _device_code, user_code = pending_authorization
+        device_app.update_columns(deleted_at: Time.current)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("This code is invalid.")
+      end
+
+      it "renders the completion page for a code the visitor approved", parity: true do
+        authorization, _device_code, user_code = approved_authorization
+        authorization.update_columns(resource_owner_id: resource_owner.id)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("Authorization complete")
+      end
+
+      it "renders the completion page for an expired code the visitor consumed", parity: true do
+        authorization, _device_code, user_code = approved_authorization
+        authorization.update_columns(status: "consumed", consumed_at: Time.current, expires_at: 1.minute.ago)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("Authorization complete")
+      end
+
+      it "renders the denial page for a code the visitor denied", parity: true do
+        authorization, _device_code, user_code = pending_authorization
+        authorization.update_columns(status: "denied", denied_at: Time.current, resource_owner_id: resource_owner.id)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("Authorization denied")
+      end
+
+      it "renders the denial page for an expired code the visitor denied", parity: true do
+        authorization, _device_code, user_code = pending_authorization
+        authorization.update_columns(status: "denied", denied_at: Time.current, resource_owner_id: resource_owner.id, expires_at: 1.minute.ago)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("Authorization denied")
+      end
+
+      it "renders the invalid or expired message for a code another account denied", parity: true do
+        authorization, _device_code, user_code = pending_authorization
+        authorization.update_columns(status: "denied", denied_at: Time.current, resource_owner_id: create(:user).id)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response.body).to include("This code is invalid or expired.")
+      end
+
+      it "hands a visitor acting for a brand account back to Rails", parity: true do
+        membership = create(:team_membership, user: resource_owner, seller: brand, role: TeamMembership::ROLE_ADMIN)
+        switch_to(membership)
+        _authorization, _device_code, user_code = pending_authorization
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a request to switch back to the own account to Rails", parity: true do
+        _authorization, _device_code, user_code = pending_authorization
+
+        get "/oauth/device", params: { user_code:, switch_account: 1 }
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands an application with an icon back to Rails", parity: true do
+        # The row only: attaching a file would upload it to S3, which the recording does not reach.
+        blob = ActiveStorage::Blob.create_before_direct_upload!(filename: "icon.png", byte_size: 10, checksum: "abc", content_type: "image/png")
+        ActiveStorage::Attachment.create!(name: "file", record: device_app, blob:)
+        _authorization, _device_code, user_code = pending_authorization
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "hands a code approved for a team membership back to Rails", parity: true do
+        membership = create(:team_membership, user: resource_owner, seller: brand, role: TeamMembership::ROLE_ADMIN)
+        authorization, _device_code, user_code = approved_authorization
+        authorization.update_columns(team_membership_id: membership.id, resource_owner_id: brand.id)
+
+        get "/oauth/device", params: { user_code: }
+
+        expect(response).to have_http_status(:ok)
+      end
     end
   end
-
   describe "POST /oauth/device" do
     it "sends a signed-out visitor to the login page", parity: true do
       _authorization, _device_code, user_code = pending_authorization

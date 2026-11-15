@@ -10,6 +10,7 @@ import { column, execute, selectRows, table } from "./sql.ts";
 export type ApplicationRow = {
   id: number;
   uid: string;
+  name: string;
   secret: string;
   confidential: unknown;
   mcp_dynamic_client: unknown;
