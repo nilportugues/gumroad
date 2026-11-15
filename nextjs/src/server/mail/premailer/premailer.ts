@@ -120,8 +120,9 @@ export class Premailer {
   }
 
   // EmailCustomPropertyInlining#to_inline_css: the adapter's output with var() resolved.
-  toInlineCss(): string {
-    return resolveCustomProperties(this.inlineCss(), this.rootVars);
+  toInlineCss({ resolveCustomProperties: resolve = true }: { resolveCustomProperties?: boolean } = {}): string {
+    const inlined = this.inlineCss();
+    return resolve ? resolveCustomProperties(inlined, this.rootVars) : inlined;
   }
 
   // Premailer::Adapter::Nokogiri#to_inline_css
@@ -217,10 +218,10 @@ export function customizedPremailer(html: string, loadStylesheet: StylesheetLoad
   return new Premailer(serializeDocument(first), css);
 }
 
-export function premailerRails(html: string, loadStylesheet: StylesheetLoader): PremailerResult {
+export function premailerRails(html: string, loadStylesheet: StylesheetLoader, options: { resolveCustomProperties?: boolean } = {}): PremailerResult {
   const premailer = customizedPremailer(html, loadStylesheet);
   const text = premailer.toPlainText();
-  return { text, html: premailer.toInlineCss() };
+  return { text, html: premailer.toInlineCss(options) };
 }
 
 export { calculateSpecificity, CssArgumentError };

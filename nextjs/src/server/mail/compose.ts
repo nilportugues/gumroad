@@ -1,7 +1,7 @@
 // What ActionMailer does between a mailer method and the SMTP transaction: premailer-rails'
 // delivering_email hook, Mail::Message#encoded, and the SMTP envelope.
 import type { DeliveryMethodOptions, ReceiptRecordIds } from "./mailer-info.ts";
-import { encodeMessage, type MimeIdentity, MimeNotPortedError, type MimeMessage, newIdentity } from "./mime.ts";
+import { encodeMessage, type MimeIdentity, type MimeMessage, newIdentity } from "./mime.ts";
 import { premailerRails, type StylesheetLoader } from "./premailer/premailer.ts";
 import { loadEmailStylesheet } from "./stylesheet.ts";
 
@@ -18,18 +18,24 @@ const bareAddress = (address: string) => /<([^>]+)>$/u.exec(address)?.[1] ?? add
 // (7bit) and leaves a non-ASCII one (8bit) as it is.
 function normalizeLineEndings(html: string): string {
   if (!html.includes("\r")) return html;
-  if (/[^\x00-\x7f]/u.test(html)) throw new MimeNotPortedError("non-ASCII html with a carriage return");
+  if (/[^\x00-\x7f]/u.test(html)) return html;
   return html.replace(/\r\n|\r/gu, "\n");
 }
+
+// The two initializers that change the message after premailer-rails: both are on in Rails. Off only
+// to replay a golden recorded before them (receipt-mailer.golden.json), until it is re-recorded.
+export type ComposeInitializers = { quotedPrintableHtml?: boolean; customProperties?: boolean };
 
 // Null when Mail would raise "SMTP To address may not be blank", which RescueSmtpErrors logs and
 // swallows.
 export function composeMail(
   rendered: RenderedMail,
-  options: { identity?: MimeIdentity; loadStylesheet?: StylesheetLoader } = {},
+  options: { identity?: MimeIdentity; loadStylesheet?: StylesheetLoader; initializers?: ComposeInitializers } = {},
 ): ComposedMail | null {
   if (rendered.to === null || rendered.to.trim() === "") return null;
-  const { text, html } = premailerRails(normalizeLineEndings(rendered.html), options.loadStylesheet ?? loadEmailStylesheet);
+  const { text, html } = premailerRails(normalizeLineEndings(rendered.html), options.loadStylesheet ?? loadEmailStylesheet, {
+    resolveCustomProperties: options.initializers?.customProperties ?? true,
+  });
   const encoded = encodeMessage(
     {
       from: rendered.from,
@@ -45,6 +51,7 @@ export function composeMail(
       ],
     },
     options.identity ?? newIdentity(),
+    { quotedPrintableHtml: options.initializers?.quotedPrintableHtml ?? true },
   );
   return { encoded, envelopeFrom: bareAddress(rendered.from), envelopeTo: [bareAddress(rendered.to), ...(rendered.cc !== undefined ? [bareAddress(rendered.cc)] : [])], ...(rendered.smtp ? { smtp: rendered.smtp } : {}), ...(rendered.recordIds ? { recordIds: rendered.recordIds } : {}) };
 }

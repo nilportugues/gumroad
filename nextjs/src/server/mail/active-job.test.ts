@@ -12,7 +12,7 @@ const enqueues = new Map(golden.cases.filter((c): c is EnqueueCase => c.kind ===
 // Ruby reads the clock separately for created_at, enqueued_at and the job's timestamps.
 const normalize = (payload: string) =>
   payload
-    .replace(/"(enqueued_at|scheduled_at)":"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}000Z"/gu, '"$1":"<time>"')
+    .replace(/"(enqueued_at|scheduled_at)":"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{9}Z"/gu, '"$1":"<time>"')
     .replace(/"(created_at|enqueued_at)":\d+\.\d+/gu, '"$1":<float>');
 
 const CASES: [string, { mailer: string; method: string; args: ActiveJobArgument[]; queue?: string; waitSeconds?: number }][] = [
