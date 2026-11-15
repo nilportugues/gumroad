@@ -179,11 +179,12 @@ end
 # The Elasticsearch requests of the case, as the client put them on the wire, with the answers (minus the timing).
 def es_exchanges = EsProxy.log.map { _1.except("response").merge("response" => JSON.parse(_1["response"]).except("took")) }
 
-def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [], meta: {})
+def record_message(name, mailer, method, args, features: {}, actor_features: [], redis: {}, rands: [], meta: {})
   $delivered.clear
   $iv_seq = 0
   $ivs_used.clear
   features.each_key { Feature.activate(_1) }
+  actor_features.each { Feature.activate_user(_1, User.find(201)) }
   redis.each { |k, v| $redis.set(k, v) }
   $rands.replace(rands)
   delivery = nil
@@ -212,6 +213,7 @@ def record_message(name, mailer, method, args, features: {}, redis: {}, rands: [
     "delivery_statements" => delivery_statements,
     "es" => es_exchanges,
     "features" => features.keys,
+    "actor_features" => actor_features.map(&:to_s),
     "redis_before" => redis,
     "rands_used" => $rands_used.dup,
     "ivs" => $ivs_used.dup,
@@ -821,6 +823,126 @@ membership("gift_sender", purchase: { flags: ORIGINAL_SUBSCRIPTION | 64 }, into:
 })
 membership("upgrade", purchase: { flags: ORIGINAL_SUBSCRIPTION | Purchase.flag_mapping["flags"][:is_upgrade_purchase] }, into: refused)
 
+
+# --- Free-membership receipts, the unproven-seller guard, screened seller text and the light receipt (WS-95) -----------
+suppressed = []
+FREE = { price_cents: 0, total_transaction_cents: 0, displayed_price_cents: 0 }.freeze
+# Rails sends nothing: the guard returns before the presenter is built. A case that still sends is a message.
+def guard_case(into, name, seller: {}, link: {}, purchase: FREE, extra: nil)
+  setup(seller:, link:, purchase:)
+  extra&.call
+  into << record_message("receipt_guard_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+guard_case(suppressed, "seller_name", seller: { name: "Gumroad Security Team" })
+guard_case(suppressed, "seller_name_spaced", seller: { name: "G u m r o a d payout notices" })
+guard_case(suppressed, "product_name", link: { name: "Gumroad Payout Verification" })
+guard_case(suppressed, "gumroad_buyer", purchase: FREE.merge(email: "Anyone@Gumroad.com"))
+guard_case(suppressed, "no_created_at", seller: { name: "Gumroad Security Team", created_at: nil })
+guard_case($messages, "plain_names")
+guard_case($messages, "keyword_without_gumroad", seller: { name: "Security Team" })
+guard_case($messages, "gumroad_without_keyword", seller: { name: "Gumroad fans" })
+guard_case($messages, "old_seller", seller: { name: "Gumroad Security Team", created_at: FIXED_NOW - 31.days })
+guard_case(suppressed, "seller_just_inside_age", seller: { name: "Gumroad Security Team", created_at: FIXED_NOW - 29.days })
+guard_case(suppressed, "seller_exactly_thirty_days", seller: { name: "Gumroad Security Team", created_at: FIXED_NOW - 30.days + 1 })
+guard_case($messages, "seller_paid_sale", seller: { name: "Gumroad Security Team" }, extra: -> {
+  insert_link(id: 302, user_id: 201)
+  insert_purchase(id: 402, link_id: 302, seller_id: 201, email: "other@example.com")
+})
+guard_case(suppressed, "seller_refunded_paid_sale", seller: { name: "Gumroad Security Team" }, extra: -> {
+  insert_link(id: 302, user_id: 201)
+  insert_purchase(id: 402, link_id: 302, seller_id: 201, email: "other@example.com", stripe_refunded: true)
+})
+guard_case($messages, "staff_seller", seller: { name: "Gumroad Security Team", email: "staff@gumroad.com", confirmed_at: FIXED_NOW })
+guard_case(suppressed, "unconfirmed_staff_email_seller", seller: { name: "Gumroad Security Team", email: "staff@gumroad.com" })
+guard_case($messages, "paid_purchase", purchase: PRICE, seller: { name: "Gumroad Security Team" }, link: { name: "Gumroad Payout Verification" })
+guard_case(refused, "non_ascii_name", seller: { name: "Ｇｕｍｒｏａｄ Security" })
+guard_case(refused, "non_ascii_product", link: { name: "Gumroad Verification é" })
+
+# A free membership that stays free: its own note, footer and no payment block.
+membership("free_membership_yearly", recurrence: "yearly", purchase: FREE)
+membership("free_membership_signed_in", purchase: FREE.merge(purchaser_id: 202), subscription: { user_id: 202 }, extra: -> { sign_in_buyer })
+membership("free_membership_custom_text", link: MEMBERSHIP.merge(json_data: { "custom_receipt_text" => "Welcome, free member!" }), purchase: FREE)
+membership("free_membership_zero_priced_product", price: { price_cents: 0 }, purchase: FREE)
+membership("free_membership_limited_code", purchase: FREE, into: refused, extra: -> {
+  OfferCode.insert!({ id: 801, user_id: 201, name: "free", code: "free", amount_percentage: 100, universal: false, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  ActiveRecord::Base.connection.execute("INSERT INTO offer_codes_products (offer_code_id, product_id) VALUES (801, 301)")
+  PurchaseOfferCodeDiscount.insert!({ purchase_id: 401, offer_code_id: 801, offer_code_amount: 100, offer_code_is_percent: true, duration_in_billing_cycles: 1, pre_discount_minimum_price_cents: 500, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  Purchase.where(id: 401).update_all(offer_code_id: 801)
+})
+membership("free_membership_forever_code", purchase: FREE, into: refused, extra: -> {
+  OfferCode.insert!({ id: 801, user_id: 201, name: "free", code: "free", amount_percentage: 100, universal: false, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  ActiveRecord::Base.connection.execute("INSERT INTO offer_codes_products (offer_code_id, product_id) VALUES (801, 301)")
+  PurchaseOfferCodeDiscount.insert!({ purchase_id: 401, offer_code_id: 801, offer_code_amount: 100, offer_code_is_percent: true, pre_discount_minimum_price_cents: 500, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  Purchase.where(id: 401).update_all(offer_code_id: 801)
+})
+
+# Seller text screening: text that passes renders as before; held text is dropped and the seller gets an admin note
+# (a Sidekiq enqueue the port does not make).
+def screened(into, name, text, **setup_args)
+  setup(link: { json_data: { "custom_receipt_text" => text } }, purchase: PRICE, **setup_args)
+  into << record_message("receipt_screen_#{name}", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+end
+screened($messages, "plain", "Thanks for buying. Reach out if you need help.")
+screened($messages, "gumroad_word_only", "Thanks for buying on Gumroad!")
+screened($messages, "account_without_phrase", "Your account of the course is on the next page.")
+screened($messages, "multiline", "Line one\n\nLine   two with   spaces")
+screened(refused, "security_alert", "Security alert: please read")
+screened(refused, "verify_account", "Please verify your account at Gumroad")
+screened(refused, "payout_hold", "Gumroad: your payouts are on hold until you act")
+screened(refused, "unusual_activity", "We saw unusual activity on your account")
+screened(refused, "action_required", "Gumroad action required")
+screened(refused, "public_files_host", "Download from https://public-files.gumroad.com/abc")
+screened(refused, "html_text", "Visit <a href=\"https://example.com\">my page</a> &amp; enjoy")
+screened(refused, "non_ascii_text", "Merci beaucoup \u00e9")
+
+# The graphics-light receipt, a per-seller Flipper flag.
+def light(into, name, **setup_args)
+  setup(**setup_args)
+  yield if block_given?
+  into << record_message("receipt_light_#{name}", CustomerMailer, :receipt, [401], actor_features: [:graphics_light_receipt], meta: seed_mailer_level(201, :cache, :level_1))
+end
+light($messages, "digital", purchase: PRICE)
+light($messages, "free", purchase: FREE)
+light($messages, "quantity", purchase: PRICE.merge(quantity: 2))
+light($messages, "custom_text", link: { json_data: { "custom_receipt_text" => "Thanks!\n\nSee you." } }, purchase: PRICE)
+light($messages, "no_url_redirect", purchase: PRICE, redirect: false)
+light($messages, "view_content_text", link: { json_data: { "custom_view_content_button_text" => "Get it" } }, purchase: PRICE)
+light($messages, "variant", purchase: PRICE) { insert_variant(id: 701, link_id: 301, name: "Premium"); attach_variant(401, 701) }
+light($messages, "tip", purchase: PRICE) { Tip.insert!({ purchase_id: 401, value_cents: 200, value_usd_cents: 200, created_at: FIXED_NOW, updated_at: FIXED_NOW }) }
+light($messages, "custom_fields", purchase: PRICE) {
+  PurchaseCustomField.insert_all!([{ purchase_id: 401, field_type: "text", name: "Your name", value: "Ada Lovelace", created_at: FIXED_NOW, updated_at: FIXED_NOW }])
+}
+light($messages, "refund_policy", purchase: PRICE) { PurchaseRefundPolicy.insert!({ purchase_id: 401, title: "30-day money back guarantee", fine_print: "Ask nicely.", created_at: FIXED_NOW, updated_at: FIXED_NOW }) }
+light($messages, "physical", link: PHYSICAL.merge(require_shipping: true), purchase: { price_cents: 1500, total_transaction_cents: 1500, displayed_price_cents: 1500, shipping_cents: 500, **SHIPPING }, redirect: false)
+light($messages, "licensed", link: { flags: LICENSED }, purchase: PRICE) { insert_license(purchase_id: 401, link_id: 301, serial: "AAAA-BBBB") }
+light($messages, "rental_watch", purchase: RENTAL, redirect: false) {
+  insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4)
+  ProductFile.insert!({ link_id: 301, url: "https://example.com/a.mp4", filetype: "mp4", filegroup: "video", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+}
+light($messages, "rental_no_video", purchase: RENTAL, redirect: false) { insert_url_redirect(id: 601, purchase_id: 401, link_id: 301, flags: 4) }
+light($messages, "gift_sender", purchase: PRICE.merge(flags: 64, quantity: 2), redirect: false) {
+  Gift.insert!({ gifter_purchase_id: 401, link_id: 301, state: "successful", giftee_email: "friend@example.com", gifter_email: "buyer@example.com", gift_note: "  Enjoy!\n", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+}
+light($messages, "gift_receiver", purchase: FREE.merge(flags: Purchase.flag_mapping["flags"][:is_gift_receiver_purchase], purchase_state: "gift_receiver_purchase_successful")) {
+  Gift.insert!({ giftee_purchase_id: 401, gifter_purchase_id: 402, link_id: 301, state: "successful", giftee_email: "friend@example.com", gifter_email: "buyer@example.com", gift_note: "Enjoy!", created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  insert_purchase(id: 402, link_id: 301, seller_id: 201, flags: 64)
+}
+light($messages, "taxed", purchase: { price_cents: 500, total_transaction_cents: 595, displayed_price_cents: 500, tax_cents: 0, gumroad_tax_cents: 95, flags: TAXABLE | TAX_EXCLUDED }) {
+  insert_zip_tax_rate(id: 901, country: "DE", combined_rate: 0.19); Purchase.where(id: 401).update_all(zip_tax_rate_id: 901)
+}
+light($messages, "eur", link: { price_currency_type: "eur" }, purchase: { price_cents: 500, total_transaction_cents: 500, displayed_price_cents: 450, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.9" })
+light($messages, "signed_in_buyer", purchase: PRICE.merge(purchaser_id: 202)) { sign_in_buyer }
+# Rails reads the flag per seller: another seller's flag leaves the standard receipt.
+setup(purchase: PRICE)
+insert_user(id: 203, email: "other-seller@example.com", username: "other")
+Feature.activate_user(:graphics_light_receipt, User.find(203))
+messages << record_message("receipt_light_flag_on_other_seller", CustomerMailer, :receipt, [401], meta: seed_mailer_level(201, :cache, :level_1))
+light($messages, "membership", link: MEMBERSHIP, purchase: PRICE.merge(flags: ORIGINAL_SUBSCRIPTION, subscription_id: 501, price_id: 701)) {
+  insert_price(link_id: 301, price_cents: 500, recurrence: "monthly", id: 701)
+  Subscription.insert!({ id: 501, link_id: 301, user_id: nil, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+  PaymentOption.insert!({ subscription_id: 501, price_id: 701, created_at: FIXED_NOW, updated_at: FIXED_NOW })
+}
+
 # Errors.
 reset!
 errors << record_error("receipt_missing_purchase", CustomerMailer, :receipt, [404])
@@ -888,6 +1010,6 @@ job_setup(purchase: PRICE)
 ProductFile.insert!({ link_id: 301, url: "https://example.com/a.pdf", filetype: "pdf", flags: 16, created_at: FIXED_NOW, updated_at: FIXED_NOW })
 jobs << record_job("job_stampable_pdf", [401], meta: seed_mailer_level(201, :cache, :level_1))
 
-cases = { "messages" => messages, "errors" => errors, "refused" => refused, "jobs" => jobs }
+cases = { "messages" => messages, "errors" => errors, "refused" => refused, "suppressed" => suppressed, "jobs" => jobs }
 File.write(File.join(FIXTURES, "receipt-mailer.golden.json"), JSON.generate({ "now" => FIXED_NOW.iso8601, "secrets" => SMTP_SECRETS, "cases" => cases }) + "\n")
 puts "wrote #{messages.size} messages, #{errors.size} errors, #{refused.size} refused"

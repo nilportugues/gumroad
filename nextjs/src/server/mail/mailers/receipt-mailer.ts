@@ -7,6 +7,7 @@
 import { Prisma } from "@prisma/client";
 import type { Charge, Purchase, Subscription } from "@prisma/client";
 
+import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
 import { domainConfig } from "../../infra/domain.ts";
@@ -18,6 +19,7 @@ import { findById } from "../../models/row-reads.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { column, columnIn, inList, selectRows, table } from "../../models/sql.ts";
 import { defaultSubscriptionDeps, purchaseFlagScope, SubscriptionRecord } from "../../models/subscription.ts";
+import { subscriptionRenewalPreDiscountTotalCents } from "../../models/subscription-pricing.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { applicationMail, findRow, type MailerDeps, RecordNotFoundError } from "../application-mailer.ts";
@@ -25,7 +27,7 @@ import type { RenderedMail } from "../compose.ts";
 import { defaultRouterDeps, rubyToI } from "../mailer-info.ts";
 import type { RubyValue } from "../ruby-value.ts";
 import { linkTo } from "../view-helpers.ts";
-import { emailLayout, h, mailerUrl, MailViewNotPortedError } from "../views.ts";
+import { emailLayout, emailLightLayout, h, mailerUrl, MailViewNotPortedError } from "../views.ts";
 
 import {
   customersDeliveryOptions,
@@ -66,7 +68,7 @@ import {
   recommendedProducts,
   type RecommendedProducts,
 } from "./receipt-recommended.ts";
-import { type GuardSeller, suppressReceiptFromUnprovenSeller } from "./receipt-guard.ts";
+import { type GuardSeller, screenSellerText, suppressReceiptFromUnprovenSeller } from "./receipt-guard.ts";
 import { taxLines } from "./receipt-tax.ts";
 
 type Id = number | bigint;
@@ -132,7 +134,7 @@ async function loadReceiptData(
       if (!/^[A-Za-z0-9_=-]+$/u.test(externalId))
         throw new MailViewNotPortedError("subscription external id that needs URL escaping");
       subscription = new SubscriptionRecord(row, { ...defaultSubscriptionDeps, now: deps.now ?? (() => new Date()) });
-      data.subscription = { row, externalId, recurrence: null, nextPayment: null, gift: false };
+      data.subscription = { row, externalId, recurrence: null, nextPayment: null, gift: false, freeMembership: false };
     }
   }
   // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent, and `gifter_email` reads
@@ -249,7 +251,23 @@ async function loadMembershipItemData(data: ReceiptData, record: SubscriptionRec
   if (!original) throw new MailViewNotPortedError("membership without an original purchase");
   if (PurchaseFlags.isSet(Number(original.flags ?? 0), "is_gift_sender_purchase"))
     throw new MailViewNotPortedError("gifted membership");
+  // `free_membership_purchase?` reads `original_purchase` ahead of the cadence.
+  await record.originalPurchase();
+  data.subscription!.freeMembership = await renewsFreeMembership(data, record);
   data.subscription!.recurrence = await record.recurrence();
+}
+
+// Purchase#free_membership_purchase?: `original_purchase.present? && free_purchase? && !is_free_trial_purchase? &&
+// subscription.renews_free?`. A $0 renewal that a discount keeps free (not the undiscounted price) goes back to Rails.
+async function renewsFreeMembership(data: ReceiptData, record: SubscriptionRecord): Promise<boolean> {
+  const { purchase } = data;
+  if (purchase.price_cents !== 0 || purchase.shipping_cents !== 0) return false;
+  if (PurchaseFlags.isSet(purchase.flags ?? 0, "is_free_trial_purchase")) return false;
+  const next = await record.currentSubscriptionPriceCents();
+  if (next === null) throw new MailViewNotPortedError("membership whose next charge is unknown");
+  if (next > 0) return false;
+  if ((await subscriptionRenewalPreDiscountTotalCents(record)) === 0) return true;
+  throw new MailViewNotPortedError("free membership kept free by a discount");
 }
 
 // PaymentInfo#upcoming_price_attribute: the next charge repeats this one's amount, so only a membership whose renewal
@@ -487,6 +505,52 @@ ${body}      </tbody>
 `;
 }
 
+// customer_mailer/receipt_light: the same presenter, as plain paragraphs. Erubi drops a line that holds only a
+// `<% %>` tag with its newline, so what is left is the literal text and the output tags.
+function lightBody(
+  data: ReceiptData,
+  info: ReturnType<typeof chargeInfo>,
+  item: ReturnType<typeof itemInfo>,
+  payment: ReturnType<typeof paymentInfo>,
+  shipping: ReturnType<typeof shippingInfo>,
+  productName: string,
+): string {
+  const value = (attribute: Attribute) => ("html" in attribute ? attribute.html : autoLinkText(attribute.text));
+  const labelled = (attribute: Attribute) => (isBlank(attribute.label) ? "" : `${h(attribute.label)}: `);
+  const total = !info.free && !isBlank(info.formattedTotalTransactionAmount) ? `    <br>Total: ${h(info.formattedTotalTransactionAmount)}\n` : "";
+  const header = `<p>\n  Order ID: ${h(info.orderId)}<br>\n  Order date: ${h(info.formattedCreatedAt)}\n${total}</p>\n\n\n`;
+  const attributeLines = [...item.giftAttributes, ...item.generalAttributes]
+    .map((attribute) => `      <br>\n      ${labelled(attribute)}${"\n"}      ${value(attribute)}\n`)
+    .join("");
+  const notes = item.notes.map((note) => `      <br>${h(note)}\n`).join("");
+  const manage = item.manageSubscriptionNote === null ? "" : `      <br>${item.manageSubscriptionNote}\n`;
+  const license = item.licenseKey === null ? "" : `      <br>License key: ${h(item.licenseKey)}\n`;
+  const cta = item.showDownloadButton ? item.downloadCta : null;
+  const download = cta
+    ? `        <br>${linkTo(cta.label ?? viewContentButtonText(data.link), mailerUrl(cta.path))}\n`
+    : "";
+  const custom = item.customReceiptNote === null ? "" : `    ${simpleFormat(item.customReceiptNote)}\n`;
+  const items = `  <p>\n    <strong>${h(productName)}</strong>\n${notes}${attributeLines}${manage}${license}${download}  </p>\n${custom}\n`;
+  const paymentAttributes = [
+    ...payment.todayPaymentAttributes,
+    ...payment.upcomingPaymentAttributes,
+    ...(payment.paymentMethodAttribute ? [payment.paymentMethodAttribute] : []),
+  ];
+  const paymentSection = payment.present
+    ? `  <p>\n    ${payment.notes.map((note) => `${h(note)}<br>`).join("")}\n${paymentAttributes
+        .map((attribute) => `      ${labelled(attribute)}${value(attribute)}<br>\n`)
+        .join("")}  </p>\n`
+    : "";
+  const shippingSection =
+    shipping.attributes.length > 0
+      ? `  <p>\n    <strong>${h(shipping.title)}</strong><br>\n${shipping.attributes
+          .map((attribute) => `      ${labelled(attribute)}${value(attribute)}<br>\n`)
+          .join("")}  </p>\n`
+      : "";
+  const questions = info.productQuestionsNote === null ? "" : `  <p>${info.productQuestionsNote}</p>\n`;
+  return `${header}${items}${paymentSection}\n${shippingSection}\n${questions}`;
+}
+
 // ---- the mailer ---------------------------------------------------------------------------------------
 
 export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise<RenderedMail | null> {
@@ -566,7 +630,7 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   const info = chargeInfo(data, externalId);
 
   await loadItemData(data);
-  const customReceiptText = jsonDataString(data.link.json_data, "custom_receipt_text");
+  const customReceiptText = screenSellerText(jsonDataString(data.link.json_data, "custom_receipt_text"));
   // User#avatar_url: `avatar.attached?`. An uploaded avatar goes through Active Storage variants and their cache.
   const [attachment] = await rows(
     Prisma.sql`SELECT ${star("active_storage_attachments")} FROM ${table("active_storage_attachments")} WHERE ${column("active_storage_attachments", "record_id")} = ${seller.id} AND ${column("active_storage_attachments", "record_type")} = ${"User"} AND ${column("active_storage_attachments", "name")} = ${"avatar"} LIMIT 1`,
@@ -621,9 +685,51 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
     mailerUrl(`/purchases/${externalId}/invoice/new`, { email: purchase.email ?? "" }),
   );
   // PaymentInfo reads the next charge before it reads the tax of this one.
-  if (subscription !== null) await loadNextPayment(data, subscription);
+  if (subscription !== null && !data.subscription!.freeMembership) await loadNextPayment(data, subscription);
   data.taxLines = await taxLines(purchase, data.presentment);
   const payment = paymentInfo(data, invoiceLink);
+
+  // The footer renders last: the unsubscribe link encrypts the purchase id with a fresh IV, which a membership's
+  // manage link does not draw.
+  const renderFooter = () =>
+    data.subscription !== null
+      ? `<p>\n    ${manageSubscriptionFooter(data.subscription)}\n</p>\n`
+      : `<p>\n    ${linkTo(
+          "Unsubscribe",
+          mailerUrl(
+            `/purchases/${secureExternalId(
+              "Purchase",
+              purchase.id as bigint | number,
+              "unsubscribe",
+              deps.randomIv ? { randomIv: deps.randomIv } : {},
+            )}/unsubscribe`,
+          ),
+        )}\n</p>\n`;
+
+
+  // `Feature.active?(:graphics_light_receipt, seller)`: the light template reads no recommendations.
+  const featureActive =
+    deps.featureActiveForUser ?? ((name: string, userId: number | bigint) => isFeatureEnabled(name, userActor(userId)));
+    if (await featureActive("graphics_light_receipt", seller.id as number | bigint)) {
+    const body = lightBody(data, info, item, payment, shipping, data.link.name);
+    const html = emailLightLayout(body, { footer: renderFooter() });
+    const options = await customersDeliveryOptions(seller as unknown as UserRow, purchase.email, deps);
+    return applicationMail(
+      {
+        mailerClass: "CustomerMailer",
+        mailerMethod: "receipt",
+        args,
+        to: purchase.email,
+        from,
+        ...(replyTo === null ? {} : { replyTo }),
+        subject,
+        html,
+        deliveryMethodOptions: options,
+        recordIds: { purchaseId: purchase.id, emailName: "receipt" },
+      },
+      deps,
+    );
+  }
 
   // recommended_products_info: the buyer's account, cart_seller_ids, then the products Rails excludes (the cart's,
   // the buyer's own purchases and their bundle members). A seller who opted out has no cart sellers, so nothing is
@@ -702,24 +808,7 @@ ${info.productQuestionsNote === null ? "" : `    <div>\n      ${info.productQues
   ${recommendedSection(recommended)}
 `;
 
-  // The footer renders last: the unsubscribe link encrypts the purchase id with a fresh IV, which a membership's
-  // manage link does not draw.
-  const footer =
-    data.subscription !== null
-      ? `<p>\n    ${manageSubscriptionFooter(data.subscription)}\n</p>\n`
-      : `<p>\n    ${linkTo(
-          "Unsubscribe",
-          mailerUrl(
-            `/purchases/${secureExternalId(
-              "Purchase",
-              purchase.id as bigint | number,
-              "unsubscribe",
-              deps.randomIv ? { randomIv: deps.randomIv } : {},
-            )}/unsubscribe`,
-          ),
-        )}\n</p>\n`;
-
-  const html = emailLayout(`${receiptPartial}\n`, { footer });
+  const html = emailLayout(`${receiptPartial}\n`, { footer: renderFooter() });
   const options = await customersDeliveryOptions(seller as unknown as UserRow, purchase.email, deps);
   return applicationMail(
     {

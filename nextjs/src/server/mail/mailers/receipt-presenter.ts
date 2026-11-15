@@ -141,6 +141,8 @@ export type ReceiptSubscription = {
   nextPayment: { cents: number; date: Date } | null;
   // Whether the membership's original purchase was a gift the buyer sent
   gift: boolean;
+  // Purchase#free_membership_purchase?: a $0 membership that stays free
+  freeMembership: boolean;
 };
 
 export type ReceiptGift = {
@@ -453,7 +455,7 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
       ),
     });
   // Purchase#has_invoice?
-  if (subscription ? !trial : !free) today.push({ label: null, html: invoiceLink });
+  if (subscription ? !trial && !subscription.freeMembership : !free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
   if (!data.presentment)
@@ -555,7 +557,10 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
 // ItemInfo#manage_membership_note for a membership that renews until cancelled.
 function manageMembershipNote(subscription: ReceiptSubscription): string {
   const href = mailerUrl(`/subscriptions/${subscription.externalId}/manage`);
-  return `You will be charged once ${recurrenceLongIndicator(subscription.recurrence)}. If you would like to manage your membership you can visit ${linkTo("subscription settings", href, { target: "_blank" })}.`;
+  const promise = subscription.freeMembership
+    ? `Your free membership renews once ${recurrenceLongIndicator(subscription.recurrence)}.`
+    : `You will be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`;
+  return `${promise} If you would like to manage your membership you can visit ${linkTo("subscription settings", href, { target: "_blank" })}.`;
 }
 
 function recurrenceLongIndicator(recurrence: string | null): string {
@@ -567,7 +572,10 @@ function recurrenceLongIndicator(recurrence: string | null): string {
 // FooterInfo: the cadence and the link that replace the unsubscribe link of a membership's receipt.
 export function manageSubscriptionFooter(subscription: ReceiptSubscription): string {
   const href = mailerUrl(`/subscriptions/${subscription.externalId}/manage`);
-  return `${h(`You'll be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`)}\n    ${linkTo("Manage membership", href)}`;
+  const promise = subscription.freeMembership
+    ? `Your free membership renews once ${recurrenceLongIndicator(subscription.recurrence)}.`
+    : `You'll be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`;
+  return `${h(promise)}\n    ${linkTo("Manage membership", href)}`;
 }
 
 // shared/_download_button: a rental redirect gets "Watch" when the product has a video file and no button at all otherwise.

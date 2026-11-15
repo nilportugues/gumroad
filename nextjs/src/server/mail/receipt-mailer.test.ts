@@ -25,6 +25,7 @@ import { deserializeArgument } from "./ruby-value.ts";
 
 type EsExchange = { method: string; path: string; body: string; status: number; response: Record<string, unknown> };
 type ReceiptCase = MessageCase & {
+  actor_features: string[];
   mailer_level?: { via: string; level: MailerLevel };
   ivs: string[];
   delivery_statements: Statement[];
@@ -43,7 +44,7 @@ const golden = JSON.parse(
 ) as {
   now: string;
   secrets: Record<string, string>;
-  cases: { messages: ReceiptCase[]; errors: ErrorCase[]; refused: ReceiptCase[] };
+  cases: { messages: ReceiptCase[]; errors: ErrorCase[]; refused: ReceiptCase[]; suppressed: ReceiptCase[] };
 };
 
 let restore: () => void;
@@ -101,6 +102,7 @@ describe("CustomerMailer#receipt", () => {
             randomIv: recordedIvs(c.ivs),
             now: () => new Date(golden.now),
             mailerLevel: async () => c.mailer_level?.level ?? null,
+            featureActiveForUser: async (name) => c.features.includes(name) || c.actor_features.includes(name),
           }),
         SIDEKIQ_EXECUTOR,
       );
@@ -117,6 +119,30 @@ describe("CustomerMailer#receipt", () => {
     });
   }
 
+  // The guard stops these: Rails builds no message, so nothing is delivered and no mail is rendered.
+  for (const c of golden.cases.suppressed) {
+    it(`sends nothing for ${c.method} (${c.name}) as Rails does`, async () => {
+      const replay = sqlReplay(c.statements);
+      const sentToEs = replayEs(c.es);
+      const rendered = await withExecutor(
+        () =>
+          renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+            router: goldenRouter({ features: c.features, redis: c.redis_before, rands: c.rands_used }),
+            randomIv: recordedIvs(c.ivs),
+            now: () => new Date(golden.now),
+            mailerLevel: async () => c.mailer_level?.level ?? null,
+            featureActiveForUser: async (name) => c.features.includes(name) || c.actor_features.includes(name),
+          }),
+        SIDEKIQ_EXECUTOR,
+      );
+      expect(rendered).toBeNull();
+      expect(c.rendered_html).toBeNull();
+      expect(c.delivered).toEqual([]);
+      expect(replay.log).toEqual(replay.expected);
+      expect(sentToEs).toEqual([]);
+    });
+  }
+
   // Rails sends these; the port refuses them (while rendering or encoding) before it sends or writes anything.
   for (const c of golden.cases.refused) {
     it(`leaves ${c.method} (${c.name}) to Rails`, async () => {
@@ -128,6 +154,7 @@ describe("CustomerMailer#receipt", () => {
             router: goldenRouter({ features: [], redis: {}, rands: [] }),
             mailerLevel: async () => "level_1",
             randomIv: recordedIvs(c.ivs),
+            featureActiveForUser: async (name) => c.features.includes(name) || c.actor_features.includes(name),
           }),
         SIDEKIQ_EXECUTOR,
       ).then(

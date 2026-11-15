@@ -303,6 +303,7 @@ describe("a membership's first receipt", () => {
       recurrence: "monthly",
       nextPayment: { cents: 500, date: new Date("2026-11-30T12:00:00Z") },
       gift: false,
+      freeMembership: false,
     },
     priceRecurrence: "monthly",
   });

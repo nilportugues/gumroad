@@ -47,3 +47,32 @@ export async function suppressReceiptFromUnprovenSeller(
   if (paid) return false;
   return gumroadAddress(purchase.email) || impersonates(seller.name) || impersonates(await loadProductName());
 }
+
+// ContentModeration::SellerMailTextGuard.screen for the receipt's custom text. Text it keeps renders unchanged; text it
+// drops also enqueues an admin note, which the port does not do, so held text goes back to Rails. Only plain printable
+// ASCII is decided here: markup, entities and other characters change what Loofah renders and what the blocklist sees.
+const PUBLIC_FILES_HOST = /public-files\.gumroad\.com/i;
+const GUMROAD_NOTICE = /\b(gumroad|your (account|payouts?|balance|funds))\b/i;
+const NOTICE_PHRASES = [
+  /security (alert|notice|warning|team)/i,
+  /(verify|confirm|validate|secure|restore|reactivate) your (account|identity|payouts?|payout (method|details)|bank)/i,
+  /(payouts?|account|funds|balance)[^.]{0,40}\b(on hold|suspended|frozen|locked|limited|at risk)/i,
+  /unusual (activity|sign[- ]?in|login)/i,
+  /action (is )?required/i,
+];
+
+export function screenSellerText(text: string | null): string | null {
+  if (text === null || text.trim() === "") return null;
+  if (!/^[\x20-\x7e\n\r\t]*$/u.test(text) || /[<&]/u.test(text))
+    throw new MailViewNotPortedError("seller text with markup, entities or non-ASCII characters");
+  // The blocklist is the YAML file (absent in this tree) plus this variable.
+  if (!isEmptyEnv(process.env.CONTENT_MODERATION_BLOCKLIST))
+    throw new MailViewNotPortedError("seller text screened against a configured blocklist");
+  const rendered = text.replace(/\s+/gu, " ");
+  if (PUBLIC_FILES_HOST.test(rendered)) throw new MailViewNotPortedError("held seller text");
+  if (GUMROAD_NOTICE.test(rendered) && NOTICE_PHRASES.some((phrase) => phrase.test(rendered)))
+    throw new MailViewNotPortedError("held seller text");
+  return text;
+}
+
+const isEmptyEnv = (value: string | undefined) => (value ?? "").split(",").every((word) => word.trim() === "");
