@@ -68,9 +68,26 @@ describe("redirectLocation", () => {
       expect(locate("/subscriptions/abc/edit_card?a=1&&b=2")).toBe("/subscriptions/abc/manage?a=1&b=2");
     });
 
-    it("leaves a nested query to Rails", () => {
-      expect(locate("/subscriptions/abc/edit_card?a[]=1")).toBeNull();
-      expect(locate("/subscriptions/abc/edit_card?a%5Bb%5D=1")).toBeNull();
+    it("rebuilds lists and hashes the way Rack nests them", () => {
+      expect(locate("/subscriptions/abc/edit_card?a[]=1&a[]=2")).toBe("/subscriptions/abc/manage?a%5B%5D=1&a%5B%5D=2");
+      expect(locate("/subscriptions/abc/edit_card?a%5Bb%5D[c]=1")).toBe("/subscriptions/abc/manage?a%5Bb%5D%5Bc%5D=1");
+      expect(locate("/subscriptions/abc/edit_card?a[b][]=1&a[b][]=2")).toBe(
+        "/subscriptions/abc/manage?a%5Bb%5D%5B%5D=1&a%5Bb%5D%5B%5D=2",
+      );
+      expect(locate("/subscriptions/abc/edit_card?z=1&a[c]=2&a[b]=3&a-b=4&a_b=5")).toBe(
+        "/subscriptions/abc/manage?a%5Bb%5D=3&a%5Bc%5D=2&a-b=4&a_b=5&z=1",
+      );
+    });
+
+    it("leaves a nesting conflict and the shapes Rack reads by other rules to Rails", () => {
+      expect(locate("/subscriptions/abc/edit_card?a=1&a[]=2")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?a[]=1&a[b]=2")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?a[b]=1&a[b][c]=2")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?a[][b]=1")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?a[b=1")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?[a]=1")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?a[]")).toBeNull();
+      expect(locate("/subscriptions/abc/edit_card?a[b][]=1&a[b]=2")).toBeNull();
     });
   });
 

@@ -88,11 +88,11 @@ describe "API v2 MCP and Notion", type: :request do
       end
     end
 
-    it "hands back a body that is not JSON", parity: true do
+    it "answers a body that is not JSON", parity: true do
       post "/muse/v1/mcp", params: "not json", headers: rpc
     end
 
-    it "hands back a request from a foreign origin", parity: true do
+    it "answers a request from a foreign origin", parity: true do
       get "/muse/v1/mcp", headers: { "Origin" => "https://evil.example.com" }
     end
   end

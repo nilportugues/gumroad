@@ -14,7 +14,7 @@ import { authorize, type PolicyQuery } from "../policies/authorize.ts";
 import { utmLinkPolicy } from "../policies/utm-link.ts";
 import type { SellerContext } from "../policies/seller-context.ts";
 import { resolvedTargetResourceId } from "./api-v2/ws17c-utm-links.ts";
-import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
+import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult } from "./application-controller.ts";
 import { railsSegment, registerMutations, remoteIp, type MutationInput } from "./mutation.ts";
 
 const SEE_OTHER = 303;
@@ -26,8 +26,9 @@ const INDEX_ROUTE_KEYS = ["query", "page", "key", "direction"] as const;
 const isHash = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const castString = (value: unknown) => (value === undefined ? undefined : value === null ? null : String(value));
 
-// `params.require(:utm_link).permit(...)`: scalars only; a missing or blank value is a 400 Rails answers.
+// `params.require(:utm_link).permit(...)`: scalars only. An absent key raises ParameterMissing, a 400; a blank or non-hash value stays in Rails.
 function permittedParams(input: MutationInput): Record<string, unknown> {
+  if (!("utm_link" in input.params)) throw new ParameterMissing();
   const link = input.params.utm_link;
   if (!isHash(link) || Object.keys(link).length === 0) throw new HandBackToRails("a utm_link parameter that is not a populated hash");
   const out: Record<string, unknown> = {};

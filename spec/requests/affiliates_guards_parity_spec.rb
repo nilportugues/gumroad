@@ -143,7 +143,7 @@ describe "AffiliatesController guards", type: :request do
       expect(response).to redirect_to(affiliates_path)
     end
 
-    it "hands a request without the affiliate parameter to Rails", parity: true do
+    it "answers 400 to a create without the affiliate parameter", parity: true do
       log_in(seller)
 
       send_json(:post, affiliates_path, {})
