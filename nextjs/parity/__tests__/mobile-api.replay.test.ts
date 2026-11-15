@@ -34,6 +34,7 @@ const SPECS = [
   "mobile_purchases_sales_parity_spec",
   "mobile_sales_access_parity_spec",
   "mobile_sales_actions_parity_spec",
+  "mobile_sales_ppp_parity_spec",
   "mobile_products_subscriptions_parity_spec",
   "mobile_seller_writes_parity_spec",
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
