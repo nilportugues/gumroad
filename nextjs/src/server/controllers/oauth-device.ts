@@ -1,10 +1,11 @@
 // The browser-less half of the OAuth device flow: POST /oauth/device/code (Oauth::DeviceCodesController) and the parts of
 // Oauth::DeviceAuthorizationsController that need no page, i.e. a signed-out visitor holding a pending code being sent to the login
-// page with the code parked in the session, and a signed-out decision being refused. Everything that renders the approval page, and
-// every signed-in request, stays in Rails. The device-code grant of POST /oauth/token lives in oauth-tokens.ts.
+// page with the code parked in the session, a signed-out visitor given the code form (no code, or a code that is unknown, expired,
+// closed or no longer pending), and a signed-out decision being refused. The approval page and every signed-in request stay in Rails. The device-code grant of POST /oauth/token lives in oauth-tokens.ts.
 import { randomBytes } from "node:crypto";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { buttonTag, escapeHtml } from "../erb/html.ts";
 import { domainConfig } from "../infra/domain.ts";
 import {
   createFor,
@@ -18,6 +19,7 @@ import {
 import { findApplicationById, truthy } from "../models/oauth-tokens.ts";
 
 import { type ActionResult, HandBackToRails } from "./application-controller.ts";
+import { renderApplicationPage } from "./erb-pages.ts";
 import { jsonResponse } from "./json-seller.ts";
 import { type MutationInput, registerMutations, remoteIp } from "./mutation.ts";
 import {
@@ -143,6 +145,42 @@ function storeHandoff(input: MutationInput, userCode: string, now: Date): string
   return handoff;
 }
 
+const INVALID_CODE = "This code is invalid.";
+const EXPIRED_CODE = "This code has expired.";
+const INVALID_OR_EXPIRED_CODE = "This code is invalid or expired.";
+const FIELD_CLASS = "w-full rounded border border-border bg-background p-3";
+const CONTINUE_CLASS =
+  "inline-flex items-center justify-center gap-2 cursor-pointer border border-border rounded font-[inherit] no-underline transition-transform hover:-translate-1 hover:shadow active:translate-0 active:shadow-none disabled:opacity-30 disabled:hover:translate-0 disabled:hover:shadow-none bg-accent-with-text text-accent-foreground px-4 py-3 text-base leading-snug";
+
+// The `else` branch of app/views/oauth/device_authorizations/new.html.erb, which is what a signed-out visitor sees whenever no
+// approvable code was found. Under `hide_layouts`, with `X-Robots-Tag: noindex`.
+function codeFormView(userCode: string, errorMessage: string | null): string {
+  const error = errorMessage === null ? "" : `        <p>${escapeHtml(errorMessage)}</p>\n`;
+  const button = buttonTag("Continue", { type: "submit", class: CONTINUE_CLASS }).value;
+  return `<main class="grid divide-y divide-border bg-background border border-border rounded mx-auto my-8 h-min max-w-md w-[calc(100%-2rem)]">
+    <header class="flex flex-col gap-4 p-4 text-center">
+      <h2>Enter device code</h2>
+      <p>Paste the code shown by the application requesting access.</p>
+    </header>
+    <div class="flex flex-col gap-4 p-4">
+${error}      <form class="flex flex-col gap-4" action="/oauth/device" accept-charset="UTF-8" method="get">
+        <input type="text" name="user_code" id="user_code" value="${escapeHtml(userCode)}" autofocus="autofocus" placeholder="GRD-ABCD-1234" class="${FIELD_CLASS}" />
+        ${button}
+</form>    </div>
+</main>
+
+`;
+}
+
+function codeFormPage(input: MutationInput, userCode: string, errorMessage: string | null): Promise<ActionResult> {
+  return renderApplicationPage(input.request, input, null, () => codeFormView(userCode, errorMessage), {
+    hideBase: true,
+    analyticsFirst: false,
+    handBackFlash: true,
+    headers: NOINDEX,
+  });
+}
+
 async function showDeviceAuthorization(input: MutationInput): Promise<ActionResult> {
   if (railsLoggedInUser(input.context) !== null) throw new HandBackToRails("a signed-in device authorization page");
   if (requestFormat(input.request) !== "html")
@@ -161,16 +199,15 @@ async function showDeviceAuthorization(input: MutationInput): Promise<ActionResu
   }
   const userCode = formatUserCode(rawUserCode ?? "");
   // Every other outcome renders the page, with the reason in it.
-  if (userCode === "") throw new HandBackToRails("a device authorization page with no code");
+  if (userCode === "") return codeFormPage(input, userCode, null);
   const authorization = await findByUserCode(userCode);
-  if (authorization === null) throw new HandBackToRails("a device authorization page for an unknown code");
+  if (authorization === null) return codeFormPage(input, userCode, INVALID_CODE);
   const application = await findApplicationById(authorization.oauth_application_id);
   if (application === null || application.deleted_at !== null || !truthy(application.device_authorization_enabled))
-    throw new HandBackToRails("a device authorization page for an application that closed device authorization");
-  if (authorization.expires_at.getTime() <= now.getTime())
-    throw new HandBackToRails("a device authorization page for an expired code");
-  if (authorization.status !== STATUS_PENDING)
-    throw new HandBackToRails("a device authorization page for a code that is no longer pending");
+    return codeFormPage(input, userCode, INVALID_CODE);
+  if (authorization.expires_at.getTime() <= now.getTime()) return codeFormPage(input, userCode, EXPIRED_CODE);
+  // A signed-out visitor owns no terminal authorization, so any other status is refused like an unknown code.
+  if (authorization.status !== STATUS_PENDING) return codeFormPage(input, userCode, INVALID_OR_EXPIRED_CODE);
 
   const handoff = storeHandoff(input, userCode, now);
   return {
