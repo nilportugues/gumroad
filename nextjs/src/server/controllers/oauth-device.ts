@@ -5,8 +5,6 @@
 import { randomBytes } from "node:crypto";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
-import { avatarUrl, displayName } from "../page-props/signed-in/presenters.ts";
-import { perFormCsrfToken } from "../page-props/csrf.ts";
 import { buttonTag, escapeHtml } from "../erb/html.ts";
 import { domainConfig } from "../infra/domain.ts";
 import {
@@ -24,6 +22,8 @@ import {
   withApplicationRowLock,
 } from "../models/oauth-device-authorization.ts";
 import { findApplicationById, truthy } from "../models/oauth-tokens.ts";
+import { perFormCsrfToken } from "../page-props/csrf.ts";
+import { avatarUrl, displayName } from "../page-props/signed-in/presenters.ts";
 
 import { type ActionResult, HandBackToRails } from "./application-controller.ts";
 import { renderApplicationPage } from "./erb-pages.ts";
@@ -247,7 +247,6 @@ function decisionView(title: string, text: string): string {
 }
 
 function approvalView(
-  input: MutationInput,
   csrfToken: string,
   applicationName: string,
   userCode: string,
@@ -262,7 +261,6 @@ function approvalView(
         ${handoff === null ? "" : field("handoff", handoff)}
         ${consented ? `<input type="hidden" name="consented_account" id="consented_account" autocomplete="off" />\n        ` : ""}${buttonTag(label, { name: "decision", type: "submit", value: decision, class: className }).value}
 </form>`;
-  void input;
   const descriptions = scopes
     .map((scope) => OAUTH_SCOPE_DESCRIPTIONS[scope])
     .filter((description): description is string => description !== undefined);
@@ -294,7 +292,8 @@ ${list}    <footer class="flex flex-col gap-4 p-4 text-center">
 `;
 }
 
-const sameId = (left: number | bigint | null, right: number | bigint) => left !== null && BigInt(left) === BigInt(right);
+const sameId = (left: number | bigint | null, right: number | bigint) =>
+  left !== null && BigInt(left) === BigInt(right);
 
 // The decision the signed-in visitor already made (#device_authorization_owned_by_current_user?, without a team membership).
 function ownedBy(authorization: DeviceAuthorizationRow, userId: number | bigint): boolean {
@@ -345,7 +344,7 @@ async function signedInDeviceAuthorization(
     input,
     null,
     (_ctx, csrfToken) =>
-      approvalView(input, csrfToken, application.name, userCode, authorization.scopes.split(/\s+/u).filter(Boolean), handoff),
+      approvalView(csrfToken, application.name, userCode, authorization.scopes.split(/\s+/u).filter(Boolean), handoff),
     { hideBase: true, analyticsFirst: false, handBackFlash: true, headers: NOINDEX, footer },
   );
 }
