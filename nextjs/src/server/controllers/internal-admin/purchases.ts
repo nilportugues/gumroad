@@ -37,12 +37,16 @@ class InvalidPurchaseDateError extends Error {}
 // strptime also takes unpadded fields, which hand back.
 function purchaseDateWindow(raw: string): [string, string] {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(raw);
-  if (match === null || Number(match[1]) < 1000) throw new NotPortedError("a purchase date that is not YYYY-MM-DD", SOURCE);
+  if (match === null || Number(match[1]) < 1000)
+    throw new NotPortedError("a purchase date that is not YYYY-MM-DD", SOURCE);
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
   const midnight = new Date(Date.UTC(year, month - 1, day));
   if (midnight.getUTCMonth() !== month - 1 || midnight.getUTCDate() !== day) throw new InvalidPurchaseDateError();
   const stamp = (date: Date, time: string) => `${date.toISOString().slice(0, 10)} ${time}`;
-  return [stamp(new Date(midnight.getTime() - MS_PER_DAY), "00:00:00"), stamp(new Date(midnight.getTime() + MS_PER_DAY), "23:59:59")];
+  return [
+    stamp(new Date(midnight.getTime() - MS_PER_DAY), "00:00:00"),
+    stamp(new Date(midnight.getTime() + MS_PER_DAY), "23:59:59"),
+  ];
 }
 
 // CreditCardUtility.extract_month_and_year, for the digit-only forms: "MM/YY", "M/YY", "MMYY" (spaces dropped first).
@@ -512,7 +516,10 @@ async function searchConditions(
     }
     if (search.expiry_date !== undefined) {
       const { month, year } = expiryMonthAndYear(search.expiry_date);
-      conditions.push(Prisma.sql`purchases.card_expiry_year = ${year}`, Prisma.sql`purchases.card_expiry_month = ${month}`);
+      conditions.push(
+        Prisma.sql`purchases.card_expiry_year = ${year}`,
+        Prisma.sql`purchases.card_expiry_month = ${month}`,
+      );
     }
     if (search.charge_amount !== undefined) {
       const [whole = "", fraction = ""] = search.charge_amount.split(".");
