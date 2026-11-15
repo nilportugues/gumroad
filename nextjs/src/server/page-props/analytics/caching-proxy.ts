@@ -2,14 +2,20 @@
 // CreatorAnalyticsWeb#by_(date|state|referral) for large sellers, merged with whatever is missing.
 /* eslint-disable @typescript-eslint/no-explicit-any -- the days are JSON documents read back from the cache */
 import { getRedis } from "../../infra/redis.ts";
-import { isLargeSeller } from "../../models/large-seller.ts";
 import { readDataFromKeys, upsertDataFromKey } from "../../models/computed-sales-analytics-day.ts";
+import { isLargeSeller } from "../../models/large-seller.ts";
 import { addDays, civilDateInZone, timezoneId } from "../../search/civil-time.ts";
 import { formattedDateWithTimezone } from "../../search/d3.ts";
 import { RubyError } from "../../search/ruby-params.ts";
+
 import { mergeDataByDate, mergeDataByReferral, mergeDataByState } from "./caching-proxy-formatters.ts";
 import { CreatorAnalyticsWeb, type AnalyticsSeller } from "./creator-analytics-web.ts";
-import { firstSaleCreatedAtForAnalytics, productsForCreatorAnalytics, productsForCreatorAnalyticsRecords, type AnalyticsProduct } from "./seller-analytics.ts";
+import {
+  firstSaleCreatedAtForAnalytics,
+  productsForCreatorAnalytics,
+  productsForCreatorAnalyticsRecords,
+  type AnalyticsProduct,
+} from "./seller-analytics.ts";
 
 export const REFERRAL_CACHE_VERSION = 1;
 export const REVENUE_CACHE_VERSION = 1;
@@ -61,7 +67,12 @@ export class CreatorAnalyticsCachingProxy {
     if (by === "state") return mergeDataByState(compiled);
     const firstSale = await firstSaleCreatedAtForAnalytics(BigInt(this.user.id));
     const iana = timezoneId(this.user.timezone);
-    return mergeDataByReferral(compiled, dates, this.todayDate(), firstSale ? formattedDateWithTimezone(firstSale, iana, this.now()) : null);
+    return mergeDataByReferral(
+      compiled,
+      dates,
+      this.todayDate(),
+      firstSale ? formattedDateWithTimezone(firstSale, iana, this.now()) : null,
+    );
   }
 
   // `overwrite_cache(date, by:)`: regenerates one cached day, for a seller whose analytics are cached. `date` is a civil date.
@@ -101,7 +112,12 @@ export class CreatorAnalyticsCachingProxy {
     return range(start, end);
   }
 
-  private async analyticsData(startDate: string, endDate: string, by: AnalyticsKind, products: AnalyticsProduct[] | null = null): Promise<Day> {
+  private async analyticsData(
+    startDate: string,
+    endDate: string,
+    by: AnalyticsKind,
+    products: AnalyticsProduct[] | null = null,
+  ): Promise<Day> {
     const web = new CreatorAnalyticsWeb(this.user, range(startDate, endDate), products);
     return (by === "date" ? await web.byDate() : by === "state" ? await web.byState() : await web.byReferral()) as Day;
   }

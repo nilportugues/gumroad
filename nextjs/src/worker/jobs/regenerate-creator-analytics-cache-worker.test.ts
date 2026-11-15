@@ -12,8 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createJobsRuntime } from "../../server/jobs/runtime.ts";
 import { parseRubyJson, RubyFloat, type JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
 import { setPinnedSessionFactory } from "../../server/models/runtime/max-execution-time.ts";
-import { setEsSender } from "../../server/search/transport.ts";
 import type { SqlClient } from "../../server/models/sql.ts";
+import { setEsSender } from "../../server/search/transport.ts";
 
 import {
   asSidekiqJob,
@@ -62,7 +62,10 @@ type Case = {
   marks: string | null;
 };
 const golden = parseRubyJson(
-  readFileSync(new URL("./__fixtures__/regenerate-creator-analytics-cache-worker.golden.json", import.meta.url), "utf8"),
+  readFileSync(
+    new URL("./__fixtures__/regenerate-creator-analytics-cache-worker.golden.json", import.meta.url),
+    "utf8",
+  ),
 ) as unknown as { now: number | RubyFloat; cases: Case[] };
 const nowSeconds = golden.now instanceof RubyFloat ? golden.now.value : golden.now;
 
@@ -146,10 +149,18 @@ async function run(c: Case, statements: Statement[]) {
   return { error, sql, capLog, recording, sent };
 }
 
-const CAP_STATEMENTS = ["select @@max_execution_time", "set max_execution_time = 1200000", "set max_execution_time = 300000"];
+const CAP_STATEMENTS = [
+  "select @@max_execution_time",
+  "set max_execution_time = 1200000",
+  "set max_execution_time = 300000",
+];
 // The canned answers do not name an index: compare the model the path names and the body.
 const normalised = (es: Es[]) =>
-  es.map((r) => ({ method: r.method, index: /\/?([a-z_-]*?)\/_search$/u.exec(r.path)?.[1]?.replace(/^.*-/u, ""), body: JSON.parse(r.body ?? "null") as unknown }));
+  es.map((r) => ({
+    method: r.method,
+    index: /\/?([a-z_-]*?)\/_search$/u.exec(r.path)?.[1]?.replace(/^.*-/u, ""),
+    body: JSON.parse(r.body ?? "null") as unknown,
+  }));
 
 describe("RegenerateCreatorAnalyticsCacheWorker", () => {
   for (const c of golden.cases.filter((c) => !CAST_IDS.has(c.name) && !HANDED_BACK_DATES.has(c.name))) {
@@ -189,7 +200,20 @@ describe("RegenerateCreatorAnalyticsCacheWorker", () => {
   }
 
   it("takes a seller id and a date", async () => {
-    await expect(regenerateCreatorAnalyticsCacheWorkerWith()([1], contextFor(createJobsRuntime({ sidekiqRedis: recordingSidekiqRedis().redis, bullmqRedis: recordingSidekiqRedis().redis, registry: rubyRuntimeRegistry(), now: () => nowSeconds, newJid: sequentialJids() })))).rejects.toThrow();
+    await expect(
+      regenerateCreatorAnalyticsCacheWorkerWith()(
+        [1],
+        contextFor(
+          createJobsRuntime({
+            sidekiqRedis: recordingSidekiqRedis().redis,
+            bullmqRedis: recordingSidekiqRedis().redis,
+            registry: rubyRuntimeRegistry(),
+            now: () => nowSeconds,
+            newJid: sequentialJids(),
+          }),
+        ),
+      ),
+    ).rejects.toThrow();
   });
 });
 

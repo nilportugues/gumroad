@@ -9,7 +9,13 @@ import { civilDateInZone, timezoneId } from "../../search/civil-time.ts";
 // Purchase::CHARGED_SUCCESS_STATES
 const CHARGED_SUCCESS_STATES = ["preorder_authorization_successful", "successful"];
 
-export type AnalyticsProduct = { id: bigint; name: string | null; unique_permalink: string | null; deleted_at: Date | null; flags: bigint };
+export type AnalyticsProduct = {
+  id: bigint;
+  name: string | null;
+  unique_permalink: string | null;
+  deleted_at: Date | null;
+  flags: bigint;
+};
 
 // User#products_for_creator_analytics: products deleted or archived without any successful sale are omitted.
 const creatorAnalyticsProducts = (sellerId: bigint) => Prisma.sql`${column("links", "user_id")} = ${sellerId}
@@ -35,11 +41,17 @@ export async function productsForCreatorAnalyticsRecords(sellerId: bigint): Prom
 }
 
 export async function countProductsForCreatorAnalytics(sellerId: bigint): Promise<number> {
-  const [row] = await selectRows<{ count: bigint }>(Prisma.sql`SELECT COUNT(*) AS count FROM ${table("links")} WHERE ${creatorAnalyticsProducts(sellerId)}`);
+  const [row] = await selectRows<{ count: bigint }>(
+    Prisma.sql`SELECT COUNT(*) AS count FROM ${table("links")} WHERE ${creatorAnalyticsProducts(sellerId)}`,
+  );
   return Number(row?.count ?? 0);
 }
 
-export async function productIdsForCreatorAnalytics(sellerId: bigint, limit: number, offset: number): Promise<bigint[]> {
+export async function productIdsForCreatorAnalytics(
+  sellerId: bigint,
+  limit: number,
+  offset: number,
+): Promise<bigint[]> {
   const rows = await selectRows<{ id: bigint }>(
     Prisma.sql`SELECT ${column("links", "id")} FROM ${table("links")} WHERE ${creatorAnalyticsProducts(sellerId)} ORDER BY ${column("links", "id")} DESC LIMIT ${limit} OFFSET ${offset}`,
   );
@@ -50,14 +62,19 @@ export async function productIdsForCreatorAnalytics(sellerId: bigint, limit: num
 export async function firstSaleCreatedAtForAnalytics(sellerId: bigint): Promise<Date | null> {
   const states = ["successful", "preorder_authorization_successful", "preorder_concluded_successfully"];
   const unions = states.map(
-    (state) => Prisma.sql`(SELECT ${column("purchases", "created_at")} FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${sellerId} AND ${column("purchases", "purchase_state")} = ${state} ORDER BY ${column("purchases", "created_at")} ASC LIMIT 1)`,
+    (state) =>
+      Prisma.sql`(SELECT ${column("purchases", "created_at")} FROM ${table("purchases")} WHERE ${column("purchases", "seller_id")} = ${sellerId} AND ${column("purchases", "purchase_state")} = ${state} ORDER BY ${column("purchases", "created_at")} ASC LIMIT 1)`,
   );
-  const [row] = await selectRows<{ created_at: Date }>(Prisma.sql`SELECT created_at FROM (${Prisma.join(unions, " UNION ")}) subquery ORDER BY created_at ASC LIMIT 1`);
+  const [row] = await selectRows<{ created_at: Date }>(
+    Prisma.sql`SELECT created_at FROM (${Prisma.join(unions, " UNION ")}) subquery ORDER BY created_at ASC LIMIT 1`,
+  );
   return row?.created_at ?? null;
 }
 
 // `Time.current.in_time_zone(seller.timezone).to_date`
-export const sellerToday = (seller: Pick<User, "timezone">, now: Date = new Date()): string => civilDateInZone(now.getTime(), timezoneId(seller.timezone));
+export const sellerToday = (seller: Pick<User, "timezone">, now: Date = new Date()): string =>
+  civilDateInZone(now.getTime(), timezoneId(seller.timezone));
 
 // `time.in_time_zone(seller.timezone).to_date`
-export const sellerDate = (seller: Pick<User, "timezone">, time: Date): string => civilDateInZone(time.getTime(), timezoneId(seller.timezone));
+export const sellerDate = (seller: Pick<User, "timezone">, time: Date): string =>
+  civilDateInZone(time.getTime(), timezoneId(seller.timezone));

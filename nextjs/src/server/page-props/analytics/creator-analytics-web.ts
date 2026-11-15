@@ -2,12 +2,23 @@
 // the shapes the analytics charts read (by date, by state, by referral).
 import type { User } from "@prisma/client";
 
-import { dateMonthDomain, formattedDateWithTimezone, hourKeyOf, hourMonthDomain, type DateAndMonth } from "../../search/d3.ts";
 import { civilDateInZone, dayStartIso, formattedDate, timezoneId } from "../../search/civil-time.ts";
 import { CreatorAnalyticsSales } from "../../search/creator-analytics-sales.ts";
+import {
+  dateMonthDomain,
+  formattedDateWithTimezone,
+  hourKeyOf,
+  hourMonthDomain,
+  type DateAndMonth,
+} from "../../search/d3.ts";
 import { CreatorAnalyticsProductPageViews } from "../../search/product-page-views.ts";
+
 import ANALYTICS_DATA from "./analytics-data.generated.json" with { type: "json" };
-import { firstSaleCreatedAtForAnalytics, productsForCreatorAnalytics, type AnalyticsProduct } from "./seller-analytics.ts";
+import {
+  firstSaleCreatedAtForAnalytics,
+  productsForCreatorAnalytics,
+  type AnalyticsProduct,
+} from "./seller-analytics.ts";
 
 // config/initializers/004_constants.rb
 const REFERRER_DOMAIN_FOR_GUMROAD_RECOMMENDED_PRODUCTS = "recommended_by_gumroad";
@@ -39,7 +50,13 @@ export type ByDate = {
   by_date: { views: Series; sales: Series; totals: Series };
 };
 export type LocationValue = number | number[];
-export type ByState = { by_state: { views: Record<string, Record<string, LocationValue>>; sales: Record<string, Record<string, LocationValue>>; totals: Record<string, Record<string, LocationValue>> } };
+export type ByState = {
+  by_state: {
+    views: Record<string, Record<string, LocationValue>>;
+    sales: Record<string, Record<string, LocationValue>>;
+    totals: Record<string, Record<string, LocationValue>>;
+  };
+};
 export type ByReferral = {
   dates_and_months: DateAndMonth[];
   start_date: string;
@@ -68,7 +85,7 @@ export class CreatorAnalyticsWeb {
   private hourly: Map<string, number> | null = null;
 
   // `dates`: civil dates, first to last. `products`: the caller's preloaded collection, shared across instances.
-  constructor(user: AnalyticsSeller, dates: string[], products: AnalyticsProduct[] | null = null, interval: string = "day") {
+  constructor(user: AnalyticsSeller, dates: string[], products: AnalyticsProduct[] | null = null, interval = "day") {
     this.user = user;
     this.dates = dates;
     this.preloaded = products;
@@ -78,7 +95,9 @@ export class CreatorAnalyticsWeb {
   async byDate(): Promise<ByDate> {
     const products = await this.products();
     const views = await this.pageViews(products).byProductAndDate();
-    const sales = new Map((await this.sales(products).byProductAndDate()).map((entry) => [key(...entry.key), entry.value]));
+    const sales = new Map(
+      (await this.sales(products).byProductAndDate()).map((entry) => [key(...entry.key), entry.value]),
+    );
     const result = { ...(await this.resultMetadata()), by_date: { views: {}, sales: {}, totals: {} } } as ByDate;
     const dates = this.datesStrings();
     for (const type of TYPES) {
@@ -100,9 +119,16 @@ export class CreatorAnalyticsWeb {
     const sales = await this.sales(products).byProductAndCountryAndState();
     const result: ByState = { by_state: { views: {}, sales: {}, totals: {} } };
     for (const type of TYPES) {
-      for (const permalink of permalinks.values()) result.by_state[type][permalink] = { [USA]: new Array<number>(STATES_SUPPORTED_BY_ANALYTICS.length).fill(0) };
+      for (const permalink of permalinks.values())
+        result.by_state[type][permalink] = { [USA]: new Array<number>(STATES_SUPPORTED_BY_ANALYTICS.length).fill(0) };
     }
-    const add = (type: (typeof TYPES)[number], permalink: string, country: string | null, state: string | null, count: number) => {
+    const add = (
+      type: (typeof TYPES)[number],
+      permalink: string,
+      country: string | null,
+      state: string | null,
+      count: number,
+    ) => {
       const locations = result.by_state[type][permalink]!;
       if (country === USA) {
         let index = state === null ? -1 : STATES_SUPPORTED_BY_ANALYTICS.indexOf(state);
@@ -112,8 +138,15 @@ export class CreatorAnalyticsWeb {
         locations[locationKey(country)] = ((locations[locationKey(country)] as number | undefined) ?? 0) + count;
       }
     };
-    for (const { key: [productId, country, state], count } of views) add("views", permalinks.get(productId)!, country, state, count);
-    for (const { key: [productId, country, state], value } of sales) {
+    for (const {
+      key: [productId, country, state],
+      count,
+    } of views)
+      add("views", permalinks.get(productId)!, country, state, count);
+    for (const {
+      key: [productId, country, state],
+      value,
+    } of sales) {
       add("sales", permalinks.get(productId)!, country, state, value.count);
       add("totals", permalinks.get(productId)!, country, state, value.total);
     }
@@ -125,7 +158,10 @@ export class CreatorAnalyticsWeb {
     const permalinks = this.permalinks(products);
     const views = await this.pageViews(products).byProductAndReferrerAndDate();
     const sales = await this.sales(products).byProductAndReferrerAndDate();
-    const result = { ...(await this.resultMetadata()), by_referral: { views: {}, sales: {}, totals: {} } } as ByReferral;
+    const result = {
+      ...(await this.resultMetadata()),
+      by_referral: { views: {}, sales: {}, totals: {} },
+    } as ByReferral;
     const dates = this.datesStrings();
     const bump = (type: (typeof TYPES)[number], permalink: string, referrer: string, date: string, amount: number) => {
       const index = dates.indexOf(date);
@@ -138,7 +174,10 @@ export class CreatorAnalyticsWeb {
       const [productId, referrer, date] = JSON.parse(encoded) as [number, string, string];
       bump("views", permalinks.get(productId)!, referrerDomainToName(referrer), date, count);
     }
-    for (const { key: [productId, referrer, date], value } of sales) {
+    for (const {
+      key: [productId, referrer, date],
+      value,
+    } of sales) {
       const permalink = permalinks.get(productId)!;
       const name = referrerDomainToName(referrer);
       bump("sales", permalink, name, date, value.count);
@@ -152,7 +191,12 @@ export class CreatorAnalyticsWeb {
     // "Today" is the seller's calendar day: the frontend keys the projected end-of-day overlay off the "Today" label.
     const today = civilDateInZone(Date.now(), iana);
     const dates = this.dateMonths(iana);
-    const metadata: { dates_and_months: DateAndMonth[]; start_date: string; end_date: string; first_sale_date?: string } = {
+    const metadata: {
+      dates_and_months: DateAndMonth[];
+      start_date: string;
+      end_date: string;
+      first_sale_date?: string;
+    } = {
       dates_and_months: dates,
       start_date: formattedDate(this.dates[0]!, today),
       end_date: formattedDate(this.dates.at(-1)!, today),
@@ -163,7 +207,9 @@ export class CreatorAnalyticsWeb {
   }
 
   private dateMonths(iana: string): DateAndMonth[] {
-    return this.interval === "hour" ? hourMonthDomain([...this.hourlyBuckets().values()], iana) : dateMonthDomain(this.dates);
+    return this.interval === "hour"
+      ? hourMonthDomain([...this.hourlyBuckets().values()], iana)
+      : dateMonthDomain(this.dates);
   }
 
   private async products(): Promise<AnalyticsProduct[]> {

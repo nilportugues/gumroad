@@ -6,9 +6,9 @@
 import type { User } from "@prisma/client";
 
 import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
-import { CreatorAnalyticsCachingProxy } from "../../server/page-props/analytics/caching-proxy.ts";
 import { findByIdBang, recordIdFrom } from "../../server/models/row-reads.ts";
 import { timeoutQueries } from "../../server/models/runtime/max-execution-time.ts";
+import { CreatorAnalyticsCachingProxy } from "../../server/page-props/analytics/caching-proxy.ts";
 import { addDays } from "../../server/search/civil-time.ts";
 
 import { modelJob } from "./support/job-deps.ts";
