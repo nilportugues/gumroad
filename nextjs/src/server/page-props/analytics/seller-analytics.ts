@@ -25,6 +25,15 @@ export async function productsForCreatorAnalytics(sellerId: bigint): Promise<Ana
   );
 }
 
+// `@user.products_for_creator_analytics.load` as ActiveRecord words it (every column, one line), for callers whose statements are
+// compared with Rails' text.
+export async function productsForCreatorAnalyticsRecords(sellerId: bigint): Promise<AnalyticsProduct[]> {
+  const states = Prisma.join(CHARGED_SUCCESS_STATES, ", ");
+  return await selectRows<AnalyticsProduct>(
+    Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "user_id")} = ${sellerId} AND (EXISTS (SELECT ${Prisma.raw("`purchases`.*")} FROM ${table("purchases")} WHERE ${column("purchases", "purchase_state")} IN (${states}) AND (purchases.link_id = links.id)) OR (links.deleted_at IS NULL AND ${LinkFlags.condition("archived", false)})) ORDER BY ${column("links", "id")} DESC`,
+  );
+}
+
 export async function countProductsForCreatorAnalytics(sellerId: bigint): Promise<number> {
   const [row] = await selectRows<{ count: bigint }>(Prisma.sql`SELECT COUNT(*) AS count FROM ${table("links")} WHERE ${creatorAnalyticsProducts(sellerId)}`);
   return Number(row?.count ?? 0);

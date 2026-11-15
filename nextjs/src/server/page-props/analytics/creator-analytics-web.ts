@@ -129,8 +129,8 @@ export class CreatorAnalyticsWeb {
     const dates = this.datesStrings();
     const bump = (type: (typeof TYPES)[number], permalink: string, referrer: string, date: string, amount: number) => {
       const index = dates.indexOf(date);
-      // `array[nil] += n` is a TypeError in Ruby.
-      if (index < 0) throw new TypeError("no implicit conversion from nil to integer");
+      // The range filter and the histogram resolve the time zone separately, so a bucket can be keyed to a date outside the window.
+      if (index < 0) return;
       const referrers = (result.by_referral[type][permalink] ??= {});
       (referrers[referrer] ??= new Array<number>(dates.length).fill(0))[index]! += amount;
     };
