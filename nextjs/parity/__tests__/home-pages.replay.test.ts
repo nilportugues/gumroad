@@ -14,8 +14,8 @@ import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
 import { redisSeeder } from "../src/session";
 
-// Replays spec/requests/home_pages_parity_spec.rb: HomeController#features_md. A request with a cookie or a utm parameter ("hands a ...")
-// must reach the stand-in Rails untouched; the other home#* actions are ERB pages and stay Rails'.
+// Replays spec/requests/home_pages_parity_spec.rb: HomeController#features_md, with and without the cookies and utm parameters that take
+// it off the edge cache; the other home#* actions are ERB pages and stay Rails'.
 const url = process.env.PARITY_DATABASE_URL;
 const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = path.join("parity/fixtures/requests", "home_pages_parity_spec");
@@ -31,6 +31,8 @@ const COMPARE = {
     // Next.js owns Vary on what it serves (its RSC cache keys).
     "response.headers.vary",
     "response.cookies.__profilin",
+    // The CSRF token is masked with a fresh pad on every response.
+    "response.cookies.XSRF-TOKEN.value",
     "db.versions",
   ],
 };

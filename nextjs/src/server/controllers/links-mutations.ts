@@ -4,6 +4,7 @@
 // disable_downloads_for_all_files and send_sample_price_change_email run in Node for the shapes their recordings prove.
 import { Prisma } from "@prisma/client";
 
+import { db } from "../../lib/db.ts";
 import { decrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
 import { isFeatureEnabled, userActor } from "../infra/flipper.ts";
@@ -17,9 +18,18 @@ import { UserFlags } from "../models/user.ts";
 import { authorize } from "../policies/authorize.ts";
 import { collaboratingProductIds, linkPolicy } from "../policies/link.ts";
 import { loadSellerContext } from "../policies/seller-context.ts";
-import { type LinkRow } from "../presenters/product-reads.ts";
+import { findLink, type LinkRow } from "../presenters/product-reads.ts";
+import { cardForWeb } from "../presenters/product.ts";
+import { ProductSortKey, SellerProfileSectionParam } from "../search/product-search.ts";
+import { searchProductsWithFacets } from "../search/search-products.ts";
 
-import { HandBackToRails, ParameterMissing, RoutingError, type ActionResult, type Rendered } from "./application-controller.ts";
+import {
+  HandBackToRails,
+  ParameterMissing,
+  RoutingError,
+  type ActionResult,
+  type Rendered,
+} from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
 import { fetchProductForShow } from "./product-page.ts";
 import { find } from "./products-mutations.ts";
@@ -243,9 +253,50 @@ async function sendSamplePriceChangeEmail(input: MutationInput): Promise<ActionR
   return json({ success: true });
 }
 
-// ----- LinksController#search: the answers that need no Elasticsearch
+// ----- LinksController#search: the answers that need no Elasticsearch, and a profile section's products
 
 const EMPTY_SEARCH = { total: 0, filetypes_data: [], tags_data: [], taxonomy_attributes_data: [], products: [] };
+// Product::Layout::PROFILE
+const PROFILE_LAYOUT = "profile";
+// The params of a profile section's page of products; any other filter (`ids`, `sort`, `query`, `exclude_ids`...) stays in Rails.
+const SECTION_SEARCH_PARAMS = new Set(["user_id", "section_id"]);
+
+// `search_products` for the section, then `ProductPresenter.card_for_web` per product (in_section: the profile layout, no seller byline).
+async function sectionSearch(
+  input: MutationInput,
+  sellerId: bigint,
+  section: { default_product_sort: string | null; shown_products: number[] } | null,
+): Promise<ActionResult> {
+  const sort = section?.default_product_sort;
+  if (sort === "default") throw new HandBackToRails("a section whose default sort is the literal default");
+  const found = await searchProductsWithFacets({
+    sort: sort ?? ProductSortKey.PAGE_LAYOUT,
+    section: section ? new SellerProfileSectionParam(section.shown_products) : undefined,
+    is_alive_on_profile: true,
+    user_id: Number(sellerId),
+  });
+  const request = {
+    host: input.request.host,
+    hostWithPort: input.request.hostWithPort,
+    protocol: input.request.protocol,
+    remoteIp: input.request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
+    params: Object.fromEntries(input.url.searchParams),
+    cookies: input.request.cookies,
+  };
+  const products = [];
+  for (const id of found.product_ids) {
+    // `records` drops an indexed product whose row is gone; the port does not guess which.
+    if (!(await findLink(BigInt(id)))) throw new HandBackToRails("a search hit with no product row");
+    products.push(await cardForWeb(BigInt(id), { request, target: PROFILE_LAYOUT, showSeller: false }));
+  }
+  return json({
+    total: found.total,
+    tags_data: found.tags_data,
+    filetypes_data: found.filetypes_data,
+    taxonomy_attributes_data: found.taxonomy_attributes_data,
+    products,
+  });
+}
 
 export async function search(input: MutationInput): Promise<ActionResult> {
   const { user_id: userId, section_id: sectionId, ids } = input.params;
@@ -263,16 +314,31 @@ export async function search(input: MutationInput): Promise<ActionResult> {
     Prisma.sql`SELECT ${column("users", "id")} FROM ${table("users")} WHERE ${column("users", "external_id")} = ${userId} LIMIT 1`,
   );
   if (!seller) return json(EMPTY_SEARCH);
-  if (sectionId === DEFAULT_PRODUCTS_SECTION_ID) throw new HandBackToRails("the virtual default products section");
+  const searchesSection = Object.keys(input.params).every((key) => SECTION_SEARCH_PARAMS.has(key));
+  if (sectionId === DEFAULT_PRODUCTS_SECTION_ID) {
+    // Only for a seller with no saved products section on the profile: the id cannot bypass a customized layout.
+    const [saved] = await selectRows(
+      Prisma.sql`SELECT 1 FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "seller_id")} = ${seller.id} AND ${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' AND ${column("seller_profile_sections", "product_id")} IS NULL LIMIT 1`,
+    );
+    if (saved) return json(EMPTY_SEARCH);
+    if (!searchesSection) throw new HandBackToRails("the virtual default products section with filters");
+    return sectionSearch(input, seller.id, null);
+  }
   const id = typeof sectionId === "string" ? decrypt(sectionId) : null;
-  const [section] =
+  const section =
     id === null
-      ? []
-      : await selectRows(
-          Prisma.sql`SELECT 1 FROM ${table("seller_profile_sections")} WHERE ${column("seller_profile_sections", "id")} = ${id} AND ${column("seller_profile_sections", "seller_id")} = ${seller.id} AND ${column("seller_profile_sections", "type")} = 'SellerProfileProductsSection' LIMIT 1`,
-        );
-  if (section) throw new HandBackToRails("a products section to search");
-  return json(EMPTY_SEARCH);
+      ? null
+      : await db.sellerProfileSection.findFirst({
+          where: { id, seller_id: seller.id, type: "SellerProfileProductsSection" },
+          select: { json_data: true },
+        });
+  if (!section) return json(EMPTY_SEARCH);
+  if (!searchesSection) throw new HandBackToRails("a products section to search with filters");
+  const data = (section.json_data ?? {}) as { default_product_sort?: string | null; shown_products?: number[] | null };
+  return sectionSearch(input, seller.id, {
+    default_product_sort: data.default_product_sort || null,
+    shown_products: data.shown_products ?? [],
+  });
 }
 
 // ----- LinksController#card: routed, but the controller has no such action, so Rails answers its 404.
