@@ -34,6 +34,12 @@ describe "Mobile API sales with a purchasing power parity discount", type: :requ
     expect(response.parsed_body["purchase"]["ppp"]).to eq("country" => "Brazil", "discount" => "63%")
   end
 
+  it "rounds a percentage that floating point leaves just under a whole number up to it", parity: true do
+    show(ppp_sale(factor: 0.34))
+
+    expect(response.parsed_body["purchase"]["ppp"]).to eq("country" => "Brazil", "discount" => "66%")
+  end
+
   it "serves a discount of nothing when the factor is one", parity: true do
     show(ppp_sale(factor: 1))
 
