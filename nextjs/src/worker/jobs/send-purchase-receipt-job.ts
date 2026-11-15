@@ -24,8 +24,6 @@ import type { JobHandler } from "./types.ts";
 // SendgridEventInfo::RECEIPT_MAILER_METHOD
 const RECEIPT_MAILER_METHOD = "receipt";
 const PRODUCT_FILES = "product_files";
-// PENDING_CHARGE_RETRY_DELAYS.length: from this attempt on, an order still waiting on its charge sends anyway.
-const PENDING_CHARGE_RETRY_ATTEMPTS = 4;
 // ProductFile's has_flags: 5 => :pdf_stamp_enabled
 const PDF_STAMP_ENABLED = 1 << 4;
 
@@ -57,7 +55,7 @@ async function receiptAlreadySent(purchaseId: bigint): Promise<boolean> {
 
 // `defer_to_charge`: a purchase on an order's charge enqueues SendChargeReceiptJob, one still waiting for its charge
 // re-enqueues itself. Both write, so they go back to Rails; only the reads that decide neither applies are proven.
-async function deferToCharge(purchaseId: bigint, attempt: number): Promise<void> {
+async function deferToCharge(purchaseId: bigint): Promise<void> {
   const purchase = await findPurchaseBang(purchaseId);
   const charge = await chargeOfPurchase(purchase as never);
   if (charge !== null) {
@@ -70,17 +68,17 @@ async function deferToCharge(purchaseId: bigint, attempt: number): Promise<void>
   const [order] = await selectRows(
     Prisma.sql`SELECT ${Prisma.raw("`orders`.*")} FROM ${table("orders")} INNER JOIN ${table("order_purchases")} ON ${column("orders", "id")} = ${column("order_purchases", "order_id")} WHERE ${column("order_purchases", "purchase_id")} = ${purchase.id} LIMIT 1`,
   );
-  if (order && attempt < PENDING_CHARGE_RETRY_ATTEMPTS)
+  if (order)
     throw new HandBackToRuby("SendPurchaseReceiptJob: purchase waiting for its order's charge");
 }
 
 export function sendPurchaseReceiptJobWith(overrides: Partial<Deps> = {}): JobHandler {
   const deps: Deps = { ...defaultJobDeps, mail: defaultMailDeliveryDeps, ...overrides };
-  return modelJob({ min: 1, max: 3 }, async ([purchaseId, resend, attempt], _jobDeps) => {
+  return modelJob({ min: 1, max: 3 }, async ([purchaseId, resend], _jobDeps) => {
     // with_primary_database: the writing role keeps its own query cache, so these reads repeat on the main one.
     if (!rubyTruthy(resend)) {
       const id = await beforeSideEffects(() => purchaseIdFrom(purchaseId));
-      await connectedTo("writing", () => deferToCharge(id, typeof attempt === "number" ? attempt : 0));
+      await connectedTo("writing", () => deferToCharge(id));
     }
     const purchase = await findPurchaseBang(await beforeSideEffects(() => purchaseIdFrom(purchaseId)));
 

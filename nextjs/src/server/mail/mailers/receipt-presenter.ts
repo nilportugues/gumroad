@@ -145,7 +145,7 @@ export type ReceiptSubscription = {
   // Purchase#free_membership_purchase?: a $0 membership that stays free
   freeMembership: boolean;
   // A fixed-length membership: the number of this charge and whether it is the last one
-  fixedLength: { total: number; chargeNumber: number; final: boolean } | null;
+  fixedLength: { total: number; chargeNumber: number } | null;
 };
 
 export type ReceiptGift = {
@@ -445,9 +445,7 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   if (!free || trial)
     today.push({
       label: fixed === null ? productLabel : `${productLabel}: ${fixed.chargeNumber} of ${fixed.total}`,
-      text:
-        todayAmount(data, trial ? 0 : data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents) +
-        (fixed?.final ? " - This is the final payment. You will not be charged for this product again." : ""),
+      text: todayAmount(data, trial ? 0 : data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents),
     });
   const moved = (purchase.total_transaction_cents ?? 0) !== 0;
   if (purchase.shipping_cents > 0)

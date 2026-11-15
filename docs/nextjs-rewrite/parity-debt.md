@@ -1340,3 +1340,19 @@ The four generators that booted without a memcached gained `GOLDEN_REDIS_HOST` (
 Still stale: `receipt-mailer.golden.json` replays its old recording with `composeMail(..., { initializers: { quotedPrintableHtml: false, customProperties: false } })`. Re-record it whole after the free
 membership and impersonation guard ports (steps 2 and 3); until then `NODE_MAIL_DELIVERY` stays off. Not recorded, so not proven: html with a CR together with non-ASCII text goes through
 `parseHtml` as in the recorded `qp_non_ascii_crlf` case only; an html part that is blank; a single-part (non-multipart) html message; attachments with an html part under the interceptor.
+
+### Steps 2 and 3 ported: receipt guard, free membership, light receipt, seller text, fixed-length, whole golden (`nextjs/ws-shapes-95`, lane 95, 2026-11-15)
+
+Lane 95 (`gumroad_test_ws95`, `gumroad_replay_ws95`, Redis 41, container `gr-ruby-ws95` with memcached, `RECEIPT_GOLDEN_ES_INDEX=ws95-link`) re-recorded `receipt-mailer.golden.json` whole from the current tree
+(`generate-receipt-mailer-golden.rb`: 185 messages, 43 refusals, 1 error, plus a new `suppressed` list and the job cases) and `receipt-mailer.test.ts` and `send-purchase-receipt-job.test.ts` now replay it with both initializers on (247 tests). Local only: no live Stripe, PayPal or Vatstack call, no mail sent; `NODE_MAIL_DELIVERY` stays off.
+
+Ported and proven byte for byte (statements, html and SMTP bytes):
+- `suppress_receipt_from_unproven_seller?` (`receipt-guard.ts`): paid purchases skip it; a free one reads the purchase, the seller, the paid-sales check and the product name in Rails' order, and sends nothing for a Gumroad address, a Gumroad-plus-staff-word seller name or product name. Established sellers (30 days), staff sellers, sellers with a paid sale (not a refunded one) still send. Names with non-ASCII characters go back to Rails (NFKC folding and `\b` are not recorded).
+- `SendPurchaseReceiptJob#defer_to_charge` reads (primary role, its own query cache). A purchase on an order's charge, or waiting on its order, hands back (the enqueues are not recorded).
+- Free membership (`free_membership_purchase?`): note, footer, no payment block, no "Generate invoice"; `original_purchase` is read before the cadence. A free first charge whose next charge is positive or kept free by a discount hands back.
+- `graphics_light_receipt` (`receipt_light` template, `email_light` layout, per-seller flag via `featureActiveForUser`, 20 cases). The light path reads no recommendations; the buyer account is read for the footer.
+- `screen_seller_text`: plain printable ASCII text passes; markup, entities, other characters, a configured `CONTENT_MODERATION_BLOCKLIST` and every held text (notice phrases, public-files host) hand back, because Rails also enqueues an admin note.
+- Fixed-length memberships of two or more charges (first receipt, paid): ": N of M" labels, the last-purchase and count reads before the next price.
+
+Still handed back: a single-charge fixed-length membership (the manage note needs `end_time_of_subscription`), the final charge of a fixed-length membership, free and free-trial fixed-length memberships, `defer_to_charge` branches, order receipts (`@order_receipt_url`), the blocklist YAML (absent in this tree; if it appears the screen must be re-recorded).
+Not recorded, so not proven: the line `succeeded_at < <time>` is proven only for a purchase with a time (12 cases) and `NULL`; the 30-day boundary is proven at 29 days (suppressed), 30 days less a second (suppressed) and 31 days (sent).

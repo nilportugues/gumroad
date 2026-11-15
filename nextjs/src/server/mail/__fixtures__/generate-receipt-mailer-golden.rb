@@ -890,7 +890,7 @@ screened(refused, "verify_account", "Please verify your account at Gumroad")
 screened(refused, "payout_hold", "Gumroad: your payouts are on hold until you act")
 screened(refused, "unusual_activity", "We saw unusual activity on your account")
 screened(refused, "action_required", "Gumroad action required")
-screened(refused, "public_files_host", "Download from https://public-files.gumroad.com/abc")
+screened(refused, "public_files_host", "Download from public-files.gumroad.com/abc")
 screened(refused, "html_text", "Visit <a href=\"https://example.com\">my page</a> &amp; enjoy")
 screened(refused, "non_ascii_text", "Merci beaucoup \u00e9")
 

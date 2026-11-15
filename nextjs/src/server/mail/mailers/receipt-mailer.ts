@@ -265,7 +265,8 @@ async function renewsFreeMembership(data: ReceiptData, record: SubscriptionRecor
   if (PurchaseFlags.isSet(purchase.flags ?? 0, "is_free_trial_purchase")) return false;
   const next = await record.currentSubscriptionPriceCents();
   if (next === null) throw new MailViewNotPortedError("membership whose next charge is unknown");
-  if (next > 0) return false;
+  // A free first charge followed by a paid renewal keeps the payment section: no recording of it, so Rails renders it.
+  if (next > 0) throw new MailViewNotPortedError("free first charge of a membership that renews at a price");
   if ((await subscriptionRenewalPreDiscountTotalCents(record)) === 0) return true;
   throw new MailViewNotPortedError("free membership kept free by a discount");
 }
@@ -285,11 +286,9 @@ async function loadNextPayment(data: ReceiptData, record: SubscriptionRecord): P
     const [counted] = await rows(Prisma.sql`SELECT COUNT(*) FROM ${table("purchases")} WHERE ${successful}`);
     const successfulCount = Number(counted!["COUNT(*)"]);
     const isLast = last !== undefined && BigInt(last.id as Id) === BigInt(purchase.id);
-    subscription.fixedLength = { total, chargeNumber: 0, final: isLast && successfulCount === total };
-    if (isLast && total - successfulCount === 0) {
-      await loadChargeNumber(data, record, successful);
-      return;
-    }
+    // The last charge drops the upcoming payment and adds a final-payment note; neither is recorded.
+    if (isLast && total - successfulCount === 0) throw new MailViewNotPortedError("final charge of a fixed-length membership");
+    subscription.fixedLength = { total, chargeNumber: 0 };
   }
   const renewalCents = await record.currentSubscriptionPriceCents();
   if (renewalCents === null || renewalCents !== purchase.displayed_price_cents)
