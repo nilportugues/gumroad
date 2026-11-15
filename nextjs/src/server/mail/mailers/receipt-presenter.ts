@@ -28,6 +28,7 @@ export type ReceiptPurchaseRow = {
   id: Id;
   link_id: Id;
   seller_id: Id;
+  succeeded_at?: Date | null;
   purchaser_id: Id | null;
   email: string | null;
   flags: Id | null;
@@ -141,6 +142,10 @@ export type ReceiptSubscription = {
   nextPayment: { cents: number; date: Date } | null;
   // Whether the membership's original purchase was a gift the buyer sent
   gift: boolean;
+  // Purchase#free_membership_purchase?: a $0 membership that stays free
+  freeMembership: boolean;
+  // A fixed-length membership: the number of this charge and whether it is the last one
+  fixedLength: { total: number; chargeNumber: number } | null;
 };
 
 export type ReceiptGift = {
@@ -197,7 +202,12 @@ function assertSupportedMembership(data: ReceiptData): void {
   if (purchaseFlag(purchase, "is_gift_sender_purchase") || purchaseFlag(purchase, "is_gift_receiver_purchase"))
     refuse("a gifted membership");
   const { row } = subscription;
-  if (row.charge_occurrence_count !== null) refuse("a fixed-length membership");
+  // One charge only: the manage note promises the end date of the subscription, which is not recorded.
+  if (row.charge_occurrence_count === 1) refuse("a single-charge membership");
+  if (row.charge_occurrence_count !== null && purchaseFlag(purchase, "is_free_trial_purchase"))
+    refuse("a fixed-length free trial");
+  if (row.charge_occurrence_count !== null && purchase.price_cents === 0 && purchase.shipping_cents === 0)
+    refuse("a free fixed-length membership");
   const subscriptionFlags = row.flags ?? 0;
   if (
     SubscriptionFlags.isSet(subscriptionFlags, "is_installment_plan") ||
@@ -419,13 +429,14 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   // Purchase#free_purchase?
   const free = purchase.price_cents === 0 && purchase.shipping_cents === 0;
   const productLabel = purchase.quantity <= 1 ? link.name : `${link.name} × ${purchase.quantity}`;
+  const fixed = subscription?.fixedLength ?? null;
 
   const upcoming: Attribute[] = [];
   if (subscription?.nextPayment)
     upcoming.push(
       { label: "Upcoming payment", text: "" },
       {
-        label: productLabel,
+        label: fixed === null ? productLabel : `${productLabel}: ${fixed.chargeNumber + 1} of ${fixed.total}`,
         text: `${formattedPrice("usd", subscription.nextPayment.cents)} on ${formattedDateAbbrevMonth(subscription.nextPayment.date)}`,
       },
     );
@@ -433,7 +444,7 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
   if (upcoming.length > 0) today.push({ label: "Today's payment", text: "" });
   if (!free || trial)
     today.push({
-      label: productLabel,
+      label: fixed === null ? productLabel : `${productLabel}: ${fixed.chargeNumber} of ${fixed.total}`,
       text: todayAmount(data, trial ? 0 : data.presentment ? presentmentPriceCents(data) : data.displayedPriceUsdCents),
     });
   const moved = (purchase.total_transaction_cents ?? 0) !== 0;
@@ -453,7 +464,7 @@ export function paymentInfo(data: ReceiptData, invoiceLink: string) {
       ),
     });
   // Purchase#has_invoice?
-  if (subscription ? !trial : !free) today.push({ label: null, html: invoiceLink });
+  if (subscription ? !trial && !subscription.freeMembership : !free) today.push({ label: null, html: invoiceLink });
 
   const notes: string[] = [];
   if (!data.presentment)
@@ -555,7 +566,10 @@ export function itemInfo(data: ReceiptData, customReceiptText: string | null) {
 // ItemInfo#manage_membership_note for a membership that renews until cancelled.
 function manageMembershipNote(subscription: ReceiptSubscription): string {
   const href = mailerUrl(`/subscriptions/${subscription.externalId}/manage`);
-  return `You will be charged once ${recurrenceLongIndicator(subscription.recurrence)}. If you would like to manage your membership you can visit ${linkTo("subscription settings", href, { target: "_blank" })}.`;
+  const promise = subscription.freeMembership
+    ? `Your free membership renews once ${recurrenceLongIndicator(subscription.recurrence)}.`
+    : `You will be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`;
+  return `${promise} If you would like to manage your membership you can visit ${linkTo("subscription settings", href, { target: "_blank" })}.`;
 }
 
 function recurrenceLongIndicator(recurrence: string | null): string {
@@ -567,7 +581,10 @@ function recurrenceLongIndicator(recurrence: string | null): string {
 // FooterInfo: the cadence and the link that replace the unsubscribe link of a membership's receipt.
 export function manageSubscriptionFooter(subscription: ReceiptSubscription): string {
   const href = mailerUrl(`/subscriptions/${subscription.externalId}/manage`);
-  return `${h(`You'll be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`)}\n    ${linkTo("Manage membership", href)}`;
+  const promise = subscription.freeMembership
+    ? `Your free membership renews once ${recurrenceLongIndicator(subscription.recurrence)}.`
+    : `You'll be charged once ${recurrenceLongIndicator(subscription.recurrence)}.`;
+  return `${h(promise)}\n    ${linkTo("Manage membership", href)}`;
 }
 
 // shared/_download_button: a rental redirect gets "Watch" when the product has a video file and no button at all otherwise.

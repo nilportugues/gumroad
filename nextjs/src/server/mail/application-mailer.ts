@@ -37,6 +37,8 @@ export type MailerDeps = {
   router?: RouterDeps;
   randomIv?: RandomIv;
   now?: () => Date;
+  // Feature.active?(name, user): a per-seller flag
+  featureActiveForUser?: (name: string, userId: number | bigint) => Promise<boolean>;
   redisSetEx?: (key: string, value: string, seconds: number) => Promise<unknown>;
 };
 

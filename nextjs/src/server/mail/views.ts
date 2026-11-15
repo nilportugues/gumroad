@@ -1,16 +1,20 @@
 // Shared ERB pieces our mailers render, reproduced byte for byte (Erubi drops the lines that hold
 // only a `<% %>` tag, newline included; `<%= %>` lines keep their indentation and newline).
-import { domainConfig } from "../infra/domain.ts";
 import { getConfig } from "../infra/config.ts";
+import { domainConfig } from "../infra/domain.ts";
 import { railsEnv } from "../infra/rails-env.ts";
 import { countryByAlpha2 } from "../models/compliance-countries.ts";
+
 import { entrypointStylesheetHrefs } from "./stylesheet.ts";
 
 export class MailViewNotPortedError extends Error {}
 
 // ERB::Util.html_escape
 export function h(value: string | null | undefined): string {
-  return (value ?? "").replace(/[&<>"']/gu, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
+  return (value ?? "").replace(
+    /[&<>"']/gu,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!,
+  );
 }
 
 // CGI.escape, as Hash#to_query applies it to each key and value.
@@ -61,6 +65,28 @@ function emailStylesheetTags(): string {
 // `subject` is its @subject and `footer` what its @footer_template renders. Outside production the layout adds a
 // non-ASCII environment banner, whose path through libxml2 and the encoder is not verified, so it
 // is refused.
+// layouts/email_light.html.erb, the graphics-light receipt's layout: no stylesheet, no wordmark.
+export function emailLightLayout(content: string, options: { subject?: string; footer?: string } = {}): string {
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <title>${h(options.subject)}</title>
+    <meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+    <meta name="viewport" content="initial-scale = 1.0, width=device-width">
+  </head>
+  <body style="font-family: Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; color: #000;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 16px;">
+      ${content}
+      <div style="margin-top: 24px; font-size: 14px;">
+        ${options.footer ?? ""}
+        <p>${h(gumroadAddressFull())}</p>
+      </div>
+    </div>
+  </body>
+</html>
+`;
+}
+
 export function emailLayout(content: string, options: { subject?: string; footer?: string } = {}): string {
   if (railsEnv() !== "production") throw new MailViewNotPortedError(`email layout outside production (${railsEnv()})`);
   const assetHost = domainConfig().assetHost ?? "";

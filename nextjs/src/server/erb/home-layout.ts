@@ -546,27 +546,22 @@ function githubStarsLink(stars: number | null): string {
   );
 }
 
-const FLASH_STATUS_CLASSES: Record<string, string> = {
-  danger: "border-danger bg-danger/20 text-danger",
-  warning: "border-warning bg-warning/20 text-warning",
-  info: "border-info bg-info/20 text-info",
-  success: "border-success bg-success/20 text-success",
-};
+// layouts/shared/flash/_danger.html.erb (generated from ui/Alert). The warning, info and success partials are not recorded yet.
+const FLASH_DANGER_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" class="size-[1lh]! text-danger" aria-hidden="true"><path d="m19.07,19.07c3.9-3.9,3.9-10.24,0-14.14-1.89-1.89-4.4-2.93-7.07-2.93s-5.18,1.04-7.07,2.93c-3.9,3.9-3.9,10.24,0,14.14,1.95,1.95,4.51,2.92,7.07,2.92s5.12-.98,7.07-2.92Zm-11.31-4.24l2.83-2.83-2.83-2.83,1.41-1.41,2.83,2.83,2.83-2.83,1.41,1.41-2.83,2.83,2.83,2.83-1.41,1.41-2.83-2.83-2.83,2.83-1.41-1.41Z"/></svg>';
 
 // layouts/shared/_flash.html.erb: the first of alert, warning, info and notice (an empty string is truthy in Ruby) as a toast that
-// removes itself. What Erubi trims is the `<% %>` lines; the markup keeps the partial's own indentation.
+// removes itself. Only the alert toast is ported; the others raise, so the page goes to Rails.
 function flashPartial(ctx: LayoutContext): string {
   const { flash } = ctx;
   const key = ["alert", "warning", "info", "notice"].find((name) => flash[name] !== undefined);
   if (key === undefined) return "";
-  const status = key === "alert" ? "danger" : key === "warning" ? "warning" : key === "info" ? "info" : "success";
+  if (key !== "alert") throw new NotPortedError(`a ${key} flash toast`);
   return `    <div id="flash-toast"
-         class="fixed top-4 left-1/2 z-100 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded bg-background md:max-w-sm"
+         class="fixed top-4 left-1/2 z-100 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded bg-background shadow md:max-w-md"
          style="transition: all 0.3s ease-out 0.5s;">
-      <div role="status" class="flex items-center gap-2 rounded border p-4 text-sm
-        ${FLASH_STATUS_CLASSES[status]}">
-        ${escapeHtml(flash[key]!)}
-      </div>
+      <div role="status" class="flex items-start gap-2 rounded border p-3 border-danger bg-danger/20">${FLASH_DANGER_ICON}<div class="flex-1">${escapeHtml(flash[key]!)}</div></div>
+
     </div>
     <script nonce="${ctx.nonce}">
       setTimeout(function() {

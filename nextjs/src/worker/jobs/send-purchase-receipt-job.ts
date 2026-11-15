@@ -6,16 +6,24 @@
 // anything: the stamping job's enqueue is the job's first write, and the mail comes after it.
 import { Prisma } from "@prisma/client";
 
-import { HandBackToRuby } from "../../server/jobs/hand-back.ts";
-import { beforeSideEffects } from "../../server/jobs/hand-back.ts";
+import { HandBackToRuby, beforeSideEffects } from "../../server/jobs/hand-back.ts";
 import type { JsonValue } from "../../server/jobs/sidekiq/ruby-json.ts";
-import { composeNodeMail, defaultMailDeliveryDeps, isNotPorted, type MailDeliveryDeps, sendComposed } from "../../server/mail/delivery.ts";
+import {
+  composeNodeMail,
+  defaultMailDeliveryDeps,
+  isNotPorted,
+  type MailDeliveryDeps,
+  sendComposed,
+} from "../../server/mail/delivery.ts";
+import { chargeOfPurchase } from "../../server/models/charge.ts";
 import { EMAIL_INFOS, CUSTOMER_EMAIL_INFO_TYPE } from "../../server/models/email-info.ts";
 import { findPurchaseBang, purchaseIdFrom } from "../../server/models/purchase.ts";
 import { findOneBy } from "../../server/models/row-reads.ts";
+import { connectedTo } from "../../server/models/runtime/query-cache.ts";
 import { column, selectRows, table } from "../../server/models/sql.ts";
 import { findUrlRedirectForPurchase, UrlRedirectFlags } from "../../server/models/url-redirect.ts";
 import { PurchaseFlags } from "../../server/search/flags.ts";
+
 import { defaultJobDeps, type JobDeps, modelJob } from "./support/job-deps.ts";
 import type { JobHandler } from "./types.ts";
 
@@ -39,7 +47,9 @@ async function needsStamping(purchaseId: bigint, linkId: bigint | null): Promise
   const files = await selectRows<{ filetype: string | null; flags: number | bigint | null }>(
     Prisma.sql`SELECT ${Prisma.raw("`product_files`.*")} FROM ${table(PRODUCT_FILES)} WHERE ${column(PRODUCT_FILES, "link_id")} = ${link.id} AND ${column(PRODUCT_FILES, "deleted_at")} IS NULL ORDER BY ${column(PRODUCT_FILES, "position")} ASC`,
   );
-  const stampable = files.some((file) => file.filetype === "pdf" && (Number(file.flags ?? 0) & PDF_STAMP_ENABLED) !== 0);
+  const stampable = files.some(
+    (file) => file.filetype === "pdf" && (Number(file.flags ?? 0) & PDF_STAMP_ENABLED) !== 0,
+  );
   return stampable && !UrlRedirectFlags.isSet(redirect.flags, "is_done_pdf_stamping");
 }
 
@@ -51,15 +61,39 @@ async function receiptAlreadySent(purchaseId: bigint): Promise<boolean> {
   return rows.length > 0;
 }
 
+// `defer_to_charge`: a purchase on an order's charge enqueues SendChargeReceiptJob, one still waiting for its charge
+// re-enqueues itself. Both write, so they go back to Rails; only the reads that decide neither applies are proven.
+async function deferToCharge(purchaseId: bigint): Promise<void> {
+  const purchase = await findPurchaseBang(purchaseId);
+  const charge = await chargeOfPurchase(purchase as never);
+  if (charge !== null) {
+    const [order] = await selectRows(
+      Prisma.sql`SELECT 1 AS one FROM ${table("orders")} WHERE ${column("orders", "id")} = ${charge.order_id} LIMIT 1`,
+    );
+    if (order) throw new HandBackToRuby("SendPurchaseReceiptJob: purchase on an order's charge");
+    return;
+  }
+  const [order] = await selectRows(
+    Prisma.sql`SELECT ${Prisma.raw("`orders`.*")} FROM ${table("orders")} INNER JOIN ${table("order_purchases")} ON ${column("orders", "id")} = ${column("order_purchases", "order_id")} WHERE ${column("order_purchases", "purchase_id")} = ${purchase.id} LIMIT 1`,
+  );
+  if (order) throw new HandBackToRuby("SendPurchaseReceiptJob: purchase waiting for its order's charge");
+}
+
 export function sendPurchaseReceiptJobWith(overrides: Partial<Deps> = {}): JobHandler {
   const deps: Deps = { ...defaultJobDeps, mail: defaultMailDeliveryDeps, ...overrides };
-  return modelJob({ min: 1, max: 2 }, async ([purchaseId, resend], _jobDeps) => {
+  return modelJob({ min: 1, max: 3 }, async ([purchaseId, resend], _jobDeps) => {
+    // with_primary_database: the writing role keeps its own query cache, so these reads repeat on the main one.
+    if (!rubyTruthy(resend)) {
+      const id = await beforeSideEffects(() => purchaseIdFrom(purchaseId));
+      await connectedTo("writing", () => deferToCharge(id));
+    }
     const purchase = await findPurchaseBang(await beforeSideEffects(() => purchaseIdFrom(purchaseId)));
 
     // enqueue_stamping rescues StandardError and raises it once the receipt has gone out.
     let stampError: unknown = null;
     try {
-      if (await needsStamping(purchase.id, purchase.link_id)) throw new HandBackToRuby("StampPdfForPurchaseJob.perform_async");
+      if (await needsStamping(purchase.id, purchase.link_id))
+        throw new HandBackToRuby("StampPdfForPurchaseJob.perform_async");
     } catch (error) {
       if (error instanceof HandBackToRuby) throw error;
       stampError = error;

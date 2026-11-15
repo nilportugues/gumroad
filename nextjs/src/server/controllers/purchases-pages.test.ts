@@ -49,7 +49,6 @@ describe("confirmReceiptEmailPage", () => {
       analyticsEnabled: false,
       hideBase: true,
       bodyId: "app",
-      handBackFlash: true,
       headers: { "x-robots-tag": "noindex" },
     });
   });

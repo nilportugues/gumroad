@@ -25,6 +25,7 @@ import { deserializeArgument } from "./ruby-value.ts";
 
 type EsExchange = { method: string; path: string; body: string; status: number; response: Record<string, unknown> };
 type ReceiptCase = MessageCase & {
+  actor_features: string[];
   mailer_level?: { via: string; level: MailerLevel };
   ivs: string[];
   delivery_statements: Statement[];
@@ -43,7 +44,7 @@ const golden = JSON.parse(
 ) as {
   now: string;
   secrets: Record<string, string>;
-  cases: { messages: ReceiptCase[]; errors: ErrorCase[]; refused: ReceiptCase[] };
+  cases: { messages: ReceiptCase[]; errors: ErrorCase[]; refused: ReceiptCase[]; suppressed: ReceiptCase[] };
 };
 
 let restore: () => void;
@@ -101,6 +102,7 @@ describe("CustomerMailer#receipt", () => {
             randomIv: recordedIvs(c.ivs),
             now: () => new Date(golden.now),
             mailerLevel: async () => c.mailer_level?.level ?? null,
+            featureActiveForUser: async (name) => c.features.includes(name) || c.actor_features.includes(name),
           }),
         SIDEKIQ_EXECUTOR,
       );
@@ -108,17 +110,36 @@ describe("CustomerMailer#receipt", () => {
       expect(sentToEs.map((request) => request.body)).toEqual(c.es.map((exchange) => exchange.body));
       const delivered = c.delivered[0]!;
       expect(rendered!.html).toBe(c.rendered_html);
-      // The committed golden predates the quoted-printable interceptor and the custom property resolver
-      // (qp-resolver.test.ts proves both); re-record it whole before turning them on here.
-      const composed = composeMail(rendered!, {
-        identity: identityOf(delivered.encoded),
-        initializers: { quotedPrintableHtml: false, customProperties: false },
-      })!;
+      const composed = composeMail(rendered!, { identity: identityOf(delivered.encoded) })!;
       expect(composed.encoded).toBe(delivered.encoded);
       expect([composed.envelopeFrom, composed.envelopeTo]).toEqual([delivered.envelope_from, delivered.envelope_to]);
       const { address, domain, user_name, password } = delivered.settings;
       expect(composed.smtp).toEqual({ address, domain, user_name, password });
       expect(Object.fromEntries(router.redis)).toEqual(c.redis_after);
+    });
+  }
+
+  // The guard stops these: Rails builds no message, so nothing is delivered and no mail is rendered.
+  for (const c of golden.cases.suppressed) {
+    it(`sends nothing for ${c.method} (${c.name}) as Rails does`, async () => {
+      const replay = sqlReplay(c.statements);
+      const sentToEs = replayEs(c.es);
+      const rendered = await withExecutor(
+        () =>
+          renderNodeMailer(c.mailer, c.method, c.job_args.map(deserializeArgument), {
+            router: goldenRouter({ features: c.features, redis: c.redis_before, rands: c.rands_used }),
+            randomIv: recordedIvs(c.ivs),
+            now: () => new Date(golden.now),
+            mailerLevel: async () => c.mailer_level?.level ?? null,
+            featureActiveForUser: async (name) => c.features.includes(name) || c.actor_features.includes(name),
+          }),
+        SIDEKIQ_EXECUTOR,
+      );
+      expect(rendered).toBeNull();
+      expect(c.rendered_html).toBeNull();
+      expect(c.delivered).toEqual([]);
+      expect(replay.log).toEqual(replay.expected);
+      expect(sentToEs).toEqual([]);
     });
   }
 
@@ -133,6 +154,7 @@ describe("CustomerMailer#receipt", () => {
             router: goldenRouter({ features: [], redis: {}, rands: [] }),
             mailerLevel: async () => "level_1",
             randomIv: recordedIvs(c.ivs),
+            featureActiveForUser: async (name) => c.features.includes(name) || c.actor_features.includes(name),
           }),
         SIDEKIQ_EXECUTOR,
       ).then(

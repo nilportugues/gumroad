@@ -303,6 +303,8 @@ describe("a membership's first receipt", () => {
       recurrence: "monthly",
       nextPayment: { cents: 500, date: new Date("2026-11-30T12:00:00Z") },
       gift: false,
+      freeMembership: false,
+      fixedLength: null,
     },
     priceRecurrence: "monthly",
   });
@@ -319,7 +321,7 @@ describe("a membership's first receipt", () => {
 
   it("refuses what renders other sections", () => {
     const refusals = [
-      member({}, { charge_occurrence_count: 12 }),
+      member({}, { charge_occurrence_count: 1 }),
       member({}, { flags: 1 << 6 }),
       member({}, { flags: 1 << 0 }),
       member({ flags: 0 }),
