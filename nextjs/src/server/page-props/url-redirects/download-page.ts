@@ -2,7 +2,7 @@
 // props UrlRedirectPresenter#download_page_with_content_props builds, and the after_actions that record
 // the visit. A content page is rendered here for a product without versions or for the one version a purchase bought: the
 // provider's own files (download-files.ts), its rich content pages and the files they embed, the license key, the posts
-// (download-posts.ts) and the background polls. SKUs, several or shared versions, integrations, communities and third-party analytics hand back to Rails, as do the mobile app token sign-in and
+// (download-posts.ts) and the background polls. SKUs, shared versions, integrations, communities and third-party analytics hand back to Rails, as do the mobile app token sign-in and
 // bundle redirects. A saved content page is echoed as last_content_page_id; a coffee product redirects to the seller's coffee page.
 import { Prisma, type Link, type Purchase, type User } from "@prisma/client";
 

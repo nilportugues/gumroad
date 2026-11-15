@@ -60,6 +60,20 @@ describe("contentProvider", () => {
     await expect(contentProvider(loaded())).resolves.toEqual({ kind: "variant", variant: variant() });
   });
 
+  it("is the alive version with the lowest id for a purchase of several versions", async () => {
+    mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([
+      { base_variant_id: 9 },
+      { base_variant_id: 8 },
+      { base_variant_id: 7 },
+    ]);
+    mocks.db.baseVariant.findMany.mockResolvedValue([
+      variant({ id: 9 }),
+      variant({ id: 7, deleted_at: new Date() }),
+      variant({ id: 8 }),
+    ]);
+    await expect(contentProvider(loaded())).resolves.toEqual({ kind: "variant", variant: variant({ id: 8 }) });
+  });
+
   it("is the product for a purchase of SKUs only", async () => {
     mocks.db.baseVariant.findMany.mockResolvedValue([variant({ type: "Sku" })]);
     await expect(contentProvider(loaded())).resolves.toEqual({ kind: "product" });
@@ -71,13 +85,6 @@ describe("contentProvider", () => {
       () => {
         mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([{ base_variant_id: 7 }, { base_variant_id: 8 }]);
         mocks.db.baseVariant.findMany.mockResolvedValue([variant(), variant({ id: 8, type: "Sku" })]);
-      },
-    ],
-    [
-      "several versions",
-      () => {
-        mocks.db.baseVariantsPurchase.findMany.mockResolvedValue([{ base_variant_id: 7 }, { base_variant_id: 8 }]);
-        mocks.db.baseVariant.findMany.mockResolvedValue([variant(), variant({ id: 8 })]);
       },
     ],
     ["a link to a version that is gone", () => mocks.db.baseVariant.findMany.mockResolvedValue([])],
