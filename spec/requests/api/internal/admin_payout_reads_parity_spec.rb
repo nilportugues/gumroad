@@ -141,6 +141,8 @@ describe "Internal admin API payout reads and the writes that stay in front of R
   end
 
   describe "GET payouts" do
+    before { create(:merchant_account, user: nil) unless MerchantAccount.gumroad(StripeChargeProcessor.charge_processor_id) }
+
     it "requires a way to find the user", parity: true do
       get "/internal/admin/payouts", headers: headers
 
@@ -153,7 +155,75 @@ describe "Internal admin API payout reads and the writes that stay in front of R
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands the list of a seller to Rails", parity: true do
+    it "lists nothing for a seller who was never paid and has no balance", parity: true do
+      get "/internal/admin/payouts", params: { user_id: seller.external_id }, headers: headers
+
+      expect(response.parsed_body).to include("success" => true, "recent_payouts" => [], "next_payout_date" => nil, "balance_for_next_payout" => nil, "payout_note" => nil)
+    end
+
+    it "lists PayPal payouts newest first with the seller's next payout and the admin's payout note", parity: true do
+      create(:payment_completed, user: seller, amount_cents: 12_34, payment_address: "paypal-seller@example.com", created_at: 3.days.ago)
+      create(:payment_failed, user: seller, amount_cents: 56_78, payment_address: "paypal-seller@example.com", failure_reason: "cannot_pay", created_at: 1.day.ago)
+      create(:balance, user: seller, amount_cents: 150_00, date: 30.days.ago.to_date)
+      seller.add_payout_note(content: "Paid out by hand")
+      seller.comments.create!(content: "Not the admin's", author_id: admin.id, comment_type: Comment::COMMENT_TYPE_PAYOUT_NOTE)
+
+      get "/internal/admin/payouts", params: { user_id: seller.external_id }, headers: headers
+
+      expect(response.parsed_body["recent_payouts"].map { _1["amount_cents"] }).to eq([56_78, 12_34])
+      expect(response.parsed_body).to include("payout_note" => "Paid out by hand", "balance_for_next_payout" => "$150")
+      expect(response.parsed_body["next_payout_date"]).to be_present
+    end
+
+    it "ignores a deleted payout note", parity: true do
+      note = seller.add_payout_note(content: "Gone")
+      note.update_columns(deleted_at: 1.hour.ago)
+
+      get "/internal/admin/payouts", params: { user_id: seller.external_id }, headers: headers
+
+      expect(response.parsed_body["payout_note"]).to be_nil
+    end
+
+    it "finds the seller by email and ignores another seller's payouts", parity: true do
+      create(:payment_completed, user: seller, amount_cents: 11_00)
+      create(:payment_completed, user: create(:user), amount_cents: 99_00)
+
+      get "/internal/admin/payouts", params: { email: seller.email }, headers: headers
+
+      expect(response.parsed_body["recent_payouts"].map { _1["amount_cents"] }).to eq([11_00])
+    end
+
+    it "limits a page and gives a cursor for the next one", parity: true do
+      create(:payment_completed, user: seller, amount_cents: 1_00, created_at: 3.hours.ago)
+      create(:payment_completed, user: seller, amount_cents: 2_00, created_at: 2.hours.ago)
+
+      get "/internal/admin/payouts", params: { user_id: seller.external_id, limit: "1" }, headers: headers
+      cursor = response.parsed_body.dig("pagination", "next")
+      get "/internal/admin/payouts", params: { user_id: seller.external_id, limit: "1", cursor: }, headers: headers
+
+      expect(response.parsed_body["recent_payouts"].map { _1["amount_cents"] }).to eq([1_00])
+      expect(response.parsed_body["pagination"]["next"]).to be_nil
+    end
+
+    it "refuses a cursor it did not sign", parity: true do
+      get "/internal/admin/payouts", params: { user_id: seller.external_id, cursor: "garbage" }, headers: headers
+
+      expect(response).to have_http_status(:bad_request)
+    end
+
+    it "hands a daily seller above the minimum to Rails", parity: true do
+      seller.update!(payout_frequency: User::PayoutSchedule::DAILY)
+      create(:balance, user: seller, amount_cents: 150_00, date: 30.days.ago.to_date)
+
+      get "/internal/admin/payouts", params: { user_id: seller.external_id }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "hands a payout sent to a bank account to Rails", parity: true do
+      bank_account = create(:ach_account, user: seller)
+      create(:payment_completed, user: seller).update_columns(bank_account_id: bank_account.id)
+
       get "/internal/admin/payouts", params: { user_id: seller.external_id }, headers: headers
 
       expect(response).to have_http_status(:ok)

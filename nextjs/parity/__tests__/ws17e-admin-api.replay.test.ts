@@ -216,6 +216,7 @@ const CURSOR_PAGES: [RegExp, number][] = [
   [/pages-the-affiliates-with-a-signed-cursor #2/u, 120],
   [/pages-the-purchases-that-share-an-ip-address-with-a-signed-cursor #2/u, 60],
   [/get-purchases-paginates-purchases-with-a-cursor #2/u, 120],
+  [/get-payouts-limits-a-page-and-gives-a-cursor #2/u, 120],
 ];
 // The cursor is `urlsafe(base64(json_string)--hmac)`.
 function cursorInstant(fixturePath: string, index: number, ageMinutes: number): number {
