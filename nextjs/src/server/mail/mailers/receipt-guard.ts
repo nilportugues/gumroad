@@ -6,9 +6,9 @@ import { column, selectRows, table } from "../../models/sql.ts";
 import { MailViewNotPortedError } from "../views.ts";
 
 const PROVEN_ACCOUNT_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-const GUMROAD = /g[\W_]*u[\W_]*m[\W_]*r[\W_]*o[\W_]*a[\W_]*d/i;
+const GUMROAD = /g[\W_]*u[\W_]*m[\W_]*r[\W_]*o[\W_]*a[\W_]*d/iu;
 const STAFF_WORDS =
-  /\b(security|payouts?|verif(y|ied|ication)|trust|safety|compliance|billing|official|admin|staff|alerts?|notices?|support\s+team|help\s*desk)\b/i;
+  /\b(security|payouts?|verif(y|ied|ication)|trust|safety|compliance|billing|official|admin|staff|alerts?|notices?|support\s+team|help\s*desk)\b/iu;
 const GUMROAD_ADDRESS_SUFFIX = "@gumroad.com";
 
 // NFKC folding and the removal of invisible characters only change non-ASCII text, whose Ruby and JavaScript
@@ -20,9 +20,16 @@ function impersonates(text: string | null | undefined): boolean {
   return GUMROAD.test(value) && STAFF_WORDS.test(value);
 }
 
-const gumroadAddress = (email: string | null | undefined) => (email ?? "").toLowerCase().trim().endsWith(GUMROAD_ADDRESS_SUFFIX);
+const gumroadAddress = (email: string | null | undefined) =>
+  (email ?? "").toLowerCase().trim().endsWith(GUMROAD_ADDRESS_SUFFIX);
 
-export type GuardSeller = { id: bigint | number; name: string | null; email: string | null; created_at: Date | null; confirmed_at: Date | null };
+export type GuardSeller = {
+  id: bigint | number;
+  name: string | null;
+  email: string | null;
+  created_at: Date | null;
+  confirmed_at: Date | null;
+};
 
 // True when Rails sends nothing. `purchase` is the one-purchase chargeable the port renders.
 export async function suppressReceiptFromUnprovenSeller(
@@ -51,14 +58,14 @@ export async function suppressReceiptFromUnprovenSeller(
 // ContentModeration::SellerMailTextGuard.screen for the receipt's custom text. Text it keeps renders unchanged; text it
 // drops also enqueues an admin note, which the port does not do, so held text goes back to Rails. Only plain printable
 // ASCII is decided here: markup, entities and other characters change what Loofah renders and what the blocklist sees.
-const PUBLIC_FILES_HOST = /public-files\.gumroad\.com/i;
-const GUMROAD_NOTICE = /\b(gumroad|your (account|payouts?|balance|funds))\b/i;
+const PUBLIC_FILES_HOST = /public-files\.gumroad\.com/iu;
+const GUMROAD_NOTICE = /\b(gumroad|your (account|payouts?|balance|funds))\b/iu;
 const NOTICE_PHRASES = [
-  /security (alert|notice|warning|team)/i,
-  /(verify|confirm|validate|secure|restore|reactivate) your (account|identity|payouts?|payout (method|details)|bank)/i,
-  /(payouts?|account|funds|balance)[^.]{0,40}\b(on hold|suspended|frozen|locked|limited|at risk)/i,
-  /unusual (activity|sign[- ]?in|login)/i,
-  /action (is )?required/i,
+  /security (alert|notice|warning|team)/iu,
+  /(verify|confirm|validate|secure|restore|reactivate) your (account|identity|payouts?|payout (method|details)|bank)/iu,
+  /(payouts?|account|funds|balance)[^.]{0,40}\b(on hold|suspended|frozen|locked|limited|at risk)/iu,
+  /unusual (activity|sign[- ]?in|login)/iu,
+  /action (is )?required/iu,
 ];
 
 export function screenSellerText(text: string | null): string | null {

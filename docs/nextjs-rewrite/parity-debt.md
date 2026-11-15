@@ -1355,4 +1355,4 @@ Ported and proven byte for byte (statements, html and SMTP bytes):
 - Fixed-length memberships of two or more charges (first receipt, paid): ": N of M" labels, the last-purchase and count reads before the next price.
 
 Still handed back: a single-charge fixed-length membership (the manage note needs `end_time_of_subscription`), the final charge of a fixed-length membership, free and free-trial fixed-length memberships, `defer_to_charge` branches, order receipts (`@order_receipt_url`), the blocklist YAML (absent in this tree; if it appears the screen must be re-recorded).
-Not recorded, so not proven: the line `succeeded_at < <time>` is proven only for a purchase with a time (12 cases) and `NULL`; the 30-day boundary is proven at 29 days (suppressed), 30 days less a second (suppressed) and 31 days (sent).
+Not recorded, so not proven: the line `succeeded_at < <time>` is proven for a purchase with a time (four fixed-length cases) and for `NULL` (one); the 30-day boundary is proven at 29 days (suppressed), 30 days less a second (suppressed) and 31 days (sent).

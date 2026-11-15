@@ -7,10 +7,10 @@
 import { Prisma } from "@prisma/client";
 import type { Charge, Purchase, Subscription } from "@prisma/client";
 
-import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { encrypt as obfuscateId } from "../../../lib/obfuscate-ids.ts";
 import { isBlank } from "../../html/text-helper.ts";
 import { domainConfig } from "../../infra/domain.ts";
+import { isFeatureEnabled, userActor } from "../../infra/flipper.ts";
 import { ArgumentError, chargeOfPurchase, findChargeOrNil } from "../../models/charge.ts";
 import { getUsdCents, rubyStringToF } from "../../models/concerns/currency-helper.ts";
 import { advance } from "../../models/concerns/ruby-time.ts";
@@ -18,8 +18,8 @@ import { LinkFlags } from "../../models/link.ts";
 import { findById } from "../../models/row-reads.ts";
 import { secureExternalId } from "../../models/secure-external-id.ts";
 import { column, columnIn, inList, selectRows, table } from "../../models/sql.ts";
-import { defaultSubscriptionDeps, purchaseFlagScope, SubscriptionRecord } from "../../models/subscription.ts";
 import { subscriptionRenewalPreDiscountTotalCents } from "../../models/subscription-pricing.ts";
+import { defaultSubscriptionDeps, purchaseFlagScope, SubscriptionRecord } from "../../models/subscription.ts";
 import { UrlRedirectFlags } from "../../models/url-redirect.ts";
 import { PurchaseFlags } from "../../search/flags.ts";
 import { applicationMail, findRow, type MailerDeps, RecordNotFoundError } from "../application-mailer.ts";
@@ -40,6 +40,7 @@ import {
   type UserRow,
   viewContentButtonText,
 } from "./customer-mail-support.ts";
+import { type GuardSeller, screenSellerText, suppressReceiptFromUnprovenSeller } from "./receipt-guard.ts";
 import {
   type Attribute,
   assertSupported,
@@ -68,7 +69,6 @@ import {
   recommendedProducts,
   type RecommendedProducts,
 } from "./receipt-recommended.ts";
-import { type GuardSeller, screenSellerText, suppressReceiptFromUnprovenSeller } from "./receipt-guard.ts";
 import { taxLines } from "./receipt-tax.ts";
 
 type Id = number | bigint;
@@ -134,7 +134,15 @@ async function loadReceiptData(
       if (!/^[A-Za-z0-9_=-]+$/u.test(externalId))
         throw new MailViewNotPortedError("subscription external id that needs URL escaping");
       subscription = new SubscriptionRecord(row, { ...defaultSubscriptionDeps, now: deps.now ?? (() => new Date()) });
-      data.subscription = { row, externalId, recurrence: null, nextPayment: null, gift: false, freeMembership: false, fixedLength: null };
+      data.subscription = {
+        row,
+        externalId,
+        recurrence: null,
+        nextPayment: null,
+        gift: false,
+        freeMembership: false,
+        fixedLength: null,
+      };
     }
   }
   // MailSubject: `purchase.giftee_name_or_email` reads `gift_given` for a gift the buyer sent, and `gifter_email` reads
@@ -287,7 +295,8 @@ async function loadNextPayment(data: ReceiptData, record: SubscriptionRecord): P
     const successfulCount = Number(counted!["COUNT(*)"]);
     const isLast = last !== undefined && BigInt(last.id as Id) === BigInt(purchase.id);
     // The last charge drops the upcoming payment and adds a final-payment note; neither is recorded.
-    if (isLast && total - successfulCount === 0) throw new MailViewNotPortedError("final charge of a fixed-length membership");
+    if (isLast && total - successfulCount === 0)
+      throw new MailViewNotPortedError("final charge of a fixed-length membership");
     subscription.fixedLength = { total, chargeNumber: 0 };
   }
   const renewalCents = await record.currentSubscriptionPriceCents();
@@ -546,7 +555,10 @@ function lightBody(
 ): string {
   const value = (attribute: Attribute) => ("html" in attribute ? attribute.html : autoLinkText(attribute.text));
   const labelled = (attribute: Attribute) => (isBlank(attribute.label) ? "" : `${h(attribute.label)}: `);
-  const total = !info.free && !isBlank(info.formattedTotalTransactionAmount) ? `    <br>Total: ${h(info.formattedTotalTransactionAmount)}\n` : "";
+  const total =
+    !info.free && !isBlank(info.formattedTotalTransactionAmount)
+      ? `    <br>Total: ${h(info.formattedTotalTransactionAmount)}\n`
+      : "";
   const header = `<p>\n  Order ID: ${h(info.orderId)}<br>\n  Order date: ${h(info.formattedCreatedAt)}\n${total}</p>\n\n\n`;
   const attributeLines = [...item.giftAttributes, ...item.generalAttributes]
     .map((attribute) => `      <br>\n      ${labelled(attribute)}${"\n"}      ${value(attribute)}\n`)
@@ -744,11 +756,10 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
           ),
         )}\n</p>\n`;
 
-
   // `Feature.active?(:graphics_light_receipt, seller)`: the light template reads no recommendations.
   const featureActive =
     deps.featureActiveForUser ?? ((name: string, userId: number | bigint) => isFeatureEnabled(name, userActor(userId)));
-    if (await featureActive("graphics_light_receipt", seller.id as number | bigint)) {
+  if (await featureActive("graphics_light_receipt", seller.id as number | bigint)) {
     // The standard receipt reads the buyer's account for its recommendations; the light one reads it for the footer.
     if (purchase.purchaser_id !== null) await findRow("users", purchase.purchaser_id);
     const body = lightBody(data, info, item, payment, shipping, data.link.name);
