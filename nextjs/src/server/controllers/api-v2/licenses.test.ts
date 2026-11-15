@@ -149,17 +149,17 @@ describe("licensePurchaseJson", () => {
     expect(await licensePurchaseJson(purchase, license)).toMatchObject({ variants: "(Gold)" });
   });
 
-  it("hands back a purchase with several variants", async () => {
+  it("hands back a purchase whose variants were attached out of variant id order", async () => {
     database({
       links: [link],
       users: [seller],
       base_variants_purchases: [
-        { purchase_id: 3n, base_variant_id: 8n },
-        { purchase_id: 3n, base_variant_id: 9n },
+        { id: 1n, purchase_id: 3n, base_variant_id: 9n },
+        { id: 2n, purchase_id: 3n, base_variant_id: 8n },
       ],
     });
 
-    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/several variants/u);
+    await expect(licensePurchaseJson(purchase, license)).rejects.toThrow(/out of variant id order/u);
   });
 
   it("names a SKU in the variants string and leaves sku_id to a SKU-enabled product", async () => {

@@ -555,7 +555,8 @@ function failNotPorted(what: string): never {
   throw new NotPortedError(what);
 }
 
-// Purchase#variant_details_hash for one SKU or variants of distinct categories (the key order of that hash is not stable in Rails). Two variants of one category, a SKU among several and a missing category are Rails'.
+// Purchase#variant_details_hash for one SKU or variants of one or several categories, read in variant id order. A category's last variant
+// names it (a Ruby hash assignment); the key order of that hash is not stable in Rails. A sale whose variants of one category were attached out of id order, a SKU among several and a missing category are Rails'.
 async function saleVariants(purchase: Purchase) {
   const variants = await selectRows<{
     id: bigint;
@@ -574,7 +575,14 @@ async function saleVariants(purchase: Purchase) {
   if (variants.some((variant) => variant.type !== "Variant" || variant.variant_category_id === null))
     failNotPorted(variants.length > 1 ? "a sale with a SKU among several variants" : "a variant without a category");
   const categoryIds = [...new Set(variants.map((variant) => variant.variant_category_id!))];
-  if (categoryIds.length !== variants.length) failNotPorted("a sale with several variants of one category");
+  if (categoryIds.length !== variants.length) {
+    // Which variant of a category is later is MySQL's join order; the rows are served only when that order is the variant id order.
+    const attached = await selectRows<{ base_variant_id: bigint }>(
+      Prisma.sql`SELECT ${column("base_variants_purchases", "base_variant_id")} FROM ${table("base_variants_purchases")} WHERE ${column("base_variants_purchases", "purchase_id")} = ${purchase.id} ORDER BY ${column("base_variants_purchases", "id")} ASC`,
+    );
+    if (attached.some((row, index) => BigInt(row.base_variant_id) !== BigInt(variants[index]?.id ?? -1)))
+      failNotPorted("a sale with several variants of one category attached out of variant id order");
+  }
   const categories = await selectRows<{ id: bigint; title: string | null }>(
     Prisma.sql`SELECT ${column("variant_categories", "id")}, ${column("variant_categories", "title")} FROM ${table("variant_categories")} WHERE ${column("variant_categories", "id")} IN (${Prisma.join(categoryIds)})`,
   );
