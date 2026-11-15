@@ -1,7 +1,7 @@
 // What ActionMailer does between a mailer method and the SMTP transaction: premailer-rails'
 // delivering_email hook, Mail::Message#encoded, and the SMTP envelope.
 import type { DeliveryMethodOptions, ReceiptRecordIds } from "./mailer-info.ts";
-import { encodeMessage, type MimeIdentity, type MimeMessage, newIdentity } from "./mime.ts";
+import { encodeMessage, type MimeIdentity, MimeNotPortedError, type MimeMessage, newIdentity } from "./mime.ts";
 import { premailerRails, type StylesheetLoader } from "./premailer/premailer.ts";
 import { loadEmailStylesheet } from "./stylesheet.ts";
 
@@ -14,6 +14,14 @@ export type ComposedMail = { encoded: string; envelopeFrom: string; envelopeTo: 
 // Mail::Address#address for the forms mime.ts accepts.
 const bareAddress = (address: string) => /<([^>]+)>$/u.exec(address)?.[1] ?? address;
 
+// The html body is read back through Body#decoded, which turns CRLF and CR into LF for an ASCII body
+// (7bit) and leaves a non-ASCII one (8bit) as it is.
+function normalizeLineEndings(html: string): string {
+  if (!html.includes("\r")) return html;
+  if (/[^\x00-\x7f]/u.test(html)) throw new MimeNotPortedError("non-ASCII html with a carriage return");
+  return html.replace(/\r\n|\r/gu, "\n");
+}
+
 // Null when Mail would raise "SMTP To address may not be blank", which RescueSmtpErrors logs and
 // swallows.
 export function composeMail(
@@ -21,7 +29,7 @@ export function composeMail(
   options: { identity?: MimeIdentity; loadStylesheet?: StylesheetLoader } = {},
 ): ComposedMail | null {
   if (rendered.to === null || rendered.to.trim() === "") return null;
-  const { text, html } = premailerRails(rendered.html, options.loadStylesheet ?? loadEmailStylesheet);
+  const { text, html } = premailerRails(normalizeLineEndings(rendered.html), options.loadStylesheet ?? loadEmailStylesheet);
   const encoded = encodeMessage(
     {
       from: rendered.from,

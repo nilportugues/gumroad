@@ -172,8 +172,9 @@ function negotiate(raw: string): TransferEncoding {
 
 // Body#encoded(transfer_encoding) for a text body: the source encoding's decode (7bit normalises
 // line endings), then the negotiated encoding's encode.
-function encodeBody(rawBody: string): { encoding: TransferEncoding; encoded: string } {
+function encodeBody(rawBody: string, forceQuotedPrintable = false): { encoding: TransferEncoding; encoded: string } {
   const raw = blank(rawBody) ? "" : rawBody;
+  if (forceQuotedPrintable) return { encoding: "quoted-printable", encoded: interceptedHtml(raw) };
   const encoding = negotiate(raw);
   const asciiOnly = Buffer.byteLength(raw, "utf8") === raw.length;
   const decoded = asciiOnly ? toLf(raw) : raw;
@@ -187,6 +188,18 @@ function encodeBody(rawBody: string): { encoding: TransferEncoding; encoded: str
   }
 }
 
+// QuotedPrintableHtmlMail: the interceptor encodes the part's decoded body once, and Body#encoded
+// decodes and encodes it again. Mail only converts line endings of a string that is ASCII (the
+// decoder returns binary), so a body with non-ASCII keeps the CRLFs the first pass added and the
+// second pass writes each of them as "=0D".
+function interceptedHtml(payload: string): string {
+  // The inliner's html never carries a bare CR; Mail would normalise it before the first pass.
+  if (payload.includes("\r")) throw new MimeNotPortedError("html part with a carriage return");
+  const bytes = Buffer.from(payload, "utf8");
+  const decoded = bytes.length === payload.length ? payload : payload.replace(/\n/gu, "\r\n");
+  return toCrlf(packM(Buffer.from(decoded, "utf8")));
+}
+
 function encodeHeaders(fields: [string, string][]): string {
   return fields
     .map((field, index) => ({ field, index }))
@@ -196,8 +209,12 @@ function encodeHeaders(fields: [string, string][]): string {
 }
 
 // Mail::Part#encoded: Content-Type with its charset parameter, then the negotiated encoding.
-export function encodePart(part: MimePart): string {
-  const { encoding, encoded } = encodeBody(part.body);
+// `quotedPrintableHtml` is config/initializers/quoted_printable_html_mail.rb: the interceptor that
+// re-encodes every text/html part as quoted-printable, whatever the body negotiates to.
+export type EncodeOptions = { quotedPrintableHtml?: boolean };
+
+export function encodePart(part: MimePart, options: EncodeOptions = {}): string {
+  const { encoding, encoded } = encodeBody(part.body, part.contentType === "text/html" && options.quotedPrintableHtml === true);
   return `${encodeHeaders([
     ["content-type", `Content-Type: ${part.contentType};\r\n charset=UTF-8`],
     ["content-transfer-encoding", `Content-Transfer-Encoding: ${encoding}`],
@@ -226,7 +243,7 @@ function encodeAttachment(attachment: MimeAttachment): string {
 // Body#encoded of a multipart body: each part after "\r\n--boundary\r\n", then the closing line.
 const multipartBody = (parts: string[], boundary: string) => ["", ...parts].join(`\r\n--${boundary}\r\n`) + `\r\n--${boundary}--\r\n`;
 
-export function encodeMessage(message: MimeMessage, identity: MimeIdentity = newIdentity()): string {
+export function encodeMessage(message: MimeMessage, identity: MimeIdentity = newIdentity(), options: EncodeOptions = { quotedPrintableHtml: true }): string {
   if (message.parts.length < 2) throw new MimeNotPortedError("only multipart/alternative messages are ported");
   if (message.to.length !== 1) throw new MimeNotPortedError("only single-recipient messages are ported");
   const fields: [string, string][] = [
@@ -244,7 +261,7 @@ export function encodeMessage(message: MimeMessage, identity: MimeIdentity = new
   const parts = message.parts
     .map((part, index) => ({ part, index }))
     .sort((a, b) => PART_SORT_ORDER.indexOf(a.part.contentType) - PART_SORT_ORDER.indexOf(b.part.contentType) || a.index - b.index)
-    .map(({ part }) => encodePart(part));
+    .map(({ part }) => encodePart(part, options));
 
   const attachments = message.attachments ?? [];
   if (attachments.length === 0) {
