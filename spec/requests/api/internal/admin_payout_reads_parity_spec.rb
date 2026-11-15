@@ -164,7 +164,9 @@ describe "Internal admin API payout reads and the writes that stay in front of R
     it "lists PayPal payouts newest first with the seller's next payout and the admin's payout note", parity: true do
       create(:payment_completed, user: seller, amount_cents: 12_34, payment_address: "paypal-seller@example.com", created_at: 3.days.ago)
       create(:payment_failed, user: seller, amount_cents: 56_78, payment_address: "paypal-seller@example.com", failure_reason: "cannot_pay", created_at: 1.day.ago)
+        .update_columns(stripe_transfer_id: "tr_example")
       create(:balance, user: seller, amount_cents: 150_00, date: 30.days.ago.to_date)
+      seller.add_payout_note(content: "Superseded")
       seller.add_payout_note(content: "Paid out by hand")
       seller.comments.create!(content: "Not the admin's", author_id: admin.id, comment_type: Comment::COMMENT_TYPE_PAYOUT_NOTE)
 
