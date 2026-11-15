@@ -6,8 +6,8 @@ import { db } from "../../../lib/db.ts";
 import { encrypt } from "../../../lib/obfuscate-ids.ts";
 import { rubyStrip } from "../../content-moderation/ruby.ts";
 import { Comments, COMMENT_TYPES } from "../../models/comment.ts";
-import { gumroadAdminId } from "../../models/gumroad-admin-id.ts";
 import { moneyFormatWithGemSymbol } from "../../models/concerns/money-formatter.ts";
+import { gumroadAdminId } from "../../models/gumroad-admin-id.ts";
 import { recordSocialConnectHoldReleased } from "../../models/user-risk.ts";
 import {
   findUserBang,
@@ -331,7 +331,7 @@ defineAdminRoute(
           commentable_type: "User",
           comment_type: COMMENT_TYPES.PAYOUT_NOTE,
           deleted_at: null,
-          author_id: BigInt(gumroadAdminId()),
+          author_id: BigInt(Number(gumroadAdminId())),
         },
         orderBy: { id: "desc" },
         select: { content: true },
