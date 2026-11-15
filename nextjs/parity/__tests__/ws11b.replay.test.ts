@@ -216,11 +216,12 @@ describe.skipIf(!url)("ws11b storefront and audience", () => {
       loaded: Parameters<typeof reencryptCookies>[1],
       now: Date,
     ) => reencryptCookies(request, loaded, SECRET_KEY_BASE, now),
-    // The 404 page body is not recorded.
+    // The 404 page body is not recorded, nor the 400 page (DebugExceptions' HTML in the test environment).
     compare: {
       ignore: [
         ...COMPARE.ignore,
         ...(name.includes("404") ? ["response.body", "response.json"] : []),
+        ...(name.includes("answers-400") ? ["response.body"] : []),
         ...(name.includes("generates-a-permalink") ? ["db.utm_links.inserted.*.permalink"] : []),
       ],
     },

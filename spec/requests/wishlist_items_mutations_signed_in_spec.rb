@@ -254,7 +254,7 @@ describe "Wishlist followers and products when signed in", type: :request do
       expect(response.parsed_body["error"]).to eq("Recurrence must be blank")
     end
 
-    it "hands a product with skus through to Rails", parity: true do
+    it "adds a product with skus", parity: true do
       physical = create(:physical_product, skus_enabled: true)
       create(:sku, link: physical, name: "Large")
       create(:sku, link: physical, name: "Small")
@@ -263,6 +263,30 @@ describe "Wishlist followers and products when signed in", type: :request do
       send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: physical.external_id, option_id: physical.skus.not_is_default_sku.first.external_id } })
 
       expect(response).to have_http_status(:created)
+      expect(wishlist.wishlist_products.last.variant).to eq(physical.skus.not_is_default_sku.first)
+    end
+
+    it "refuses a product with skus and no sku", parity: true do
+      physical = create(:physical_product, skus_enabled: true)
+      create(:sku, link: physical, name: "Large")
+      create(:sku, link: physical, name: "Small")
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: physical.external_id } })
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(response.parsed_body["error"]).to eq("Wishlist product must have variant specified for versioned product")
+    end
+
+    it "answers 404 for the default sku of a product with skus", parity: true do
+      physical = create(:physical_product, skus_enabled: true)
+      create(:sku, link: physical, name: "Large")
+      default_sku = create(:sku, link: physical, name: "Default", is_default_sku: true)
+      log_in(owner)
+
+      send_json(:post, "/wishlists/#{wishlist.external_id}/products", { wishlist_product: { product_id: physical.external_id, option_id: default_sku.external_id } })
+
+      expect(response).to have_http_status(:not_found)
     end
 
     it "removes a product", parity: true do

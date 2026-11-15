@@ -26,6 +26,8 @@ import { signedOutRefusal } from "./wishlists-mutations.ts";
 
 const WISHLIST_UPDATED_EMAIL_DELAY_SECONDS = 8 * 3600;
 const BUY_ONLY = 0;
+// BaseVariant `has_flags 1 => :is_default_sku`.
+const IS_DEFAULT_SKU_FLAG = 1;
 const FOUND = 302;
 const NO_CONTENT = 204;
 const CREATED = 201;
@@ -184,14 +186,11 @@ registerMutations(
               Prisma.sql`SELECT ${Prisma.raw("`links`.*")} FROM ${table("links")} WHERE ${column("links", "id")} = ${productNumericId} LIMIT 1`,
             );
       if (!product) throw new RoutingError("Not Found");
-      if (
-        LinkFlags.isSet(product.flags as never, "skus_enabled") ||
-        LinkFlags.isSet(product.flags as never, "quantity_enabled") ||
-        (product.purchase_type ?? BUY_ONLY) !== BUY_ONLY
-      ) {
-        throw new HandBackToRails("a product with skus, quantity or rent");
-      }
-      // `product.variants_or_skus.find_by_external_id!(option_id)`: alive versions of an alive category.
+      // The default quantity of 1 satisfies both quantity validations, so `quantity_enabled` changes nothing without an explicit quantity.
+      if ((product.purchase_type ?? BUY_ONLY) !== BUY_ONLY) throw new HandBackToRails("a product that sells rentals");
+      const skusEnabled = LinkFlags.isSet(product.flags as never, "skus_enabled");
+      // `product.variants_or_skus.find_by_external_id!(option_id)`: the alive non-default skus when skus are enabled, else the
+      // alive versions of an alive category.
       let variantId: bigint | null = null;
       if (optionId) {
         const optionNumericId = decrypt(optionId);
@@ -199,7 +198,9 @@ registerMutations(
           optionNumericId === null
             ? []
             : await selectRows<{ id: bigint }>(
-                Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("base_variants", "id")} = ${optionNumericId} AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 1`,
+                skusEnabled
+                  ? Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} WHERE ${column("base_variants", "id")} = ${optionNumericId} AND ${column("base_variants", "type")} = 'Sku' AND ${column("base_variants", "link_id")} = ${product.id} AND ${column("base_variants", "deleted_at")} IS NULL AND (${column("base_variants", "flags")} & ${IS_DEFAULT_SKU_FLAG}) = 0 LIMIT 1`
+                  : Prisma.sql`SELECT ${column("base_variants", "id")} FROM ${table("base_variants")} JOIN ${table("variant_categories")} ON ${column("variant_categories", "id")} = ${column("base_variants", "variant_category_id")} WHERE ${column("base_variants", "id")} = ${optionNumericId} AND ${column("base_variants", "type")} = 'Variant' AND ${column("base_variants", "deleted_at")} IS NULL AND ${column("variant_categories", "link_id")} = ${product.id} AND ${column("variant_categories", "deleted_at")} IS NULL LIMIT 1`,
               );
         if (!variant) throw new RoutingError("Not Found");
         variantId = variant.id;

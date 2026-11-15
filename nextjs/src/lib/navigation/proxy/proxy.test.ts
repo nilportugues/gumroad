@@ -258,12 +258,17 @@ describe("router-level redirects", () => {
     });
   });
 
-  it("hands a query it cannot rebuild like to_query back to Rails", async () => {
+  it("hands a query whose nesting conflicts back to Rails", async () => {
     expect(
       await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?b=2&a=1"), redirects, production, on),
     ).toMatchObject({ action: "redirect", location: "/subscriptions/abc/manage?a=1&b=2" });
     expect(
-      await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1"), redirects, production, on),
+      await decideRoute(
+        request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1&a=2"),
+        redirects,
+        production,
+        on,
+      ),
     ).toEqual({ action: "rails" });
   });
 
