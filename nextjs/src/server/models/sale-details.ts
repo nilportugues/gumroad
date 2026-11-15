@@ -3,11 +3,11 @@ import { Prisma, type Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { encrypt } from "../../lib/obfuscate-ids.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 
 import { moneyFormatWithGemSymbol } from "./concerns/money-formatter.ts";
 import { hasDirectAffiliateCredit, hasDirectAffiliateId } from "./json-direct-affiliate.ts";
 import { calculatedTrackingUrl } from "./shipment-tracking.ts";
-import { PurchaseFlags } from "../search/flags.ts";
 import { column, selectRows, table } from "./sql.ts";
 import { NotPortedError } from "./user.ts";
 
