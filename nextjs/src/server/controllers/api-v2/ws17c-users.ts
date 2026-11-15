@@ -320,15 +320,14 @@ const IFTTT_MAX_LIMIT = 10_000;
 const CHARGED_SUCCESS_STATES = ["preorder_authorization_successful", "successful"];
 const DECIMAL_INTEGER = /^-?(0|[1-9]\d*)$/u;
 
-// `params[:limit] || 50`, which ActiveRecord casts with Integer(): "010" is octal and "" raises, so only canonical integers are proven.
+// `params[:limit] || 50`, which ActiveRecord casts with Integer(): a leading zero makes the digits octal ("010" is 8) and "" raises, so
+// only canonical decimals and plain octals are proven.
 function iftttLimit(value: unknown): number {
   if (value === undefined || value === null || value === false) return IFTTT_DEFAULT_LIMIT;
-  const limit =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && /^(0|[1-9]\d*)$/u.test(value)
-        ? Number(value)
-        : NaN;
+  let limit = NaN;
+  if (typeof value === "number") limit = value;
+  else if (typeof value === "string" && /^(0|[1-9]\d*)$/u.test(value)) limit = Number(value);
+  else if (typeof value === "string" && /^0[0-7]+$/u.test(value)) limit = Number.parseInt(value, 8);
   if (!Number.isInteger(limit) || limit < 0 || limit > IFTTT_MAX_LIMIT)
     throw new NotPortedError("an IFTTT trigger limit that is not a plain integer");
   return limit;

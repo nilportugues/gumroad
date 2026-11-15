@@ -77,9 +77,21 @@ describe("Purchases::InvoicesController#confirm_email", () => {
   });
 
   it.each([
-    ["a list", ["x"]],
-    ["a number", 3],
+    ["a list of text", ["x"]],
+    ["an integer", 3],
+  ])("sends an email that is %s back with an alert", async (_name, email) => {
+    expect(await call(confirmEmail, { email })).toMatchObject({
+      status: 302,
+      flash: { alert: "Incorrect email address. Please try again." },
+    });
+  });
+
+  it.each([
+    ["an empty list", []],
+    ["a list of numbers", [1]],
     ["an object", { a: 1 }],
+    ["a boolean", true],
+    ["a float", 1.5],
   ])("hands back an email that is %s", async (_name, email) => {
     await expect(call(confirmEmail, { email })).rejects.toBeInstanceOf(HandBackToRails);
   });

@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   db: {
     refundPolicy: { findFirst: vi.fn() },
-    assetPreview: { count: vi.fn() },
     productFile: { count: vi.fn() },
     preorderLink: { count: vi.fn() },
   },
+  selectRows: vi.fn(),
+  uploadedFiles: vi.fn(),
   flags: {
     is_tiered_membership: 1n << 18n,
     is_bundle: 1n << 25n,
@@ -16,6 +17,13 @@ const mocks = vi.hoisted(() => ({
   } as Record<string, bigint>,
 }));
 vi.mock("../../../lib/db.ts", () => ({ db: mocks.db }));
+vi.mock("../../models/sql.ts", () => ({
+  selectRows: mocks.selectRows,
+  column: (table: string, name: string) => `${table}.${name}`,
+  table: (name: string) => name,
+}));
+vi.mock("../../presenters/asset-preview-upload.ts", () => ({ uploadedFiles: mocks.uploadedFiles }));
+vi.mock("../../presenters/product-props-extras.ts", () => ({}));
 vi.mock("../../models/link.ts", () => ({
   Links: {},
   defaultPriceCents: vi.fn(),
@@ -47,7 +55,8 @@ const check = (links: Link[], overrides: { owner?: User; scopes?: string[] } = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.db.refundPolicy.findFirst.mockResolvedValue(null);
-  mocks.db.assetPreview.count.mockResolvedValue(0);
+  mocks.selectRows.mockResolvedValue([]);
+  mocks.uploadedFiles.mockResolvedValue(new Map());
   mocks.db.productFile.count.mockResolvedValue(0);
   mocks.db.preorderLink.count.mockResolvedValue(0);
 });
@@ -88,9 +97,31 @@ describe("products the v2 API serializer hands back to Rails", () => {
     ).resolves.toBeUndefined();
   });
 
-  it.each(["assetPreview", "preorderLink"] as const)("hands back a product with a row in %s", async (model) => {
-    mocks.db[model].count.mockResolvedValue(1);
+  it("hands back a product with a row in preorderLink", async () => {
+    mocks.db.preorderLink.count.mockResolvedValue(1);
 
     await expect(check([product()])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("accepts a product whose cover is an Unsplash photo", async () => {
+    mocks.selectRows.mockResolvedValue([
+      { id: 1n, guid: "g", oembed: null, unsplash_url: "https://images.example.com/a" },
+    ]);
+
+    await expect(check([product()])).resolves.toBeUndefined();
+  });
+
+  it("hands back a product with an uploaded cover", async () => {
+    mocks.selectRows.mockResolvedValue([{ id: 1n, guid: "g", oembed: null, unsplash_url: null }]);
+    mocks.uploadedFiles.mockResolvedValue(new Map([[1n, [{}]]]));
+
+    await expect(check([product()])).rejects.toBeInstanceOf(HandBackToRails);
+  });
+
+  it("hands back a cover that is neither an upload, an Unsplash photo nor an oEmbed document", async () => {
+    mocks.selectRows.mockResolvedValue([{ id: 1n, guid: "g", oembed: null, unsplash_url: null }]);
+
+    // coverAsJson refuses with the presenters' own not-ported error, which the dispatcher also hands to Rails.
+    await expect(check([product()])).rejects.toThrow(/AssetPreview#as_json/u);
   });
 });

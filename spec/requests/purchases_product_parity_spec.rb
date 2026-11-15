@@ -85,7 +85,7 @@ describe "Purchase product page", type: :request do
     expect(response).to be_successful
   end
 
-  it "hands a request that does not ask for HTML to Rails", parity: true do
+  it "answers 404 to a request that does not ask for HTML", parity: true do
     get "/purchases/#{purchase.external_id}/product", headers: { "Accept" => "application/json" }
 
     expect(response).to have_http_status(:not_found)

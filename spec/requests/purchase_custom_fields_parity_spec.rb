@@ -156,7 +156,7 @@ describe "Purchase custom fields", type: :request do
       expect(response).to have_http_status(:no_content)
     end
 
-    it "hands a blank answer to a required field to Rails", parity: true do
+    it "answers 422 for a blank answer to a required field", parity: true do
       required = create(:custom_field, seller:, products: [product], type: CustomField::TYPE_TEXT, is_post_purchase: true, required: true, name: "Required")
 
       save_answer(params_for(required, value: ""))
@@ -164,19 +164,19 @@ describe "Purchase custom fields", type: :request do
       expect(response).to have_http_status(:unprocessable_content)
     end
 
-    it "hands a request without a purchase_id to Rails", parity: true do
+    it "answers 400 without a purchase_id", parity: true do
       save_answer(params_for.except(:purchase_id))
 
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands a request without a custom_field_id to Rails", parity: true do
+    it "answers 400 without a custom_field_id", parity: true do
       save_answer(params_for.except(:custom_field_id))
 
       expect(response).to have_http_status(:bad_request)
     end
 
-    it "hands an answer that is a number to Rails", parity: true do
+    it "saves an answer that is an integer as text", parity: true do
       save_answer(params_for(value: 42))
 
       expect(response).to have_http_status(:no_content)
