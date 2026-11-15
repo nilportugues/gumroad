@@ -205,7 +205,8 @@ export type BundleEditInput = {
   now?: Date;
   flashNow?: Record<string, string>;
 };
-export const NOT_A_BUNDLE_ALERT = "Select products and save your changes to finish converting this product to a bundle.";
+export const NOT_A_BUNDLE_ALERT =
+  "Select products and save your changes to finish converting this product to a bundle.";
 
 // BundlePresenter#edit_product_props
 export async function bundleEditProductProps({ bundle, seller, now = new Date() }: BundleEditInput) {

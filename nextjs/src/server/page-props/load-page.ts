@@ -154,7 +154,10 @@ export async function loadPage(
   const flashNow: Record<string, string> = {};
   const ports = {
     ...basePorts,
-    session: { ...basePorts.session, consumeFlash: async () => ({ ...(await basePorts.session.consumeFlash()), ...flashNow }) },
+    session: {
+      ...basePorts.session,
+      consumeFlash: async () => ({ ...(await basePorts.session.consumeFlash()), ...flashNow }),
+    },
   };
   const fullpath = requestHeaders.get(PAGE_URL_HEADER) ?? url;
   const meta = new MetaTagBuilder();
@@ -189,7 +192,16 @@ export async function loadPage(
     partialRequest(component, requestHeaders),
     requestHeaders.get("x-inertia-infinite-scroll-merge-intent"),
   );
-  const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView, buyerCurrencyFooter });
+  const shared = await sharedProps({
+    context,
+    config,
+    request,
+    meta,
+    csrfToken,
+    ports,
+    mobileAppWebView,
+    buyerCurrencyFooter,
+  });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
   if (state?.promoteNavItemPath && context.loggedInUser)
