@@ -57,8 +57,9 @@ export async function bundleBlockers(bundle: LinkRow, seller: UserRow, tab: Bund
   const unread = tab === "share" ? UNREAD_BY_SHARE_EDITOR : UNREAD_BY_BUNDLE_PRODUCT_EDITOR;
   const blockers = (await rowBlockers(bundle, seller)).filter((name) => !unread.includes(name));
   const set = (flag: Parameters<typeof LinkFlags.isSet>[1]) => LinkFlags.isSet(bundle.flags as bigint, flag);
-  // A product being converted to a bundle renders a flash alert ("Select products and save your changes ...").
-  if (!set("is_bundle") || bundle.native_type !== NATIVE_TYPE_BUNDLE) blockers.push("not_a_bundle");
+  // Only the content tab renders a product being converted to a bundle (with a flash alert); the other tabs stay in Rails.
+  const convertible = tab === "content" && !set("is_bundle");
+  if (!convertible && (!set("is_bundle") || bundle.native_type !== NATIVE_TYPE_BUNDLE)) blockers.push("not_a_bundle");
   // ProductInstallmentPlan.eligible_for_product?
   for (const flag of ["is_recurring_billing", "is_tiered_membership", "is_in_preorder_state"] as const) {
     if (set(flag)) blockers.push(flag);
@@ -191,14 +192,20 @@ async function sharedProps(
     },
     id: externalId(bundle.id),
     unique_permalink: bundle.unique_permalink,
-    is_bundle: true,
+    is_bundle: LinkFlags.isSet(bundle.flags as bigint, "is_bundle"),
     sections,
   };
 }
 
 const NO_RATINGS = { count: 0, average: 0.0, percentages: [0, 0, 0, 0, 0] };
 
-export type BundleEditInput = { bundle: LinkRow; seller: UserRow; now?: Date };
+export type BundleEditInput = {
+  bundle: LinkRow;
+  seller: UserRow;
+  now?: Date;
+  flashNow?: Record<string, string>;
+};
+export const NOT_A_BUNDLE_ALERT = "Select products and save your changes to finish converting this product to a bundle.";
 
 // BundlePresenter#edit_product_props
 export async function bundleEditProductProps({ bundle, seller, now = new Date() }: BundleEditInput) {
@@ -225,7 +232,8 @@ async function selectableProductsCount(sellerId: bigint): Promise<number> {
 }
 
 // BundlePresenter#edit_content_props, and the deferred `search_data` of Bundles::ContentController#edit.
-export async function bundleEditContentProps({ bundle, seller }: BundleEditInput) {
+export async function bundleEditContentProps({ bundle, seller, flashNow }: BundleEditInput) {
+  if (flashNow && !LinkFlags.isSet(bundle.flags as bigint, "is_bundle")) flashNow.alert = NOT_A_BUNDLE_ALERT;
   const policies = await refundPolicies(bundle, seller);
   const { sections: _sections, ...shared } = await sharedProps(bundle, seller, policies.own);
   return {
