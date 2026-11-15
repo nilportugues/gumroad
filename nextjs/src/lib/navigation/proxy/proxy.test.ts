@@ -263,7 +263,12 @@ describe("router-level redirects", () => {
       await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?b=2&a=1"), redirects, production, on),
     ).toMatchObject({ action: "redirect", location: "/subscriptions/abc/manage?a=1&b=2" });
     expect(
-      await decideRoute(request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1&a=2"), redirects, production, on),
+      await decideRoute(
+        request("https://gumroad.com/subscriptions/abc/edit_card?a[]=1&a=2"),
+        redirects,
+        production,
+        on,
+      ),
     ).toEqual({ action: "rails" });
   });
 
