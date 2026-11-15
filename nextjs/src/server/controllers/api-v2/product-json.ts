@@ -18,8 +18,8 @@ import {
 } from "../../page-props/seller-products/listing.ts";
 import { uploadedFiles } from "../../presenters/asset-preview-upload.ts";
 import { coverAsJson } from "../../presenters/asset-preview.ts";
-import { findLink, findUserById } from "../../presenters/product-reads.ts";
 import { coverProps } from "../../presenters/product-props-extras.ts";
+import { findLink, findUserById } from "../../presenters/product-reads.ts";
 import { longUrl } from "../../presenters/product.ts";
 import { HandBackToRails } from "../application-controller.ts";
 
@@ -79,7 +79,12 @@ async function refundPolicyJson(link: Link) {
 // Covers that are a row alone (an Unsplash photo or an oEmbed document) render without a statement; an upload reads its blob and may enqueue
 // a job, so it hands back here, before any write, along with whatever coverAsJson itself refuses.
 async function assertCoversSupported(ids: bigint[]): Promise<void> {
-  const previews = await selectRows<{ id: bigint; guid: string | null; oembed: string | null; unsplash_url: string | null }>(
+  const previews = await selectRows<{
+    id: bigint;
+    guid: string | null;
+    oembed: string | null;
+    unsplash_url: string | null;
+  }>(
     Prisma.sql`SELECT ${column("asset_previews", "id")}, ${column("asset_previews", "guid")}, ${column("asset_previews", "oembed")}, ${column("asset_previews", "unsplash_url")} FROM ${table("asset_previews")} WHERE ${column("asset_previews", "link_id")} IN (${Prisma.join(ids)}) AND ${column("asset_previews", "deleted_at")} IS NULL`,
   );
   if (previews.length === 0) return;

@@ -8,7 +8,6 @@ import { IS_CONTENT_UPSELL, UPSELLS, upsellJson } from "../../models/upsell.ts";
 import { HandBackToRails } from "../application-controller.ts";
 import { softDeleteUpsell } from "../checkout-upsells.ts";
 
-import { deleteUpsellOfferCode, withVersions } from "./offer-codes.ts";
 import {
   type ApiV2Input,
   EDIT_PRODUCTS_SCOPES,
@@ -18,6 +17,7 @@ import {
   registerApiV2,
   successWithObject,
 } from "./base.ts";
+import { deleteUpsellOfferCode, withVersions } from "./offer-codes.ts";
 
 // current_resource_owner.upsells.alive.not_is_content_upsell
 const scope = (sellerId: bigint) =>
