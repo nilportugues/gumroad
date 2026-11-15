@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "spec": "spec/requests/purchase_invoices_parity_spec.rb",
-  "example": "Purchase invoices confirming the email hands an email that is a number to Rails",
+  "spec": "spec/requests/purchase_custom_fields_parity_spec.rb",
+  "example": "Purchase custom fields requests Rails answers answers 400 without a custom_field_id",
   "sessionCookie": "_gumroad_app_session_test",
   "secretKeyBase": "parity-replay-secret-key-base",
-  "recordedOn": "2026-11-11",
+  "recordedOn": "2026-11-14",
   "exchanges": [
     {
       "seed": {
@@ -69,7 +69,7 @@
                 "id": 1,
                 "seller_id": 1,
                 "email": "buyer@example.com",
-                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-11T06:00:06Z\", \"product_id\": 1, \"price_cents\": 100}]}",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-14T23:55:11Z\", \"product_id\": 1, \"price_cents\": 100}]}",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "customer": 1,
@@ -84,6 +84,56 @@
                 "follower_created_at": null,
                 "min_affiliate_created_at": null,
                 "max_affiliate_created_at": null
+              }
+            ]
+          },
+          "custom_fields": {
+            "columns": {
+              "id": "bigint",
+              "field_type": "varchar",
+              "name": "varchar",
+              "required": "tinyint",
+              "global": "tinyint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "seller_id": "bigint",
+              "flags": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "field_type": "text",
+                "name": "Favourite colour",
+                "required": 0,
+                "global": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "seller_id": 1,
+                "flags": 1
+              }
+            ]
+          },
+          "custom_fields_products": {
+            "columns": {
+              "id": "bigint",
+              "custom_field_id": "bigint",
+              "product_id": "bigint",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "custom_field_id": 1,
+                "product_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>"
               }
             ]
           },
@@ -153,12 +203,12 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Invoiced product",
-                "unique_permalink": "invoiced",
+                "name": "Answered product",
+                "unique_permalink": "answered",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
-                "created_at": "<now-16302h>",
+                "created_at": "<now-16392h>",
                 "updated_at": "<now>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
@@ -350,7 +400,7 @@
                 "purchaser_id": null,
                 "purchaser_type": "User",
                 "session_id": null,
-                "ip_address": "94.97.80.8",
+                "ip_address": "214.182.79.217",
                 "is_mobile": null,
                 "stripe_refunded": null,
                 "stripe_transaction_id": "2763276372637263",
@@ -370,7 +420,7 @@
                 "succeeded_at": "<now>",
                 "card_country": "US",
                 "stripe_error_code": null,
-                "browser_guid": "JKDDSFJKSFD-9-48527-SDFJ",
+                "browser_guid": "SDFJKLDF-3-372387-JDSFKLDSF",
                 "error_code": null,
                 "card_bin": null,
                 "custom_fields": null,
@@ -434,6 +484,45 @@
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "url_redirects": {
+            "columns": {
+              "id": "bigint",
+              "uses": "int",
+              "expires_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_id": "bigint",
+              "token": "varchar",
+              "link_id": "bigint",
+              "flags": "int",
+              "installment_id": "bigint",
+              "subscription_id": "bigint",
+              "preorder_id": "bigint",
+              "imported_customer_id": "bigint",
+              "rental_first_viewed_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "uses": 0,
+                "expires_at": "<now-130115h>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "purchase_id": 1,
+                "token": "541b563ca142d37a6b05aaea5d12323e",
+                "link_id": 1,
+                "flags": 0,
+                "installment_id": null,
+                "subscription_id": null,
+                "preorder_id": null,
+                "imported_customer_id": null,
+                "rental_first_viewed_at": null
               }
             ]
           },
@@ -512,20 +601,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar856fe657_17@gumroad.com",
-                "encrypted_password": "$2a$04$A2LE2hTMtS/WFebPU7XtmuOYF.xiByfl6B3ldFFur6Z96Ey7MnFY2",
+                "email": "edgar0ba2ba94_5@gumroad.com",
+                "encrypted_password": "$2a$04$LANh1WiDCrd3RZh1HTYb7eojGKiYF.ORXNW94DIcoS/LCfWEN1.r2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "168.156.1.48",
-                "last_sign_in_ip": "16.75.113.89",
+                "current_sign_in_ip": "16.222.153.109",
+                "last_sign_in_ip": "18.70.186.109",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Invoice Seller",
-                "payment_address": "edgarf59649d5_18@gumroad.com",
+                "name": "Answers Seller",
+                "payment_address": "edgar920128a8_6@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -537,7 +626,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgard8c9f3799",
+                "username": "edgar04d775f53",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -550,8 +639,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "2091488408382",
-                "account_created_ip": "58.27.221.7",
+                "external_id": "4014697495724",
+                "account_created_ip": "251.11.122.221",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -569,7 +658,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "F3MCL45762DMXXDV2W7QRTQ2N37PTAKU",
+                "otp_secret_key": "3TCK4S4AL25HJJUOOZL22OZAG7VXSW52",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -584,10 +673,13 @@
         "autoIncrement": {
           "affiliates": 2,
           "audience_members": 2,
+          "custom_fields": 2,
+          "custom_fields_products": 2,
           "links": 2,
           "prices": 2,
           "purchases": 2,
           "refund_policies": 2,
+          "url_redirects": 2,
           "users": 2
         }
       },
@@ -653,13 +745,13 @@
         },
         "cookies": {
           "XSRF-TOKEN": {
-            "value": "hiesP5NV_nSAdzQRnIvfkiHVOv6N86NK72Bt7x7FPAMgGJipzSue7RRDX-nVaIKtXZHqWFT-PQmlMovrn0UlDA",
+            "value": "WKnokovnnq671uoR0nxj9_H2bvD03fqRiYtjh0kI8FoaT1FqsTn_LXW7Bl0axWQk6Vq5GpdRfQFJyFvBZkhYPQ",
             "path": "/",
             "samesite": "lax",
             "httponly": true
           },
           "_gumroad_app_session_test": {
-            "value": "XbxZutImBnbBo2vgYBrWicDeJk5UC+qkslqSCEACgm6J+o5+2hkuL9gdESMWrkhLckJwN7MufnCs/1Ar17GGFMQKMRYMCypQzbavl89F+IgLDlZk2GM41svvM4GBp/daOGB4tz0MvzPUG9geGpjPImJaIjPwoOmh3LluaDpErK/3+vgCZrFZcfBNMgA459VD/7VNHIhxuoPLAvzFN93hegQQhLt3dlBnkgo8LHNWlQSWtcIkXwQNPukLYIO/pqKl6KF44y5YbDBj5+c/4bC8xcwEEH7dWgO9DSxlrTtK/8Lm3suHDyWDCgIgX+J9S4uQ6NW1J8pTUWrwZf2cP2YOqlR4Dt6TF3VfhjYj7qTmUWEkrEo2oNtCPqMg75b++TYjrenw--Rx7IJjSpmACw4DE4--BEKUfx/8jB2orq6LAbEzGQ==",
+            "value": "7xWEFJsmcBGAqBSfRn1A1NtRS0Hl75om1ClQ363NahE8wP+dgNduti2CVzkhOFB8TsN553iGS65HG1Ovb1AEXC93sNcPoS2FQG5OEAOBuC7znj1J9KfzkqG93Yy9PnBY63AElDFxcdpPjjcKi3GDhq3xmcYLVf0kilQg+SPfSaJ/bhm1N2EN2rpqXVSxYtRG7AS4+YR15Fv+t8mXyodLov9jJeBLRSFKMBXL+sTKf1jaWF/lx78aBDwXs0EOUx4PBxScQ7ZCSYLdvfZXYBT2rPnK/eyuIYmBrJH1QkHzwP5P8KHR5iwAIOPTIqraEivjuI8jamNtK5HIALtkJ/YDraqetQ+IQRS8d7LT9/cMiSps+trYcmQlshxLYaRBq9VVYqWg--YYZArs3P42NaTnCE--wiAblRVSlrGu9dZioobR5Q==",
             "domain": "gumroad.com",
             "path": "/",
             "expires": "<now+87672h>",
@@ -699,12 +791,12 @@
             },
             "logged_in_user": null,
             "current_seller": null,
-            "csp_nonce": "kFQn7lc9fRv6kRZ0CFaseVwupCO5Pz9HnibzEgS7boA=",
+            "csp_nonce": "mwuUD/S1p6irEXtSqJ2gKQQdVldlTAFvLldxkD0PGFM=",
             "locale": "en-US",
             "feature_flags": {
               "disable_stripe_signup": false
             },
-            "authenticity_token": "JH6gkeTh_7dgfWi4ag_4AeWMYYUYv4pi4bpmkMKHbQeCQZQHup-fLvRJA0Aj7KU-mcixI8GyFCGr6ICUQwd0CA",
+            "authenticity_token": "bktljMwZ5RcMUV3A7ljv0ywPTDFggEG9XuyKbB0_o_0srdx09seElMI8sYwm4egANKOb2wMMxi2er7IqMn8Lmg",
             "flash": null,
             "title": "Accessing your purchase - Gumroad Help Center",
             "category": {
@@ -787,7 +879,7 @@
                 "tagName": "meta",
                 "headKey": "meta-name-csrf-token",
                 "name": "csrf-token",
-                "content": "9h2T9dR0V3jPrXVGB3HMQaEdAM1KkdoUhSfRanZCT_BQIqdjigo34VuZHr5OkpF-3VnQa5OcRFfPdTdu98JW_w"
+                "content": "p2Y406VEql77S0Erp168ZejCHacjQWv5enY6pg09h1nlgIErn5rL3TUmrWdv57u28G7KTUDN7Gm6NQLgIn0vPg"
               },
               {
                 "tagName": "meta",
@@ -827,7 +919,7 @@
                 "tagName": "meta",
                 "headKey": "meta-property-og-title",
                 "property": "og:title",
-                "content": "Gumroad"
+                "content": "Accessing your purchase - Gumroad Help Center"
               },
               {
                 "tagName": "meta",
@@ -924,6 +1016,36 @@
                 "headKey": "canonical",
                 "rel": "canonical",
                 "href": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-description",
+                "name": "description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-description",
+                "property": "og:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-property-og-url",
+                "property": "og:url",
+                "content": "http://app.test.gumroad.com:31337/help/category/219-after-your-purchase"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-title",
+                "name": "twitter:title",
+                "content": "Accessing your purchase - Gumroad Help Center"
+              },
+              {
+                "tagName": "meta",
+                "headKey": "meta-name-twitter-description",
+                "name": "twitter:description",
+                "content": "Accessing your purchase: Your Gumroad Library, How do I access my purchase?, How to open ZIP and RAR files, How do I send my purchases to Kindle?, How do I..."
               }
             ]
           },
@@ -1001,7 +1123,7 @@
                 "id": 1,
                 "seller_id": 1,
                 "email": "buyer@example.com",
-                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-11T06:00:06Z\", \"product_id\": 1, \"price_cents\": 100}]}",
+                "details": "{\"purchases\": [{\"id\": 1, \"created_at\": \"2026-11-14T23:55:11Z\", \"product_id\": 1, \"price_cents\": 100}]}",
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "customer": 1,
@@ -1016,6 +1138,56 @@
                 "follower_created_at": null,
                 "min_affiliate_created_at": null,
                 "max_affiliate_created_at": null
+              }
+            ]
+          },
+          "custom_fields": {
+            "columns": {
+              "id": "bigint",
+              "field_type": "varchar",
+              "name": "varchar",
+              "required": "tinyint",
+              "global": "tinyint",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "seller_id": "bigint",
+              "flags": "bigint"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "field_type": "text",
+                "name": "Favourite colour",
+                "required": 0,
+                "global": 0,
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "seller_id": 1,
+                "flags": 1
+              }
+            ]
+          },
+          "custom_fields_products": {
+            "columns": {
+              "id": "bigint",
+              "custom_field_id": "bigint",
+              "product_id": "bigint",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "custom_field_id": 1,
+                "product_id": 1,
+                "created_at": "<now>",
+                "updated_at": "<now>"
               }
             ]
           },
@@ -1085,12 +1257,12 @@
               {
                 "id": 1,
                 "user_id": 1,
-                "name": "Invoiced product",
-                "unique_permalink": "invoiced",
+                "name": "Answered product",
+                "unique_permalink": "answered",
                 "preview_url": null,
                 "description": "This is a collection of works spanning 1984 — 1994, while I spent time in a shack in the Andes.",
                 "purchase_type": 0,
-                "created_at": "<now-16302h>",
+                "created_at": "<now-16392h>",
                 "updated_at": "<now>",
                 "purchase_disabled_at": null,
                 "deleted_at": null,
@@ -1282,7 +1454,7 @@
                 "purchaser_id": null,
                 "purchaser_type": "User",
                 "session_id": null,
-                "ip_address": "94.97.80.8",
+                "ip_address": "214.182.79.217",
                 "is_mobile": null,
                 "stripe_refunded": null,
                 "stripe_transaction_id": "2763276372637263",
@@ -1302,7 +1474,7 @@
                 "succeeded_at": "<now>",
                 "card_country": "US",
                 "stripe_error_code": null,
-                "browser_guid": "JKDDSFJKSFD-9-48527-SDFJ",
+                "browser_guid": "SDFJKLDF-3-372387-JDSFKLDSF",
                 "error_code": null,
                 "card_bin": null,
                 "custom_fields": null,
@@ -1366,6 +1538,45 @@
                 "created_at": "<now>",
                 "updated_at": "<now>",
                 "max_refund_period_in_days": 30
+              }
+            ]
+          },
+          "url_redirects": {
+            "columns": {
+              "id": "bigint",
+              "uses": "int",
+              "expires_at": "datetime",
+              "created_at": "datetime",
+              "updated_at": "datetime",
+              "purchase_id": "bigint",
+              "token": "varchar",
+              "link_id": "bigint",
+              "flags": "int",
+              "installment_id": "bigint",
+              "subscription_id": "bigint",
+              "preorder_id": "bigint",
+              "imported_customer_id": "bigint",
+              "rental_first_viewed_at": "datetime"
+            },
+            "primaryKey": [
+              "id"
+            ],
+            "rows": [
+              {
+                "id": 1,
+                "uses": 0,
+                "expires_at": "<now-130115h>",
+                "created_at": "<now>",
+                "updated_at": "<now>",
+                "purchase_id": 1,
+                "token": "541b563ca142d37a6b05aaea5d12323e",
+                "link_id": 1,
+                "flags": 0,
+                "installment_id": null,
+                "subscription_id": null,
+                "preorder_id": null,
+                "imported_customer_id": null,
+                "rental_first_viewed_at": null
               }
             ]
           },
@@ -1444,20 +1655,20 @@
             "rows": [
               {
                 "id": 1,
-                "email": "edgar856fe657_17@gumroad.com",
-                "encrypted_password": "$2a$04$A2LE2hTMtS/WFebPU7XtmuOYF.xiByfl6B3ldFFur6Z96Ey7MnFY2",
+                "email": "edgar0ba2ba94_5@gumroad.com",
+                "encrypted_password": "$2a$04$LANh1WiDCrd3RZh1HTYb7eojGKiYF.ORXNW94DIcoS/LCfWEN1.r2",
                 "reset_password_token": null,
                 "reset_password_sent_at": null,
                 "remember_created_at": null,
                 "sign_in_count": 0,
                 "current_sign_in_at": null,
                 "last_sign_in_at": null,
-                "current_sign_in_ip": "168.156.1.48",
-                "last_sign_in_ip": "16.75.113.89",
+                "current_sign_in_ip": "16.222.153.109",
+                "last_sign_in_ip": "18.70.186.109",
                 "created_at": "<now>",
                 "updated_at": "<now>",
-                "name": "Invoice Seller",
-                "payment_address": "edgarf59649d5_18@gumroad.com",
+                "name": "Answers Seller",
+                "payment_address": "edgar920128a8_6@gumroad.com",
                 "confirmed_at": "<now>",
                 "confirmation_token": null,
                 "confirmation_sent_at": null,
@@ -1469,7 +1680,7 @@
                 "payment_notification": 1,
                 "currency_type": "usd",
                 "bio": null,
-                "username": "edgard8c9f3799",
+                "username": "edgar04d775f53",
                 "credit_card_id": null,
                 "profile_picture_url": null,
                 "country": null,
@@ -1482,8 +1693,8 @@
                 "manage_pages": 0,
                 "banned_at": null,
                 "weekly_notification": 1,
-                "external_id": "2091488408382",
-                "account_created_ip": "58.27.221.7",
+                "external_id": "4014697495724",
+                "account_created_ip": "251.11.122.221",
                 "twitter_oauth_token": null,
                 "twitter_oauth_secret": null,
                 "notification_endpoint": null,
@@ -1501,7 +1712,7 @@
                 "facebook_pixel_id": null,
                 "split_payment_by_cents": null,
                 "last_active_sessions_invalidated_at": null,
-                "otp_secret_key": "F3MCL45762DMXXDV2W7QRTQ2N37PTAKU",
+                "otp_secret_key": "3TCK4S4AL25HJJUOOZL22OZAG7VXSW52",
                 "facebook_meta_tag": null,
                 "tier_state": 0,
                 "orientation_priority_tag": null,
@@ -1516,10 +1727,13 @@
         "autoIncrement": {
           "affiliates": 2,
           "audience_members": 2,
+          "custom_fields": 2,
+          "custom_fields_products": 2,
           "links": 2,
           "prices": 2,
           "purchases": 2,
           "refund_policies": 2,
+          "url_redirects": 2,
           "users": 2
         }
       },
@@ -1561,49 +1775,35 @@
       "request": {
         "source": "request",
         "method": "POST",
-        "path": "/purchases/1UokxkyxJ__gd-gssE0g7w==/invoice/confirm",
+        "path": "/purchase_custom_fields",
         "headers": {
-          "accept": "text/html, application/xhtml+xml",
+          "accept": "application/json",
           "content-type": "application/json",
           "host": "app.test.gumroad.com:31337",
-          "referer": "http://app.test.gumroad.com:31337/purchases/1UokxkyxJ__gd-gssE0g7w==/invoice/confirm",
-          "x-csrf-token": "JH6gkeTh_7dgfWi4ag_4AeWMYYUYv4pi4bpmkMKHbQeCQZQHup-fLvRJA0Aj7KU-mcixI8GyFCGr6ICUQwd0CA",
-          "x-inertia": "true",
+          "referer": "http://app.test.gumroad.com:31337/d/541b563ca142d37a6b05aaea5d12323e",
+          "x-csrf-token": "bktljMwZ5RcMUV3A7ljv0ywPTDFggEG9XuyKbB0_o_0srdx09seElMI8sYwm4egANKOb2wMMxi2er7IqMn8Lmg",
           "x-requested-with": "XMLHttpRequest"
         },
         "cookies": {
-          "XSRF-TOKEN": "hiesP5NV_nSAdzQRnIvfkiHVOv6N86NK72Bt7x7FPAMgGJipzSue7RRDX-nVaIKtXZHqWFT-PQmlMovrn0UlDA",
-          "_gumroad_app_session_test": "XbxZutImBnbBo2vgYBrWicDeJk5UC+qkslqSCEACgm6J+o5+2hkuL9gdESMWrkhLckJwN7MufnCs/1Ar17GGFMQKMRYMCypQzbavl89F+IgLDlZk2GM41svvM4GBp/daOGB4tz0MvzPUG9geGpjPImJaIjPwoOmh3LluaDpErK/3+vgCZrFZcfBNMgA459VD/7VNHIhxuoPLAvzFN93hegQQhLt3dlBnkgo8LHNWlQSWtcIkXwQNPukLYIO/pqKl6KF44y5YbDBj5+c/4bC8xcwEEH7dWgO9DSxlrTtK/8Lm3suHDyWDCgIgX+J9S4uQ6NW1J8pTUWrwZf2cP2YOqlR4Dt6TF3VfhjYj7qTmUWEkrEo2oNtCPqMg75b++TYjrenw--Rx7IJjSpmACw4DE4--BEKUfx/8jB2orq6LAbEzGQ==",
-          "_gumroad_guid": "3627e801-3e9f-4f6a-96af-38ca119fc979"
+          "XSRF-TOKEN": "WKnokovnnq671uoR0nxj9_H2bvD03fqRiYtjh0kI8FoaT1FqsTn_LXW7Bl0axWQk6Vq5GpdRfQFJyFvBZkhYPQ",
+          "_gumroad_app_session_test": "7xWEFJsmcBGAqBSfRn1A1NtRS0Hl75om1ClQ363NahE8wP+dgNduti2CVzkhOFB8TsN553iGS65HG1Ovb1AEXC93sNcPoS2FQG5OEAOBuC7znj1J9KfzkqG93Yy9PnBY63AElDFxcdpPjjcKi3GDhq3xmcYLVf0kilQg+SPfSaJ/bhm1N2EN2rpqXVSxYtRG7AS4+YR15Fv+t8mXyodLov9jJeBLRSFKMBXL+sTKf1jaWF/lx78aBDwXs0EOUx4PBxScQ7ZCSYLdvfZXYBT2rPnK/eyuIYmBrJH1QkHzwP5P8KHR5iwAIOPTIqraEivjuI8jamNtK5HIALtkJ/YDraqetQ+IQRS8d7LT9/cMiSps+trYcmQlshxLYaRBq9VVYqWg--YYZArs3P42NaTnCE--wiAblRVSlrGu9dZioobR5Q==",
+          "_gumroad_guid": "146b84e7-fa14-4649-9725-fab07752756c"
         },
         "remoteIp": "127.0.0.1",
-        "body": "{\"email\":42}"
+        "body": "{\"purchase_id\":\"1UokxkyxJ__gd-gssE0g7w==\",\"token\":\"541b563ca142d37a6b05aaea5d12323e\",\"value\":\"Blue\"}"
       },
       "response": {
-        "status": 302,
-        "location": "http://app.test.gumroad.com:31337/purchases/1UokxkyxJ__gd-gssE0g7w==/invoice/confirm",
+        "status": 400,
         "headers": {
-          "cache-control": "no-cache",
-          "content-type": "text/html; charset=utf-8",
+          "content-type": "text/plain; charset=utf-8",
           "vary": "Origin",
           "x-content-type-options": "nosniff",
           "x-download-options": "noopen",
-          "x-gr": "DEV",
           "x-original-headers-class": "Rack::Headers",
           "x-permitted-cross-domain-policies": "none",
-          "x-revision": "no-revision",
           "x-xss-protection": "1; mode=block"
         },
-        "cookies": {
-          "_gumroad_app_session_test": {
-            "value": "HdW4OUDQ0vt5ng8pWsrGWTd5INRQeh0wwNHtMILM+V9N07jsNf55V1Xa53C/FWamDbZNp9VEe+F5f7EMDFoURjEVmHW0ZF+Pgz2aDrum4BnRLncHIJJivVshxY3tnyk9jzJ7JjMUzNDWMPWqFIqZnqDMqfZHic4uVl2JEy0qDgfV5M5RDTRoH8LPCd8QXYAVMIh7xkrN4AWxEesSfYiocBlK5U9eXYvqJ7SkRyBPJkq9tC1FZ17jJWBz7jPEtgQLt1SOi3nRIYvgpcsdJabj9Yq0yvM3k9+gHBewV7eg8A14+D8V5w3n4g6Qsz8kIqxMpGzrn+/6em7WHRMkNC4brL+M4GcEQT83AEOeSvitOGH51tUfQ3Z4831KIylxY8un7TbveKh6I5RQtrb9nRBEGd2jzV+A1MJTNLZz7mduf6OgkTXV80JxkcIQAFh3gwch7AkgdggEcjwhXSfPMTaydTUIEyeFVaOsbncQjc+nBsecQYBf6Ss3AtoE59UtX+rpszo99tXZV6+5BIiyd/c3mAMO/T8aJH5ZmcKutukW0X/E7eUJyDmHJUyOTOlqmrcy6DY7EVlWPFRCnJcEFohE1zICuaQP4zZ/lkCOZVucww==--a6ihVuP58uPADVOv--9WdYJh46WbtAuD3vIB35fw==",
-            "domain": "gumroad.com",
-            "path": "/",
-            "expires": "<now+87672h>",
-            "httponly": true,
-            "samesite": "lax"
-          }
-        }
+        "body": "<rails exception debug page, not recorded: the replay ignores a 404 body>"
       },
       "db": {},
       "jobs": [],
