@@ -7,9 +7,9 @@ import { railsLoggedInUser } from "../auth/resolve.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import { cancelBang, loadSubscription } from "../models/subscription-writes.ts";
 import { defaultSubscriptionDeps, SubscriptionFlags } from "../models/subscription.ts";
+import { NotPortedError } from "../page-props/not-ported.ts";
 import { authorize } from "../policies/authorize.ts";
 import { subscriptionPolicy } from "../policies/subscription.ts";
-import { NotPortedError } from "../page-props/not-ported.ts";
 
 import { HandBackToRails, RoutingError, type ActionResult } from "./application-controller.ts";
 import { idFromExternalId } from "./buyer-pages.ts";
@@ -32,7 +32,10 @@ async function findSubscription(externalId: string | undefined): Promise<Subscri
 const unknownSubscription = (): ActionResult => ({ ...json({ success: false }), rescued: true });
 
 function cancel(input: MutationInput, row: Subscription, bySeller: boolean): Promise<void> {
-  const subscription = loadSubscription(row, { now: () => input.chain.now, featureActive: defaultSubscriptionDeps.featureActive });
+  const subscription = loadSubscription(row, {
+    now: () => input.chain.now,
+    featureActive: defaultSubscriptionDeps.featureActive,
+  });
   return cancelBang(subscription, { bySeller });
 }
 
@@ -45,13 +48,17 @@ async function unsubscribeBySeller(input: MutationInput): Promise<ActionResult> 
     return { status: FOUND, location: `/login?next=${cgiEscape(fullpath(input.request))}`, rescued: true };
   }
   // Only a JSON request is recorded past authenticate_user!; the route takes HTML for the login redirect above.
-  if (requestFormat(input.request) !== "json") throw new HandBackToRails("a signed-in request that does not ask for JSON");
+  if (requestFormat(input.request) !== "json")
+    throw new HandBackToRails("a signed-in request that does not ask for JSON");
   const row = await findSubscription(input.routeParams.id);
   if (row === null) return unknownSubscription();
 
-  const link = row.link_id === null ? null : await db.link.findUnique({ where: { id: row.link_id }, select: { user_id: true } });
+  const link =
+    row.link_id === null ? null : await db.link.findUnique({ where: { id: row.link_id }, select: { user_id: true } });
   if (link === null || link.user_id === null) throw new NotPortedError("a subscription whose product is missing");
-  const denied = await authorizeJson(input, (context) => authorize(subscriptionPolicy.unsubscribeBySeller, context, link.user_id!));
+  const denied = await authorizeJson(input, (context) =>
+    authorize(subscriptionPolicy.unsubscribeBySeller, context, link.user_id!),
+  );
   if (denied) return denied;
 
   await cancel(input, row, true);
@@ -64,13 +71,18 @@ async function unsubscribeByUser(input: MutationInput): Promise<ActionResult> {
 
   // check_can_manage
   const externalId = input.routeParams.id!;
-  const tokenParam = typeof input.params.token === "string" ? input.params.token : input.params.token === undefined ? null : undefined;
+  const tokenParam =
+    typeof input.params.token === "string" ? input.params.token : input.params.token === undefined ? null : undefined;
   if (tokenParam === undefined) throw new HandBackToRails("a token that is not a string");
   const decision = await manageDecision(input.chain, row, tokenParam);
   if (decision.kind === "not_found") throw new RoutingError("Not Found");
   if (decision.kind === "magic_link") {
     const query = decision.invalid ? "?invalid=true" : "";
-    return { status: FOUND, location: `/subscriptions/${escapeSegment(externalId)}/magic_link/new${query}`, rescued: true };
+    return {
+      status: FOUND,
+      location: `/subscriptions/${escapeSegment(externalId)}/magic_link/new${query}`,
+      rescued: true,
+    };
   }
 
   const manage = `/subscriptions/${escapeSegment(externalId)}/manage`;
@@ -85,6 +97,11 @@ async function unsubscribeByUser(input: MutationInput): Promise<ActionResult> {
 }
 
 registerMutations(
-  { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_seller", formats: ["json", "html"], run: unsubscribeBySeller },
+  {
+    method: "POST",
+    pattern: "/subscriptions/:id/unsubscribe_by_seller",
+    formats: ["json", "html"],
+    run: unsubscribeBySeller,
+  },
   { method: "POST", pattern: "/subscriptions/:id/unsubscribe_by_user", run: unsubscribeByUser },
 );
