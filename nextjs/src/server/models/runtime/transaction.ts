@@ -5,6 +5,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { Prisma } from "@prisma/client";
 
+import { pinnedClient } from "./max-execution-time.ts";
 import { noteRollback, queryCacheClient } from "./query-cache.ts";
 
 export type Tx = Prisma.TransactionClient;
@@ -39,7 +40,8 @@ const storage = new AsyncLocalStorage<State>();
 const TRANSACTION_OPTIONS = { maxWait: 5_000, timeout: 2_147_483_647 };
 
 let runner: TransactionRunner = async (fn, options = {}) => {
-  const { db } = await import("../../../lib/db.ts");
+  // Inside `timeoutQueries` the transaction opens on the block's own connection, where the cap is set.
+  const db = pinnedClient() ?? (await import("../../../lib/db.ts")).db;
   const isolationLevel =
     options.isolation === "read_committed" ? Prisma.TransactionIsolationLevel.ReadCommitted : undefined;
   return db.$transaction(fn, { ...TRANSACTION_OPTIONS, ...(isolationLevel ? { isolationLevel } : {}) });
