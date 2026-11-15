@@ -947,8 +947,13 @@ function variantsHash(variants: Row[], link: Row, loaded: Loaded): Record<string
   for (const picked of variants) {
     const category = loaded.categories.get(String(picked.variant_category_id));
     if (category === undefined) throw notPorted("a variant whose category row is missing");
-    // The later variant would overwrite the earlier one under the same title, and their order is MySQL's.
-    if (Object.hasOwn(hash, String(category.title))) throw notPorted("several variants of one category");
+    // The later variant overwrites the earlier one under the same title. Which one is later is MySQL's join order, so only a sale whose
+    // join rows are in variant id order (where both plans agree) is served.
+    if (
+      Object.hasOwn(hash, String(category.title)) &&
+      variants.some((later, index) => index > 0 && BigInt(later.id as bigint) < BigInt(variants[index - 1]!.id as bigint))
+    )
+      throw notPorted("several variants of one category attached out of variant id order");
     hash[String(category.title)] = picked.name;
   }
   return hash;
