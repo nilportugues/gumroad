@@ -1,7 +1,7 @@
 // app/policies/comment_context_policy.rb. It is used where the visitor may be signed out, so it takes the context as it is.
 //
-// The clauses that need a purchase (`eligible_purchase?`) and the visibility of the post (`visible_posts_for`) are not ported: a
-// caller that reaches one gets a NotPortedError, and passes no purchase in the paths it serves.
+// The visibility of the post (`visible_posts_for`) is not ported: a caller that reaches it gets a NotPortedError. A purchase is
+// served only when the caller says it is eligible (`eligible_purchase?`), which it knows for a post that needs no purchase.
 import { NotPortedError } from "../models/user.ts";
 
 import { roleAdminFor, roleMarketingFor, requireUser, type SellerContext } from "./seller-context.ts";
@@ -11,7 +11,7 @@ export type CommentContextRecord = {
   comment: { author_id: bigint | null; purchase_id: bigint | null; commentable_seller_id: number | null } | null;
   // The post, for index?
   commentable: { seller_id: number | null } | null;
-  purchase: unknown;
+  purchase: { id: bigint; eligible: boolean } | null;
   // Whether `seller.visible_posts_for(...)` includes the post, which needs queries; a caller that computed it passes it.
   postVisible?: boolean;
 };
@@ -24,13 +24,14 @@ function sellerRoles(context: SellerContext, commentableSellerId: number | null)
   return roleAdminFor(c) || roleMarketingFor(c);
 }
 
-function viewable(context: SellerContext, sellerId: number | null, purchase: unknown, postVisible?: boolean): boolean {
+function viewable(
+  context: SellerContext,
+  sellerId: number | null,
+  purchase: CommentContextRecord["purchase"],
+  postVisible?: boolean,
+): boolean {
   if (sellerRoles(context, sellerId)) return true;
-  if (purchase !== null)
-    throw new NotPortedError(
-      "A comment purchase's eligibility (Installment#eligible_purchase?)",
-      "app/policies/comment_context_policy.rb",
-    );
+  if (purchase?.eligible) return true;
   if (sellerId === null) return false;
   if (postVisible !== undefined) return postVisible;
   throw new NotPortedError(
@@ -48,9 +49,9 @@ function authoredBy(context: SellerContext, authorId: bigint | null): boolean {
   return context.user !== null && authorId !== null && authorId === context.user.id;
 }
 
+// "Allow the purchaser of the post's belonging product": the purchase is the one the comment was written with.
 function purchased(record: CommentContextRecord): boolean {
-  if (record.purchase === null) return false;
-  throw new NotPortedError("A comment purchase's ownership", "app/policies/comment_context_policy.rb");
+  return record.purchase !== null && record.comment!.purchase_id !== null && record.purchase.id === record.comment!.purchase_id;
 }
 
 function update(context: SellerContext, record: CommentContextRecord): boolean {

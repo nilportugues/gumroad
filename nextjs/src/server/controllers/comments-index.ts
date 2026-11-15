@@ -1,8 +1,11 @@
 // CommentsController#index (app/controllers/comments_controller.rb): the page of comments a post's "load more" fetches on its
 // seller's host, for a signed-out visitor or a signed-in one. PaginatedCommentsPresenter is the one the post page uses.
 //
-// Left to Rails, before anything is read: a request that is not JSON when it is refused (Rails redirects), a purchase (a
-// `purchase_id` that names one, or one the visitor made of the post's product), a signed-in visitor who bought from the seller,
+// A `purchase_id` that names a purchase is served for a post that needs no purchase (audience, follower or affiliate), where any
+// purchase of a product that is not a membership is eligible; the purchase then makes the comments written with it editable.
+//
+// Left to Rails, before anything is read: a request that is not JSON when it is refused (Rails redirects), any other purchase (a
+// `purchase_id` for a post that needs one or for a membership, or one the visitor made of the post's product), a signed-in visitor who bought from the seller,
 // an unconfirmed or removed follower or an affiliate that is not a live direct one (`User#visible_posts_for` weighs the filters of each post), a post without a seller, a page
 // params that Ruby cannot `to_i`, and a page past the last (Pagy raises).
 import { Prisma, type Installment, type User } from "@prisma/client";
