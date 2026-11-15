@@ -170,9 +170,15 @@ async function purchasedVariantId(purchase: Purchase): Promise<string | null> {
   const links = await db.baseVariantsPurchase.findMany({ where: { purchase_id: Number(purchase.id) } });
   const variantIds = links.flatMap((link) => (link.base_variant_id === null ? [] : [link.base_variant_id]));
   if (variantIds.length === 0) return null;
-  const variants = await db.baseVariant.findMany({ where: { id: { in: variantIds }, type: "Variant" } });
-  if (variants.length > 1) throw new HandBackToRails();
-  return variants[0] ? encrypt(variants[0].id) : null;
+  const all = await db.baseVariant.findMany({ where: { id: { in: variantIds } } });
+  const variants = all.filter((variant) => variant.type === "Variant");
+  // A SKU next to a version leaves the pick to the order Rails reads them in.
+  if (variants.length > 1 && all.length > variants.length) throw new HandBackToRails();
+  // order(deleted_at: :asc).first: alive versions first, then the lowest id (as contentProvider does).
+  const [first] = [...variants].sort(
+    (a, b) => Number(a.deleted_at !== null) - Number(b.deleted_at !== null) || Number(a.id) - Number(b.id),
+  );
+  return first ? encrypt(first.id) : null;
 }
 
 // ApplicationController filters, then fetch_url_redirect (UrlRedirectsController is not signed-in only).
