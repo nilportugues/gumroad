@@ -217,6 +217,10 @@ const CURSOR_PAGES: [RegExp, number][] = [
   [/pages-the-purchases-that-share-an-ip-address-with-a-signed-cursor #2/u, 60],
   [/get-purchases-paginates-purchases-with-a-cursor #2/u, 120],
 ];
+// The purchase date of a search is a literal in the request while the purchases are seeded relative to the clock, so the seed resolves
+// against the instant the examples were recorded at (the spec made them at absolute times in January 2026).
+const SEED_PINNED = /searches-by-purchase-date/u;
+const SEED_PINNED_AT = new Date("2026-11-15T15:28:30Z");
 // The cursor is `urlsafe(base64(json_string)--hmac)`.
 function cursorInstant(fixturePath: string, index: number, ageMinutes: number): number {
   const request = loadFixture(fixturePath).exchanges[index]!.request;
@@ -432,6 +436,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
       if (USER_WRITE_GUARDS_CASE.test(name)) dateRiskComments(fixture.exchanges[index]!);
       const result = await replayFixtureExchange(fixture, index, {
         ...(pinned ? { driftDates: false } : {}),
+        ...(SEED_PINNED.test(name) ? { driftDates: false, seedClock: SEED_PINNED_AT } : {}),
         sql,
         redis: seeder(name),
         transport: httpTransport(server.baseUrl),
@@ -447,7 +452,7 @@ describe.skipIf(!url)("WS-17e internal admin API parity", () => {
             // The seeded user's updated_at moves within the second or across it depending on when the recording ran.
             ...(USER_WRITE_GUARDS_CASE.test(name) ? ["db.users.updated.*.changes.updated_at"] : []),
             // The server stamps the token with its own, unpinned clock.
-            ...(pinned
+            ...(pinned || SEED_PINNED.test(name)
               ? [
                   "db.admin_api_tokens.updated.*.changes.last_used_at",
                   // Twenty years from the pinned clock, measured against the replay's own now: the gap grows with the recording's age.
