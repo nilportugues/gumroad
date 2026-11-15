@@ -66,6 +66,7 @@ import {
   recommendedProducts,
   type RecommendedProducts,
 } from "./receipt-recommended.ts";
+import { type GuardSeller, suppressReceiptFromUnprovenSeller } from "./receipt-guard.ts";
 import { taxLines } from "./receipt-tax.ts";
 
 type Id = number | bigint;
@@ -512,6 +513,16 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   await selectRows(
     Prisma.sql`SELECT 1 AS one FROM ${table("purchases")} WHERE ${column("purchases", "id")} = ${purchase.id} LIMIT 1`,
   );
+
+  if (
+    await suppressReceiptFromUnprovenSeller(
+      purchase,
+      async () => (await findRow<GuardSeller>("users", purchase.seller_id))!,
+      async () => (await findRow<{ name: string }>("links", purchase.link_id))?.name ?? "",
+      (deps.now ?? (() => new Date()))(),
+    )
+  )
+    return null;
 
   const { data, supportEmails, subscription } = await loadReceiptData(purchase, deps);
   assertSupported(data);
