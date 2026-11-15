@@ -22,18 +22,29 @@ export async function sellerJsonAction(
   policy: JsonSellerPolicy,
   run: (sellerContext: SellerContext) => Promise<ActionResult>,
   // The controller read params before the filter halted (its own before_actions), so Vary: Accept is not added.
-  { paramsRead = false }: { paramsRead?: boolean } = {},
+  { paramsRead = false, otherFormats = false }: { paramsRead?: boolean; otherFormats?: boolean } = {},
 ): Promise<ActionResult> {
-  if (requestFormat(request) !== "json") throw new HandBackToRails("a seller JSON endpoint requested in another format");
+  // `otherFormats`: an action that renders JSON whatever the request asks for (no respond_to) is served in any format, but only
+  // when it succeeds. Every refusal then goes to Rails, which redirects a request that is not JSON instead of answering JSON.
+  const format = requestFormat(request);
+  if (format === "html" || (format === "other" && !otherFormats))
+    throw new HandBackToRails("a seller JSON endpoint requested in another format");
+  const assertJsonRefusal = (): void => {
+    if (format === "other") throw new HandBackToRails("a refused seller JSON request in another format");
+  };
   const user = railsLoggedInUser(context);
   if (!user || !context.currentSeller) throw new HandBackToRails("a signed-out request to a seller JSON endpoint");
-  if (!user.email && !user.unconfirmed_email && !context.impersonatedUser) return { ...jsonResponse({ success: false, error_message: ADD_EMAIL_MESSAGE }, 403, paramsRead), rescued: true };
+  if (!user.email && !user.unconfirmed_email && !context.impersonatedUser) {
+    assertJsonRefusal();
+    return { ...jsonResponse({ success: false, error_message: ADD_EMAIL_MESSAGE }, 403, paramsRead), rescued: true };
+  }
 
   const sellerContext = await loadSellerContext(context);
   try {
     if (!policy(sellerContext)) throw new NotAuthorizedError();
   } catch (error) {
     if (!(error instanceof NotAuthorizedError)) throw error;
+    assertJsonRefusal();
     return { ...jsonResponse({ success: false, error: notAllowedMessage(sellerContext) }, 401, paramsRead), rescued: true };
   }
   return run(sellerContext);
