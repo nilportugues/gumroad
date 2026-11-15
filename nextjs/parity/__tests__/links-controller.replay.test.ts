@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -9,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexProducts, replayIndexName } from "../src/elasticsearch";
 import { jobKey, redisJobsChannel } from "../src/active-job";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
@@ -25,6 +27,7 @@ const redisHost = process.env.PARITY_REDIS_HOST ?? "127.0.0.1:6379/14";
 const FIXTURES = "parity/fixtures/requests";
 const SPECS = ["links_controller_parity_spec"];
 const ROUTE_FLAGS = "nextjs_links_guards,nextjs_links_landing,nextjs_links_search,nextjs_links_card";
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -78,6 +81,7 @@ describe.skipIf(!url)("LinksController guards", () => {
   let client: PrismaClient;
   let sql: SqlExecutor;
   let redis: Redis;
+  let es: ElasticsearchClient;
   let server: NextServer;
   // Stands in for Rails: a request Node hands back arrives here, body and all.
   let rails: Server;
@@ -85,6 +89,7 @@ describe.skipIf(!url)("LinksController guards", () => {
   const saved = { ...process.env };
 
   beforeAll(async () => {
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
@@ -110,7 +115,8 @@ describe.skipIf(!url)("LinksController guards", () => {
       OBFUSCATE_IDS_CIPHER_KEY: obfuscateKey ?? "",
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
-      ELASTICSEARCH_HOST: process.env.ELASTICSEARCH_HOST ?? "http://localhost:9200",
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
@@ -130,7 +136,14 @@ describe.skipIf(!url)("LinksController guards", () => {
   const replayOptions = (file: string, name: string) => ({
     sql,
     redis: {
-      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
+      // The products index the section search reads is rebuilt from the seeded rows.
+      async reset(entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], exchange?: unknown) {
+        await redisSeeder(redis).reset(entries);
+        if (!exchange) return;
+        const products = { model: "Link", name: replayIndexName("products", ES_INDEX_SUFFIX) } as const;
+        await recreateIndex(es, products);
+        await reindexProducts(es, products.name, sql);
+      },
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
@@ -153,6 +166,7 @@ describe.skipIf(!url)("LinksController guards", () => {
     await server?.stop();
     rails?.close();
     await closeAllRedis();
+    await es?.close();
     await redis?.quit();
     await client?.$disconnect();
     process.env = saved;

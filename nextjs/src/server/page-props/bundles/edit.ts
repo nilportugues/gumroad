@@ -3,7 +3,7 @@
 // (covers, thumbnail, files, public files, an offer code, an installment plan, sales or reviews). A
 // bundle with one goes to Rails whole (HandBackToRails) before anything renders.
 // Bundles/Content/Edit answers its first load; its `search_data` is a deferred Elasticsearch result (BundleSearchProductsService)
-// that a partial reload gets from Rails.
+// that a partial reload answers for the unfiltered first page (a query, page or `all` goes to Rails).
 import { Prisma } from "@prisma/client";
 
 import { encrypt as externalId } from "../../../lib/obfuscate-ids.ts";
@@ -13,6 +13,8 @@ import { LinkFlags } from "../../models/link.ts";
 import { column, selectRows, table } from "../../models/sql.ts";
 import { findLink, type LinkRow, type UserRow } from "../../presenters/product-reads.ts";
 import { cardForWeb } from "../../presenters/product.ts";
+import { ProductSortKey } from "../../search/product-search.ts";
+import { searchProductsWithFacets } from "../../search/search-products.ts";
 import { deferMerge } from "../lazy-props.ts";
 import { NotPortedError } from "../not-ported.ts";
 import { assertNoPublishSchedule, publishScheduleEditorProps } from "../publish-schedule-props.ts";
@@ -204,6 +206,8 @@ export type BundleEditInput = {
   seller: UserRow;
   now?: Date;
   flashNow?: Record<string, string>;
+  // The request's raw query string: the deferred `search_data` reads `query`, `page` and `all` from it.
+  queryString?: string;
 };
 export const NOT_A_BUNDLE_ALERT =
   "Select products and save your changes to finish converting this product to a bundle.";
@@ -232,8 +236,36 @@ async function selectableProductsCount(sellerId: bigint): Promise<number> {
   return Number(Object.values(row ?? {})[0] ?? 0);
 }
 
+// BundleSearchProductsService::PER_PAGE
+const BUNDLE_SEARCH_PER_PAGE = 10;
+
+// BundleSearchProductsService#call for the first page of the unfiltered list; a `query`, `page` or `all` goes to Rails.
+async function bundleSearchData(bundle: LinkRow, seller: UserRow, queryString: string) {
+  if (queryString !== "") throw new HandBackToRails("a search of the products a bundle can hold with parameters");
+  const found = await searchProductsWithFacets({
+    query: null,
+    from: 0,
+    sort: ProductSortKey.FEATURED,
+    user_id: Number(seller.id),
+    is_subscription: false,
+    is_bundle: false,
+    is_alive: true,
+    is_call: false,
+    exclude_ids: [Number(bundle.id)],
+    size: BUNDLE_SEARCH_PER_PAGE,
+  });
+  const products: Record<string, unknown>[] = [];
+  for (const id of found.product_ids) {
+    const member = await findLink(BigInt(id));
+    if (!member) throw new HandBackToRails("a search hit with no product row");
+    products.push(await bundleProduct(member, 1));
+  }
+  const total = found.total ?? 0;
+  return { products, has_more: BUNDLE_SEARCH_PER_PAGE < total, page: 1, total_count: total };
+}
+
 // BundlePresenter#edit_content_props, and the deferred `search_data` of Bundles::ContentController#edit.
-export async function bundleEditContentProps({ bundle, seller, flashNow }: BundleEditInput) {
+export async function bundleEditContentProps({ bundle, seller, flashNow, queryString = "" }: BundleEditInput) {
   if (flashNow && !LinkFlags.isSet(bundle.flags as bigint, "is_bundle")) flashNow.alert = NOT_A_BUNDLE_ALERT;
   const policies = await refundPolicies(bundle, seller);
   const { sections: _sections, ...shared } = await sharedProps(bundle, seller, policies.own);
@@ -241,9 +273,7 @@ export async function bundleEditContentProps({ bundle, seller, flashNow }: Bundl
     ...shared,
     products_count: await selectableProductsCount(seller.id),
     has_outdated_purchases: LinkFlags.isSet(bundle.flags as bigint, "has_outdated_purchases"),
-    search_data: deferMerge(() => {
-      throw new HandBackToRails();
-    }),
+    search_data: deferMerge(() => bundleSearchData(bundle, seller, queryString)),
   };
 }
 

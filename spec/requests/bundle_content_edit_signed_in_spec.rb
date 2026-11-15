@@ -4,9 +4,9 @@ require "spec_helper"
 
 # Signed-in visits to the bundle content tab (Bundles::ContentController#edit, Bundles/Content/Edit), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws12o.replay.test.ts, which sends the last request of each example. Node
-# renders the first load, whose `search_data` is deferred; an example named "hands a ..." is what Node leaves to Rails whole: the partial
-# reload that fetches the Elasticsearch results.
-describe "Bundle content tab when signed in", type: :request do
+# renders the first load, whose `search_data` is deferred, and the partial reload that fetches its Elasticsearch results; an example
+# named "hands a ..." is what Node leaves to Rails whole: a search with a query, a page or `all`.
+describe "Bundle content tab when signed in", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::SignedInDashboard
 
   let(:seller) { create(:user, name: "Bundle Seller") }
@@ -18,7 +18,10 @@ describe "Bundle content tab when signed in", type: :request do
   end
 
   # The first visit inserts the seller's holdout row; the port only reads it.
-  before { Marketing::HoldoutAssignment.for_seller!(seller) }
+  before do
+    Marketing::HoldoutAssignment.for_seller!(seller)
+    Link.__elasticsearch__.create_index!(force: true)
+  end
 
   def team_member(role)
     member = create(:user, name: "#{role.capitalize} Member")
@@ -84,14 +87,57 @@ describe "Bundle content tab when signed in", type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "hands a partial reload of the search results to Rails", parity: true do
-      get edit_bundle_content_path(bundle.external_id), headers: {
+    # Make the bundle before the extras: a member indexed before its `update_column` keeps the creation date in Elasticsearch, which the replay's index (built from the rows) cannot reproduce.
+    def reload_search_data(params = {})
+      index_model_records(Link)
+      get edit_bundle_content_path(bundle.external_id), params:, headers: {
         "X-Inertia" => "true", "X-Requested-With" => "XMLHttpRequest",
         "X-Inertia-Partial-Component" => "Bundles/Content/Edit", "X-Inertia-Partial-Data" => "search_data"
       }
+    end
 
-      expect(response).to be_successful
-      expect(JSON.parse(response.body)["props"]).to have_key("search_data")
+    it "lists the products that can join the bundle on a partial reload", parity: true do
+      bundle
+      create(:product, user: seller, name: "Plain extra")
+      create(:product, user: seller, name: "Deleted extra", deleted_at: Time.utc(2025, 2, 1))
+      create(:product, user: seller, name: "Unpublished extra", purchase_disabled_at: Time.utc(2025, 2, 1))
+      create(:membership_product, user: seller, name: "Membership extra")
+      create(:product, user: create(:user, name: "Other Seller"), name: "Someone else's")
+
+      reload_search_data
+
+      data = JSON.parse(response.body)["props"]["search_data"]
+      expect(data).to include("has_more" => false, "page" => 1)
+      expect(data["products"].map { _1["name"] }).to include("Plain extra")
+      expect(data["products"].map { _1["name"] }).not_to include("Deleted extra", "Unpublished extra", "Membership extra", "Someone else's", "Starter bundle")
+    end
+
+    it "points to a next page when more than ten products can join", parity: true do
+      bundle
+      11.times { |index| create(:product, user: seller, name: "Extra #{index}", created_at: Time.utc(2025, 1, 1) + index.days) }
+
+      reload_search_data
+
+      data = JSON.parse(response.body)["props"]["search_data"]
+      expect(data["has_more"]).to be(true)
+      expect(data["products"].size).to eq(10)
+    end
+
+    it "answers an empty list for a bundle of a seller with nothing else to bundle", parity: true do
+      bundle.bundle_products.each { _1.product.update_columns(deleted_at: Time.utc(2025, 2, 1)) }
+
+      reload_search_data
+
+      expect(JSON.parse(response.body)["props"]["search_data"]).to include("products" => [], "total_count" => 0, "has_more" => false)
+    end
+
+    it "hands a partial reload of the search results with a query to Rails", parity: true do
+      bundle
+      create(:product, user: seller, name: "Plain extra")
+
+      reload_search_data(query: "Plain")
+
+      expect(JSON.parse(response.body)["props"]["search_data"]["products"].map { _1["name"] }).to eq(["Plain extra"])
     end
 
     it "renders the content tab with an alert for a product that is being converted to a bundle", parity: true do

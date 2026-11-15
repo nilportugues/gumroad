@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import path from "node:path";
 
+import { Client as ElasticsearchClient } from "@elastic/elasticsearch";
 import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -9,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { closeAllRedis } from "@/server/infra/redis";
 
 import { prismaExecutor, type SqlExecutor } from "../src/db";
+import { ELASTICSEARCH_HOST, recreateIndex, reindexProducts, replayIndexName } from "../src/elasticsearch";
 import { loadFixture } from "../src/fixture";
 import { startNextServer, type NextServer } from "../src/next-server";
 import { assertParity, httpTransport, replayFixtureExchange } from "../src/replay";
@@ -29,6 +31,7 @@ const SPECS = [
 ].filter((dir) => existsSync(path.join(FIXTURES, dir)));
 const ROUTE_FLAGS =
   "nextjs_products_affiliated_destroy_guards,nextjs_marketing_abandoned_cart_guards,nextjs_recommended_products,nextjs_mobile_tracking,nextjs_bundle_editor_content";
+const ES_INDEX_SUFFIX = process.env.PARITY_ES_INDEX_SUFFIX ?? "-parity";
 const FIRST_COMPILE_TIMEOUT_MS = 300_000;
 const SECRET_KEY_BASE = "parity-replay-secret-key-base";
 const envTest = readFileSync(path.join(process.cwd(), "..", ".env.test"), "utf8");
@@ -79,11 +82,13 @@ describe.skipIf(!url)("WS-12o ports", () => {
   let sql: SqlExecutor;
   let redis: Redis;
   let server: NextServer;
+  let es: ElasticsearchClient;
   let rails: Server;
   const handedBack: { method: string; url: string; body: string }[] = [];
   const saved = { ...process.env };
 
   beforeAll(async () => {
+    es = new ElasticsearchClient({ node: ELASTICSEARCH_HOST });
     client = new PrismaClient({ datasourceUrl: url });
     sql = prismaExecutor(client);
     const [hostAndPort = "", db = "0"] = redisHost.split("/");
@@ -109,6 +114,8 @@ describe.skipIf(!url)("WS-12o ports", () => {
       OBFUSCATE_IDS_NUMERIC_CIPHER_KEY: "0",
       ...(stripeKey ? { STRIPE_PUBLIC_KEY_TEST: stripeKey } : {}),
       NEXTJS_ROUTE_FLAGS: ROUTE_FLAGS,
+      ELASTICSEARCH_HOST,
+      ES_INDEX_SUFFIX,
       RAILS_ORIGIN: `http://127.0.0.1:${railsPort}`,
       SECRET_KEY_BASE,
       DATABASE_URL: url!,
@@ -135,7 +142,14 @@ describe.skipIf(!url)("WS-12o ports", () => {
   const replayOptionsFor = (compare: { ignore: string[] }) => ({
     sql,
     redis: {
-      reset: (entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0]) => redisSeeder(redis).reset(entries),
+      // The products index the bundle editor's search reads is rebuilt from the seeded rows.
+      async reset(entries: Parameters<ReturnType<typeof redisSeeder>["reset"]>[0], exchange?: unknown) {
+        await redisSeeder(redis).reset(entries);
+        if (!exchange) return;
+        const products = { model: "Link", name: replayIndexName("products", ES_INDEX_SUFFIX) } as const;
+        await recreateIndex(es, products);
+        await reindexProducts(es, products.name, sql);
+      },
     },
     transport: httpTransport(server.baseUrl),
     interceptHttp: false,
@@ -151,6 +165,7 @@ describe.skipIf(!url)("WS-12o ports", () => {
     await server.stop();
     rails.close();
     await closeAllRedis();
+    await es?.close();
     await redis.quit();
     await client.$disconnect();
     process.env = saved;
