@@ -29,7 +29,7 @@ const URL_PATTERN = new RegExp(
 const IPV4_PATTERN = /^(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})\.(0|[1-9][0-9]{0,2})$/u;
 
 // SsrfFilter::IPV4_BLACKLIST: [address, prefix length].
-const BLOCKED_IPV4: ReadonlyArray<readonly [string, number]> = [
+const BLOCKED_IPV4: readonly (readonly [string, number])[] = [
   ["0.0.0.0", 8],
   ["10.0.0.0", 8],
   ["100.64.0.0", 10],
@@ -64,7 +64,8 @@ function verdictFor(url: string): string | null {
   if (match === null) return null;
   const scheme = match[1]!;
   const host = match[2]!;
-  if (scheme !== "http" && scheme !== "https") return OWN_PARSER_SCHEMES.has(scheme) ? null : "SsrfFilter::InvalidUriScheme";
+  if (scheme !== "http" && scheme !== "https")
+    return OWN_PARSER_SCHEMES.has(scheme) ? null : "SsrfFilter::InvalidUriScheme";
   const ip = IPV4_PATTERN.exec(host);
   if (ip === null) return null;
   const octets = ip.slice(1).map(Number);
@@ -74,11 +75,13 @@ function verdictFor(url: string): string | null {
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-const isId = (value: unknown) => value === null || value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+const isId = (value: unknown) =>
+  value === null || value === undefined || (typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
 
 export const postToIndividualPingEndpointWorkerWith = modelJob({ min: 2, max: 5 }, async (args, deps) => {
   const [postUrl, params, , userId = null, ping = null] = args;
-  if (typeof postUrl !== "string" || postUrl.length > COLUMN_LIMIT) throw new HandBackToRuby("a URL Node does not judge");
+  if (typeof postUrl !== "string" || postUrl.length > COLUMN_LIMIT)
+    throw new HandBackToRuby("a URL Node does not judge");
   if (!isPlainObject(params)) throw new HandBackToRuby("params that are not a Hash");
   const retryCount = params["retry_count"] ?? 0;
   if (typeof retryCount !== "number" || !Number.isSafeInteger(retryCount) || retryCount < 0)
@@ -87,7 +90,8 @@ export const postToIndividualPingEndpointWorkerWith = modelJob({ min: 2, max: 5 
     throw new HandBackToRuby("a user id that is not an Integer");
   if (isPlainObject(ping)) {
     const name = ping["resource_name"];
-    if (!isId(ping["purchase_id"]) || !isId(ping["subscription_id"])) throw new HandBackToRuby("a ping id that is not an Integer");
+    if (!isId(ping["purchase_id"]) || !isId(ping["subscription_id"]))
+      throw new HandBackToRuby("a ping id that is not an Integer");
     if (name != null && (typeof name !== "string" || name.length > COLUMN_LIMIT || /[^\x20-\x7e]/u.test(name)))
       throw new HandBackToRuby("a resource name Node does not reproduce");
   }
@@ -105,7 +109,18 @@ export const postToIndividualPingEndpointWorkerWith = modelJob({ min: 2, max: 5 
 
   const name = ping["resource_name"];
   const resourceName = typeof name === "string" && name.trim() !== "" ? name : SALE_RESOURCE_NAME;
-  const columns = ["attempt", "created_at", "error_class", "post_url", "purchase_id", "resource_name", "response_code", "subscription_id", "succeeded", "user_id"];
+  const columns = [
+    "attempt",
+    "created_at",
+    "error_class",
+    "post_url",
+    "purchase_id",
+    "resource_name",
+    "response_code",
+    "subscription_id",
+    "succeeded",
+    "user_id",
+  ];
   await transaction(async () => {
     await execute(
       Prisma.sql`INSERT INTO ${table(DELIVERIES)} (${Prisma.raw(columns.map((c) => `\`${c}\``).join(", "))}) VALUES (${retryCount + 1}, ${deps.now()}, ${errorClass}, ${postUrl}, ${ping["purchase_id"] ?? null}, ${resourceName}, ${null}, ${ping["subscription_id"] ?? null}, ${false}, ${userId})`,

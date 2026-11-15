@@ -6,7 +6,9 @@ import { describe, expect, it } from "vitest";
 import { loadGolden, replayJobGolden, type JobCase } from "./__fixtures__/replay-job-golden.ts";
 import { postToIndividualPingEndpointWorkerWith } from "./post-to-individual-ping-endpoint-worker.ts";
 
-const golden = loadGolden(new URL("./__fixtures__/post-to-individual-ping-endpoint-worker.golden.json", import.meta.url));
+const golden = loadGolden(
+  new URL("./__fixtures__/post-to-individual-ping-endpoint-worker.golden.json", import.meta.url),
+);
 const now = () => new Date(Math.round(Number(golden.now) * 1000));
 
 // What Node finishes: the URL alone refuses it and every argument is one Node reproduces.
@@ -30,6 +32,8 @@ describe("PostToIndividualPingEndpointWorker coverage", () => {
   it("finishes the refusals the golden proves", () => {
     const finished = golden.cases.filter(finishes);
     expect(finished.length).toBeGreaterThan(40);
-    expect(finished.some((c) => c.statements.some((s) => s.sql.startsWith("INSERT INTO `ping_deliveries`")))).toBe(true);
+    expect(finished.some((c) => c.statements.some((s) => s.sql.startsWith("INSERT INTO `ping_deliveries`")))).toBe(
+      true,
+    );
   });
 });
