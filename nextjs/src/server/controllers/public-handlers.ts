@@ -35,7 +35,7 @@ import { confirmationNewPage } from "./devise-pages.ts";
 import { discordHandlers } from "./discord.ts";
 import { embeddedJavascript } from "./embedded-javascripts.ts";
 import { gumclawPage } from "./erb-pages.ts";
-import { homePage, homePageOptions } from "./home-pages.ts";
+import { edgeCacheable, homePage, homePageOptions } from "./home-pages.ts";
 import { integrationsOauthRedirectPage } from "./integrations-oauth-redirect.ts";
 import { impersonate, redirectToStripeDashboard, vendorMount } from "./internal-admin/admin-web.ts";
 import { internalAdminResponse } from "./internal-admin/index.ts";
@@ -195,17 +195,15 @@ export function featuresMarkdown(now: Date): string {
     .replace('#{Date.current.strftime("%B %-d, %Y")}', () => today);
 }
 
-// Only the cookie-less, utm-less request is served: HomeController#edge_cacheable_request? skips the session, the guid and the
-// XSRF-TOKEN cookie for it, and publishes the response. Any other request writes cookies Rails owns.
-function featuresMd(request: RailsRequest, url: URL, now: Date): Rendered {
+// A cookie-less, utm-less request is edge cacheable: HomeController skips the session, the guid and the XSRF-TOKEN cookie and
+// publishes the response. Any other request takes the normal path and Rails' default private Cache-Control.
+function featuresMd(request: RailsRequest, now: Date): Rendered {
   assertFlatQuery(request.queryString);
-  if (request.cookies.size > 0 || [...url.searchParams.keys()].some((key) => key.startsWith("utm_")))
-    throw new HandBackToRails("features.md with cookies or utm params");
   return {
     status: 200,
     body: featuresMarkdown(now),
     contentType: "text/markdown; charset=utf-8",
-    headers: { "cache-control": FEATURES_MD_CACHE_CONTROL },
+    ...(edgeCacheable(request) ? { headers: { "cache-control": FEATURES_MD_CACHE_CONTROL } } : {}),
     paramsRead: true,
   };
 }
@@ -323,8 +321,8 @@ const HANDLERS: Record<string, Handler> = {
       thirdPartyAnalyticsIndex(decodeURIComponent(url.pathname.split("/").at(-1) ?? ""), url, action),
   },
   features_md: {
-    options: { bare: true },
-    run: (request, url, action) => Promise.resolve(featuresMd(request, url, action.chain.now)),
+    options: (request) => (edgeCacheable(request) ? { bare: true } : {}),
+    run: (request, _url, action) => Promise.resolve(featuresMd(request, action.chain.now)),
   },
   gumclaw: { run: (request, _url, action) => gumclawPage(request, action) },
   confirmation_new: { run: (request, _url, action) => confirmationNewPage(request, action) },

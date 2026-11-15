@@ -129,7 +129,7 @@ const HOME_PAGES: Record<string, HomePage> = {
 
 // HomeController#edge_cacheable_request?: a GET with no cookies at all and no utm_* param (UtmLinkTracking needs the guid cookie).
 // A visitor who is signed in always carries the session cookie, so the cookie test covers `user_signed_in?`.
-function edgeCacheable(request: RailsRequest): boolean {
+export function edgeCacheable(request: RailsRequest): boolean {
   if (request.method !== "GET" || request.cookies.size > 0) return false;
   return ![...rackTopLevelParams(request.queryString).keys()].some((key) => key.startsWith(UTM_PARAM_PREFIX));
 }

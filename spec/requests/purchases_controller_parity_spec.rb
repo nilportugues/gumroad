@@ -323,7 +323,7 @@ describe "Purchases controller guards", type: :request do
       expect(flash[:alert]).to eq("Wrong email. Please try again.")
     end
 
-    it "hands the page that shows the wrong email alert to Rails", parity: true do
+    it "renders the page that asks for the email with the wrong email alert", parity: true do
       get "/purchases/#{purchase.external_id}/receipt", params: { email: "someone@example.com" }
       follow_redirect!
 

@@ -102,13 +102,23 @@ describe("LinksController#search", () => {
     },
   );
 
-  it("hands the virtual default products section to Rails", async () => {
+  it("answers an empty page for the default products section of a seller that saved a section", async () => {
     mocks.selectRows.mockReset();
     mocks.selectRows.mockResolvedValue([{ id: 1n }]);
 
-    await expect(search(input({ user_id: "seller", section_id: "default-products" }))).rejects.toBeInstanceOf(
-      HandBackToRails,
-    );
+    expect(body(await search(input({ user_id: "seller", section_id: "default-products" })))).toMatchObject({
+      total: 0,
+      products: [],
+    });
+  });
+
+  it("hands the default products section with a filter to Rails", async () => {
+    mocks.selectRows.mockReset();
+    mocks.selectRows.mockResolvedValueOnce([{ id: 1n }]).mockResolvedValueOnce([]);
+
+    await expect(
+      search(input({ user_id: "seller", section_id: "default-products", query: "a" })),
+    ).rejects.toBeInstanceOf(HandBackToRails);
   });
 });
 

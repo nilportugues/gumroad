@@ -6,7 +6,7 @@ require "spec_helper"
 # release_preorder, disable_downloads_for_all_files, price_check, send_sample_price_change_email, search and card. Recorded for the
 # Next.js port (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/links-controller.replay.test.ts, which sends the last request of
 # each example. An example named "hands a ..." is one Node leaves to Rails.
-describe "Links controller guards", type: :request do
+describe "Links controller guards", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::AudienceSignedIn
 
   let(:seller) { create(:user, name: "Links Seller", is_team_member: true) }
@@ -588,7 +588,10 @@ describe "Links controller guards", type: :request do
   end
 
   describe "the products search" do
-    let(:section) { create(:seller_profile_products_section, seller:, shown_products: [product.id]) }
+    let(:second_product) { create(:product, user: seller, name: "Second product", unique_permalink: "second", price_cents: 2_500, created_at: Time.utc(2025, 1, 2)) }
+    let(:section) { create(:seller_profile_products_section, seller:, shown_products: [second_product.id, product.id]) }
+
+    before { Link.__elasticsearch__.create_index!(force: true) }
 
     it "answers an empty page for a seller that does not exist", parity: true do
       get "/products/search", params: { user_id: "nosuchseller", section_id: "nosuchsection" }
@@ -616,16 +619,42 @@ describe "Links controller guards", type: :request do
       expect(response.parsed_body).to include("total" => 0, "products" => [])
     end
 
-    it "hands the search of an existing section to Rails", parity: true do
+    it "lists the products of a section in the order the seller arranged them", parity: true do
+      section
+      index_model_records(Link)
+
       get "/products/search", params: { user_id: seller.external_id, section_id: section.external_id }
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["products"].map { _1["name"] }).to eq(["Second product", "Guarded product"])
     end
 
-    it "hands the search of the default products section to Rails", parity: true do
+    it "leaves a product that is not alive out of a section", parity: true do
+      section
+      second_product.update!(purchase_disabled_at: Time.utc(2025, 1, 3))
+      index_model_records(Link)
+
+      get "/products/search", params: { user_id: seller.external_id, section_id: section.external_id }
+
+      expect(response.parsed_body["products"].map { _1["name"] }).to eq(["Guarded product"])
+    end
+
+    it "lists the live products of a seller with no saved section on the default section", parity: true do
+      product
+      second_product
+      index_model_records(Link)
+
       get "/products/search", params: { user_id: seller.external_id, section_id: "default-products" }
 
-      expect(response).to have_http_status(:ok)
+      expect(response.parsed_body["total"]).to eq(2)
+    end
+
+    it "answers an empty page for the default section of a seller that saved a section", parity: true do
+      section
+      index_model_records(Link)
+
+      get "/products/search", params: { user_id: seller.external_id, section_id: "default-products" }
+
+      expect(response.parsed_body).to include("total" => 0, "products" => [])
     end
 
     it "hands a search by ids to Rails", parity: true do
