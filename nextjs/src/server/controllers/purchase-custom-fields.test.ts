@@ -143,11 +143,17 @@ describe("PurchaseCustomFieldsController#create", () => {
   });
 
   it("hands a float, a boolean, a hash and an integer past 2**53 back to Rails", async () => {
-    await expect(run({ ...valid, value: 4.5 }, '{"value":4.5}')).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(run({ ...valid, value: 42 }, '{"value":42.0}')).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(run({ ...valid, value: true })).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(run({ ...valid, value: { a: 1 } })).rejects.toBeInstanceOf(HandBackToRails);
-    await expect(run({ ...valid, value: 1 }, '{"value":12345678901234567890}')).rejects.toBeInstanceOf(HandBackToRails);
+    const cases: [unknown, string][] = [
+      [4.5, '{"value":4.5}'],
+      [42, '{"value":42.0}'],
+      [true, '{"value":true}'],
+      [{ a: 1 }, '{"value":{"a":1}}'],
+      [1, '{"value":12345678901234567890}'],
+    ];
+    for (const [value, body] of cases) {
+      answers([{ id: 5n, link_id: 3n }], [{ one: 1 }], [textField]);
+      await expect(run({ ...valid, value }, body)).rejects.toBeInstanceOf(HandBackToRails);
+    }
     expect(save).not.toHaveBeenCalled();
   });
 
@@ -158,6 +164,7 @@ describe("PurchaseCustomFieldsController#create", () => {
 
   it("raises RecordInvalid for a record that fails validation, as save! does", async () => {
     save.mockResolvedValue(false);
+    buildFromCustomField.mockReturnValue({ errors: { fullMessages: () => ["Value can't be blank"] } });
 
     await expect(run(valid)).rejects.toBeInstanceOf(RecordInvalid);
   });

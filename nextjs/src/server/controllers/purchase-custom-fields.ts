@@ -26,7 +26,7 @@ import {
   type Rendered,
 } from "./application-controller.ts";
 import { registerMutations, type MutationInput } from "./mutation.ts";
-import { paramsWithFloats } from "./settings-mutations.ts";
+import { requestParams } from "./rails-body.ts";
 import { noContent } from "./seller-json.ts";
 
 // MySQL TEXT
@@ -88,7 +88,7 @@ async function findCustomField(productId: bigint | null, externalId: string) {
 function answerOf(input: MutationInput): string | null {
   const submitted = input.params.value ?? null;
   if (submitted === null || typeof submitted === "string") return submitted;
-  const exact = paramsWithFloats(input).value;
+  const exact = requestParams(input.url, input.request.headers.get("content-type"), input.rawBody, true).value;
   if (typeof exact === "number" && Number.isSafeInteger(exact)) return String(exact);
   throw new HandBackToRails("a value that is not text or an integer");
 }
