@@ -4,6 +4,7 @@
 // connection would, and through the query cache (runtime/query-cache.ts).
 import { Prisma, type PrismaClient } from "@prisma/client";
 
+import { pinnedClient } from "./runtime/max-execution-time.ts";
 import { queryCacheClient, uncached } from "./runtime/query-cache.ts";
 import type { Row } from "./runtime/record.ts";
 import { currentTransaction } from "./runtime/transaction.ts";
@@ -17,9 +18,9 @@ export function setSqlClient(next: () => SqlClient | Promise<SqlClient>): void {
   client = next;
 }
 
-// ActiveRecord::Base.connection: the open transaction, else the shared client.
+// ActiveRecord::Base.connection: the open transaction, else the connection a `timeoutQueries` block owns, else the shared client.
 export async function connection(): Promise<SqlClient> {
-  return (currentTransaction() as SqlClient | null) ?? queryCacheClient(await client());
+  return (currentTransaction() as SqlClient | null) ?? queryCacheClient(pinnedClient() ?? (await client()));
 }
 
 export async function selectRows<T = Row>(sql: Prisma.Sql): Promise<T[]> {
