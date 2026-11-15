@@ -18,6 +18,17 @@ describe "Profile sections when signed in", type: :request do
     public_send(method, path, params: body&.to_json, headers: json_headers.merge("X-CSRF-Token" => token))
   end
 
+  # Marks, a heading level, a null attribute, an empty list and hash, a non-ASCII string and a boolean: every JSON shape the editor stores.
+  def rich_document
+    {
+      type: "doc",
+      content: [
+        { type: "heading", attrs: { level: 2, textAlign: nil }, content: [{ type: "text", text: "Café ☕" }] },
+        { type: "paragraph", attrs: { empty: {}, none: [], flag: true }, content: [{ type: "text", text: "bold", marks: [{ type: "bold" }] }] }
+      ]
+    }
+  end
+
   def as_team_member(role)
     member = create(:user, name: "#{role.to_s.capitalize} Member")
     membership = create(:team_membership, user: member, seller:, role:)
@@ -136,13 +147,31 @@ describe "Profile sections when signed in", type: :request do
       expect(seller.seller_profile_sections.count).to eq(0)
     end
 
-    it "hands a rich text section", parity: true do
+    it "adds a rich text section with an empty text", parity: true do
       log_in(seller)
 
       send_json(:post, profile_sections_path, type: "SellerProfileRichTextSection", header: "About", text: {})
 
       expect(response).to have_http_status(:ok)
       expect(seller.seller_profile_rich_text_sections.count).to eq(1)
+    end
+
+    it "adds a rich text section with a document", parity: true do
+      log_in(seller)
+
+      send_json(:post, profile_sections_path, type: "SellerProfileRichTextSection", header: "About", text: rich_document)
+
+      expect(response).to have_http_status(:ok)
+      expect(seller.seller_profile_rich_text_sections.last.text["content"].size).to eq(2)
+    end
+
+    it "adds a rich text section with a blank header", parity: true do
+      log_in(seller)
+
+      send_json(:post, profile_sections_path, type: "SellerProfileRichTextSection", header: "", text: rich_document)
+
+      expect(response).to have_http_status(:ok)
+      expect(seller.seller_profile_rich_text_sections.last.hide_header).to eq(true)
     end
 
     it "answers 422 for a section of an unknown type", parity: true do
@@ -295,7 +324,7 @@ describe "Profile sections when signed in", type: :request do
       expect(response.parsed_body).to eq("error" => "The property '#/show_filters' of type string did not match the following type: boolean")
     end
 
-    it "hands a rich text section update with new text", parity: true do
+    it "updates a rich text section with new text", parity: true do
       rich = create(:seller_profile_rich_text_section, seller:, header: "Old", text: { "type" => "doc", "content" => [] })
       log_in(seller)
 
@@ -303,6 +332,26 @@ describe "Profile sections when signed in", type: :request do
 
       expect(response).to have_http_status(:no_content)
       expect(rich.reload.text["content"].size).to eq(1)
+    end
+
+    it "updates a rich text section whose stored text is empty", parity: true do
+      rich = create(:seller_profile_rich_text_section, seller:, header: "Old", text: {})
+      log_in(seller)
+
+      send_json(:patch, profile_section_path(rich.external_id), header: "New", text: rich_document)
+
+      expect(response).to have_http_status(:no_content)
+      expect(rich.reload.text["content"].size).to eq(2)
+    end
+
+    it "updates only the header of a rich text section", parity: true do
+      rich = create(:seller_profile_rich_text_section, seller:, header: "Old", text: { "type" => "doc", "content" => [] })
+      log_in(seller)
+
+      send_json(:patch, profile_section_path(rich.external_id), header: "Renamed")
+
+      expect(response).to have_http_status(:no_content)
+      expect(rich.reload.header).to eq("Renamed")
     end
   end
 

@@ -1,10 +1,11 @@
 // ProfileSectionsController (app/controllers/profile_sections_controller.rb) with SellerProfileSections::SaveService: the profile editor's
-// per-section create, update and destroy. Rich text sections (SaveContentUpsellsService), a section whose data breaks its schema
+// per-section create, update and destroy. Rich text with an upsell card (SaveContentUpsellsService), a section whose data breaks its schema
 // other than by a non-boolean show_filters (JSON::Validator's messages) and any attribute the section's class does not have (UnknownAttributeError) stay in Rails.
 import { Prisma, type SellerProfileSection } from "@prisma/client";
 
 import { decrypt, encrypt } from "../../lib/obfuscate-ids.ts";
 import { railsLoggedInUser } from "../auth/resolve.ts";
+import { RubyFloat } from "../models/concerns/ruby-values.ts";
 import { RecordInvalid } from "../models/runtime/errors.ts";
 import type { ModelRecord } from "../models/runtime/record.ts";
 import { hashOf } from "../models/seller-profile-products-sections.ts";
@@ -37,7 +38,8 @@ const json = (value: unknown, status = 200) => ({ ...sellerJson(value, status), 
 export const unsupported = (what: string) => new NotPortedError(what, "app/controllers/profile_sections_controller.rb");
 
 // `params.permit(...)`: a key whose value has the wrong shape is dropped by Rails, which here is a request to leave to it.
-export function permitted(params: Params, create: boolean): Params {
+// `richText` is the legacy per-section endpoint: the batched profile editor shares `permitted` and keeps handing rich text back.
+export function permitted(params: Params, create: boolean, richText = false): Params {
   const out: Params = {};
   const take = (key: string, accepts: (value: unknown) => boolean) => {
     if (!(key in params)) return;
@@ -54,8 +56,42 @@ export function permitted(params: Params, create: boolean): Params {
     take(key, (value) => typeof value === "boolean" || (key === "show_filters" && typeof value === "string"));
   for (const key of LIST_KEYS)
     take(key, (value) => Array.isArray(value) && value.every((item) => typeof item === "string"));
-  if ("text" in params) throw unsupported("a rich text section's text");
+  if ("text" in params) {
+    if (!richText) throw unsupported("a rich text section's text");
+    out.text = plainText(params.text);
+  }
   return out;
+}
+
+const RICH_TEXT_UPSELL_NODE = "upsellCard";
+
+// `text: {}` permits any hash. SaveContentUpsellsService only acts on upsell cards, so a text with none (here or in the stored
+// text of an update) is stored as sent; anything else it could touch stays in Rails.
+function plainValue(value: unknown): boolean {
+  if (value === null || typeof value === "boolean") return true;
+  if (typeof value === "string") return value !== RICH_TEXT_UPSELL_NODE;
+  if (typeof value === "number") return Number.isSafeInteger(value);
+  if (Array.isArray(value)) return value.every(plainValue);
+  if (typeof value === "object" && !(value instanceof RubyFloat))
+    return Object.entries(value).every(([key, item]) => key !== RICH_TEXT_UPSELL_NODE && plainValue(item));
+  return false;
+}
+
+export function plainText(text: unknown): Params {
+  if (text === null || typeof text !== "object" || Array.isArray(text) || text instanceof RubyFloat)
+    throw unsupported("a text that is not a hash");
+  const { content } = text as Params;
+  if (content !== undefined && !Array.isArray(content)) throw unsupported("a rich text whose content is not a list");
+  if (!plainValue(text)) throw unsupported("a rich text with an upsell card or a value Node cannot store as sent");
+  return text as Params;
+}
+
+// The stored text a rich text update replaces: SaveService reads `json_data["text"]["content"]` for the old upsell cards.
+function assertPlainStoredText(jsonData: unknown): void {
+  const text = (hashOf(jsonData) as Record<string, unknown>).text;
+  if (text === null || typeof text !== "object" || Array.isArray(text))
+    throw unsupported("a rich text section whose stored text is not a hash");
+  plainText(text);
 }
 
 // String#blank?
@@ -124,7 +160,12 @@ async function findSection(input: MutationInput) {
 // `ActiveRecord::SubclassNotFound` from SaveService#create!, which the batched profile editor shares: the caller answers it.
 export class InvalidSectionType extends Error {}
 
-export async function createSection(sellerId: bigint | number, attributes: Params, explainBreaks = false) {
+export async function createSection(
+  sellerId: bigint | number,
+  attributes: Params,
+  explainBreaks = false,
+  richText = false,
+) {
   const type = attributes.type;
   if (typeof type !== "string" || blank(type) || type === BASE_CLASS || type.includes("::"))
     throw unsupported("a section without a usable type");
@@ -133,7 +174,8 @@ export async function createSection(sellerId: bigint | number, attributes: Param
     if (!RUBY_CONSTANT.test(type)) throw unsupported("a type that is not a constant name");
     throw new InvalidSectionType();
   }
-  if (type === "SellerProfileRichTextSection") throw unsupported("a rich text section");
+  if (type === "SellerProfileRichTextSection" && !(richText && "text" in attributes))
+    throw unsupported("a rich text section");
 
   const model = sectionModelFor(type, explainBreaks);
   const record = model.build({ seller_id: sellerId, type, json_data: {} } as never);
@@ -152,7 +194,7 @@ async function create(input: MutationInput): Promise<ActionResult> {
   const denied = await guard(input, profileSectionPolicy.create);
   if (denied) return denied;
   try {
-    const id = await createSection(input.context.currentSeller!.id, permitted(input.params, true), true);
+    const id = await createSection(input.context.currentSeller!.id, permitted(input.params, true, true), true, true);
     return json({ id: encrypt(id) });
   } catch (error) {
     if (error instanceof RecordInvalid) return invalidRecord(error);
@@ -166,8 +208,9 @@ async function update(input: MutationInput): Promise<ActionResult> {
   if (denied) return denied;
   const row = await findSection(input);
   // The legacy endpoint does not mutate shown_posts, and `type` and `product_id` are excepted.
-  const { shown_posts: _posts, ...attributes } = permitted(input.params, false);
+  const { shown_posts: _posts, ...attributes } = permitted(input.params, false, true);
   if (row.json_data === null) throw unsupported("a section with no json_data");
+  if ("text" in attributes) assertPlainStoredText(row.json_data);
   const model = sectionModelFor(row.type, true);
   // The driver may hand the JSON column back as text; change tracking compares parsed values.
   const record = model.load({ ...row, json_data: hashOf(row.json_data) as never });
