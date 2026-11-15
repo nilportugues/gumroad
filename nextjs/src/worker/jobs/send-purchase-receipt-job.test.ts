@@ -100,6 +100,7 @@ describe("SendPurchaseReceiptJob", () => {
           mailer: {
             router: goldenRouter({ features: c.features, redis: {}, rands: c.rands_used }),
             mailerLevel: async () => "level_1",
+            featureActiveForUser: async (name) => c.features.includes(name),
             randomIv: () => Buffer.from(c.ivs[draws++]!, "base64"),
           },
         },

@@ -711,6 +711,8 @@ export async function receipt(args: RubyValue[], deps: MailerDeps = {}): Promise
   const featureActive =
     deps.featureActiveForUser ?? ((name: string, userId: number | bigint) => isFeatureEnabled(name, userActor(userId)));
     if (await featureActive("graphics_light_receipt", seller.id as number | bigint)) {
+    // The standard receipt reads the buyer's account for its recommendations; the light one reads it for the footer.
+    if (purchase.purchaser_id !== null) await findRow("users", purchase.purchaser_id);
     const body = lightBody(data, info, item, payment, shipping, data.link.name);
     const html = emailLightLayout(body, { footer: renderFooter() });
     const options = await customersDeliveryOptions(seller as unknown as UserRow, purchase.email, deps);
