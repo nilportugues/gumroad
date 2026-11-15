@@ -5,7 +5,7 @@ require "spec_helper"
 # Signed-in visits to the bundle content tab (Bundles::ContentController#edit, Bundles/Content/Edit), recorded for the Next.js port
 # (PARITY_RECORD=1) and replayed by nextjs/parity/__tests__/ws12o.replay.test.ts, which sends the last request of each example. Node
 # renders the first load, whose `search_data` is deferred; an example named "hands a ..." is what Node leaves to Rails whole: the partial
-# reload that fetches the Elasticsearch results, and a product that is only being converted to a bundle (the page flashes an alert).
+# reload that fetches the Elasticsearch results.
 describe "Bundle content tab when signed in", type: :request do
   include Parity::SignedInDashboard
 
@@ -94,7 +94,7 @@ describe "Bundle content tab when signed in", type: :request do
       expect(JSON.parse(response.body)["props"]).to have_key("search_data")
     end
 
-    it "hands a product that is being converted to a bundle to Rails", parity: true do
+    it "renders the content tab with an alert for a product that is being converted to a bundle", parity: true do
       product = create(:product, user: seller, name: "Soon a bundle")
 
       get edit_bundle_content_path(product.external_id)

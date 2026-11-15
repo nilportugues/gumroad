@@ -60,6 +60,11 @@ describe("bundleBlockers", () => {
     expect(await bundleBlockers(bundle({ flags: 0n, native_type: "digital" }), seller)).toEqual(["not_a_bundle"]);
   });
 
+  it("lets the content tab render a product that is not yet a bundle", async () => {
+    probeRows();
+    expect(await bundleBlockers(bundle({ flags: 0n, native_type: "digital" }), seller, "content")).toEqual([]);
+  });
+
   it("blocks recurring billing and a default offer code", async () => {
     probeRows();
     expect(
