@@ -1,8 +1,8 @@
 // Oauth::ApplicationsController (#create, #update, #destroy), Oauth::AccessTokensController#create and
 // Oauth::AuthorizedApplicationsController#destroy, plus the GET redirects of the Doorkeeper routes.
 //
-// Handed to Rails before the first write: an icon (`signed_blob_id` is Active Storage), and any name or redirect URI whose validation
-// Node does not model (Doorkeeper's RedirectUriValidator accepts custom schemes, lists and loopback hosts, and the error messages
+// Handed to Rails before the first write: an icon (`signed_blob_id` is Active Storage), and any redirect URI whose validation
+// Node does not model (a blank name or redirect URI is answered here) (Doorkeeper's RedirectUriValidator accepts custom schemes, lists and loopback hosts, and the error messages
 // depend on it).
 import * as Routes from "@/lib/navigation/routes";
 
@@ -31,6 +31,8 @@ import { railsSegment, registerMutations, type MutationInput } from "./mutation.
 import { jsonResponse, jsonSellerGuard } from "./seller-json-guard.ts";
 
 const RESERVED_NAME_ERROR = "That application name is reserved.";
+const NAME_BLANK_ERROR = "Name can't be blank";
+const REDIRECT_URI_BLANK_ERROR = "Redirect URI can't be blank";
 const NOT_FOUND_MESSAGE = "Application not found or you don't have the permissions to modify it.";
 const MAX_STRING_LENGTH = 255;
 // An absolute http(s) URL without query, fragment, credentials or whitespace: a RedirectUriValidator success in every configuration.
@@ -120,6 +122,17 @@ function checkValues(params: ApplicationParams): void {
     );
 }
 
+// `errors.full_messages` of the presence validations, in the model's order (name, then redirect URI). The replay does not compare
+// flash text, so applications-validation.test.ts pins these against the Rails spec's expectations.
+export function blankFieldErrors(params: ApplicationParams): string[] {
+  return [
+    ...(blank(params.name) ? [NAME_BLANK_ERROR] : []),
+    ...(blank(params.redirect_uri) ? [REDIRECT_URI_BLANK_ERROR] : []),
+  ];
+}
+
+export const joinErrors = (errors: string[]) => errors.join(" and ");
+
 const reservedRefusal = (path: string): ActionResult => ({
   status: 302,
   location: path,
@@ -138,11 +151,20 @@ registerMutations(
         if (result) return result;
         const name = (params.name ?? "").trim();
         if (await reservedAgentApplicationName(name)) return reservedRefusal(Routes.settings_advanced_path());
-        if (blank(params.name) || blank(params.redirect_uri))
+        // A whitespace-only redirect URI is not recorded: the validator may add a message of its own.
+        if (params.redirect_uri !== undefined && params.redirect_uri !== "" && blank(params.redirect_uri))
           throw new NotPortedError(
-            "an application that fails validation",
+            "a whitespace-only redirect URI",
             "app/controllers/oauth/applications_controller.rb",
           );
+        const errors = blankFieldErrors(params);
+        if (errors.length > 0)
+          return {
+            status: 302,
+            location: Routes.settings_advanced_path(),
+            flash: { alert: joinErrors(errors) },
+            inertiaErrors: { base: errors },
+          };
         checkValues(params);
         const id = await insertApplication(
           { name: params.name!, redirectUri: params.redirect_uri!, ownerId: input.context.currentSeller!.id },

@@ -17,7 +17,7 @@ describe("generateUniqueToken", () => {
 describe("DEFAULT_APPLICATION_SCOPES", () => {
   it("is Doorkeeper.configuration.public_scopes joined, as a new application stores it", () => {
     expect(DEFAULT_APPLICATION_SCOPES).toBe(
-      "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account",
+      "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data view_library account",
     );
   });
 });

@@ -51,10 +51,50 @@ describe "OAuth applications when signed in", type: :request do
       expect(OauthApplication.count).to eq(0)
     end
 
-    it "hands an application without a name back to Rails", parity: true do
+    it "refuses an application without a name", parity: true do
       log_in(seller)
 
       send_form(:post, "/oauth/applications", oauth_application: { name: "", redirect_uri: "https://example.com/callback" })
+
+      expect(response).to redirect_to(settings_advanced_path)
+      expect(flash[:alert]).to eq("Name can't be blank")
+      expect(OauthApplication.count).to eq(0)
+    end
+
+    it "refuses an application whose name is only whitespace", parity: true do
+      log_in(seller)
+
+      send_form(:post, "/oauth/applications", oauth_application: { name: "   ", redirect_uri: "https://example.com/callback" })
+
+      expect(response).to redirect_to(settings_advanced_path)
+      expect(flash[:alert]).to eq("Name can't be blank")
+      expect(OauthApplication.count).to eq(0)
+    end
+
+    it "refuses an application without a redirect URI", parity: true do
+      log_in(seller)
+
+      send_form(:post, "/oauth/applications", oauth_application: { name: "No redirect", redirect_uri: "" })
+
+      expect(response).to redirect_to(settings_advanced_path)
+      expect(flash[:alert]).to eq("Redirect URI can't be blank")
+      expect(OauthApplication.count).to eq(0)
+    end
+
+    it "refuses an application without a name or a redirect URI", parity: true do
+      log_in(seller)
+
+      send_form(:post, "/oauth/applications", oauth_application: { name: "", redirect_uri: "" })
+
+      expect(response).to redirect_to(settings_advanced_path)
+      expect(flash[:alert]).to eq("Name can't be blank and Redirect URI can't be blank")
+      expect(OauthApplication.count).to eq(0)
+    end
+
+    it "refuses an application sent without an oauth_application hash", parity: true do
+      log_in(seller)
+
+      send_form(:post, "/oauth/applications")
 
       expect(response).to redirect_to(settings_advanced_path)
       expect(OauthApplication.count).to eq(0)

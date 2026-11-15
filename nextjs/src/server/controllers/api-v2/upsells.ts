@@ -1,5 +1,5 @@
 // Api::V2::UpsellsController (app/controllers/api/v2/upsells_controller.rb). Node answers #index, #show, the 404 of #update and #destroy,
-// and #destroy of an upsell without a discount code. Create and update run SaveUpsellService, and deleting a code runs OfferCode callbacks;
+// and #destroy (an upsell's own discount code goes with it when it is a plain product code). Create and update run SaveUpsellService, and deleting a code runs OfferCode callbacks;
 // neither is ported, so Rails takes them whole.
 import { Prisma, type Upsell } from "@prisma/client";
 
@@ -17,6 +17,7 @@ import {
   registerApiV2,
   successWithObject,
 } from "./base.ts";
+import { deleteUpsellOfferCode, withVersions } from "./offer-codes.ts";
 
 // current_resource_owner.upsells.alive.not_is_content_upsell
 const scope = (sellerId: bigint) =>
@@ -74,9 +75,15 @@ registerApiV2(
     pattern: "/v2/upsells/:id",
     scopes: EDIT_PRODUCTS_SCOPES,
     before: loadUpsell,
-    async run({ owner, routeParams }) {
-      await softDeleteUpsell((await findUpsell(owner.id, routeParams.id))!);
-      return successWithObject("upsell", null);
+    async run(input) {
+      const upsell = (await findUpsell(input.owner.id, input.routeParams.id))!;
+      return withVersions(input, async () => {
+        await softDeleteUpsell(upsell, {
+          handBackWhenInvalid: true,
+          deleteOfferCode: () => deleteUpsellOfferCode(upsell.offer_code_id!, upsell.id),
+        });
+        return successWithObject("upsell", null);
+      });
     },
   },
 );

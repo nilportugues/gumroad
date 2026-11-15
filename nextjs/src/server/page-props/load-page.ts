@@ -42,6 +42,8 @@ export type ActionContext = {
   renderState: RenderState | null;
   // What the controller's filters worked out for the action (ActionOptions.filters).
   state: Record<string, unknown>;
+  // `flash.now` set by the action: shown on this render only, over the session's flash.
+  flashNow: Record<string, string>;
 };
 
 // The request's host and non-default port, except on the discover host, where Rails pins DOMAIN.
@@ -148,7 +150,15 @@ export async function loadPage(
   const requestHeaders = await headers();
   const context = await getRequestContext();
   const state = renderState ?? decodeRenderState(requestHeaders.get(RENDER_STATE_HEADER));
-  const ports = state ? { ...sharedPropsPorts(), session: renderStatePort(state) } : sharedPropsPorts();
+  const basePorts = state ? { ...sharedPropsPorts(), session: renderStatePort(state) } : sharedPropsPorts();
+  const flashNow: Record<string, string> = {};
+  const ports = {
+    ...basePorts,
+    session: {
+      ...basePorts.session,
+      consumeFlash: async () => ({ ...(await basePorts.session.consumeFlash()), ...flashNow }),
+    },
+  };
   const fullpath = requestHeaders.get(PAGE_URL_HEADER) ?? url;
   const meta = new MetaTagBuilder();
   const csrfToken = await authenticityToken(ports);
@@ -164,6 +174,7 @@ export async function loadPage(
     urlOptions: defaultUrlOptions(request.url, config),
     state: state?.pageState ?? {},
     renderState: state,
+    flashNow,
   };
   // A page whose component depends on the request (Products/{Iframe,Profile,Discover}/Show) names it from the action context.
   const component = typeof componentOf === "string" ? componentOf : await componentOf(actionContext);
@@ -181,7 +192,16 @@ export async function loadPage(
     partialRequest(component, requestHeaders),
     requestHeaders.get("x-inertia-infinite-scroll-merge-intent"),
   );
-  const shared = await sharedProps({ context, config, request, meta, csrfToken, ports, mobileAppWebView, buyerCurrencyFooter });
+  const shared = await sharedProps({
+    context,
+    config,
+    request,
+    meta,
+    csrfToken,
+    ports,
+    mobileAppWebView,
+    buyerCurrencyFooter,
+  });
   const errors = await ports.session.consumeInertiaErrors();
   // promote_visited_nav_item runs after Rails renders, so the props above do not list the visit.
   if (state?.promoteNavItemPath && context.loggedInUser)

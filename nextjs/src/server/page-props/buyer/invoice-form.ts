@@ -14,8 +14,7 @@ import {
   type Chain,
   type FilterOutcome,
 } from "../../controllers/application-controller.ts";
-import { requireHtml } from "../../controllers/buyer-pages.ts";
-import { assertFlatQuery } from "../../controllers/rails-params.ts";
+import { assertFlatQuery, requestFormat } from "../../controllers/rails-params.ts";
 import { parseQuery } from "../../controllers/rails-query.ts";
 import { getConfig } from "../../infra/config.ts";
 import { noreplyEmail } from "../../mail/application-mailer.ts";
@@ -114,8 +113,9 @@ function supplierAttributes(alpha2: string | null) {
 }
 
 async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
-  requireHtml(chain);
-  assertFlatQuery(chain.request.queryString);
+  const html = chain.request.headers.has("x-inertia") || requestFormat(chain.request) === "html";
+  // `email[]=...` is read below; every other nested name is Rails' to parse.
+  assertFlatQuery(chain.request.queryString, ["email"]);
   const externalId = NEW_PATH.exec(chain.request.path)?.[1];
   const id = externalId === undefined ? null : decrypt(safeDecode(externalId));
   const purchase = id === null ? null : await db.purchase.findUnique({ where: { id: BigInt(id) } });
@@ -124,16 +124,22 @@ async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
 
   // require_email_confirmation
   const query = parseQuery(chain.request.queryString);
-  if (query.email !== undefined && typeof query.email !== "string")
+  const list = Array.isArray(query.email) ? query.email : null;
+  if (query.email !== undefined && typeof query.email !== "string" && list === null)
     throw new HandBackToRails("an email that is not text");
-  if (!present(purchase.email)) throw new HandBackToRails("a purchase without an email");
+  // `secure_compare(nil, ...)` raises; an empty email compares equal to a request without one.
+  if (purchase.email === null) throw new HandBackToRails("a purchase without an email");
+  // A list is `params[:email].to_s`, its inspect (`["a@b.c"]`), which no email is; a non-empty list is not blank.
+  if (list !== null && purchase.email.startsWith("[")) throw new HandBackToRails("an email that looks like a list");
   const submitted = typeof query.email === "string" ? query.email : "";
-  if (!Buffer.from(purchase.email).equals(Buffer.from(submitted))) {
+  const submittedBlank = list === null ? !present(submitted) : list.length === 0;
+  if (list !== null || !Buffer.from(purchase.email).equals(Buffer.from(submitted))) {
+    if (!html) throw new HandBackToRails("a request that is not HTML, refused by the email confirmation");
     return {
       halt: {
         status: 302,
         location: `/purchases/${externalId}/invoice/confirm`,
-        flash: present(submitted) ? { alert: INCORRECT_EMAIL } : { warning: WARNING },
+        flash: submittedBlank ? { warning: WARNING } : { alert: INCORRECT_EMAIL },
         headers: { "x-robots-tag": "noindex" },
         rescued: true,
       },
@@ -142,6 +148,8 @@ async function invoiceFormFilters(chain: Chain): Promise<FilterOutcome> {
 
   if (railsLoggedInUser(chain.auth.context) !== null)
     throw new HandBackToRails("a signed-in visitor, whose billing details prefill the form");
+  // A signed-out visitor who asks for anything but HTML or Inertia is answered 404 once the email is confirmed.
+  if (!html) throw new RoutingError("Not Found");
   const link = await findLink(purchase.link_id!);
   if (link === null) throw new HandBackToRails("a purchase whose product row is missing");
   const seller = (await findUserById(link.user_id!))!;

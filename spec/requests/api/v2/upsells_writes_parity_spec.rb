@@ -134,7 +134,7 @@ describe "API v2 upsell writes", type: :request do
       expect(upsell_variant.reload.deleted_at).to be_present
     end
 
-    it "hands a deletion of an upsell with a discount code to Rails", parity: true do
+    it "deletes an upsell together with its discount code", parity: true do
       upsell.update!(offer_code: create(:offer_code, user: seller, products: [offered]))
 
       change(:delete, "/upsells/#{upsell.external_id}")
@@ -143,7 +143,7 @@ describe "API v2 upsell writes", type: :request do
       expect(upsell.offer_code.reload.deleted_at).to be_present
     end
 
-    it "hands a deletion through the /api prefix on the Gumroad domain to Rails", parity: true do
+    it "deletes an upsell through the /api prefix on the Gumroad domain", parity: true do
       change(:delete, "/upsells/#{upsell.external_id}", {}, api_host: false)
 
       expect(response.parsed_body["success"]).to eq(true)

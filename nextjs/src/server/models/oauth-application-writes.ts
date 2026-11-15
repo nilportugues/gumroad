@@ -15,7 +15,7 @@ const LOCK_WAIT_SECONDS = 5;
 const SIXTY_YEARS_IN_SECONDS = 1_893_417_120;
 // Doorkeeper.configuration.public_scopes.join(" ")
 export const DEFAULT_APPLICATION_SCOPES =
-  "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data account";
+  "edit_products edit_emails view_sales mark_sales_as_shipped edit_sales revenue_share ifttt view_profile edit_profile view_payouts view_tax_data view_library account";
 export const AGENT_APP_NAME = "Gumroad Store Agent (internal)";
 
 export type OauthApplicationRow = {
