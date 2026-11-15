@@ -421,8 +421,6 @@ async function plainPurchaseJson(
   const creator = link?.user_id == null ? null : await userById(link.user_id);
   const seller = purchase.seller_id === null ? null : await userById(purchase.seller_id);
   if (!link || !creator || !seller) throw new NotPortedError("a purchase whose product or seller row is missing");
-  if (creator.username === null || creator.username.trim() === "")
-    throw new NotPortedError("User#profile_url for a creator without a username");
   const redirects = await db.urlRedirect.findMany({ where: { purchase_id: purchase.id }, take: 2 });
   // has_one :url_redirect reads an arbitrary row when there are several
   if (redirects.length > 1) throw new HandBackToRails("a purchase with several url redirects");

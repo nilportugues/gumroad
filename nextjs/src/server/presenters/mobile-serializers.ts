@@ -35,6 +35,9 @@ const rubyStrip = (value: string | null): string | null =>
 const presence = (value: string | null | undefined): string | null =>
   value == null || value.trim() === "" ? null : value;
 
+// User#username falls back to the external id when the column is blank.
+const creatorUsername = (creator: User): string => presence(creator.username) ?? creator.external_id ?? "";
+
 export type MobileLinkInput = {
   link: Link;
   creator: User;
@@ -58,8 +61,8 @@ export function linkAsJsonMobile(input: MobileLinkInput): Record<string, unknown
     created_at: jsonTime(link.created_at),
     updated_at: jsonTime(link.updated_at),
     content_updated_at: jsonTime(link.content_updated_at ?? link.created_at),
-    creator_name: presence(creator.name) ?? creator.username ?? "",
-    creator_username: creator.username ?? "",
+    creator_name: presence(creator.name) ?? creatorUsername(creator),
+    creator_username: creatorUsername(creator),
     creator_profile_picture_url: input.creatorAvatarUrl,
     creator_profile_url: input.creatorProfileUrl,
     // preview_oembed_thumbnail_url || preview_url || "" with no main preview
