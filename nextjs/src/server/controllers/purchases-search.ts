@@ -33,7 +33,7 @@ const optionalText = (input: MutationInput, key: string, reason: string): string
 };
 
 // params[:query].to_s for a list: Array#inspect. Only a single string that Ruby prints verbatim is modelled.
-const PLAIN_INSPECT = /^(?:[ -!$-\[\]-~]|#(?![{$@]))*$/u;
+const PLAIN_INSPECT = /^(?:[ -!$-[\]-~]|#(?![{$@]))*$/u;
 const queryText = (input: MutationInput): string | undefined => {
   const value = input.params.query;
   if (!Array.isArray(value) || value.length === 0) return optionalText(input, "query", "a query that is not text");
