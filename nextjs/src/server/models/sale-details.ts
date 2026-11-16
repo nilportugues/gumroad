@@ -1,8 +1,9 @@
-// The parts of Purchase#json_data_for_mobile(include_sale_details: true) that come from a SKU, a shipment or an affiliate.
+// The parts of Purchase#json_data_for_mobile(include_sale_details: true) that come from a SKU, a shipment, an affiliate or a parity discount.
 import { Prisma, type Purchase } from "@prisma/client";
 
 import { db } from "../../lib/db.ts";
 import { encrypt } from "../../lib/obfuscate-ids.ts";
+import { PurchaseFlags } from "../search/flags.ts";
 
 import { moneyFormatWithGemSymbol } from "./concerns/money-formatter.ts";
 import { hasDirectAffiliateCredit, hasDirectAffiliateId } from "./json-direct-affiliate.ts";
@@ -82,4 +83,16 @@ export async function affiliateDetails(sale: Purchase) {
   // User#form_email
   const email = !blank(user.unconfirmed_email) ? user.unconfirmed_email : !blank(user.email) ? user.email : null;
   return { email, amount: moneyFormatWithGemSymbol(sale.affiliate_credit_cents ?? 0, "usd", { noCentsIfWhole: true }) };
+}
+
+// Purchase#ppp_info: only a discounted sale with a `purchasing_power_parity_infos` row has one. The row's factor is stored as a whole percent
+// and read back divided by 100.0; a nil factor raises in Rails and a second row for one purchase is a has_one's unspecified pick.
+export async function pppDetails(sale: Purchase) {
+  if (!PurchaseFlags.isSet(sale.flags, "is_purchasing_power_parity_discounted")) return null;
+  const rows = await db.purchasingPowerParityInfo.findMany({ where: { purchase_id: sale.id }, take: 2 });
+  if (rows.length === 0) return null;
+  if (rows.length > 1) throw new NotPortedError("a purchase with several purchasing power parity rows", RUBY_REF);
+  const percent = rows[0]!.factor;
+  if (percent === null) throw new NotPortedError("a purchasing power parity row without a factor", RUBY_REF);
+  return { country: sale.ip_country, discount: `${Math.round((1 - percent / 100) * 100)}%` };
 }

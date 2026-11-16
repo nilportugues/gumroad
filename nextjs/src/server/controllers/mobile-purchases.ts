@@ -14,7 +14,7 @@ import { NOT_RECURRING_CHARGE, purchaseFlag, states } from "../models/offer-code
 import { canPingSales } from "../models/ping-notification.ts";
 import { type LibraryFlag, loadLibraryPurchase, setLibraryFlag } from "../models/purchase-library-writes.ts";
 import { preloadProductUpdatesData } from "../models/purchase-product-updates.ts";
-import { affiliateDetails, shipmentDetails, skuDetails } from "../models/sale-details.ts";
+import { affiliateDetails, pppDetails, shipmentDetails, skuDetails } from "../models/sale-details.ts";
 import { column, selectRows, table } from "../models/sql.ts";
 import { profileUrl } from "../page-props/buyer/users.ts";
 import { buildCharges, buildCustomerEmails, findSellerSale } from "../page-props/customers/customer-details.ts";
@@ -600,14 +600,12 @@ async function saleVariants(purchase: Purchase) {
   };
 }
 
-// SalesController#show: the purchase as the seller sees it, its customer, charges and emails. A sale with an upsell, a purchasing power
-// discount or a bundle goes to Rails whole, like everything the readers below do not serialize.
+// SalesController#show: the purchase as the seller sees it, its customer, charges and emails. A sale with an upsell or a bundle goes to Rails whole, like everything the readers below do not serialize.
 async function saleJson(sale: Purchase, input: MobileInput, auth: MobileAuth) {
   const seller = auth.owner;
   if (PurchaseFlags.isSet(sale.flags, "is_bundle_purchase")) failNotPorted("a bundle purchase");
-  if (PurchaseFlags.isSet(sale.flags, "is_purchasing_power_parity_discounted"))
-    failNotPorted("a purchasing power discount");
   const affiliate = await affiliateDetails(sale);
+  const ppp = await pppDetails(sale);
   const shipment = await shipmentDetails(sale);
   const [upsell] = await selectRows(
     Prisma.sql`SELECT 1 FROM ${table("upsell_purchases")} WHERE ${column("upsell_purchases", "purchase_id")} = ${sale.id} LIMIT 1`,
@@ -618,7 +616,7 @@ async function saleJson(sale: Purchase, input: MobileInput, auth: MobileAuth) {
   const offerCode = (await offerCodeDisplays([sale], () => link.price_currency_type)).get(String(sale.id)) ?? null;
   const { variants, sku } = await saleVariants(sale);
   const recurrenceLabel = (await subscriptionRecurrenceLabels([sale])).get(sale.subscription_id ?? 0n);
-  const saleDetails = { variants, sku, shipment, offerCode, affiliate, recurrenceLabel };
+  const saleDetails = { variants, sku, shipment, offerCode, affiliate, ppp, recurrenceLabel };
   const buyer = sale.purchaser_id === null ? null : await db.user.findUnique({ where: { id: sale.purchaser_id } });
   if (sale.purchaser_id !== null && buyer === null) failNotPorted("a sale whose purchaser row is missing");
 
