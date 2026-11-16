@@ -155,21 +155,131 @@ describe "Purchases search", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response.parsed_body.size).to eq(1)
   end
 
-  it "hands a query that is not text to Rails", parity: true do
+  it "answers an empty list to a query sent as a list on a seller with no sales", parity: true do
     index_model_records(Purchase)
     log_in(seller)
 
     get "/purchases/search?query[]=ada", headers: json_headers
 
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "answers an empty list to a list query that a sale's email would match as text", parity: true do
+    sell(email: "ada@example.com", full_name: "Ada Lovelace")
+
+    get_search_as_seller "/purchases/search?query[]=ada@example.com"
+
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "hands a list of two queries to Rails", parity: true do
+    sell(email: "ada@example.com", full_name: "Ada Lovelace")
+
+    get_search_as_seller "/purchases/search?query[]=ada&query[]=grace"
+
     expect(response).to be_successful
   end
 
-  it "hands a request that does not ask for JSON to Rails", parity: true do
+  it "answers an empty list to a request that does not ask for JSON on a seller with no sales", parity: true do
     index_model_records(Purchase)
     log_in(seller)
 
     get "/purchases/search", params: { query: "ada" }
 
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "answers an empty list to a request that does not ask for JSON when no purchase matches", parity: true do
+    sell(email: "ada@example.com", full_name: "Ada Lovelace")
+    index_model_records(Purchase)
+    log_in(seller)
+
+    get "/purchases/search", params: { query: "nobody@example.com" }
+
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "hands a request that does not ask for JSON and matches a purchase to Rails", parity: true do
+    sell(email: "ada@example.com", full_name: "Ada Lovelace")
+    index_model_records(Purchase)
+    log_in(seller)
+
+    get "/purchases/search", params: { query: "ada@example.com" }
+
+    expect(response.parsed_body.size).to eq(1)
+  end
+
+  it "answers an empty list to a request that asks for HTML", parity: true do
+    index_model_records(Purchase)
+    log_in(seller)
+
+    get "/purchases/search", params: { query: "ada" }, headers: { "Accept" => "text/html" }
+
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "hands a request that asks for plain text to Rails", parity: true do
+    index_model_records(Purchase)
+    log_in(seller)
+
+    get "/purchases/search", params: { query: "ada" }, headers: { "Accept" => "text/plain" }
+
     expect(response).to be_successful
+  end
+
+  it "hands a query that is a hash to Rails", parity: true do
+    index_model_records(Purchase)
+    log_in(seller)
+
+    get "/purchases/search?query[name]=ada", headers: json_headers
+
+    expect(response).to be_successful
+  end
+
+  it "hands a list query with a character Ruby escapes to Rails", parity: true do
+    index_model_records(Purchase)
+    log_in(seller)
+
+    get "/purchases/search?query[]=a%22b", headers: json_headers
+
+    expect(response).to be_successful
+  end
+
+  it "answers an empty list to a team member with the accountant role that does not ask for JSON", parity: true do
+    member = create(:user, name: "Accountant Member")
+    membership = create(:team_membership, user: member, seller:, role: TeamMembership::ROLE_ACCOUNTANT)
+    index_model_records(Purchase)
+    log_in(member)
+    switch_to(membership)
+
+    get "/purchases/search", params: { query: "ada" }
+
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "answers an empty list to an account without an email", parity: true do
+    index_model_records(Purchase)
+    log_in(seller)
+    seller.update_columns(email: "")
+
+    get "/purchases/search", params: { query: "ada" }, headers: json_headers
+
+    expect(response.parsed_body).to eq([])
+  end
+
+  it "answers an empty list to an account without an email that does not ask for JSON", parity: true do
+    index_model_records(Purchase)
+    log_in(seller)
+    seller.update_columns(email: "")
+
+    get "/purchases/search", params: { query: "ada" }
+
+    expect(response.parsed_body).to eq([])
+  end
+
+  def get_search_as_seller(path)
+    index_model_records(Purchase)
+    log_in(seller)
+    get path, headers: json_headers
   end
 end

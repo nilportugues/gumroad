@@ -3,7 +3,8 @@
 // the variant details).
 //
 // Served in Node when nothing matches (`[]`). Handed to Rails whole once a purchase or an imported customer matches, as is a request
-// that is not JSON and a `page` or `query` that is not text; the rows' serializer is not ported.
+// in a format other than JSON or the browser-like HTML that still gets the JSON, and a `page` that is not text or a `query` that is
+// not text or a list of one plain string; the rows' serializer is not ported.
 import { Prisma } from "@prisma/client";
 
 import { railsLoggedInUser } from "../auth/resolve.ts";
@@ -31,23 +32,38 @@ const optionalText = (input: MutationInput, key: string, reason: string): string
   return value;
 };
 
+// params[:query].to_s for a list: Array#inspect. Only a single string that Ruby prints verbatim is modelled.
+const PLAIN_INSPECT = /^(?:[ -!$-\[\]-~]|#(?![{$@]))*$/u;
+const queryText = (input: MutationInput): string | undefined => {
+  const value = input.params.query;
+  if (!Array.isArray(value) || value.length === 0) return optionalText(input, "query", "a query that is not text");
+  const [only] = value;
+  if (value.length !== 1 || typeof only !== "string" || !PLAIN_INSPECT.test(only))
+    throw new HandBackToRails("a query list of anything but one plain string");
+  return `["${only}"]`;
+};
+
 async function search(input: MutationInput): Promise<ActionResult> {
   const seller = input.context.currentSeller;
   if (railsLoggedInUser(input.context) === null || seller === null) throw new HandBackToRails("a signed-out request");
-  // Pundit answers a request that is not JSON with a redirect, which stays with Rails.
-  if (requestFormat(input.request) !== "json") throw new HandBackToRails("a search that does not ask for JSON");
+  // Pundit answers a refusal to a request that is not JSON with a redirect, which stays with Rails.
+  const format = requestFormat(input.request);
+  if (format === "other") throw new HandBackToRails("a search in a format other than JSON or HTML");
   const denied = await authorizeJson(input, (context) => authorize(audiencePurchasePolicy.index, context));
-  if (denied) return denied;
+  if (denied) {
+    if (format !== "json") throw new HandBackToRails("a refused search that does not ask for JSON");
+    return denied;
+  }
 
   const pageText = optionalText(input, "page", "a page that is not text");
-  const queryText = optionalText(input, "query", "a query that is not text");
+
   // A malformed or zero page would send ES a negative offset, so it is clamped into the legal window.
   const page = Math.min(
     Math.max(pageText === undefined ? 0 : paramToI(pageText), 1),
     MAX_RESULT_WINDOW / SEARCH_RESULTS_PER_PAGE,
   );
   const offset = (page - 1) * SEARCH_RESULTS_PER_PAGE;
-  const query = rubyStrip(queryText ?? "");
+  const query = rubyStrip(queryText(input) ?? "");
 
   const result = await PurchaseSearchService.process({
     seller: { id: Number(seller.id) },
