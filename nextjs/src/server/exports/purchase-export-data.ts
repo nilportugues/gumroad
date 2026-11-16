@@ -597,11 +597,10 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   const tips = await selectRows<{ purchase_id: bigint; value_usd_cents: number | null }>(
     Prisma.sql`SELECT ${column("tips", "purchase_id")}, ${column("tips", "value_usd_cents")} FROM ${table("tips")} WHERE ${column("tips", "purchase_id")} IN (${Prisma.join(purchaseIds)}) ORDER BY ${column("tips", "id")}`,
   );
-  // has_one :tip reads the first row; a second tip on one sale is not proven.
+  // has_one :tip has no order: MySQL reads it through the purchase_id index, so the lowest id of a sale's tips wins.
   const tipCents = new Map<string, number>();
   for (const tip of tips) {
-    if (tipCents.has(String(tip.purchase_id))) throw new HandBackToRails("a sale with several tips");
-    tipCents.set(String(tip.purchase_id), tip.value_usd_cents ?? 0);
+    if (!tipCents.has(String(tip.purchase_id))) tipCents.set(String(tip.purchase_id), tip.value_usd_cents ?? 0);
   }
 
   // The purchases a subscription's charges read from: Subscription#true_original_purchase (the first with the original flag) owns the
@@ -640,8 +639,9 @@ export async function purchaseExportData(purchases: readonly Purchase[]): Promis
   );
   const licenseByPurchase = new Map<string, LicenseRow>();
   for (const license of licenseRows) {
-    if (licenseByPurchase.has(String(license.purchase_id))) throw new HandBackToRails("a sale with several licenses");
-    licenseByPurchase.set(String(license.purchase_id), license);
+    // has_one :license reads the lowest id, as has_one :tip does.
+    if (!licenseByPurchase.has(String(license.purchase_id)))
+      licenseByPurchase.set(String(license.purchase_id), license);
   }
   // Purchase#license_key is nil unless Purchase#uses_license_key?: the licensed product's content for the variants of the purchase it is
   // read from (main_or_giftee_purchase) does not leave the license key block out.

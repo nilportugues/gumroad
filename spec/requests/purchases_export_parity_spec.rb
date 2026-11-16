@@ -423,6 +423,29 @@ describe "Purchases export", type: :request, elasticsearch_wait_for_refresh: tru
     expect(response).to have_http_status(:ok)
   end
 
+  it "writes the tip with the lowest id of a sale that has two", parity: true do
+    tipped = sell(price_cents: 650)
+    Tip.create!(purchase: tipped, value_cents: 250, value_usd_cents: 250)
+    Tip.create!(purchase: tipped, value_cents: 100, value_usd_cents: 100)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("Tip ($)")] }).to eq(["Tip ($)", "2.5", "2.5"])
+  end
+
+  it "writes the license of the lowest id of a sale that has two", parity: true do
+    licensed = create(:product, user: seller, name: "Licensed twice", is_licensed: true)
+    sold = sell(of: licensed, price_cents: 700)
+    License.create!(purchase: sold, link: licensed, serial: "FIRST-AAAA-BBBB-CCCC", uses: 3)
+    License.create!(purchase: sold, link: licensed, serial: "AAAAA-AAAA-BBBB-CCCC", uses: 1)
+
+    export
+
+    expect(response).to have_http_status(:ok)
+    expect(csv.map { |row| row[csv.first.index("License Key")] }).to eq(["License Key", "FIRST-AAAA-BBBB-CCCC", nil])
+  end
+
   it "writes the tax amount, its label and whether the price includes it", parity: true do
     us_rate = create(:zip_tax_rate, country: "US", state: "NY", zip_code: "10087")
     de_rate = create(:zip_tax_rate, country: "DE", state: nil, zip_code: nil, combined_rate: "0.1900000")

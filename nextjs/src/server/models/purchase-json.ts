@@ -42,6 +42,12 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 
 const RUBY_REF = "Purchase#as_json";
 const notPorted = (what: string) => new NotPortedError(what, RUBY_REF);
+
+// PurchasingPowerParityInfo#factor reads the stored whole percent divided by 100.0; a nil raises in Rails.
+export function pppDiscount(storedPercent: unknown): string {
+  if (storedPercent == null) throw notPorted("a purchasing power parity row without a factor");
+  return `${Math.round((1 - num(storedPercent) / 100) * 100)}%`;
+}
 const num = (value: unknown): number => Number(value);
 const present = (value: unknown): value is string => typeof value === "string" && value.trim() !== "";
 const truthy = (value: unknown): boolean => value === true || value === 1 || value === 1n;
@@ -772,7 +778,7 @@ async function one(
     is_upgrade_purchase: flags("is_upgrade_purchase"),
     ppp:
       flags("is_purchasing_power_parity_discounted") && loaded.ppp.has(id)
-        ? { country: purchase.ip_country, discount: `${Math.round((1 - num(loaded.ppp.get(id)!.factor)) * 100)}%` }
+        ? { country: purchase.ip_country, discount: pppDiscount(loaded.ppp.get(id)!.factor) }
         : undefined,
     is_more_like_this_recommended: purchase.recommended_by === "more_like_this",
     is_gift_sender_purchase: flags("is_gift_sender_purchase"),
