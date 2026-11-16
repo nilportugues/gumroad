@@ -80,5 +80,50 @@ describe "Public pages", type: :request do
       expect(props["products"].map { _1["name"] }).to eq(%w[Newer Older])
       expect(props["default_product"]["name"]).to eq("Newer")
     end
+
+    it "lists the products a seller promotes as a direct affiliate, newest affiliation first", parity: true do
+      older = create(:product, name: "Older promoted", unique_permalink: "olderpr", custom_permalink: "older-custom")
+      newer = create(:product, name: "Newer promoted", unique_permalink: "newerpr")
+      create(:direct_affiliate, affiliate_user: seller, seller: older.user, products: [older], created_at: 3.days.ago)
+      create(:direct_affiliate, affiliate_user: seller, seller: newer.user, products: [newer], created_at: 1.day.ago)
+      removed = create(:product, name: "Removed promoted", unique_permalink: "removedp")
+      create(:direct_affiliate, affiliate_user: seller, seller: removed.user, products: [removed], deleted_at: Time.current)
+      unlisted = create(:product, name: "Banned promoted", unique_permalink: "bannedpr", banned_at: Time.current)
+      create(:direct_affiliate, affiliate_user: seller, seller: unlisted.user, products: [unlisted])
+      create(:product, user: seller, name: "Own product")
+      log_in(seller, token_path: "/ping")
+
+      get "/widgets"
+
+      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["affiliated_products"].map { _1["name"] }).to eq(["Newer promoted", "Older promoted"])
+      expect(props["affiliated_products"].first["url"]).to eq(props["affiliated_products"].first["gumroad_domain_url"])
+      expect(props["products"].map { _1["name"] }).to eq(["Own product"])
+    end
+
+    it "leaves out products the seller collaborates on", parity: true do
+      collab_product = create(:product, name: "Collab product", unique_permalink: "collabpr")
+      create(:collaborator, affiliate_user: seller, seller: collab_product.user, products: [collab_product])
+      log_in(seller, token_path: "/ping")
+
+      get "/widgets"
+
+      expect(response).to be_successful
+      expect(inertia_props_of(response)["affiliated_products"]).to eq([])
+    end
+
+    it "lists affiliated products for a seller without products of their own", parity: true do
+      promoted = create(:product, name: "Only promoted", unique_permalink: "onlypro")
+      create(:direct_affiliate, affiliate_user: seller, seller: promoted.user, products: [promoted])
+      log_in(seller, token_path: "/ping")
+
+      get "/widgets"
+
+      expect(response).to be_successful
+      props = inertia_props_of(response)
+      expect(props["affiliated_products"].map { _1["name"] }).to eq(["Only promoted"])
+      expect(props["products"].map { _1["name"] }).to eq(["Demo product"])
+    end
   end
 end
