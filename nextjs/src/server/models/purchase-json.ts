@@ -44,7 +44,7 @@ const RUBY_REF = "Purchase#as_json";
 const notPorted = (what: string) => new NotPortedError(what, RUBY_REF);
 
 // PurchasingPowerParityInfo#factor reads the stored whole percent divided by 100.0; a nil raises in Rails.
-function pppDiscount(storedPercent: unknown): string {
+export function pppDiscount(storedPercent: unknown): string {
   if (storedPercent == null) throw notPorted("a purchasing power parity row without a factor");
   return `${Math.round((1 - num(storedPercent) / 100) * 100)}%`;
 }

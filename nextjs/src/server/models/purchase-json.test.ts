@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 process.env.OBFUSCATE_IDS_CIPHER_KEY ??= "pjson1-test-obfuscate-key";
 process.env.OBFUSCATE_IDS_NUMERIC_CIPHER_KEY ??= "123456789";
 
-const { directAffiliateFields, ownAffiliateCreditCents } = await import("./purchase-json.ts");
+const { NotPortedError } = await import("./user.ts");
+const { directAffiliateFields, ownAffiliateCreditCents, pppDiscount } = await import("./purchase-json.ts");
 
 const collaborator = { id: 7n, type: "Collaborator" };
 const direct = { id: 8n, type: "DirectAffiliate" };
@@ -53,5 +54,16 @@ describe("directAffiliateFields", () => {
   it("hands back an id that is neither an integer nor a numeral, and json_data that is not JSON", () => {
     expect(() => directAffiliateFields(sale({ direct_affiliate_id: [1] }))).toThrow(/shape the port does not read/u);
     expect(() => directAffiliateFields({ json_data: "{" })).toThrow(/shape the port does not read/u);
+  });
+});
+
+describe("pppDiscount", () => {
+  it("reads the stored whole percent as Rails' factor divided by 100", () => {
+    expect(pppDiscount(60)).toBe("40%");
+    expect(pppDiscount(34)).toBe("66%");
+  });
+
+  it("hands back a row without a factor, which raises in Rails", () => {
+    expect(() => pppDiscount(null)).toThrow(NotPortedError);
   });
 });
