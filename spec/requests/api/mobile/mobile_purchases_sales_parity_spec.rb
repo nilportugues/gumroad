@@ -398,6 +398,35 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       expect(response.parsed_body["product"]).to include("purchase_id" => purchase.external_id, "product_updates_data" => [])
     end
 
+    describe "a creator without a username" do
+      before { seller.update_column(:username, nil) }
+
+      it "builds the creator profile url from the external id in the library listing", parity: true do
+        library_purchase
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["creator_profile_url"]).to include(seller.external_id)
+      end
+
+      it "builds the creator profile url from the external id for a single purchase", parity: true do
+        purchase = library_purchase
+
+        get "/mobile/purchases/purchase_attributes/#{purchase.external_id}", params: auth(buyer)
+
+        expect(response.parsed_body["product"]["creator_profile_url"]).to include(seller.external_id)
+      end
+
+      it "builds the creator profile url from the external id when the username is blank", parity: true do
+        seller.update_column(:username, "")
+        library_purchase
+
+        get "/mobile/purchases/index", params: auth(buyer)
+
+        expect(response.parsed_body["products"].first["creator_profile_url"]).to include(seller.external_id)
+      end
+    end
+
     describe "refunds and reviews" do
       let(:purchase) { purchase_row(link: product, seller:, purchaser: buyer, email: buyer.email, purchase_state: "successful", price_cents: 500, stripe_partially_refunded: true) }
 

@@ -35,6 +35,9 @@ const rubyStrip = (value: string | null): string | null =>
 const presence = (value: string | null | undefined): string | null =>
   value == null || value.trim() === "" ? null : value;
 
+// User#username falls back to the external id when the column is blank.
+const creatorUsername = (creator: User): string => presence(creator.username) ?? creator.external_id ?? "";
+
 export type MobileLinkInput = {
   link: Link;
   creator: User;
@@ -58,8 +61,8 @@ export function linkAsJsonMobile(input: MobileLinkInput): Record<string, unknown
     created_at: jsonTime(link.created_at),
     updated_at: jsonTime(link.updated_at),
     content_updated_at: jsonTime(link.content_updated_at ?? link.created_at),
-    creator_name: presence(creator.name) ?? creator.username ?? "",
-    creator_username: creator.username ?? "",
+    creator_name: presence(creator.name) ?? creatorUsername(creator),
+    creator_username: creatorUsername(creator),
     creator_profile_picture_url: input.creatorAvatarUrl,
     creator_profile_url: input.creatorProfileUrl,
     // preview_oembed_thumbnail_url || preview_url || "" with no main preview
@@ -224,6 +227,8 @@ export type SaleDetails = {
   shipment?: { shipped: boolean; tracking_url: string | null; shipping_address: Record<string, string | null> } | null;
   // { email, amount } of the purchase's affiliate
   affiliate?: { email: string | null; amount: string } | null;
+  // { country, discount } of a purchase bought with a purchasing power parity discount
+  ppp?: { country: string | null; discount: string } | null;
 };
 
 // Port of app/models/purchase.rb (Purchase#json_data_for_mobile) for a purchase with no url_redirect, preorder or subscription,
@@ -295,6 +300,7 @@ export function purchaseJsonDataForMobile(input: MobilePurchaseInput): Record<st
     }
     if (input.saleDetails.offerCode !== null) json.offer_code = input.saleDetails.offerCode;
     if (input.saleDetails.affiliate) json.affiliate = input.saleDetails.affiliate;
+    if (input.saleDetails.ppp) json.ppp = input.saleDetails.ppp;
     json.formatted_total_price = formattedTotalPrice(purchase, input.saleDetails.recurrenceLabel);
     json.purchase_daystamp = longFormattedDatetime(purchase.created_at, seller.timezone);
   }

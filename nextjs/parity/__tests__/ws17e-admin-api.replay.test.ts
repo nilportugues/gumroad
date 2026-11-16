@@ -216,6 +216,7 @@ const CURSOR_PAGES: [RegExp, number][] = [
   [/pages-the-affiliates-with-a-signed-cursor #2/u, 120],
   [/pages-the-purchases-that-share-an-ip-address-with-a-signed-cursor #2/u, 60],
   [/get-purchases-paginates-purchases-with-a-cursor #2/u, 120],
+  [/get-payouts-limits-a-page-and-gives-a-cursor #2/u, 120],
 ];
 // The purchase date of a search is a literal in the request while the purchases are seeded relative to the clock, so the seed resolves
 // against the instant the examples were recorded at (the spec made them at absolute times in January 2026).
