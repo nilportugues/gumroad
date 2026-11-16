@@ -44,11 +44,17 @@ async function productsWithVariants(productIds: bigint[]): Promise<Set<bigint>> 
   return new Set(rows.map((row) => BigInt(row.link_id)));
 }
 
-// Recurrence labels proven against a recording: the label is "a month" for a monthly price.
-const PROVEN_RECURRENCE_LABELS: Record<string, string> = { monthly: RECURRENCE_LONG_INDICATOR.monthly! };
+// Recurrence labels proven against a recording, one per recurrence of a membership's price.
+const PROVEN_RECURRENCE_LABELS: Record<string, string> = {
+  monthly: RECURRENCE_LONG_INDICATOR.monthly!,
+  quarterly: RECURRENCE_LONG_INDICATOR.quarterly!,
+  biannually: RECURRENCE_LONG_INDICATOR.biannually!,
+  yearly: RECURRENCE_LONG_INDICATOR.yearly!,
+  every_two_years: RECURRENCE_LONG_INDICATOR.every_two_years!,
+};
 
 // The label `format_price_in_cents` appends for a subscription purchase: `price_for_recurrence` is the price of the subscription's last
-// payment option. A subscription that charges a fixed number of times ("once", " x N") or a price that is not monthly is Rails'.
+// payment option. A subscription that charges a fixed number of times ("once", " x N") or a price with no recurrence is Rails'.
 export async function subscriptionRecurrenceLabels(
   purchases: { subscription_id: bigint | null }[],
 ): Promise<Map<bigint, string>> {
@@ -70,7 +76,7 @@ export async function subscriptionRecurrenceLabels(
     if (row.charge_occurrence_count !== null)
       throw new NotPortedError("a subscription that charges a fixed number of times");
     const label = row.recurrence === null ? undefined : PROVEN_RECURRENCE_LABELS[row.recurrence];
-    if (label === undefined) throw new NotPortedError("a subscription whose price is not monthly");
+    if (label === undefined) throw new NotPortedError("a subscription whose price has no recurrence label");
     labels.set(BigInt(row.id), label);
   }
   return labels;

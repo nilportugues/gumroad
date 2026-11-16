@@ -4,7 +4,7 @@ require "spec_helper"
 
 # The Api::Mobile purchases and sales answers the Next.js port serves itself (nextjs/src/server/controllers/mobile-purchases.ts):
 # the unconfirmed 403, the 404 for a purchase that is not the caller's, the empty listings and the sales rows whose
-# Purchase#as_json(creator_app_api: true) is ported (USD or a stored rate, a monthly subscription label, no uploaded thumbnail). The examples that end in
+# Purchase#as_json(creator_app_api: true) is ported (USD or a stored rate, a subscription label of any recurrence, no uploaded thumbnail). The examples that end in
 # `hands a ...` are the cases it leaves to Rails whole; the replay asserts Node forwards each one and writes nothing.
 describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_for_refresh: true do
   include Parity::MobileApi
@@ -893,6 +893,16 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
         expect(response).to have_http_status(:ok)
       end
 
+      it "serves a sale of a yearly membership", parity: true do
+        membership = create(:membership_product, user: seller)
+        yearly = create(:price, link: membership, recurrence: "yearly", price_cents: 4000)
+        recurring = purchase_row(link: membership, seller:, purchase_state: "successful", price_cents: 4000, is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer, price: yearly))
+
+        show(recurring)
+
+        expect(response.parsed_body["purchase"].slice("formatted_total_price")).to include("formatted_total_price" => "$40 a year")
+      end
+
       it "serves a sale in another currency at its stored rate", parity: true do
         euro = purchase_row(link: product, seller:, purchase_state: "successful", price_cents: 1250, displayed_price_cents: 1000, displayed_price_currency_type: "eur", rate_converted_to_usd: "0.81")
 
@@ -938,6 +948,36 @@ describe "Mobile API purchases and sales", type: :request, elasticsearch_wait_fo
       get "/mobile/sales", params: auth(seller)
 
       expect(response.parsed_body["purchases"].size).to eq(1)
+    end
+
+    {
+      "quarterly" => [1500, "every 3 months"],
+      "biannually" => [2500, "every 6 months"],
+      "yearly" => [4000, "a year"],
+      "every_two_years" => [7000, "every 2 years"],
+    }.each do |recurrence, (price_cents, label)|
+      it "serves a sales page with a #{recurrence} subscription sale", parity: true do
+        membership = create(:membership_product, user: seller)
+        price = create(:price, link: membership, recurrence:, price_cents:)
+        purchase_row(link: membership, seller:, purchase_state: "successful", price_cents:, is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer, price:))
+        index_model_records(Purchase)
+
+        get "/mobile/sales", params: auth(seller)
+
+        expect(response.parsed_body["purchases"].map { |sale| sale.slice("price", "formatted_total_price") }).to eq([{ "price" => "$#{price_cents / 100} #{label}", "formatted_total_price" => "$#{price_cents / 100} #{label}" }])
+      end
+    end
+
+    it "serves a sales page with a subscription sale and a yearly one", parity: true do
+      membership = create(:membership_product, user: seller)
+      yearly = create(:price, link: membership, recurrence: "yearly", price_cents: 4000)
+      purchase_row(link: membership, seller:, purchase_state: "successful", is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: buyer))
+      purchase_row(link: membership, seller:, purchase_state: "successful", price_cents: 4000, is_original_subscription_purchase: true, subscription: create(:subscription, link: membership, user: create(:user), price: yearly))
+      index_model_records(Purchase)
+
+      get "/mobile/sales", params: auth(seller)
+
+      expect(response.parsed_body["purchases"].size).to eq(2)
     end
 
     describe "removing a review response" do
